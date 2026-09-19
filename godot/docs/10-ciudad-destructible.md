@@ -4,6 +4,9 @@
 
 ## 1. Objetivo y alcance
 
+> **Nota de WP-13 (2026-09-19, hechos medidos al importar el pack)**: (1) los FBX NO están en centímetros: ufbx ya convierte unidades y `BuildingBlock_1` importa con 2,50 m de alto a escala 1, así que el `nodes/root_scale` correcto es **5.0** (queda en 12,50 m), no 0.01; todas las menciones a 0.01 en este doc quedan superadas. (2) Los FBX viven en `assets/city/models/` (no `pieces_src/`), las texturas redimensionadas en `assets/city/textures/` y los materiales propios en `assets/city/materials/` (`materials/extract` no sirve: el pack trae rutas absolutas rotas y tres emisivas apuntan a archivos que no existen). (3) El importador no genera LODs para estas mallas voxel (normales duras y atlas por cara: meshoptimizer no encuentra aristas colapsables); el check verifica la opción del preset y el `shadow_mesh`, no niveles de LOD reales. (4) Alturas reales: `Building_3` = **81 m** (única pieza alta; a escala 1 es un rascacielos que empequeñece al coloso de 29 m: WP-20 debe usarla con `height_scale` ≈ 0.4–0.6 o reservarla como hito único), `BuildingBlock_19/18/1/2` = 12,5 m, `BuildingBlock_24` = 8 m; anchos de `BuildingBlock_1/2` = **30 m** (desbordan la celda de 24 m: WP-20 usa el metadato `base_size` de cada pieza y ajusta la celda o escala en XZ). Ver `assets/city/README.md` y `tools/city_import_check.gd`.
+
+
 Especifica la ciudad que el jugador debe defender: cómo se importa el pack **FreeSample**, cómo se arma el distrito, cómo se destruyen los edificios por etapas, cómo se mide la integridad y cómo se gestionan los escombros. Gobierna dos paquetes de trabajo:
 
 - **WP-13** (§2): import de las 13 piezas FBX, escala, texturas, colisión y LODs. Puede ejecutarse en paralelo con WP-02…11.

@@ -1,0 +1,174 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://gui/options_menu/game_settings_menu.gd" id="1_game_settings"]
+[ext_resource type="PackedScene" path="res://gui/options_menu/hud_config.tscn" id="2_hud_config"]
+
+[node name="GameSettingsMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_game_settings")
+
+[node name="Content" type="MarginContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 72
+theme_override_constants/margin_top = 56
+theme_override_constants/margin_right = 72
+theme_override_constants/margin_bottom = 104
+
+[node name="Rows" type="VBoxContainer" parent="Content"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="Content/Rows"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+text = "OPT_GAME"
+
+[node name="Subtitle" type="Label" parent="Content/Rows"]
+layout_mode = 2
+theme_type_variation = &"SubtitleLabel"
+text = "GAME_SUBTITLE"
+
+[node name="Tabs" type="TabContainer" parent="Content/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Gameplay" type="VBoxContainer" parent="Content/Rows/Tabs"]
+layout_mode = 2
+
+[node name="Card" type="PanelContainer" parent="Content/Rows/Tabs/Gameplay"]
+custom_minimum_size = Vector2(980, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+theme_type_variation = &"Card"
+
+[node name="Rows" type="VBoxContainer" parent="Content/Rows/Tabs/Gameplay/Card"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="RowLanguage" type="HBoxContainer" parent="Content/Rows/Tabs/Gameplay/Card/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Caption" type="Label" parent="Content/Rows/Tabs/Gameplay/Card/Rows/RowLanguage"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+text = "GAME_LANGUAGE"
+
+[node name="LanguageOption" type="OptionButton" parent="Content/Rows/Tabs/Gameplay/Card/Rows/RowLanguage"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(340, 0)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="RowNav" type="HBoxContainer" parent="Content/Rows/Tabs/Gameplay/Card/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Caption" type="Label" parent="Content/Rows/Tabs/Gameplay/Card/Rows/RowNav"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+text = "GAME_STICK_NAVIGATION"
+
+[node name="NavOption" type="OptionButton" parent="Content/Rows/Tabs/Gameplay/Card/Rows/RowNav"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(340, 0)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="RowAim" type="HBoxContainer" parent="Content/Rows/Tabs/Gameplay/Card/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Caption" type="Label" parent="Content/Rows/Tabs/Gameplay/Card/Rows/RowAim"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+text = "GAME_AIM_ASSIST"
+
+[node name="AimOption" type="OptionButton" parent="Content/Rows/Tabs/Gameplay/Card/Rows/RowAim"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(340, 0)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="RowShake" type="HBoxContainer" parent="Content/Rows/Tabs/Gameplay/Card/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Caption" type="Label" parent="Content/Rows/Tabs/Gameplay/Card/Rows/RowShake"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+text = "GAME_SHAKE"
+
+[node name="Field" type="HBoxContainer" parent="Content/Rows/Tabs/Gameplay/Card/Rows/RowShake"]
+custom_minimum_size = Vector2(340, 0)
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 16
+
+[node name="ShakeSlider" type="HSlider" parent="Content/Rows/Tabs/Gameplay/Card/Rows/RowShake/Field"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+max_value = 100.0
+value = 100.0
+
+[node name="ShakeValue" type="Label" parent="Content/Rows/Tabs/Gameplay/Card/Rows/RowShake/Field"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"ValueLabel"
+horizontal_alignment = 2
+
+[node name="RowTelegraph" type="HBoxContainer" parent="Content/Rows/Tabs/Gameplay/Card/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Caption" type="Label" parent="Content/Rows/Tabs/Gameplay/Card/Rows/RowTelegraph"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+text = "GAME_TELEGRAPH_HINTS"
+
+[node name="TelegraphCheck" type="CheckButton" parent="Content/Rows/Tabs/Gameplay/Card/Rows/RowTelegraph"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(340, 0)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="HudConfig" parent="Content/Rows/Tabs" instance=ExtResource("2_hud_config")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="Footer" type="HBoxContainer" parent="Content/Rows"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="ButtonBack" type="Button" parent="Content/Rows/Footer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"GhostButton"
+text = "UI_BACK"
+metadata/ui_back = true

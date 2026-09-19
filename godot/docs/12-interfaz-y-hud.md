@@ -4,6 +4,12 @@
 
 ## 1. Objetivo y alcance
 
+> **Nota de WP-06 (2026-09-19)**: `hud/projection.gd` (`HUDProjection`) expone `project_direction(camera, dir, fisheye_hfov := -1.0)`, `project_point()`, `edge_clamp()`, `marker_for(camera, world_position, rect, margin, fisheye_hfov := -1.0)` e `inner_rect()`; con `fisheye_hfov > 0` fuerza la proyección equidistante de §3.1, si no delega en `FPVCamera.project_direction()` cuando la cámara es una FPV (elimina el riesgo de dos proyecciones divergentes) y cae a rectilínea en otro caso. El compuesto del ojo de pez ocupa la capa de canvas −2. `hud_projection_check` muestrea 4 320 direcciones por modo (no 21 600) y deja en SKIP las filas 4 y 5 de §9.1 hasta WP-08.
+
+
+> **Nota de WP-09 (2026-09-19)**: manda `04` §3.4 para los presets del HUD: Standard = Minimal + heading, speed, altitude, side_tapes, sticks (sin `ladder`); la tabla de defaults de §8 de este doc queda superada en esa fila. El panel de vista previa del menú de HUD ya existe como placeholder `%HudPreview` en `gui/options_menu/hud_config.tscn` (llama `set_preview(true)` y `apply_hud_config()` si el nodo los expone): WP-08 lo reemplaza por el `FlightHUD` real en `preview_mode` cambiando un solo nodo.
+
+
 Especifica **todo lo que se dibuja en pantalla**: el HUD de vuelo del dron (WP-08), la proyección compartida que ubica cosas del mundo 3D sobre la pantalla, el HUD de combate del nivel (WP-22), el recorrido de menús y las claves de traducción nuevas.
 
 **Incluye**

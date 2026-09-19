@@ -1,0 +1,11 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://tools/hud_projection_check.gd" id="1_projection_check"]
+[ext_resource type="PackedScene" path="res://rounds/free_flight_level.tscn" id="2_level"]
+
+[node name="HudProjectionCheck" type="Node"]
+script = ExtResource("1_projection_check")
+check_name = "hud_projection_check"
+default_timeout = 180.0
+
+[node name="FreeFlightLevel" parent="." instance=ExtResource("2_level")]

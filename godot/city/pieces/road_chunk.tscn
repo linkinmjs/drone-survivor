@@ -1,0 +1,5 @@
+[gd_scene load_steps=2 format=3 uid="uid://24l98cxrv3lna"]
+
+[ext_resource type="PackedScene" uid="uid://d3qa7vi332r2i" path="res://assets/city/models/Road_Chunk_5.fbx" id="1_base"]
+
+[node name="road_chunk" instance=ExtResource("1_base")]

@@ -1,61 +1,94 @@
-name: Godot Export and Upload to Itch
+name: Drone Survivor — checks y export
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [master, "wp-**"]
+  pull_request:
+  workflow_dispatch:
 
 env:
-  GODOT_VERSION: "4.4.1"
+  GODOT_VERSION: "4.7"
   GODOT_STATUS: "stable"
-jobs:
-  import-assets:
-    runs-on: ubuntu-latest
-    container: barichello/godot-ci:4.4.1
-    steps:
-      - uses: actions/checkout@v4
-      - name: Cache import assets
-        uses: actions/cache@v3
-        with:
-          path: .godot/imported/
-          key: import-assets-${{ runner.os }}-${{ github.sha }}
-      - name: Import assets
-        run: godot --headless --verbose --editor --quit
 
-  export-game:
+jobs:
+  import:
+    name: Importar assets
     runs-on: ubuntu-latest
-    needs: import-assets
+    container: barichello/godot-ci:4.7
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/cache@v3
+      - name: Cache de importacion
+        uses: actions/cache@v4
         with:
-          path: .godot/imported/
-          key: import-assets-${{ runner.os }}-${{ github.sha }}
-      - name: Export Game using Godot
+          path: godot/.godot/imported/
+          key: godot-import-${{ runner.os }}-4.7-${{ hashFiles('godot/**/*.import', 'godot/project.godot') }}
+          restore-keys: godot-import-${{ runner.os }}-4.7-
+      - name: Importar
+        run: godot --headless --path ./godot --import
+      - uses: actions/upload-artifact@v4
+        with:
+          name: godot-imported
+          path: godot/.godot/
+          retention-days: 1
+
+  checks:
+    name: Checks headless
+    runs-on: ubuntu-latest
+    container: barichello/godot-ci:4.7
+    needs: import
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: godot-imported
+          path: godot/.godot/
+      - name: Ejecutar todos los checks
+        run: bash godot/tools/run_checks.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: check-report
+          path: |
+            godot/tools/out/report.txt
+            godot/tools/out/shots/
+
+  export:
+    name: Export Windows
+    runs-on: ubuntu-latest
+    needs: checks
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: godot-imported
+          path: godot/.godot/
+      - name: Exportar preset Windows Desktop
         uses: firebelley/godot-export@v6.0.0
         with:
           godot_executable_download_url: "https://github.com/godotengine/godot/releases/download/${{ env.GODOT_VERSION }}-${{ env.GODOT_STATUS }}/Godot_v${{ env.GODOT_VERSION }}-${{ env.GODOT_STATUS }}_linux.x86_64.zip"
           godot_export_templates_download_url: "https://github.com/godotengine/godot/releases/download/${{ env.GODOT_VERSION }}-${{ env.GODOT_STATUS }}/Godot_v${{ env.GODOT_VERSION }}-${{ env.GODOT_STATUS }}_export_templates.tpz"
           relative_project_path: "./godot"
           archive_output: true
-          presets_to_export: Web
+          presets_to_export: "Windows Desktop"
           cache: false
-      - name: Upload HTML5
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: HTML5
-          path: /home/runner/.local/share/godot/archives/Web.zip
+          name: windows-desktop
+          path: "/home/runner/.local/share/godot/archives/Windows Desktop.zip"
 
-  deploy-to-itchio-web:
+  deploy-itch:
+    name: Publicar en itch.io (desactivado)
+    if: false
     runs-on: ubuntu-latest
-    needs: export-game
+    needs: export
     steps:
-      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: HTML5
-      - name: Deploy to Itch.io (HTML5)
-        uses: manleydev/butler-publish-itchio-action@master
+          name: windows-desktop
+      - uses: manleydev/butler-publish-itchio-action@master
         env:
           BUTLER_CREDENTIALS: ${{ secrets.BUTLER_API_KEY }}
-          CHANNEL: web
+          CHANNEL: windows
           ITCH_GAME: ${{ secrets.ITCHIO_GAME }}
           ITCH_USER: ${{ secrets.ITCHIO_USERNAME }}
-          PACKAGE: Web.zip
+          PACKAGE: "Windows Desktop.zip"

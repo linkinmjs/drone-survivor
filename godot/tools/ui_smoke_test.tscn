@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tools/ui_smoke_test.gd" id="1_ui_smoke_test"]
+
+[node name="UISmokeTest" type="Node"]
+script = ExtResource("1_ui_smoke_test")
+check_name = "ui_smoke_test"
+default_timeout = 150.0

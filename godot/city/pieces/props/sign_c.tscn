@@ -1,0 +1,5 @@
+[gd_scene load_steps=2 format=3 uid="uid://zlkvgsy5itiud"]
+
+[ext_resource type="PackedScene" uid="uid://disf5tcruqe2v" path="res://assets/city/models/Advertising_7.fbx" id="1_base"]
+
+[node name="sign_c" instance=ExtResource("1_base")]

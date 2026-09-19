@@ -3,6 +3,11 @@
 > Estado: borrador v1 · Fecha: 2026-09-19 · Gobierna: WP-03, WP-09, WP-10, WP-11 · Depende de: `02-configuracion-del-proyecto.md`, `03-especificacion-nucleo-de-vuelo.md`, `12-interfaz-y-hud.md`, `11-rondas-y-objetivos.md`
 
 ## 1. Objetivo y alcance
+> Nota del checkpoint 2 (2026-09-19): los defaults persistidos de rates en `QuadSettings` pasan a **ACTUAL 5 / 30 / 25** (centro 50 deg/s, máximo 300 deg/s, expo 0,25), valores que el usuario fijó en su prueba con gamepad porque 7/67/54 era demasiado sensible; `reset_rates()` vuelve a estos. `ControlProfile.new()` conserva 7/67/54 como perfil de referencia de `03` §3.6.
+
+
+> **Nota de WP-03 (2026-09-19)**: (1) el enum de curvas de `ControlProfile` se llama `RateCurve` (el nombre `Curve` colisiona con la clase del motor); el miembro sigue siendo `curve: int`. (2) `Controls.get_flight_input()` devuelve un diccionario vacío (no `null`) cuando no hay joypad. (3) Atajos de teclado de depuración: manda la tabla de `02` §4.3 (R respawn, F fire_alt, Q lock_target, E cycle_target, Shift arm) más Retroceso→respawn, Tab→cycle_target y clic derecho→fire_alt; se descarta Shift→lock_target. (4) `is_round_unlocked` no vive en `GameSettings` (no debe depender del catálogo): la derivación va en `RoundCatalog` (WP-21) sobre `get_best_score`/`has_completed`. (5) Filtro de sombras: el mapeo a `RenderingServer.ShadowQuality` es 0/2/3/4/5 (el motor intercala `SOFT_VERY_LOW`). (6) Las etiquetas `QUAD_HELP_RACEFLIGHT_RC/_RATE` del CSV están invertidas respecto de la fórmula de `03` §3.6 (`rc_rate` = escala base, `rate` = Acro+): WP-11 corrige las etiquetas.
+
 
 Especificar los autoloads de configuración (`Global`, `Audio`, `Controls`, `GameSettings`, `Graphics`, `QuadSettings`, `DebugGeometry`) y todos los menús del juego (hub de opciones, juego y HUD, gráficos, audio, controles con bindings y calibración, hangar/quad con gráfico de rates, ayuda, pausa, menú principal). Se apoya en piezas propias ya existentes que **no** se rediseñan: `UI`, `StickNavigation`, `SceneTransition`, `MenuScreen`, `ChoiceMenu`, `ThemeBuilder`/`UIPalette`, `ConfirmOverlay`, `ControlHints`, `LoadingSpinner`. El menú de rondas se detalla en `11`; el HUD en `12`.
 

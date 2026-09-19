@@ -1,0 +1,26 @@
+# Godot 4+
+godot/.godot/
+godot/android/
+
+# Packs de assets de terceros: ~100 MB de .zip, .rar y .gif de origen.
+# El pipeline de docs/05 los lee desde el comprimido y escribe solo los
+# productos finales en godot/assets/<dominio>/ (docs/02 §6.1).
+# El .gdignore sí se versiona: sin él, Godot escanearía e importaría los packs,
+# y project_check falla en CI.
+godot/assets/_raw/*
+!godot/assets/_raw/.gdignore
+
+# Salida de los checks headless (docs/15 §7.1)
+godot/tools/out/
+
+# Pipeline voxel
+godot/tools/voxsplit/previews/
+godot/tools/voxsplit/__pycache__/
+**/__pycache__/
+
+# Builds exportadas
+builds/*
+!builds/.gitkeep
+!builds/windows/
+builds/windows/*
+!builds/windows/.gitkeep

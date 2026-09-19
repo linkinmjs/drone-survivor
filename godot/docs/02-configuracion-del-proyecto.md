@@ -3,6 +3,15 @@
 > Estado: borrador v1 · Fecha: 2026-09-19 · Gobierna: WP-01 · Depende de: `docs/00-plan-maestro.md`, `docs/01-sala-limpia-y-reutilizacion.md`
 
 ## 1. Objetivo y alcance
+> Nota del checkpoint 2 (2026-09-19): defaults de gamepad corregidos tras la prueba del usuario: **L1 (botón 9) = `toggle_arm`**; `arm` (mantener) queda **sin botón por defecto** (es para un switch de radio, asignable en Opciones → Controles); L3 deja de usarse. La tabla de §4.3 queda superada en esas dos filas. Quien tenga un `InputMap.cfg` anterior debe usar «Restablecer» en Controles para tomar los defaults nuevos.
+
+> Nota de WP-12b (2026-09-19): los GLB voxel se importan con `meshes/ensure_tangents=false` y `nodes/root_type`/`nodes/root_name` explícitos (ver `05` §1); el §7.1 de este doc queda superado en ese punto.
+
+> Nota de WP-13 (2026-09-19): el `root_scale` real del pack VoxelCity es **5.0** (ufbx ya convierte unidades; a escala 1 `BuildingBlock_1` mide 2,50 m). Cualquier mención a 0.01 en este doc queda superada; ver `10-ciudad-destructible.md` §1.
+
+
+> Nota de WP-01 (2026-09-19): `gdscript/warnings/exclude_addons` no existe en Godot 4.7; la sustituye `debug/gdscript/warnings/directory_rules`, cuyo valor por defecto ya excluye `res://addons`. No se declara ninguna clave para ese fin. Además, `PhysicsLayers` vive en `res://core/physics_layers.gd` (no en `tools/`, que está excluido del export) porque lo consume el gameplay.
+
 
 Este documento es la especificación completa del **esqueleto** del proyecto: el archivo `project.godot`, las capas de física, las acciones de entrada, el orden de los autoloads, la estructura de carpetas, los presets de importación y de exportación, el workflow de integración continua y los archivos legales de la raíz.
 
@@ -624,7 +633,7 @@ WP-01 no expone lógica, pero sí contratos que el resto del proyecto consume de
 
 | Elemento | Tipo | Definición |
 |---|---|---|
-| `res://tools/physics_layers.gd` | `class_name PhysicsLayers extends RefCounted` | `const QUERY_SHOT / QUERY_FOOT / QUERY_LOS / QUERY_SWEEP: int` (§3.3) |
+| `res://core/physics_layers.gd` | `class_name PhysicsLayers extends RefCounted` | `const QUERY_SHOT / QUERY_FOOT / QUERY_LOS / QUERY_SWEEP: int` (§3.3) |
 | `Global.startup_errors` | `Array[String]` | Claves de traducción de errores de arranque; el menú principal las muestra |
 | `Global.config_dir` | `String` | `"user://config"`; todos los `.cfg` cuelgan de aquí |
 | `Events.<21 señales>` | `signal` | Solo hechos, nunca comandos; firmas canónicas en §5.1 |

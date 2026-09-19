@@ -1,56 +1,146 @@
-## TP 1: Juego 2D
+# Drone Survivor
 
-Este repositorio sirve entrega del trabajo práctico 1 del trayecto de image campus 2025 de Desarrollo de Videojuegos con Godot.
+Juego de acción en primera persona en el que se pilota un **dron FPV de combate** y
+se defiende una ciudad voxel de colosos mecánicos. Cada enemigo es enorme (20–45 m),
+lento de matar y peligroso: hay que volar a su alrededor, encontrar sus puntos
+débiles, romper sus partes —que se desprenden y caen— y sobrevivir administrando la
+energía con pilas repartidas por el mapa.
 
-## Como se usa este repositorio
+Los pilares del proyecto son el **pilotaje real** (acro y horizon, rates
+configurables, calibración por dispositivo), **colosos que se leen** (telegrafían
+sus ataques y pierden partes de forma visible), **la ciudad como reloj** (su
+integridad es la condición de derrota) y una **presentación AAA** sobre un estilo
+voxel coherente.
 
-Pueden crearse tranquilamente un repositorio de cero, pero si quieren tener uno con configuración para subir el juego a itch automáticamente, pueden generar un repositorio a partir de este:
+El detalle completo de la visión, el alcance del MVP y la hoja de ruta está en
+[`godot/docs/00-plan-maestro.md`](godot/docs/00-plan-maestro.md).
 
-https://github.com/user-attachments/assets/dbf1368c-6b99-4b02-bf84-7b63d299d5db
+## Requisitos
 
+| | |
+|---|---|
+| Motor | **Godot 4.7** (estable, build estándar; el proyecto es GDScript puro, no hace falta la versión .NET) |
+| Plataforma | **Windows** de escritorio |
+| Renderizador | **Forward+** (el proyecto no soporta GL Compatibility ni Web) |
+| Física | Jolt Physics a 100 Hz |
+| Controles | Gamepad o radio RC; teclado y ratón solo para depurar |
 
-## Como subir para que se pueda jugar en itch automáticamente
+## Cómo abrir el proyecto
 
-### Paso 1
+El proyecto Godot **no está en la raíz del repositorio**, sino en `godot/`. Desde el
+gestor de proyectos de Godot hay que importar `godot/project.godot`.
 
-Crear el proyecto en itch
+Desde la línea de comandos, con el binario de consola:
 
-   <img height="300" alt="image" src="https://github.com/user-attachments/assets/289a1dd2-72b3-40af-b76a-81bef6d9212f" />
+```
+"C:/Users/Mauri/Godot/Godot_4.7/Godot_v4.7-stable_win64_console.exe" --path godot
+```
 
-### Paso 2
+Para importar los assets sin abrir la ventana del editor:
 
-Ponerle un título al juego, y configurar el **Kind of project** como HTML
+```
+"C:/Users/Mauri/Godot/Godot_4.7/Godot_v4.7-stable_win64_console.exe" --headless --path godot --editor --quit
+```
 
-   <img height="600" alt="image" src="https://github.com/user-attachments/assets/12ba7e65-e05a-4106-a8f0-69ce8415a851" />
+Ese comando debe terminar **sin ninguna línea** `ERROR:` ni `SCRIPT ERROR:`; es el
+primer criterio de aceptación de cualquier paquete de trabajo.
 
-### Paso 3
+## Cómo correr los checks
 
-Clickear Save & view page
+Cada feature entrega una escena `godot/tools/<feature>_check.tscn` que verifica su
+contrato sin jugador humano, imprime `CHECK <nombre>: OK` o
+`CHECK <nombre>: FAIL (n fallos)` y devuelve un código de salida distinto de cero
+cuando falla. El catálogo completo está en
+[`godot/docs/15-verificacion-y-ci.md`](godot/docs/15-verificacion-y-ci.md).
 
-   <img width="631" height="190" alt="image" src="https://github.com/user-attachments/assets/bea9ca55-ddf6-4043-87b3-78b079718dac" />
+Todos de una vez (Windows):
 
-### Paso 4
+```
+powershell -File godot/tools/run_checks.ps1
+```
 
-Configurar los siguientes secretos en el repositorio (eso es en Settings > Secrets and Variables > Actions, pueden guiarse con el vídeo del principio del README)
+Uno solo:
 
-   - BUTLER_API_KEY -> lo obtienen aquí: https://itch.io/user/settings/api-keys
-   - ITCHIO_GAME -> nombre de su juego
-   - ITCHIO_USERNAME -> su usuario de itch
+```
+powershell -File godot/tools/run_checks.ps1 -Only project_check
+```
 
-### Paso 5
+> Si Windows responde «la ejecución de scripts está deshabilitada en este sistema»,
+> la política de ejecución de PowerShell está en `Restricted` (el valor por defecto).
+> Se resuelve por invocación con `powershell -ExecutionPolicy Bypass -File …`, o de
+> una vez con `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
 
-Hacer un commit y un push al repositorio, eso va a disparar una acción que va a exportar su juego y subirlo a itch:
+El equivalente para Linux y para el contenedor de CI es `godot/tools/run_checks.sh`.
+Ambos dejan el detalle en `godot/tools/out/report.txt` (no versionado) y devuelven 0
+solo si todo pasó.
 
-<img width="1910" height="369" alt="image" src="https://github.com/user-attachments/assets/06312139-8854-4d35-8670-552dda17ff6c" />
+Un check suelto, a mano:
 
-### Paso 6
+```
+"C:/Users/Mauri/Godot/Godot_4.7/Godot_v4.7-stable_win64_console.exe" --headless --path godot res://tools/project_check.tscn
+```
 
-Tras subirlo por primera vez, volver a itch, y marcar la opción This file will be played in the browser
+## Integración continua
 
-Luego de eso, le dan guardar de nuevo.
+`.github/workflows/deploy-to-itch.yml` encadena cuatro jobs: `import` → `checks` →
+`export` (preset **Windows Desktop**, publicado como artefacto) → `deploy-itch`, este
+último desactivado con `if: false` hasta que el juego se publique.
 
-<img width="627" height="410" alt="image" src="https://github.com/user-attachments/assets/0c5c671d-248e-457c-963e-9144a240f687" />
+## Estructura del repositorio
 
-### ¡Listo!
+```
+godot/            proyecto Godot
+  autoloads/      los 11 singletons (Global, Audio, Controls, …, Events)
+  drone/          núcleo de vuelo, armas, energía, cámara FPV
+  enemies/        framework de enemigos y colosos
+  city/           ciudad destructible
+  rounds/         rondas, objetivos y resultados
+  gui/ hud/       menús, tema e interfaz de vuelo y de combate
+  vfx/ world/ audio/ localization/
+  assets/         assets importables; assets/_raw/ son los packs crudos (no se versionan)
+  asset_import/   scripts de importación
+  tools/          checks headless, runners y utilidades de build
+  docs/           la documentación de diseño que gobierna cada paquete de trabajo
+builds/           salida de las exportaciones (no se versiona)
+```
 
-Ahora, cada vez que hagan un push al repositorio (a la rama principal: `main`), el juego en itch se va actualizar automáticamente.
+## Documentación
+
+Los documentos de `godot/docs/` son la especificación del juego: cada paquete de
+trabajo está gobernado por uno de ellos y no se escribe código sin leerlo.
+
+| Documento | Contenido |
+|---|---|
+| [`00-plan-maestro.md`](godot/docs/00-plan-maestro.md) | Visión, hoja de ruta, convenciones y orquestación |
+| [`01-sala-limpia-y-reutilizacion.md`](godot/docs/01-sala-limpia-y-reutilizacion.md) | Qué se reutiliza, qué se reimplementa, protocolo legal |
+| [`02-configuracion-del-proyecto.md`](godot/docs/02-configuracion-del-proyecto.md) | `project.godot`, capas, input, autoloads, import, export y CI |
+| [`03-especificacion-nucleo-de-vuelo.md`](godot/docs/03-especificacion-nucleo-de-vuelo.md) | Física del dron, control, radio, cámara y audio |
+| [`04-especificacion-configuracion-y-menus.md`](godot/docs/04-especificacion-configuracion-y-menus.md) | Autoloads de configuración y todos los menús |
+| [`05-pipeline-voxel.md`](godot/docs/05-pipeline-voxel.md) | `.vox` → partes → GLB → import |
+| [`06-framework-de-enemigos.md`](godot/docs/06-framework-de-enemigos.md) | Contrato de enemigo: partes, puntos débiles, rig, IA |
+| [`07-arachnodroid.md`](godot/docs/07-arachnodroid.md) | Ficha del primer jefe |
+| [`08-combate-y-armas.md`](godot/docs/08-combate-y-armas.md) | Arma, proyectiles, asistencia y calor |
+| [`09-energia-y-danio.md`](godot/docs/09-energia-y-danio.md) | Energía, pilas, casco y respawn |
+| [`10-ciudad-destructible.md`](godot/docs/10-ciudad-destructible.md) | Import de la ciudad, edificios e integridad |
+| [`11-rondas-y-objetivos.md`](godot/docs/11-rondas-y-objetivos.md) | Catálogo de rondas, manager, objetivos y resultados |
+| [`12-interfaz-y-hud.md`](godot/docs/12-interfaz-y-hud.md) | FlightHUD, CombatHUD y menús |
+| [`13-identidad-visual-y-audio.md`](godot/docs/13-identidad-visual-y-audio.md) | Paleta, Environment, VFX, audio y sacudida de cámara |
+| [`14-catalogo-de-enemigos.md`](godot/docs/14-catalogo-de-enemigos.md) | Los nueve enemigos y su orden |
+| [`15-verificacion-y-ci.md`](godot/docs/15-verificacion-y-ci.md) | Checks, smoke test, rendimiento y CI |
+| [`16-licencias-y-atribucion.md`](godot/docs/16-licencias-y-atribucion.md) | Licencia del juego y atribuciones |
+
+## Sala limpia
+
+Este proyecto se desarrolla en **sala limpia**. No se copia, lee ni consulta código
+de terceros con licencia copyleft. En particular, el repositorio `drone-simulator`
+queda fuera de límites para cualquier persona o agente que trabaje en este código; la
+configuración de `.claude/settings.json` lo bloquea técnicamente.
+
+## Licencia
+
+Proyecto **propietario**. Los archivos `LICENSE`, `NOTICE` y `CREDITS.md` están
+diferidos por decisión del usuario hasta el final del proyecto, cuando se confirme el
+nombre legal del titular y las licencias de los packs de assets de terceros
+(ver `godot/docs/00-plan-maestro.md` §8 y `godot/docs/16-licencias-y-atribucion.md`).
+Hasta entonces, cada archivo de código lleva su cabecera de copyright y no se concede
+permiso de uso, copia, modificación ni distribución.

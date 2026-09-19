@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(C:/Users/Mauri/Godot/Proyectos/drone-simulator/**)",
+      "Grep(C:/Users/Mauri/Godot/Proyectos/drone-simulator/**)",
+      "Glob(C:/Users/Mauri/Godot/Proyectos/drone-simulator/**)"
+    ]
+  }
+}

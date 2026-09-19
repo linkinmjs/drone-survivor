@@ -1,0 +1,457 @@
+keys,es,en
+AUD_CITY,Ciudad,City
+AUD_ENEMIES,Enemigos,Enemies
+AUD_MASTER,Volumen general,Master volume
+AUD_MOTORS,Motores,Motors
+AUD_MUSIC,Música,Music
+AUD_MUTE,Silenciar todo,Mute all
+AUD_SUBTITLE,Volumen general y por grupo de sonidos,Overall and per group volume
+AUD_TITLE,Audio,Audio
+AUD_UI,Interfaz,Interface
+AUD_WEAPONS,Armas,Weapons
+CAL_DONE,Calibración terminada,Calibration finished
+CAL_HINT,Sostené la posición hasta que el paso se confirme solo.,Hold the position until the step confirms itself.
+CAL_NEXT,Siguiente,Next
+CAL_SAVE_ERROR,No se pudo guardar la calibración en el archivo de configuración.,Could not save the calibration data to the configuration file.
+CAL_SKIP,Omitir,Skip
+CAL_SKIPPED,No se guardó ningún eje: se omitieron todos los pasos.,No axis was saved: every step was skipped.
+CAL_STEP_CENTER,Centrá los sticks,Center the sticks
+CAL_STEP_CORNERS,Llevá los sticks a las esquinas,Move the sticks to the corners
+CAL_STEP_PITCH_CENTER,Pitch al centro,Center pitch
+CAL_STEP_PITCH_DOWN,Pitch abajo,Pitch down
+CAL_STEP_PITCH_UP,Pitch arriba,Pitch up
+CAL_STEP_ROLL_CENTER,Roll al centro,Center roll
+CAL_STEP_ROLL_LEFT,Roll a la izquierda,Roll left
+CAL_STEP_ROLL_RIGHT,Roll a la derecha,Roll right
+CAL_STEP_THROTTLE_CENTER,Acelerador al centro,Center the throttle
+CAL_STEP_THROTTLE_DOWN,Acelerador abajo,Throttle down
+CAL_STEP_THROTTLE_UP,Acelerador arriba,Throttle up
+CAL_STEP_YAW_CENTER,Yaw al centro,Center yaw
+CAL_STEP_YAW_LEFT,Yaw a la izquierda,Yaw left
+CAL_STEP_YAW_RIGHT,Yaw a la derecha,Yaw right
+CAL_SUBTITLE,Catorce pasos para medir el recorrido real de tus sticks.,Fourteen steps to measure the real travel of your sticks.
+CAL_SUCCESS,Calibración completa,Calibration successful
+CAL_TITLE,Calibrando…,Calibrating…
+CAL_TITLE_DEVICE,Calibrando %s…,Calibrating %s…
+CAL_WRONG_DEVICE,Mové los ejes de %s.,Please move the axes of %s.
+CTRL_ACTION_ALTITUDE_HOLD,Mantener altura,Altitude hold
+CTRL_ACTION_ARM_HOLD,Armar (mantener),Arm (hold)
+CTRL_ACTION_ARM_TOGGLE,Armar (alternar),Arm (toggle)
+CTRL_ACTION_CHANGE_CAMERA,Cambiar cámara,Change camera
+CTRL_ACTION_CYCLE_MODES,Cambiar modo de vuelo,Cycle flight modes
+CTRL_ACTION_CYCLE_TARGET,Cambiar objetivo,Cycle target
+CTRL_ACTION_FIRE,Disparar,Fire
+CTRL_ACTION_FIRE_ALT,Disparo secundario,Alt fire
+CTRL_ACTION_LOCK,Fijar objetivo,Lock target
+CTRL_ACTION_MODE_ANGLE,Modo: Angle,Mode: Angle
+CTRL_ACTION_MODE_HORIZON,Modo: Horizon,Mode: Horizon
+CTRL_ACTION_MODE_LAUNCH,Modo: Control de lanzamiento,Mode: Launch control
+CTRL_ACTION_MODE_POSITION,Modo: Posición,Mode: Position
+CTRL_ACTION_MODE_SPEED,Modo: Speed,Mode: Speed
+CTRL_ACTION_MODE_TURTLE,Modo: Tortuga,Mode: Turtle
+CTRL_ACTION_OBJECTIVE_NEXT,Siguiente objetivo,Next objective
+CTRL_ACTION_OBJECTIVE_SKIP,Omitir objetivo,Skip objective
+CTRL_ACTION_RESPAWN,Reiniciar dron,Reset drone
+CTRL_ACTIVE_CONTROLLER,MANDO ACTIVO,ACTIVE CONTROLLER
+CTRL_AXES,EJES,AXES
+CTRL_AXIS_N,Eje %d,Axis %d
+CTRL_AXIS_PITCH,Pitch,Pitch
+CTRL_AXIS_ROLL,Roll,Roll
+CTRL_AXIS_THROTTLE,Acelerador,Throttle
+CTRL_AXIS_YAW,Yaw,Yaw
+CTRL_BINDINGS,ASIGNACIONES,BINDINGS
+CTRL_BINDING_CAPTURED,Detectado. Confirmá para guardar la asignación.,Detected. Confirm to save the binding.
+CTRL_BINDING_CLEARED,Sin asignar. Confirmá para quitar la asignación.,Unbound. Confirm to remove the binding.
+CTRL_BINDING_HINT,"Elegí Escuchar y después pulsá el botón, el gatillo o el switch que quieras usar.","Choose Listen and then press the button, trigger or switch you want to use."
+CTRL_BINDING_LISTENING,Pulsá un botón o mové un switch del mando.,Press a button or flip a switch on your controller.
+CTRL_BOUND_AXIS,"Eje %d [%.2f, %.2f]","Axis %d [%.2f, %.2f]"
+CTRL_BOUND_BUTTON,Botón %d,Button %d
+CTRL_BUTTONS,BOTONES,BUTTONS
+CTRL_BUTTON_N,Botón %d,Button %d
+CTRL_CALIBRATE,Calibrar ejes,Calibrate axes
+CTRL_CALIBRATED,Calibrado,Calibrated
+CTRL_CALIBRATE_HINT,La calibración vive fuera del mapa de entrada: solo afina el vuelo.,Calibration lives outside the input map: it only fine-tunes flight.
+CTRL_CLEAR,Quitar,Clear
+CTRL_DEFAULT_CONTROLLER,Usar siempre este mando,Always use this controller
+CTRL_DEVICE_SWITCH,Moviste otro mando. ¿Usar %s como mando activo?,You moved another controller. Use %s as the active controller?
+CTRL_INVERT,Invertir,Invert
+CTRL_LISTEN,Escuchar,Listen
+CTRL_LISTEN_AGAIN,Detectar de nuevo,Listen again
+CTRL_NO_CONTROLLER,No se encontró ningún mando,No controller found
+CTRL_RANGE_HINT,Izquierda y derecha mueven la manija; aceptar cambia de manija.,Left and right move the handle; accept switches handles.
+CTRL_RESET,Restablecer,Reset to defaults
+CTRL_RESET_CONFIRM,¿Borrar la calibración y las asignaciones de este mando?,Erase the calibration and bindings of this controller?
+CTRL_SECTION_ACTIONS,ACCIONES,ACTIONS
+CTRL_SECTION_DEVICE,DISPOSITIVO,DEVICE
+CTRL_SECTION_FLIGHT,EJES DE VUELO,FLIGHT AXES
+CTRL_SECTION_LIVE,VISTA EN VIVO,LIVE VIEW
+CTRL_SUBTITLE,"Elegí el mando, calibrá los sticks y asigná cada acción.","Pick your controller, calibrate the sticks and bind every action."
+CTRL_TITLE,Controles,Controls
+CTRL_UNBOUND,Sin asignar,Unbound
+CTRL_UNCALIBRATED,Sin calibrar,Not calibrated
+ERR_ARM_NO_ENERGY,Sin energía,No energy
+ERR_ARM_RECOVERING,Recuperando…,Recovering…
+ERR_ARM_THROTTLE_HIGH,Bajá el acelerador para armar,Lower the throttle to arm
+ERR_AUDIO_OPEN,No se pudo abrir la configuración de audio. Se cargan los valores por defecto.,Could not open the audio configuration file. The default settings will be loaded.
+ERR_AUDIO_PARSE,No se pudo leer la configuración de audio. Se cargan los valores por defecto.,Failed to read the audio configuration file. The default settings will be loaded.
+ERR_CONFIG_AUDIO,No se pudo leer la configuración de audio. Se cargan los valores por defecto.,Could not read the audio settings. The default values will be loaded.
+ERR_CONFIG_GAME,No se pudo leer la configuración del juego. Se cargan los valores por defecto.,Could not read the game settings. The default values will be loaded.
+ERR_CONFIG_GRAPHICS,No se pudo leer la configuración gráfica. Se cargan los valores por defecto.,Could not read the graphics settings. The default values will be loaded.
+ERR_CONFIG_INPUT,No se pudo leer la configuración de controles. Se cargan los valores por defecto.,Could not read the controls settings. The default values will be loaded.
+ERR_CONFIG_QUAD,No se pudo leer la configuración del dron. Se cargan los valores por defecto.,Could not read the drone settings. The default values will be loaded.
+ERR_CONTROLLER_NOT_FOUND,No se encontró el mando %s.\nRevisá que esté conectado o elegí otro en la pantalla de Controles.,"%s not found!\nPlease check it is properly plugged in, or head to the Controls settings to update your controller."
+ERR_CONTROLS_OPEN,No se pudo abrir la configuración de controles. Revisá la pantalla de Controles.,Could not open the controls configuration file. Please check the Controls settings.
+ERR_GRAPHICS_OPEN,No se pudo abrir la configuración gráfica. Se cargan los valores por defecto.,Could not open the graphics configuration file. The default settings will be loaded.
+ERR_GRAPHICS_PARSE,No se pudo leer la configuración gráfica. Se cargan los valores por defecto.,Failed to read the graphics configuration file. The default settings will be loaded.
+ERR_SETTINGS_OPEN,No se pudo abrir el archivo de ajustes. Se cargan los valores por defecto.,"Error loading the settings file, the default settings will be loaded."
+ERR_SETTINGS_PARSE,No se pudo leer el archivo de ajustes. Se cargan los valores por defecto.,"Error parsing the settings file, the default settings will be loaded."
+GAME_AIM_ASSIST,Asistencia de puntería,Aim assist
+GAME_AIM_ASSISTED,Asistida,Assisted
+GAME_AIM_OFF,Sin asistencia,Off
+GAME_AIM_SUBTLE,Sutil,Subtle
+GAME_LANGUAGE,Idioma,Language
+GAME_SECTION_INTERFACE,INTERFAZ,INTERFACE
+GAME_SECTION_SCENERY,ESCENARIO,SCENERY
+GAME_SHAKE,Sacudida de cámara,Camera shake
+GAME_STICK_NAVIGATION,Navegación con sticks,Stick navigation
+GAME_STICK_NAVIGATION_BETAFLIGHT,Estilo Betaflight,Betaflight style
+GAME_STICK_NAVIGATION_HELP_BETAFLIGHT,"Como el menú OSD de Betaflight: pitch arriba y abajo para moverte, roll a la derecha para aceptar y roll a la izquierda para volver. Sobre un deslizador o una lista, roll ajusta el valor. El acelerador nunca navega.","Like the Betaflight OSD menu: pitch up and down to move, roll right to select and roll left to go back. On a slider or a list, roll adjusts the value. Throttle never navigates."
+GAME_STICK_NAVIGATION_HELP_YAW,"Pitch arriba y abajo para moverte, roll para ajustar valores, yaw a la derecha para aceptar y yaw a la izquierda para volver. El acelerador nunca navega.","Pitch up and down to move, roll to adjust values, yaw right to select and yaw left to go back. Throttle never navigates."
+GAME_STICK_NAVIGATION_YAW,Aceptar con yaw,Select with yaw
+GAME_SUBTITLE,"Idioma, navegación y elementos del HUD","Language, navigation and HUD elements"
+GAME_TAB_GAMEPLAY,Juego,Game
+GAME_TAB_HUD,HUD,HUD
+GAME_TELEGRAPH_HINTS,Avisos de ataque,Attack warnings
+GAME_TITLE,Drone Survivor,Drone Survivor
+GFX_BORDERLESS,Ventana sin bordes,Borderless window
+GFX_FISHEYE,Lente ojo de pez,Fisheye lens
+GFX_FISHEYE_FAST,Rápido,Fast
+GFX_FISHEYE_FULL,Completo,Full
+GFX_FISHEYE_MSAA,MSAA del ojo de pez,Fisheye MSAA
+GFX_FISHEYE_RESOLUTION,Resolución del ojo de pez,Fisheye resolution
+GFX_FOG,Niebla volumétrica,Volumetric fog
+GFX_FULLSCREEN,Pantalla completa,Full screen
+GFX_FULLSCREEN_MODE,Pantalla completa,Full screen
+GFX_GI,Iluminación global,Global illumination
+GFX_GI_SDFGI,SDFGI,SDFGI
+GFX_MAX_FPS,Límite de FPS,FPS limit
+GFX_MSAA,Antialiasing (MSAA),Antialiasing (MSAA)
+GFX_MSAA_2X,2×,2×
+GFX_MSAA_4X,4×,4×
+GFX_MSAA_8X,8×,8×
+GFX_PRESET,Preset de calidad,Quality preset
+GFX_QUALITY_CUSTOM,Personalizado,Custom
+GFX_QUALITY_HIGH,Alta,High
+GFX_QUALITY_LOW,Baja,Low
+GFX_QUALITY_MEDIUM,Media,Medium
+GFX_QUALITY_ULTRA,Ultra,Ultra
+GFX_QUALITY_VERY_LOW,Muy baja,Very low
+GFX_RESOLUTION,Resolución,Resolution
+GFX_RESOLUTION_SCALE,Escala de resolución,Resolution scale
+GFX_RESTART_NOTE,Algunos cambios se aplican recién al reiniciar el juego.,Some changes only take effect after restarting the game.
+GFX_SAME_AS_GAME,Igual que el juego,Same as game
+GFX_SECTION_DISPLAY,PANTALLA,DISPLAY
+GFX_SECTION_FPV,CÁMARA FPV,FPV CAMERA
+GFX_SECTION_QUALITY,CALIDAD,QUALITY
+GFX_SHADOWS,Sombras,Shadows
+GFX_SSAO,Oclusión ambiental,Ambient occlusion
+GFX_SUBTITLE,Los cambios se aplican y guardan al instante,Changes are applied and saved instantly
+GFX_TITLE,Gráficos,Graphics
+GFX_TOGGLE_FULLSCREEN,Alternar,Toggle
+GFX_UNLIMITED,Sin límite,Unlimited
+GFX_VSYNC,Sincronización vertical,V-Sync
+GFX_VSYNC_ADAPTIVE,Adaptativa,Adaptive
+GFX_WINDOW,Ventana,Window
+GFX_WINDOW_MODE,Modo de ventana,Window mode
+HELP_BACK_TO_HELP,Volver a la ayuda,Back to help
+HELP_CITY,"La ciudad es la vida de la partida. Cada edificio que el coloso derriba baja la integridad del distrito y, si cae por debajo del 35 %, perdés la ronda. Distraerlo y romperle las patas salva más edificios que esconderse.","The city is your health bar. Every building the colossus brings down lowers the district integrity, and if it drops below 35 % you lose the round. Distracting it and breaking its legs saves more buildings than hiding does."
+HELP_COMBAT,"El cañón dispara mientras mantengas el gatillo y se sobrecalienta si no lo soltás. El blindaje del coloso devuelve casi todo el daño: apuntá a lo que brilla en cian, que son sus puntos débiles, y a las rodillas, que se rompen y lo dejan rengo. Todo ataque enemigo avisa antes de golpear.","The cannon fires while you hold the trigger and overheats if you never let go. The colossus armor shrugs off almost everything: aim at whatever glows cyan, which are its weak points, and at the knees, which break and leave it limping. Every enemy attack telegraphs before it lands."
+HELP_CONTROLS,"Se juega con una radio o un mando: dos sticks para volar, gatillo para disparar, un botón para armar y otro para cambiar de modo. Asigná todo en Opciones → Controles y calibrá los ejes antes del primer vuelo. Con teclado, los atajos de depuración están en esa misma pantalla.","It plays with a radio or a gamepad: two sticks to fly, a trigger to fire, one button to arm and another to switch modes. Bind everything in Options → Controls and calibrate the axes before your first flight. With a keyboard, the debug shortcuts are listed on that same screen."
+HELP_CREDITS_PENDING,"Los créditos completos y las licencias de los assets, las fuentes y la música se agregan al final del proyecto, cuando estén confirmadas una por una. Mientras tanto, el botón de abajo muestra las licencias del motor Godot y de las bibliotecas que trae.","The full credits and the licenses of the assets, fonts and music are added at the end of the project, once each one has been confirmed. In the meantime, the button below shows the licenses of the Godot engine and the libraries it ships with."
+HELP_ENERGY,"La batería se gasta con el vuelo y con cada disparo, y más rápido cuanto más acelerador uses. Las pilas repartidas por el distrito la recargan y reaparecen: memorizá dónde están. Si llegás a cero, el dron se desarma en el aire.","The battery drains as you fly and with every shot, and faster the more throttle you use. The battery packs scattered around the district recharge it and respawn: memorize where they are. If you hit zero the drone disarms in mid air."
+HELP_FLIGHT,"El acelerador empuja hacia donde apunta el dron, así que para avanzar hay que inclinarse. En Acro los sticks mandan velocidad de giro y el dron se queda como lo dejaste; en Horizonte mandan ángulo y se nivela solo. Armá con el acelerador abajo y usá Tortuga para darte vuelta si quedás panza arriba.","Throttle pushes in whatever direction the drone is pointing, so you lean to move. In Acro the sticks command rotation rate and the drone stays as you left it; in Horizon they command angle and it levels itself. Arm with the throttle down, and use Turtle to flip back over if you land upside down."
+HELP_HUD,"El visor muestra el horizonte, el rumbo, la velocidad, la altura, la energía, el casco y el calor del cañón, más la barra de integridad de la ciudad y la tarea actual. Podés encender y apagar cada elemento en Opciones → Juego y HUD.","The visor shows the horizon, heading, speed, altitude, energy, hull and cannon heat, plus the city integrity bar and the current task. You can turn each element on and off in Options → Game and HUD."
+HELP_INTRO,"Pilotás un dron de carreras armado sobre una ciudad sitiada por colosos. No tenés blindaje: tenés velocidad, puntería y la paciencia de aprender dónde golpear.","You fly an armed racing drone over a city under siege by colossi. You have no armor: you have speed, aim and the patience to learn where to hit."
+HELP_LICENSES,Ver licencias del motor,View engine licenses
+HELP_SECTION_CITY,La ciudad,The city
+HELP_SECTION_COMBAT,Combate,Combat
+HELP_SECTION_CONTROLS,Controles,Controls
+HELP_SECTION_CREDITS,Créditos y licencias,Credits and licenses
+HELP_SECTION_ENERGY,Energía,Energy
+HELP_SECTION_FLIGHT,Vuelo,Flight
+HELP_SECTION_HUD,El visor,The visor
+HELP_SUBTITLE,Todo lo que necesitás para volar y defender la ciudad,Everything you need to fly and defend the city
+HELP_TITLE,Ayuda,Help
+HUD_ALT,ALT,ALT
+HUD_ALTITUDE,Altura,Altitude
+HUD_ARM_FAILED_ENERGY,SIN ENERGÍA,NO POWER
+HUD_ARM_FAILED_RECOVER,RECUPERACIÓN ACTIVA,RECOVERY ACTIVE
+HUD_ARM_FAILED_THROTTLE,BAJÁ EL ACELERADOR,LOWER THROTTLE
+HUD_CFG_ALTITUDE,Altura,Altitude
+HUD_CFG_CROSSHAIR,Mira,Crosshair
+HUD_CFG_FLIGHT_MODE,Modo de vuelo,Flight mode
+HUD_CFG_HEADING,Rumbo,Heading
+HUD_CFG_HORIZON,Línea de horizonte,Horizon line
+HUD_CFG_LADDER,Escalera de cabeceo,Pitch ladder
+HUD_CFG_REC,Indicador de grabación,Recording indicator
+HUD_CFG_RPM,RPM de motores,Motor RPM
+HUD_CFG_SIDE_TAPES,Cintas laterales,Side tapes
+HUD_CFG_SPEED,Velocidad,Speed
+HUD_CFG_STICKS,Visor de sticks,Stick display
+HUD_COMPASS,Brújula,Compass
+HUD_COMPASS_E,E,E
+HUD_COMPASS_N,N,N
+HUD_COMPASS_NE,NE,NE
+HUD_COMPASS_NW,NO,NW
+HUD_COMPASS_S,S,S
+HUD_COMPASS_SE,SE,SE
+HUD_COMPASS_SW,SO,SW
+HUD_COMPASS_W,O,W
+HUD_COMPONENTS,ELEMENTOS,ELEMENTS
+HUD_CROSSHAIR,Mira,Crosshair
+HUD_FLIGHT_MODE,Modo de vuelo,Flight mode
+HUD_GATE_MARKER,Marcador de la próxima puerta,Next gate marker
+HUD_HORIZON,Línea de horizonte,Horizon line
+HUD_HORIZON_ATTITUDE,Actitud del dron,Drone attitude
+HUD_HORIZON_CAMERA,Real (cámara),Real (camera)
+HUD_HORIZON_MODE,Horizonte,Horizon
+HUD_HZ,%d Hz,%d Hz
+HUD_LADDER,Escalera de cabeceo,Pitch ladder
+HUD_MODE_ACRO,ACRO,ACRO
+HUD_MODE_HORIZON,HORIZON,HORIZON
+HUD_MODE_LAUNCH,LANZAMIENTO,LAUNCH
+HUD_MODE_POSITION,POSICIÓN,POSITION
+HUD_MODE_RECOVER,RECUPERACIÓN,RECOVERY
+HUD_MODE_SPEED,SPEED,SPEED
+HUD_MODE_TURTLE,TORTUGA,TURTLE
+HUD_NUMBERS_RATE,Frecuencia de números,Numbers refresh rate
+HUD_PRESET,Preset del HUD,HUD preset
+HUD_PRESET_CUSTOM,Personalizado,Custom
+HUD_PRESET_FULL,Completo,Full
+HUD_PRESET_MINIMAL,Mínimo,Minimal
+HUD_PRESET_STANDARD,Estándar,Standard
+HUD_PREVIEW,Vista previa,Preview
+HUD_REC,REC,REC
+HUD_REC_INDICATOR,Indicador de grabación,Recording indicator
+HUD_RPM,RPM de motores,Motor RPM
+HUD_SIDE_TAPES,Cintas laterales,Side tapes
+HUD_SPD,VEL,SPD
+HUD_SPEED,Velocidad,Speed
+HUD_STATUS_ARMED,ARMADO,ARMED
+HUD_STATUS_DISARMED,DESARMADO,DISARMED
+HUD_STATUS_LAUNCH,CONTROL DE LANZAMIENTO,LAUNCH CONTROL
+HUD_STATUS_RECOVERY,RECUPERACIÓN TRAS CHOQUE,CRASH RECOVERY
+HUD_STATUS_RECOVERY_MODE,MODO RECUPERACIÓN,CRASH RECOVERY MODE
+HUD_STATUS_THROTTLE_HIGH,ACELERADOR ALTO,THROTTLE HIGH
+HUD_STATUS_TURTLE,MODO TORTUGA,TURTLE MODE
+HUD_STICKS,Visor de sticks,Stick display
+HUD_UNIT_KMH,km/h,km/h
+HUD_UNIT_M,m,m
+HUD_UNIT_MPS,m/s,m/s
+HUD_VS,VS,VS
+MENU_CHALLENGES,Desafíos,Challenges
+MENU_FLY,Volar,Fly
+MENU_FREESTYLE,Freestyle,Freestyle
+MENU_HANGAR,Hangar,Hangar
+MENU_HELP,Ayuda,Help
+MENU_MAIN,Menú principal,Main menu
+MENU_OPTIONS,Opciones,Options
+MENU_PAUSED,En pausa,Paused
+MENU_PAUSED_HINT,El dron te espera en el aire,Your drone is waiting in the air
+MENU_PLAY,Jugar,Play
+MENU_QUAD_SETTINGS,Ajustes del dron,Quad settings
+MENU_QUIT,Salir,Quit
+MENU_QUIT_CONFIRM,¿Salir del juego?,Quit the game?
+MENU_QUIT_ROUND_CONFIRM,¿Abandonar la ronda? Se pierde el progreso.,Abandon the round? Progress will be lost.
+MENU_RESUME,Continuar,Resume
+MENU_RETURN_CONFIRM,¿Volver al menú principal? Se pierde la vuelta en curso.,Return to the main menu? The current lap will be lost.
+MENU_RETURN_TO_MAIN,Menú principal,Main menu
+MENU_SANDBOX,Sandbox (debug),Sandbox (debug)
+MENU_TAGLINE,Defendé la ciudad de los colosos,Defend the city from the colossi
+MENU_TUTORIAL,Instructor de vuelo,Flight instructor
+OPT_AUDIO,Audio,Audio
+OPT_CONTROLS,Controles,Controls
+OPT_GAME,Juego y HUD,Game and HUD
+OPT_GRAPHICS,Gráficos,Graphics
+OPT_SUBTITLE,Ajustá el juego a tu gusto,Make the game yours
+OPT_TITLE,Opciones,Options
+QUAD_ACRO_PLUS,Acro+,Acro+
+QUAD_BATTERY_WEIGHT,Peso de batería,Battery weight
+QUAD_CAMERA_ANGLE,Ángulo de cámara,Camera angle
+QUAD_CENTER_RATE,Center Rate,Center Rate
+QUAD_CURVE_ACTUAL,Actual,Actual
+QUAD_CURVE_BETAFLIGHT,Betaflight,Betaflight
+QUAD_CURVE_KISS,KISS,KISS
+QUAD_CURVE_QUICKRATES,Quick Rates,Quick Rates
+QUAD_CURVE_RACEFLIGHT,Raceflight,Raceflight
+QUAD_DRY_WEIGHT,Peso en seco,Dry weight
+QUAD_EXPO,Expo,Expo
+QUAD_FOV,Campo de visión FPV,FPV field of view
+QUAD_GRAPH,Curvas,Curves
+QUAD_HELP_ACTUAL_EXPO,Expo: reparte la diferencia entre Center Rate y Max Rate a lo largo del recorrido.\nCon 0 la curva sube de forma progresiva desde el centro. Con valores altos se mantiene\ncerca de Center Rate en gran parte del recorrido y la subida se concentra en los extremos:\nprecisión en el centro sin renunciar a un máximo alto. Orientativo: 0.3.,Expo: spreads the difference between Center Rate and Max Rate along the stick travel.\nWith 0 the curve rises progressively from the center. With high values it stays\nclose to Center Rate for most of the travel and the rise is concentrated at the ends:\nprecision in the center without giving up a high maximum. Guide: 0.3.
+QUAD_HELP_ACTUAL_RATE,"Max Rate: velocidad de giro con el stick a fondo, en grados por segundo.\nDefine lo rápido que podés hacer un flip: a 360 un giro completo tarda 1 segundo.\nDebe ser mayor que Center Rate; si son iguales, la curva es una recta y Expo no hace nada.\nOrientativo: 400 para aprender, 670 es el valor por defecto de Betaflight.","Max Rate: rotation speed with the stick at full deflection, in degrees per second.\nIt defines how fast you can flip: at 360 a full turn takes 1 second.\nIt must be higher than Center Rate; if they are equal the curve is a straight line and Expo does nothing.\nGuide: 400 to learn, 670 is the Betaflight default."
+QUAD_HELP_ACTUAL_RC,"Center Rate: sensibilidad cerca del centro, en grados por segundo.\nAl 10 % de stick obtenés el 10 % de este valor. Es el número que más define\nla sensación en vuelo normal, porque casi siempre volás cerca del centro.\nOrientativo: 70-100 para empezar, hasta 200 para pilotos ágiles.","Center Rate: sensitivity around the center, in degrees per second.\nAt 10 % stick you get 10 % of this value. It is the number that most defines\nhow normal flight feels, because you almost always fly near the center.\nGuide: 70-100 to start, up to 200 for agile pilots."
+QUAD_HELP_BATTERY_WEIGHT,"Peso de la batería, en gramos. Se suma al peso en seco.\nOrientativo: una LiPo 4S de 1300 mAh pesa unos 180 g; una 6S de 1100 mAh, unos 200 g.","Battery weight, in grams. It adds to the dry weight.\nGuide: a 4S 1300 mAh LiPo weighs about 180 g; a 6S 1100 mAh one, about 200 g."
+QUAD_HELP_BETAFLIGHT_EXPO,"Expo: suaviza la zona central. 0 es lineal; cuanto más alto, más plano cerca del centro.","Expo: softens the center. 0 is linear; the higher, the flatter around the center."
+QUAD_HELP_BETAFLIGHT_RATE,"Super Rate: de 0 a 99. Cuanto mayor, más velocidad se concentra en los extremos del stick y más alto queda el máximo.","Super Rate: from 0 to 99. The higher, the more speed is concentrated at the ends of the stick travel and the higher the maximum."
+QUAD_HELP_BETAFLIGHT_RC,RC Rate: sensibilidad general del stick. Multiplica toda la curva.,RC Rate: overall stick sensitivity. It scales the whole curve.
+QUAD_HELP_CAMERA_ANGLE,"Inclinación de la cámara FPV respecto al dron, en grados.\nA mayor ángulo, más inclinado hacia adelante tenés que volar para ver el horizonte,\nes decir, más rápido. Orientativo: 15-25 para freestyle tranquilo, 30-45 para carreras.","Tilt of the FPV camera relative to the drone, in degrees.\nThe higher the angle, the more you have to lean forward to see the horizon,\nthat is, the faster you fly. Guide: 15-25 for relaxed freestyle, 30-45 for racing."
+QUAD_HELP_DRY_WEIGHT,"Peso del dron sin batería, en gramos.\nMás peso significa más inercia, respuestas más lentas y menos empuje sobrante.\nOrientativo: 550 g es un 5 pulgadas de freestyle con cámara de acción; 300 g, uno de carreras.","Weight of the drone without battery, in grams.\nMore weight means more inertia, slower responses and less spare thrust.\nGuide: 550 g is a 5 inch freestyle quad with an action camera; 300 g, a racing one."
+QUAD_HELP_FOV,"Campo de visión horizontal de la cámara FPV, en grados.\nMás grande muestra más del entorno pero deforma más los bordes.\nOrientativo: 150 es el valor por defecto con ojo de pez; 110-130 da una imagen más natural.","Horizontal field of view of the FPV camera, in degrees.\nA wider view shows more of the surroundings but bends the edges more.\nGuide: 150 is the default with the fisheye; 110-130 gives a more natural image."
+QUAD_HELP_GRAPH,"Eje horizontal: posición del stick, de todo a la izquierda a todo a la derecha.\nEje vertical: velocidad de giro que pide esa posición.\nP, R e Y: máximo de cada eje en grados por segundo.","Horizontal axis: stick position, from full left to full right.\nVertical axis: rotation speed requested by that position.\nP, R and Y: maximum of each axis in degrees per second."
+QUAD_HELP_KISS_EXPO,"RC Curve: expo de la zona central. 0 es lineal; cuanto más alto, más suave cerca del centro.","RC Curve: expo of the center. 0 is linear; the higher, the softer around the center."
+QUAD_HELP_KISS_RATE,"Rate: curva ""super rate"" de 0 a 99. Cuanto mayor, más se concentra\nla velocidad en los extremos del stick y mayor es el máximo.","Rate: ""super rate"" curve from 0 to 99. The higher, the more the speed\nis concentrated at the ends of the stick travel and the higher the maximum."
+QUAD_HELP_KISS_RC,RC Rate: sensibilidad general del stick. Multiplica toda la curva.,RC Rate: overall stick sensitivity. It scales the whole curve.
+QUAD_HELP_PITCH,Pitch: inclinar el morro arriba o abajo (stick derecho adelante y atrás).\nEs lo que hace avanzar o frenar al dron.,Pitch: tilt the nose up or down (right stick forward and back).\nIt is what makes the drone move forward or brake.
+QUAD_HELP_QUICKRATES_EXPO,"Expo: suaviza la zona central. 0 es lineal; cuanto más alto, más plano cerca del centro.","Expo: softens the center. 0 is linear; the higher, the flatter around the center."
+QUAD_HELP_QUICKRATES_RATE,"Max Rate: velocidad de giro con el stick a fondo, en grados por segundo.","Max Rate: rotation speed with the stick at full deflection, in degrees per second."
+QUAD_HELP_QUICKRATES_RC,RC Rate: sensibilidad cerca del centro.,RC Rate: sensitivity around the center.
+QUAD_HELP_RACEFLIGHT_EXPO,"Expo: suaviza la zona central. 0 es lineal; cuanto más alto, más plano cerca del centro.","Expo: softens the center. 0 is linear; the higher, the flatter around the center."
+QUAD_HELP_RACEFLIGHT_RATE,Acro+: añade velocidad extra hacia los extremos del stick.\nEl máximo real pasa a ser Rate x (1 + Acro+ / 100).,Acro+: adds extra speed toward the ends of the stick travel.\nThe real maximum becomes Rate x (1 + Acro+ / 100).
+QUAD_HELP_RACEFLIGHT_RC,"Rate: velocidad de giro base con el stick a fondo, en grados por segundo, con Acro+ en 0.","Rate: base rotation speed with the stick at full deflection, in degrees per second, with Acro+ at 0."
+QUAD_HELP_RATES_CURVE,Fórmula que convierte la posición del stick en velocidad de giro.\nTodas describen lo mismo con parámetros distintos. ACTUAL es la más fácil de razonar\nporque sus valores están directamente en grados por segundo.\nAl cambiar de curva los números se conservan pero cambian de significado:\npulsá Restablecer rates para cargar valores razonables de la curva elegida.,Formula that turns the stick position into a rotation speed.\nThey all describe the same thing with different parameters. ACTUAL is the easiest to reason\nabout because its values are directly in degrees per second.\nWhen you change the curve the numbers are kept but their meaning changes:\npress Reset rates to load sensible values for the selected curve.
+QUAD_HELP_RESET_QUAD,"Restaura el ángulo de cámara, los pesos y el campo de visión por defecto.","Restores the default camera angle, weights and field of view."
+QUAD_HELP_RESET_RATES,Carga los valores por defecto de la curva de rates seleccionada.,Loads the default values of the selected rates curve.
+QUAD_HELP_ROLL,Roll: inclinarse a izquierda o derecha (stick derecho lateral).\nDesplaza el dron de costado. Conviene mantenerlo igual que Pitch:\nel dron es simétrico en estos dos ejes.,Roll: lean left or right (right stick sideways).\nIt moves the drone sideways. Keep it equal to Pitch:\nthe drone is symmetric on these two axes.
+QUAD_HELP_YAW,"Yaw: girar sobre el eje vertical, cambiar hacia dónde mira el morro\n(stick izquierdo lateral). Es el eje más débil del dron, porque solo dispone\ndel par de reacción de las hélices, así que suele llevar un máximo algo menor.","Yaw: rotate around the vertical axis, change where the nose points\n(left stick sideways). It is the weakest axis of the drone, because it only relies\non the reaction torque of the propellers, so it usually has a slightly lower maximum."
+QUAD_MAX_RATE,Max Rate,Max Rate
+QUAD_PITCH,Pitch,Pitch
+QUAD_RATE,Rate,Rate
+QUAD_RATES_CURVE,Curva de rates,Rates curve
+QUAD_RC_CURVE,RC Curve,RC Curve
+QUAD_RC_RATE,RC Rate,RC Rate
+QUAD_RESET_QUAD,Restablecer dron,Reset quad
+QUAD_RESET_QUAD_CONFIRM,¿Restablecer el cuadro a los valores de fábrica?,Reset the frame to its factory values?
+QUAD_RESET_RATES,Restablecer rates,Reset rates
+QUAD_RESET_RATES_CONFIRM,¿Restablecer las rates a los valores de fábrica?,Reset the rates to their factory values?
+QUAD_ROLL,Roll,Roll
+QUAD_SECTION_FRAME,Cuadro,Frame
+QUAD_SECTION_RATES,Rates,Rates
+QUAD_SUBTITLE,Ajustá el cuadro y las curvas de rates de tu dron,Tune your drone frame and its rate curves
+QUAD_TITLE,Ajustes del dron,Quad settings
+QUAD_UNIT_DEG,°,°
+QUAD_UNIT_KG," kg"," kg"
+QUAD_YAW,Yaw,Yaw
+RESULT_MEDAL_BRONZE,Bronce,Bronze
+RESULT_MEDAL_GOLD,Oro,Gold
+RESULT_MEDAL_NONE,Sin medalla,No medal
+RESULT_MEDAL_SILVER,Plata,Silver
+ROUND_BEST_SCORE,Mejor puntaje,Best score
+ROUND_BEST_TIME,Mejor tiempo,Best time
+ROUND_COMING_SOON,Próximamente,Coming soon
+ROUND_FIRST_CONTACT_GOAL,Defendé el distrito A del Arachnodroid.,Defend District A from the Arachnodroid.
+ROUND_FIRST_CONTACT_NAME,Primer contacto,First Contact
+ROUND_LOCKED_HINT,Completá «{0}» para desbloquear,Complete “{0}” to unlock
+ROUND_MENU_SUBTITLE,%d de %d rondas completadas,%d of %d rounds completed
+ROUND_MENU_TITLE,Rondas,Rounds
+ROUND_NOT_PLAYED,Todavía no la jugaste,Not played yet
+TUT_ALTITUDE,Altura %.1f m,Altitude %.1f m
+TUT_END_SUBTITLE,Completaste el instructor. Seguí practicando en vuelo libre o probá las pistas con R.,You completed the instructor. Keep practicing in free flight or try the tracks with R.
+TUT_END_TITLE,¡Ya sabés volar!,You can fly!
+TUT_GATES_T,Cruzá la puerta iluminada.,Fly through the highlighted gate.
+TUT_GATE_P,Puerta %d de %d · a %.1f m,Gate %d of %d · %.1f m away
+TUT_KEY_NEXT,Siguiente,Next
+TUT_KEY_PAUSE,Pausa,Pause
+TUT_KEY_RESTART,Reiniciar lección,Restart lesson
+TUT_KEY_SKIP,Saltar,Skip
+TUT_L1_OBJECTIVE,Primero comprobamos que el simulador lee tu mando. El stick izquierdo maneja el acelerador (arriba y abajo) y la guiñada (a los lados). El derecho maneja el cabeceo (arriba y abajo) y el alabeo (a los lados).,"First, let's check that the simulator reads your controller. The left stick drives the throttle (up and down) and the yaw (sideways). The right stick drives the pitch (up and down) and the roll (sideways)."
+TUT_L1_TITLE,Tu control,Your controller
+TUT_L1_T_ARM,"Con el stick izquierdo abajo del todo, armá el dron: LB en el gamepad, Espacio en el teclado o el switch de armado de la radio.","With the left stick all the way down, arm the drone: LB on a gamepad, Space on the keyboard or the arm switch of your radio."
+TUT_L1_T_DISARM,Los motores giran. Desarmá con el mismo botón o switch.,The motors are spinning. Disarm with the same button or switch.
+TUT_L1_T_JOYPAD,Presioná cualquier botón del mando.,Press any button on your controller.
+TUT_L1_T_PITCH,Mové el stick derecho arriba y abajo del todo.,Move the right stick all the way up and down.
+TUT_L1_T_ROLL,Mové el stick derecho hasta los dos costados.,Move the right stick to both sides.
+TUT_L1_T_THROTTLE_DOWN,Ahora bajalo del todo.,Now pull it all the way down.
+TUT_L1_T_THROTTLE_UP,Llevá el stick izquierdo arriba del todo.,Push the left stick all the way up.
+TUT_L1_T_YAW,Mové el stick izquierdo hasta los dos costados.,Move the left stick to both sides.
+TUT_L2_OBJECTIVE,"Estás en modo Horizon: el dron se nivela solo, pero el acelerador es directo. Con un gamepad, el stick en el centro no alcanza para sostenerlo: subilo un poco más.","You are in Horizon mode: the drone levels itself, but the throttle is direct. With a gamepad, the stick at the center is not enough to hold it: push it a bit higher."
+TUT_L2_P_HOLD,Altura %.1f m · en la zona %.1f / %.0f s,Altitude %.1f m · in the zone %.1f / %.0f s
+TUT_L2_TITLE,Despegue y altura,Takeoff and altitude
+TUT_L2_T_ARM,Armá el dron con el acelerador abajo del todo.,Arm the drone with the throttle all the way down.
+TUT_L2_T_CLIMB,Subí despacio hasta entrar en el cilindro azul.,Climb slowly into the blue cylinder.
+TUT_L2_T_DESCEND,Estás muy alto: bajá un poco el acelerador.,Too high: lower the throttle a little.
+TUT_L2_T_HOLD,¡Ahí! Mantenete dentro del cilindro.,There! Stay inside the cylinder.
+TUT_L2_T_LAND,Bajá despacio hasta apoyar el dron y desarmá.,"Come down slowly until the drone touches the ground, then disarm."
+TUT_L3_OBJECTIVE,"La guiñada gira el dron sobre sí mismo, como cuando mirás a los costados. Se maneja con el stick izquierdo hacia los lados, sin soltar el acelerador. Usá las banderas como referencia.","Yaw spins the drone around itself, like looking sideways. Move the left stick sideways without letting go of the throttle. Use the flags as a reference."
+TUT_L3_P_TURN,Giro %d° de %d°,Turned %d° of %d°
+TUT_L3_TITLE,Guiñada,Yaw
+TUT_L3_T_LEFT,"En el aire, girá hacia la izquierda.","While flying, turn to the left."
+TUT_L3_T_RIGHT,Ahora girá hacia la derecha.,Now turn to the right.
+TUT_L4_OBJECTIVE,"El cabeceo inclina el dron hacia adelante o hacia atrás, y así avanza o retrocede. Se maneja con el stick derecho. Cuanto más lo inclinás, más rápido va.","Pitch tilts the drone forward or backward, so it moves ahead or back. Use the right stick. The more you tilt, the faster it goes."
+TUT_L4_TITLE,Cabeceo,Pitch
+TUT_L4_T_BACK,Tirá el stick derecho hacia abajo y volvé a la zona del centro.,Pull the right stick down and fly back to the center zone.
+TUT_L4_T_FORWARD,Empujá el stick derecho hacia arriba y volá hasta la zona azul de adelante.,Push the right stick up and fly to the blue zone ahead.
+TUT_L5_OBJECTIVE,"El alabeo inclina el dron hacia un costado y lo desplaza de lado, sin girar. Se maneja con el stick derecho hacia la izquierda o la derecha.","Roll tilts the drone to one side and moves it sideways, without turning. Move the right stick left or right."
+TUT_L5_TITLE,Alabeo,Roll
+TUT_L5_T_CENTER_LEFT,Inclinate a la izquierda para volver al centro.,Roll to the left to get back to the center.
+TUT_L5_T_CENTER_RIGHT,Volvé al centro inclinándote a la derecha.,Roll to the right to get back to the center.
+TUT_L5_T_LEFT,Seguí hacia la izquierda hasta la otra zona.,Keep going left to the other zone.
+TUT_L5_T_RIGHT,Inclinate a la derecha y volá hasta la zona azul.,Roll to the right and fly to the blue zone.
+TUT_L6_OBJECTIVE,"Ahora combinás todo: acelerador para la altura, cabeceo para avanzar, guiñada y alabeo para apuntar. Cruzá las tres puertas en orden y de frente.","Now put it all together: throttle for altitude, pitch to move ahead, yaw and roll to aim. Fly through the three gates in order, from the front."
+TUT_L6_TITLE,Puertas en modo Horizon,Gates in Horizon mode
+TUT_L7_OBJECTIVE,"En Acro el dron no se nivela solo: el stick derecho marca la velocidad de giro y, al soltarlo, el dron mantiene la inclinación. Hacé movimientos cortos y volvé a centrar. Es el modo de los pilotos de carreras.","In Acro the drone does not level itself: the right stick sets the rotation speed and, when you let go, the drone keeps its tilt. Make short moves and center again. This is the mode racing pilots use."
+TUT_L7_TITLE,Puertas en modo Acro,Gates in Acro mode
+TUT_L8_OBJECTIVE,"Una vuelta cronometrada por cuatro puertas. Esperá la cuenta regresiva sobre la plataforma: si despegás antes, es salida en falso. Si Acro te cuesta, podés cambiar de modo con A o M.","One timed lap through four gates. Wait for the countdown on the launch pad: taking off early is a false start. If Acro is hard, you can switch modes with A or M."
+TUT_L8_P_RACE,Puerta %d de %d · %s,Gate %d of %d · %s
+TUT_L8_SUCCESS,Tu tiempo: %s,Your time: %s
+TUT_L8_TITLE,Tu primer circuito,Your first race track
+TUT_L8_T_RACE,¡Volá! Cruzá las puertas en orden.,Fly! Go through the gates in order.
+TUT_L8_T_WAIT,"Esperá el ¡YA! sin despegar. Si hubo salida en falso, reiniciá la lección.","Wait for GO! without taking off. After a false start, restart the lesson."
+TUT_LAST_DONE,¡Terminaste la última lección!,You finished the last lesson!
+TUT_LESSON_OF,LECCIÓN %d DE %d,LESSON %d OF %d
+TUT_MENU_ALL_DONE,Completaste todas las lecciones. Podés repetir cualquiera cuando quieras.,You completed every lesson. You can repeat any of them whenever you want.
+TUT_MENU_CHOOSE,Elegir lección,Choose a lesson
+TUT_MENU_CONTINUE,"Seguir: lección %d, %s","Continue: lesson %d, %s"
+TUT_MENU_FREE_FLIGHT,Volar libre,Free flight
+TUT_MENU_PROGRESS,Completaste %d de %d lecciones.,You completed %d of %d lessons.
+TUT_MENU_REPEAT,Repetir desde la primera lección,Repeat from the first lesson
+TUT_MENU_RESTART,Empezar de cero,Start over
+TUT_MENU_START,Empezar,Start
+TUT_MENU_SUBTITLE,%d lecciones cortas para pasar de cero a tu primer circuito. Necesitás un gamepad o una radio.,%d short lessons from zero to your first race track. You need a gamepad or a radio.
+TUT_MENU_TITLE,Instructor de vuelo,Flight instructor
+TUT_NEXT_SOON,Enseguida empieza la próxima lección.,The next lesson starts in a moment.
+TUT_PAUSE_CHOOSE,Elegir lección,Choose a lesson
+TUT_PAUSE_RESTART,Reiniciar lección,Restart lesson
+TUT_PAUSE_SKIP,Saltar lección,Skip lesson
+TUT_PICK_DONE,(completada),(completed)
+TUT_PICK_ENTRY,%d. %s,%d. %s
+TUT_PICK_SUBTITLE,Podés repetir cualquier lección cuando quieras.,You can repeat any lesson whenever you want.
+TUT_PICK_TITLE,Elegir lección,Choose a lesson
+TUT_SKIPPED,Lección saltada,Lesson skipped
+TUT_STEP_OF,Paso %d de %d,Step %d of %d
+TUT_STICK_LEFT,Stick izquierdo,Left stick
+TUT_STICK_RIGHT,Stick derecho,Right stick
+TUT_T_BACK_UP,Volvé a subir para seguir.,Climb again to continue.
+TUT_T_TAKEOFF,Armá el dron y subí a más de un metro.,Arm the drone and climb above one meter.
+TUT_WARN_CRASHED,El dron quedó volcado. Reiniciá la lección con el botón indicado abajo.,The drone flipped over. Restart the lesson with the button shown below.
+TUT_WARN_DISARM_AIR,Desarmaste en el aire. Volvé a despegar y aterrizá antes de desarmar.,You disarmed in the air. Take off again and land before disarming.
+TUT_WARN_MODE_LOCKED,En esta lección el modo de vuelo está fijo.,The flight mode is fixed in this lesson.
+TUT_WARN_NOT_YET,Todavía no armes: primero terminá de mover los sticks.,Do not arm yet: finish moving the sticks first.
+TUT_WARN_NO_JOYPAD,No hay mando conectado. Conectá un gamepad o una radio.,No controller connected. Plug in a gamepad or a radio.
+TUT_WARN_OUT_OF_BOUNDS,Te alejaste de la zona de práctica: el dron volvió al inicio de la lección.,You left the practice area: the drone went back to the start of the lesson.
+TUT_WARN_RECOVER,Modo recuperación: el dron se inclinó demasiado y baja solo. Soltá los sticks.,Recovery mode: the drone tilted too much and is coming down by itself. Release the sticks.
+TUT_WARN_THROTTLE_HIGH,"Para armar, el acelerador tiene que estar abajo del todo.","To arm, the throttle must be all the way down."
+TUT_WELL_DONE,¡Bien hecho!,Well done!
+TUT_ZONE_P,Zona %d de %d · a %.1f m,Zone %d of %d · %.1f m away
+UI_BACK,Volver,Back
+UI_CANCEL,Cancelar,Cancel
+UI_CONFIRM,Confirmar,Confirm
+UI_HINT_ACCEPT,Aceptar,Select
+UI_HINT_ADJUST,Ajustar,Adjust
+UI_HINT_BACK,Volver,Back
+UI_HINT_NAVIGATE,Navegar,Navigate
+UI_KEY_DPAD,Cruceta,D-pad
+UI_LOADING,Preparando el despliegue…,Preparing the deployment…
+UI_NOT_YET,Disponible en un próximo paquete de trabajo,Coming in a later work package
+UI_NO_CONTROLLER,Sin mando conectado,No controller connected
+UI_NO_CONTROLLER_WEB,Presioná un botón del mando para activarlo,Press a button on your controller to activate it
+UI_OFF,Desactivado,Off
+UI_OK,Aceptar,OK
+UI_ON,Activado,On
+UI_PERCENT,%d %%,%d %%
+UI_TIP_ARM,Bajá el acelerador antes de armar.,Lower the throttle before arming.
+UI_TIP_BATTERIES,Las pilas reaparecen: memorizá dónde están.,Batteries respawn — memorize where they are.
+UI_TIP_CITY,"Si la ciudad cae por debajo del 35 %, perdés.","If the city drops below 35 %, you lose."
+UI_TIP_STICKS,Acro manda velocidad de giro; Horizonte manda ángulo.,Acro commands rate; Horizon commands angle.
+UI_TIP_TELEGRAPH,Todo ataque avisa antes de golpear.,Every attack telegraphs before it lands.
+UI_TIP_WEAK_POINTS,Lo que brilla en cian se puede romper.,Anything glowing cyan can be broken.

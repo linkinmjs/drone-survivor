@@ -1,0 +1,329 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://gui/options_menu/graphics_menu.gd" id="1_graphics"]
+
+[node name="GraphicsMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_graphics")
+
+[node name="Content" type="MarginContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 72
+theme_override_constants/margin_top = 56
+theme_override_constants/margin_right = 72
+theme_override_constants/margin_bottom = 104
+
+[node name="Rows" type="VBoxContainer" parent="Content"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="Content/Rows"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+text = "GFX_TITLE"
+
+[node name="Subtitle" type="Label" parent="Content/Rows"]
+layout_mode = 2
+theme_type_variation = &"SubtitleLabel"
+text = "GFX_SUBTITLE"
+
+[node name="Scroll" type="ScrollContainer" parent="Content/Rows"]
+layout_mode = 2
+size_flags_vertical = 3
+follow_focus = true
+horizontal_scroll_mode = 0
+
+[node name="Columns" type="HBoxContainer" parent="Content/Rows/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 28
+
+[node name="ColumnA" type="VBoxContainer" parent="Content/Rows/Scroll/Columns"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 20
+
+[node name="CardDisplay" type="PanelContainer" parent="Content/Rows/Scroll/Columns/ColumnA"]
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="Rows" type="VBoxContainer" parent="Content/Rows/Scroll/Columns/ColumnA/CardDisplay"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Section" type="Label" parent="Content/Rows/Scroll/Columns/ColumnA/CardDisplay/Rows"]
+layout_mode = 2
+theme_type_variation = &"SectionLabel"
+text = "GFX_SECTION_DISPLAY"
+
+[node name="RowWindowMode" type="HBoxContainer" parent="Content/Rows/Scroll/Columns/ColumnA/CardDisplay/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Caption" type="Label" parent="Content/Rows/Scroll/Columns/ColumnA/CardDisplay/Rows/RowWindowMode"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+text = "GFX_WINDOW_MODE"
+
+[node name="WindowModeOption" type="OptionButton" parent="Content/Rows/Scroll/Columns/ColumnA/CardDisplay/Rows/RowWindowMode"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(340, 0)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="RowScale" type="HBoxContainer" parent="Content/Rows/Scroll/Columns/ColumnA/CardDisplay/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Caption" type="Label" parent="Content/Rows/Scroll/Columns/ColumnA/CardDisplay/Rows/RowScale"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+text = "GFX_RESOLUTION_SCALE"
+
+[node name="ResolutionScaleOption" type="OptionButton" parent="Content/Rows/Scroll/Columns/ColumnA/CardDisplay/Rows/RowScale"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(340, 0)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="RowVsync" type="HBoxContainer" parent="Content/Rows/Scroll/Columns/ColumnA/CardDisplay/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Caption" type="Label" parent="Content/Rows/Scroll/Columns/ColumnA/CardDisplay/Rows/RowVsync"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+text = "GFX_VSYNC"
+
+[node name="VsyncOption" type="OptionButton" parent="Content/Rows/Scroll/Columns/ColumnA/CardDisplay/Rows/RowVsync"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(340, 0)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="RowMaxFps" type="HBoxContainer" parent="Content/Rows/Scroll/Columns/ColumnA/CardDisplay/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Caption" type="Label" parent="Content/Rows/Scroll/Columns/ColumnA/CardDisplay/Rows/RowMaxFps"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+text = "GFX_MAX_FPS"
+
+[node name="MaxFpsOption" type="OptionButton" parent="Content/Rows/Scroll/Columns/ColumnA/CardDisplay/Rows/RowMaxFps"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(340, 0)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="CardFpv" type="PanelContainer" parent="Content/Rows/Scroll/Columns/ColumnA"]
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="Rows" type="VBoxContainer" parent="Content/Rows/Scroll/Columns/ColumnA/CardFpv"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Section" type="Label" parent="Content/Rows/Scroll/Columns/ColumnA/CardFpv/Rows"]
+layout_mode = 2
+theme_type_variation = &"SectionLabel"
+text = "GFX_SECTION_FPV"
+
+[node name="RowFisheye" type="HBoxContainer" parent="Content/Rows/Scroll/Columns/ColumnA/CardFpv/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Caption" type="Label" parent="Content/Rows/Scroll/Columns/ColumnA/CardFpv/Rows/RowFisheye"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+text = "GFX_FISHEYE"
+
+[node name="FisheyeOption" type="OptionButton" parent="Content/Rows/Scroll/Columns/ColumnA/CardFpv/Rows/RowFisheye"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(340, 0)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="RowFisheyeResolution" type="HBoxContainer" parent="Content/Rows/Scroll/Columns/ColumnA/CardFpv/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Caption" type="Label" parent="Content/Rows/Scroll/Columns/ColumnA/CardFpv/Rows/RowFisheyeResolution"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+text = "GFX_FISHEYE_RESOLUTION"
+
+[node name="FisheyeResolutionOption" type="OptionButton" parent="Content/Rows/Scroll/Columns/ColumnA/CardFpv/Rows/RowFisheyeResolution"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(340, 0)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="RowFisheyeMsaa" type="HBoxContainer" parent="Content/Rows/Scroll/Columns/ColumnA/CardFpv/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Caption" type="Label" parent="Content/Rows/Scroll/Columns/ColumnA/CardFpv/Rows/RowFisheyeMsaa"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+text = "GFX_FISHEYE_MSAA"
+
+[node name="FisheyeMsaaOption" type="OptionButton" parent="Content/Rows/Scroll/Columns/ColumnA/CardFpv/Rows/RowFisheyeMsaa"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(340, 0)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="ColumnB" type="VBoxContainer" parent="Content/Rows/Scroll/Columns"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 20
+
+[node name="CardQuality" type="PanelContainer" parent="Content/Rows/Scroll/Columns/ColumnB"]
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="Rows" type="VBoxContainer" parent="Content/Rows/Scroll/Columns/ColumnB/CardQuality"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Section" type="Label" parent="Content/Rows/Scroll/Columns/ColumnB/CardQuality/Rows"]
+layout_mode = 2
+theme_type_variation = &"SectionLabel"
+text = "GFX_SECTION_QUALITY"
+
+[node name="RowPreset" type="HBoxContainer" parent="Content/Rows/Scroll/Columns/ColumnB/CardQuality/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Caption" type="Label" parent="Content/Rows/Scroll/Columns/ColumnB/CardQuality/Rows/RowPreset"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+text = "GFX_PRESET"
+
+[node name="PresetOption" type="OptionButton" parent="Content/Rows/Scroll/Columns/ColumnB/CardQuality/Rows/RowPreset"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(340, 0)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="RowMsaa" type="HBoxContainer" parent="Content/Rows/Scroll/Columns/ColumnB/CardQuality/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Caption" type="Label" parent="Content/Rows/Scroll/Columns/ColumnB/CardQuality/Rows/RowMsaa"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+text = "GFX_MSAA"
+
+[node name="MsaaOption" type="OptionButton" parent="Content/Rows/Scroll/Columns/ColumnB/CardQuality/Rows/RowMsaa"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(340, 0)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="RowShadows" type="HBoxContainer" parent="Content/Rows/Scroll/Columns/ColumnB/CardQuality/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Caption" type="Label" parent="Content/Rows/Scroll/Columns/ColumnB/CardQuality/Rows/RowShadows"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+text = "GFX_SHADOWS"
+
+[node name="ShadowsOption" type="OptionButton" parent="Content/Rows/Scroll/Columns/ColumnB/CardQuality/Rows/RowShadows"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(340, 0)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="RowGi" type="HBoxContainer" parent="Content/Rows/Scroll/Columns/ColumnB/CardQuality/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Caption" type="Label" parent="Content/Rows/Scroll/Columns/ColumnB/CardQuality/Rows/RowGi"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+text = "GFX_GI"
+
+[node name="GiOption" type="OptionButton" parent="Content/Rows/Scroll/Columns/ColumnB/CardQuality/Rows/RowGi"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(340, 0)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="RowFog" type="HBoxContainer" parent="Content/Rows/Scroll/Columns/ColumnB/CardQuality/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Caption" type="Label" parent="Content/Rows/Scroll/Columns/ColumnB/CardQuality/Rows/RowFog"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+text = "GFX_FOG"
+
+[node name="FogCheck" type="CheckButton" parent="Content/Rows/Scroll/Columns/ColumnB/CardQuality/Rows/RowFog"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(340, 0)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="RowSsao" type="HBoxContainer" parent="Content/Rows/Scroll/Columns/ColumnB/CardQuality/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Caption" type="Label" parent="Content/Rows/Scroll/Columns/ColumnB/CardQuality/Rows/RowSsao"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+text = "GFX_SSAO"
+
+[node name="SsaoCheck" type="CheckButton" parent="Content/Rows/Scroll/Columns/ColumnB/CardQuality/Rows/RowSsao"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(340, 0)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="RestartNote" type="Label" parent="Content/Rows/Scroll/Columns/ColumnB"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+text = "GFX_RESTART_NOTE"
+autowrap_mode = 3
+
+[node name="Footer" type="HBoxContainer" parent="Content/Rows"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="ButtonBack" type="Button" parent="Content/Rows/Footer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"GhostButton"
+text = "UI_BACK"
+metadata/ui_back = true

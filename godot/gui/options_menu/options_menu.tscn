@@ -1,0 +1,96 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://gui/options_menu/options_menu.gd" id="1_options"]
+
+[node name="OptionsMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_options")
+
+[node name="Content" type="MarginContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 72
+theme_override_constants/margin_top = 56
+theme_override_constants/margin_right = 72
+theme_override_constants/margin_bottom = 104
+
+[node name="Rows" type="VBoxContainer" parent="Content"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 18
+
+[node name="Body" type="VBoxContainer" parent="Content/Rows"]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+theme_override_constants/separation = 4
+alignment = 1
+
+[node name="Title" type="Label" parent="Content/Rows/Body"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+text = "OPT_TITLE"
+
+[node name="Subtitle" type="Label" parent="Content/Rows/Body"]
+layout_mode = 2
+theme_type_variation = &"SubtitleLabel"
+text = "OPT_SUBTITLE"
+
+[node name="Spacer" type="Control" parent="Content/Rows/Body"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Entries" type="VBoxContainer" parent="Content/Rows/Body"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(620, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_constants/separation = 6
+
+[node name="ButtonGame" type="Button" parent="Content/Rows/Body/Entries"]
+layout_mode = 2
+theme_type_variation = &"MenuItemButton"
+text = "OPT_GAME"
+alignment = 0
+
+[node name="ButtonGraphics" type="Button" parent="Content/Rows/Body/Entries"]
+layout_mode = 2
+theme_type_variation = &"MenuItemButton"
+text = "OPT_GRAPHICS"
+alignment = 0
+
+[node name="ButtonAudio" type="Button" parent="Content/Rows/Body/Entries"]
+layout_mode = 2
+theme_type_variation = &"MenuItemButton"
+text = "OPT_AUDIO"
+alignment = 0
+
+[node name="ButtonControls" type="Button" parent="Content/Rows/Body/Entries"]
+layout_mode = 2
+theme_type_variation = &"MenuItemButton"
+text = "OPT_CONTROLS"
+alignment = 0
+
+[node name="Footer" type="HBoxContainer" parent="Content/Rows"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="ButtonBack" type="Button" parent="Content/Rows/Footer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"GhostButton"
+text = "UI_BACK"
+metadata/ui_back = true

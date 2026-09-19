@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tools/enemy_import_check.gd" id="1_enemy_import_check"]
+
+[node name="EnemyImportCheck" type="Node"]
+script = ExtResource("1_enemy_import_check")
+check_name = "enemy_import_check"

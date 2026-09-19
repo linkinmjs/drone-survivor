@@ -1,0 +1,131 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://gui/options_menu/controls_menu/calibration_menu.gd" id="1_calibration"]
+
+[node name="CalibrationMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_calibration")
+
+[node name="Content" type="MarginContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 72
+theme_override_constants/margin_top = 56
+theme_override_constants/margin_right = 72
+theme_override_constants/margin_bottom = 104
+
+[node name="Rows" type="VBoxContainer" parent="Content"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="Content/Rows"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+text = "CAL_TITLE"
+
+[node name="Subtitle" type="Label" parent="Content/Rows"]
+layout_mode = 2
+theme_type_variation = &"SubtitleLabel"
+text = "CAL_SUBTITLE"
+
+[node name="Body" type="CenterContainer" parent="Content/Rows"]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+
+[node name="Card" type="PanelContainer" parent="Content/Rows/Body"]
+custom_minimum_size = Vector2(880, 0)
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="Rows" type="VBoxContainer" parent="Content/Rows/Body/Card"]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="StepCount" type="Label" parent="Content/Rows/Body/Card/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"SectionLabel"
+auto_translate_mode = 2
+text = "1 / 14"
+
+[node name="StepLabel" type="Label" parent="Content/Rows/Body/Card/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"HeadingLabel"
+text = "CAL_STEP_CORNERS"
+autowrap_mode = 3
+
+[node name="Progress" type="ProgressBar" parent="Content/Rows/Body/Card/Rows"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+max_value = 14.0
+show_percentage = false
+
+[node name="Hint" type="Label" parent="Content/Rows/Body/Card/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+text = "CAL_HINT"
+autowrap_mode = 3
+
+[node name="LiveSeparator" type="HSeparator" parent="Content/Rows/Body/Card/Rows"]
+layout_mode = 2
+
+[node name="AxesCaption" type="Label" parent="Content/Rows/Body/Card/Rows"]
+layout_mode = 2
+theme_type_variation = &"SectionLabel"
+text = "CTRL_AXES"
+
+[node name="AxisGrid" type="GridContainer" parent="Content/Rows/Body/Card/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 14
+theme_override_constants/v_separation = 8
+columns = 4
+
+[node name="Footer" type="HBoxContainer" parent="Content/Rows"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 16
+
+[node name="ButtonCancel" type="Button" parent="Content/Rows/Footer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"GhostButton"
+text = "UI_CANCEL"
+metadata/ui_back = true
+
+[node name="Spacer" type="Control" parent="Content/Rows/Footer"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="ButtonSkip" type="Button" parent="Content/Rows/Footer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"GhostButton"
+text = "CAL_SKIP"
+
+[node name="ButtonNext" type="Button" parent="Content/Rows/Footer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(180, 0)
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"PrimaryButton"
+text = "CAL_NEXT"

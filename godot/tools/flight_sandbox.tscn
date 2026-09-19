@@ -1,0 +1,77 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Environment" path="res://world/environment_battle.tres" id="1_environment"]
+[ext_resource type="PackedScene" path="res://drone/drone_rig.tscn" id="2_rig"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ground"]
+size = Vector3(800, 1, 800)
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
+size = Vector2(800, 800)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ground"]
+albedo_color = Color(0.17, 0.19, 0.21, 1)
+metallic_specular = 0.25
+roughness = 0.95
+
+[sub_resource type="CameraAttributesPhysical" id="CameraAttributesPhysical_sandbox"]
+frustum_focus_distance = 5.0
+frustum_focal_length = 2.1
+exposure_aperture = 16.0
+exposure_shutter_speed = 100.0
+auto_exposure_enabled = false
+exposure_sensitivity = 100.0
+
+; Exposición del `WorldEnvironment`, igual que en `rounds/free_flight_level.tscn`
+; (`docs/03` §1, nota de WP-06): con `use_physical_light_units` y un sol de 100 000 lux,
+; un `WorldEnvironment` sin `camera_attributes` deja la imagen en blanco.
+
+[node name="FlightSandbox" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = ExtResource("1_environment")
+camera_attributes = SubResource("CameraAttributesPhysical_sandbox")
+
+; El sol apunta **hacia abajo**: `DirectionalLight3D` emite por su `−Z` local, y el
+; que tenía esta escena lo apuntaba hacia arriba, de modo que el suelo solo recibía
+; la luz ambiente del cielo. Acá queda a 45° de elevación desde el noroeste.
+; Discrepancia anotada: `rounds/free_flight_level.tscn` tiene el mismo sol invertido
+; (WP-06); no se toca acá porque `rounds/` no es de este paquete de trabajo.
+
+[node name="SunLight" type="DirectionalLight3D" parent="."]
+transform = Transform3D(-0.6000001, -0.5656854, 0.56568545, 0, 0.7071068, 0.70710677, -0.79999995, 0.42426413, -0.42426416, 0, 20, 0)
+shadow_enabled = true
+
+[node name="Ground" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+collision_layer = 1
+collision_mask = 294
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Ground"]
+shape = SubResource("BoxShape3D_ground")
+
+[node name="GroundMesh" type="MeshInstance3D" parent="Ground"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+mesh = SubResource("PlaneMesh_ground")
+surface_material_override/0 = SubResource("StandardMaterial3D_ground")
+
+[node name="Respawn" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+
+[node name="DroneRig" parent="." node_paths=PackedStringArray("respawn_point") instance=ExtResource("2_rig")]
+respawn_point = NodePath("../Respawn")
+
+[node name="Drone" parent="DroneRig" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+
+; El banco se mira desde fuera: la `FPVCamera` del rig renuncia a hacerse `current`
+; al entrar al árbol para que gane la `TestCamera` (`FPVCamera.current_on_ready`).
+
+[node name="FPVCamera" parent="DroneRig/Drone/CameraRig" index="0"]
+current_on_ready = false
+
+[node name="TestCamera" type="Camera3D" parent="."]
+transform = Transform3D(0.7739573, -0.31061038, 0.5518254, 0, 0.87143475, 0.49051148, -0.6332378, -0.37963495, 0.6744533, 0.45, 0.62, 0.55)
+current = true
+fov = 70.0
+near = 0.05

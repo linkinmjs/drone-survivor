@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://hud/hud_stick_input.gd" id="1_stick_input"]
+
+[node name="HUDStickInput" type="Control"]
+custom_minimum_size = Vector2(110, 110)
+offset_right = 110.0
+offset_bottom = 110.0
+mouse_filter = 2
+script = ExtResource("1_stick_input")

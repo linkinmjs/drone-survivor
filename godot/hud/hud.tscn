@@ -1,0 +1,206 @@
+[gd_scene load_steps=14 format=3]
+
+[ext_resource type="Script" path="res://hud/hud.gd" id="1_flight_hud"]
+[ext_resource type="Theme" path="res://hud/hud_theme.tres" id="2_hud_theme"]
+[ext_resource type="Script" path="res://hud/hud_horizon.gd" id="3_horizon"]
+[ext_resource type="Script" path="res://hud/hud_side_tapes.gd" id="4_side_tapes"]
+[ext_resource type="Script" path="res://hud/hud_gate_marker.gd" id="5_gate_marker"]
+[ext_resource type="Script" path="res://hud/hud_compass_tape.gd" id="6_compass"]
+[ext_resource type="Script" path="res://hud/hud_readouts.gd" id="7_readouts"]
+[ext_resource type="Script" path="res://hud/hud_crosshair.gd" id="8_crosshair"]
+[ext_resource type="PackedScene" path="res://hud/hud_rpm.tscn" id="9_rpm"]
+[ext_resource type="PackedScene" path="res://hud/hud_stick_input.tscn" id="10_stick"]
+[ext_resource type="Script" path="res://hud/hud_rec_indicator.gd" id="11_rec"]
+[ext_resource type="Script" path="res://hud/hud_mode_badge.gd" id="12_mode_badge"]
+[ext_resource type="Script" path="res://hud/hud_status.gd" id="13_status"]
+
+[node name="FlightHUD" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme = ExtResource("2_hud_theme")
+script = ExtResource("1_flight_hud")
+
+[node name="Frame" type="Control" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+offset_right = 1280.0
+offset_bottom = 720.0
+mouse_filter = 2
+
+[node name="HUDHorizon" type="Control" parent="Frame"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_horizon")
+
+[node name="HUDSideTapes" type="Control" parent="Frame"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("4_side_tapes")
+
+[node name="HUDGateMarker" type="Control" parent="Frame"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("5_gate_marker")
+
+[node name="HUDCompass" type="Control" parent="Frame"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -234.0
+offset_top = 6.0
+offset_right = 234.0
+offset_bottom = 110.0
+grow_horizontal = 2
+mouse_filter = 2
+script = ExtResource("6_compass")
+
+[node name="HUDReadouts" type="Control" parent="Frame"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -300.0
+offset_top = 112.0
+offset_right = -40.0
+offset_bottom = 312.0
+grow_horizontal = 0
+mouse_filter = 2
+script = ExtResource("7_readouts")
+
+[node name="Crosshair" type="Control" parent="Frame"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -24.0
+offset_top = -24.0
+offset_right = 24.0
+offset_bottom = 24.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("8_crosshair")
+
+[node name="HUDRPM" parent="Frame" instance=ExtResource("9_rpm")]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -300.0
+offset_top = -186.0
+offset_right = -152.0
+offset_bottom = -38.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="HUDSticks" type="Control" parent="Frame"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="StickLeft" parent="Frame/HUDSticks" instance=ExtResource("10_stick")]
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 40.0
+offset_top = -148.0
+offset_right = 150.0
+offset_bottom = -38.0
+grow_vertical = 0
+
+[node name="StickRight" parent="Frame/HUDSticks" instance=ExtResource("10_stick")]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -150.0
+offset_top = -148.0
+offset_right = -40.0
+offset_bottom = -38.0
+grow_horizontal = 0
+grow_vertical = 0
+
+[node name="HUDRec" type="Control" parent="Frame"]
+unique_name_in_owner = true
+layout_mode = 1
+offset_left = 40.0
+offset_top = 24.0
+offset_right = 180.0
+offset_bottom = 68.0
+mouse_filter = 2
+script = ExtResource("11_rec")
+
+[node name="HUDModeBadge" type="Control" parent="Frame"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -112.0
+offset_top = -84.0
+offset_right = 112.0
+offset_bottom = -28.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+script = ExtResource("12_mode_badge")
+
+[node name="HUDStatus" type="Label" parent="Frame"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -152.0
+offset_bottom = -92.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+text = "HUD_STATUS_DISARMED"
+horizontal_alignment = 1
+vertical_alignment = 1
+script = ExtResource("13_status")

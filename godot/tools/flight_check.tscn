@@ -1,0 +1,29 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://tools/flight_check.gd" id="1_flight_check"]
+[ext_resource type="PackedScene" path="res://drone/drone_rig.tscn" id="2_rig"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ground"]
+size = Vector3(800, 1, 800)
+
+[node name="FlightCheck" type="Node"]
+script = ExtResource("1_flight_check")
+check_name = "flight_check"
+default_timeout = 240.0
+
+[node name="Ground" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+collision_layer = 1
+collision_mask = 294
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Ground"]
+shape = SubResource("BoxShape3D_ground")
+
+[node name="Respawn" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 2.5, -4)
+
+[node name="DroneRig" parent="." node_paths=PackedStringArray("respawn_point") instance=ExtResource("2_rig")]
+respawn_point = NodePath("../Respawn")
+
+[node name="Drone" parent="DroneRig" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)

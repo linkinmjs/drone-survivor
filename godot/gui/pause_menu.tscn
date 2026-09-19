@@ -1,0 +1,97 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://gui/pause_menu.gd" id="1_pause"]
+[ext_resource type="Script" path="res://gui/menu_screen.gd" id="2_screen"]
+
+[node name="PauseMenu" type="CanvasLayer"]
+process_mode = 2
+layer = 40
+script = ExtResource("1_pause")
+
+[node name="Screen" type="Control" parent="."]
+unique_name_in_owner = true
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("2_screen")
+backdrop = 2
+
+[node name="Content" type="MarginContainer" parent="Screen"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 72
+theme_override_constants/margin_top = 56
+theme_override_constants/margin_right = 72
+theme_override_constants/margin_bottom = 104
+
+[node name="Center" type="CenterContainer" parent="Screen/Content"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Card" type="PanelContainer" parent="Screen/Content/Center"]
+custom_minimum_size = Vector2(560, 0)
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="Column" type="VBoxContainer" parent="Screen/Content/Center/Card"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Title" type="Label" parent="Screen/Content/Center/Card/Column"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+text = "MENU_PAUSED"
+
+[node name="Subtitle" type="Label" parent="Screen/Content/Center/Card/Column"]
+layout_mode = 2
+theme_type_variation = &"SubtitleLabel"
+text = "MENU_PAUSED_HINT"
+
+[node name="Spacer" type="Control" parent="Screen/Content/Center/Card/Column"]
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Entries" type="VBoxContainer" parent="Screen/Content/Center/Card/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="ButtonResume" type="Button" parent="Screen/Content/Center/Card/Column/Entries"]
+layout_mode = 2
+theme_type_variation = &"MenuItemButton"
+text = "MENU_RESUME"
+alignment = 0
+
+[node name="ButtonHangar" type="Button" parent="Screen/Content/Center/Card/Column/Entries"]
+layout_mode = 2
+theme_type_variation = &"MenuItemButton"
+text = "MENU_HANGAR"
+alignment = 0
+
+[node name="ButtonOptions" type="Button" parent="Screen/Content/Center/Card/Column/Entries"]
+layout_mode = 2
+theme_type_variation = &"MenuItemButton"
+text = "MENU_OPTIONS"
+alignment = 0
+
+[node name="ButtonHelp" type="Button" parent="Screen/Content/Center/Card/Column/Entries"]
+layout_mode = 2
+theme_type_variation = &"MenuItemButton"
+text = "MENU_HELP"
+alignment = 0
+
+[node name="ButtonMain" type="Button" parent="Screen/Content/Center/Card/Column/Entries"]
+layout_mode = 2
+theme_type_variation = &"MenuItemButton"
+text = "MENU_MAIN"
+alignment = 0

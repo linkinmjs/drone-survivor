@@ -1,0 +1,232 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://gui/options_menu/controls_menu/controls_menu.gd" id="1_controls"]
+
+[node name="ControlsMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_controls")
+
+[node name="Content" type="MarginContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 72
+theme_override_constants/margin_top = 56
+theme_override_constants/margin_right = 72
+theme_override_constants/margin_bottom = 104
+
+[node name="Rows" type="VBoxContainer" parent="Content"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="Content/Rows"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+text = "CTRL_TITLE"
+
+[node name="Subtitle" type="Label" parent="Content/Rows"]
+layout_mode = 2
+theme_type_variation = &"SubtitleLabel"
+text = "CTRL_SUBTITLE"
+
+[node name="Scroll" type="ScrollContainer" parent="Content/Rows"]
+layout_mode = 2
+size_flags_vertical = 3
+follow_focus = true
+horizontal_scroll_mode = 0
+
+[node name="Columns" type="HBoxContainer" parent="Content/Rows/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 24
+
+[node name="ColumnA" type="VBoxContainer" parent="Content/Rows/Scroll/Columns"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 20
+
+[node name="CardDevice" type="PanelContainer" parent="Content/Rows/Scroll/Columns/ColumnA"]
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="Rows" type="VBoxContainer" parent="Content/Rows/Scroll/Columns/ColumnA/CardDevice"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Section" type="Label" parent="Content/Rows/Scroll/Columns/ColumnA/CardDevice/Rows"]
+layout_mode = 2
+theme_type_variation = &"SectionLabel"
+text = "CTRL_SECTION_DEVICE"
+
+[node name="RowDevice" type="HBoxContainer" parent="Content/Rows/Scroll/Columns/ColumnA/CardDevice/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Caption" type="Label" parent="Content/Rows/Scroll/Columns/ColumnA/CardDevice/Rows/RowDevice"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+text = "CTRL_ACTIVE_CONTROLLER"
+
+[node name="DeviceOption" type="OptionButton" parent="Content/Rows/Scroll/Columns/ColumnA/CardDevice/Rows/RowDevice"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="RowDefault" type="HBoxContainer" parent="Content/Rows/Scroll/Columns/ColumnA/CardDevice/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Caption" type="Label" parent="Content/Rows/Scroll/Columns/ColumnA/CardDevice/Rows/RowDefault"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+text = "CTRL_DEFAULT_CONTROLLER"
+
+[node name="DefaultCheck" type="CheckButton" parent="Content/Rows/Scroll/Columns/ColumnA/CardDevice/Rows/RowDefault"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="DeviceStatus" type="Label" parent="Content/Rows/Scroll/Columns/ColumnA/CardDevice/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+text = "CTRL_NO_CONTROLLER"
+autowrap_mode = 3
+
+[node name="CardLive" type="PanelContainer" parent="Content/Rows/Scroll/Columns/ColumnA"]
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="Rows" type="VBoxContainer" parent="Content/Rows/Scroll/Columns/ColumnA/CardLive"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Section" type="Label" parent="Content/Rows/Scroll/Columns/ColumnA/CardLive/Rows"]
+layout_mode = 2
+theme_type_variation = &"SectionLabel"
+text = "CTRL_SECTION_LIVE"
+
+[node name="AxesCaption" type="Label" parent="Content/Rows/Scroll/Columns/ColumnA/CardLive/Rows"]
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+text = "CTRL_AXES"
+
+[node name="AxisGrid" type="GridContainer" parent="Content/Rows/Scroll/Columns/ColumnA/CardLive/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 14
+theme_override_constants/v_separation = 8
+columns = 2
+
+[node name="ButtonsCaption" type="Label" parent="Content/Rows/Scroll/Columns/ColumnA/CardLive/Rows"]
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+text = "CTRL_BUTTONS"
+
+[node name="ButtonGrid" type="GridContainer" parent="Content/Rows/Scroll/Columns/ColumnA/CardLive/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+columns = 8
+
+[node name="ColumnB" type="VBoxContainer" parent="Content/Rows/Scroll/Columns"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 20
+
+[node name="CardFlight" type="PanelContainer" parent="Content/Rows/Scroll/Columns/ColumnB"]
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="Rows" type="VBoxContainer" parent="Content/Rows/Scroll/Columns/ColumnB/CardFlight"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Section" type="Label" parent="Content/Rows/Scroll/Columns/ColumnB/CardFlight/Rows"]
+layout_mode = 2
+theme_type_variation = &"SectionLabel"
+text = "CTRL_SECTION_FLIGHT"
+
+[node name="FlightGrid" type="GridContainer" parent="Content/Rows/Scroll/Columns/ColumnB/CardFlight/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 10
+columns = 4
+
+[node name="CalibrateHint" type="Label" parent="Content/Rows/Scroll/Columns/ColumnB/CardFlight/Rows"]
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+text = "CTRL_CALIBRATE_HINT"
+autowrap_mode = 3
+
+[node name="ButtonCalibrate" type="Button" parent="Content/Rows/Scroll/Columns/ColumnB/CardFlight/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 0
+theme_type_variation = &"PrimaryButton"
+text = "CTRL_CALIBRATE"
+
+[node name="ColumnC" type="VBoxContainer" parent="Content/Rows/Scroll/Columns"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.15
+theme_override_constants/separation = 20
+
+[node name="CardActions" type="PanelContainer" parent="Content/Rows/Scroll/Columns/ColumnC"]
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="Rows" type="VBoxContainer" parent="Content/Rows/Scroll/Columns/ColumnC/CardActions"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Section" type="Label" parent="Content/Rows/Scroll/Columns/ColumnC/CardActions/Rows"]
+layout_mode = 2
+theme_type_variation = &"SectionLabel"
+text = "CTRL_SECTION_ACTIONS"
+
+[node name="Bindings" type="VBoxContainer" parent="Content/Rows/Scroll/Columns/ColumnC/CardActions/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Footer" type="HBoxContainer" parent="Content/Rows"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 16
+
+[node name="ButtonBack" type="Button" parent="Content/Rows/Footer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"GhostButton"
+text = "UI_BACK"
+metadata/ui_back = true
+
+[node name="Spacer" type="Control" parent="Content/Rows/Footer"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="ButtonReset" type="Button" parent="Content/Rows/Footer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"DangerButton"
+text = "CTRL_RESET"

@@ -1,0 +1,10 @@
+boot_key.ogg and boot_enter.ogg (the studio card at startup, gui/boot/)
+
+Taken from the Universal UI Soundpack ("Minimalist 2" and "Modern 2").
+Created and distributed by Nathan Gibson (https://nathangibson.myportfolio.com)
+Creation date: 27/9/2021
+
+License: Attribution 4.0 International (CC BY 4.0)
+https://creativecommons.org/licenses/by/4.0/
+
+The other sounds in this folder are synthesized by tools/generate_ui_sounds.gd.

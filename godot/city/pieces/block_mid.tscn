@@ -1,0 +1,5 @@
+[gd_scene load_steps=2 format=3 uid="uid://8bvlhlcegspjc"]
+
+[ext_resource type="PackedScene" uid="uid://b0bioeh5agx4e" path="res://assets/city/models/BuildingBlock_18.fbx" id="1_base"]
+
+[node name="block_mid" instance=ExtResource("1_base")]

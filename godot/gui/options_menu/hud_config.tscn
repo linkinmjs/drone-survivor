@@ -1,0 +1,206 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://gui/options_menu/hud_config.gd" id="1_hud_config"]
+[ext_resource type="PackedScene" path="res://hud/hud.tscn" id="2_flight_hud"]
+
+[node name="HudConfig" type="HBoxContainer"]
+theme_override_constants/separation = 28
+script = ExtResource("1_hud_config")
+
+[node name="Settings" type="PanelContainer" parent="."]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Card"
+
+[node name="Column" type="VBoxContainer" parent="Settings"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Rows" type="VBoxContainer" parent="Settings/Column"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="RowPreset" type="HBoxContainer" parent="Settings/Column/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Caption" type="Label" parent="Settings/Column/Rows/RowPreset"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+text = "HUD_PRESET"
+
+[node name="PresetOption" type="OptionButton" parent="Settings/Column/Rows/RowPreset"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(330, 0)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="RowHorizon" type="HBoxContainer" parent="Settings/Column/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Caption" type="Label" parent="Settings/Column/Rows/RowHorizon"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+text = "HUD_HORIZON_MODE"
+
+[node name="HorizonOption" type="OptionButton" parent="Settings/Column/Rows/RowHorizon"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(330, 0)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="RowFps" type="HBoxContainer" parent="Settings/Column/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="Caption" type="Label" parent="Settings/Column/Rows/RowFps"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+text = "HUD_NUMBERS_RATE"
+
+[node name="Field" type="HBoxContainer" parent="Settings/Column/Rows/RowFps"]
+custom_minimum_size = Vector2(330, 0)
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 16
+
+[node name="FpsSlider" type="HSlider" parent="Settings/Column/Rows/RowFps/Field"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+min_value = 5.0
+max_value = 60.0
+value = 10.0
+
+[node name="FpsValue" type="Label" parent="Settings/Column/Rows/RowFps/Field"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"ValueLabel"
+horizontal_alignment = 2
+
+[node name="Separator" type="HSeparator" parent="Settings/Column"]
+layout_mode = 2
+
+[node name="ComponentsLabel" type="Label" parent="Settings/Column"]
+layout_mode = 2
+theme_type_variation = &"SectionLabel"
+text = "HUD_COMPONENTS"
+
+[node name="Toggles" type="GridContainer" parent="Settings/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+columns = 2
+
+[node name="ToggleCrosshair" type="CheckButton" parent="Settings/Column/Toggles"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "HUD_CFG_CROSSHAIR"
+alignment = 0
+metadata/hud_toggle = "crosshair"
+
+[node name="ToggleHorizon" type="CheckButton" parent="Settings/Column/Toggles"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "HUD_CFG_HORIZON"
+alignment = 0
+metadata/hud_toggle = "horizon"
+
+[node name="ToggleLadder" type="CheckButton" parent="Settings/Column/Toggles"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "HUD_CFG_LADDER"
+alignment = 0
+metadata/hud_toggle = "ladder"
+
+[node name="ToggleHeading" type="CheckButton" parent="Settings/Column/Toggles"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "HUD_CFG_HEADING"
+alignment = 0
+metadata/hud_toggle = "heading"
+
+[node name="ToggleSpeed" type="CheckButton" parent="Settings/Column/Toggles"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "HUD_CFG_SPEED"
+alignment = 0
+metadata/hud_toggle = "speed"
+
+[node name="ToggleAltitude" type="CheckButton" parent="Settings/Column/Toggles"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "HUD_CFG_ALTITUDE"
+alignment = 0
+metadata/hud_toggle = "altitude"
+
+[node name="ToggleSideTapes" type="CheckButton" parent="Settings/Column/Toggles"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "HUD_CFG_SIDE_TAPES"
+alignment = 0
+metadata/hud_toggle = "side_tapes"
+
+[node name="ToggleFlightMode" type="CheckButton" parent="Settings/Column/Toggles"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "HUD_CFG_FLIGHT_MODE"
+alignment = 0
+metadata/hud_toggle = "flight_mode"
+
+[node name="ToggleRec" type="CheckButton" parent="Settings/Column/Toggles"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "HUD_CFG_REC"
+alignment = 0
+metadata/hud_toggle = "rec"
+
+[node name="ToggleSticks" type="CheckButton" parent="Settings/Column/Toggles"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "HUD_CFG_STICKS"
+alignment = 0
+metadata/hud_toggle = "sticks"
+
+[node name="ToggleRpm" type="CheckButton" parent="Settings/Column/Toggles"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "HUD_CFG_RPM"
+alignment = 0
+metadata/hud_toggle = "rpm"
+
+; 660 y no 560: el `FlightHUD` de la vista previa reduce su marco de 1280×720 para
+; entrar acá, así que cada píxel de ancho del panel es medio píxel de HUD legible.
+[node name="Preview" type="VBoxContainer" parent="."]
+custom_minimum_size = Vector2(660, 0)
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="PreviewLabel" type="Label" parent="Preview"]
+layout_mode = 2
+theme_type_variation = &"SectionLabel"
+text = "HUD_PREVIEW"
+
+[node name="PreviewPanel" type="PanelContainer" parent="Preview"]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+theme_type_variation = &"HudPreviewPanel"
+
+; El `FlightHUD` real en `preview_mode` (`docs/12` §2.5, `docs/04` §4.2). Es el mismo
+; `hud/hud.tscn` que vuela en el rig: el marco se reduce solo para entrar en el panel,
+; así que lo que se ve acá es exactamente lo que se verá en vuelo. `clip_contents`
+; existe para que nada se dibuje fuera de las esquinas redondeadas del panel.
+[node name="HudPreview" parent="Preview/PreviewPanel" instance=ExtResource("2_flight_hud")]
+unique_name_in_owner = true
+clip_contents = true
+custom_minimum_size = Vector2(0, 320)
+layout_mode = 2
+preview_mode = true

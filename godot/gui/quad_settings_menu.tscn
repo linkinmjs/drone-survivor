@@ -1,0 +1,254 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://gui/quad_settings_menu.gd" id="1_quad"]
+[ext_resource type="Script" path="res://gui/rate_graph.gd" id="2_graph"]
+
+[node name="QuadSettingsMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_quad")
+
+[node name="Content" type="MarginContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 72
+theme_override_constants/margin_top = 56
+theme_override_constants/margin_right = 72
+theme_override_constants/margin_bottom = 104
+
+[node name="Body" type="VBoxContainer" parent="Content"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="Content/Body"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+text = "QUAD_TITLE"
+
+[node name="Subtitle" type="Label" parent="Content/Body"]
+layout_mode = 2
+theme_type_variation = &"SubtitleLabel"
+text = "QUAD_SUBTITLE"
+
+[node name="Columns" type="HBoxContainer" parent="Content/Body"]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+theme_override_constants/separation = 24
+
+[node name="Scroll" type="ScrollContainer" parent="Content/Body/Columns"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+follow_focus = true
+horizontal_scroll_mode = 0
+
+[node name="Holder" type="VBoxContainer" parent="Content/Body/Columns/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 12
+
+[node name="FrameCard" type="PanelContainer" parent="Content/Body/Columns/Scroll/Holder"]
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="FrameRows" type="VBoxContainer" parent="Content/Body/Columns/Scroll/Holder/FrameCard"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="FrameHeading" type="Label" parent="Content/Body/Columns/Scroll/Holder/FrameCard/FrameRows"]
+layout_mode = 2
+theme_type_variation = &"HeadingLabel"
+text = "QUAD_SECTION_FRAME"
+
+[node name="RowAngle" type="HBoxContainer" parent="Content/Body/Columns/Scroll/Holder/FrameCard/FrameRows"]
+layout_mode = 2
+theme_override_constants/separation = 18
+metadata/quad_key = "angle"
+
+[node name="Caption" type="Label" parent="Content/Body/Columns/Scroll/Holder/FrameCard/FrameRows/RowAngle"]
+custom_minimum_size = Vector2(230, 0)
+layout_mode = 2
+size_flags_vertical = 4
+text = "QUAD_CAMERA_ANGLE"
+
+[node name="Slider" type="HSlider" parent="Content/Body/Columns/Scroll/Holder/FrameCard/FrameRows/RowAngle"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+
+[node name="Spin" type="SpinBox" parent="Content/Body/Columns/Scroll/Holder/FrameCard/FrameRows/RowAngle"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="RowDryWeight" type="HBoxContainer" parent="Content/Body/Columns/Scroll/Holder/FrameCard/FrameRows"]
+layout_mode = 2
+theme_override_constants/separation = 18
+metadata/quad_key = "dry_weight"
+
+[node name="Caption" type="Label" parent="Content/Body/Columns/Scroll/Holder/FrameCard/FrameRows/RowDryWeight"]
+custom_minimum_size = Vector2(230, 0)
+layout_mode = 2
+size_flags_vertical = 4
+text = "QUAD_DRY_WEIGHT"
+
+[node name="Slider" type="HSlider" parent="Content/Body/Columns/Scroll/Holder/FrameCard/FrameRows/RowDryWeight"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+
+[node name="Spin" type="SpinBox" parent="Content/Body/Columns/Scroll/Holder/FrameCard/FrameRows/RowDryWeight"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="RowBatteryWeight" type="HBoxContainer" parent="Content/Body/Columns/Scroll/Holder/FrameCard/FrameRows"]
+layout_mode = 2
+theme_override_constants/separation = 18
+metadata/quad_key = "battery_weight"
+
+[node name="Caption" type="Label" parent="Content/Body/Columns/Scroll/Holder/FrameCard/FrameRows/RowBatteryWeight"]
+custom_minimum_size = Vector2(230, 0)
+layout_mode = 2
+size_flags_vertical = 4
+text = "QUAD_BATTERY_WEIGHT"
+
+[node name="Slider" type="HSlider" parent="Content/Body/Columns/Scroll/Holder/FrameCard/FrameRows/RowBatteryWeight"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+
+[node name="Spin" type="SpinBox" parent="Content/Body/Columns/Scroll/Holder/FrameCard/FrameRows/RowBatteryWeight"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="RowFov" type="HBoxContainer" parent="Content/Body/Columns/Scroll/Holder/FrameCard/FrameRows"]
+layout_mode = 2
+theme_override_constants/separation = 18
+metadata/quad_key = "fov"
+
+[node name="Caption" type="Label" parent="Content/Body/Columns/Scroll/Holder/FrameCard/FrameRows/RowFov"]
+custom_minimum_size = Vector2(230, 0)
+layout_mode = 2
+size_flags_vertical = 4
+text = "QUAD_FOV"
+
+[node name="Slider" type="HSlider" parent="Content/Body/Columns/Scroll/Holder/FrameCard/FrameRows/RowFov"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+
+[node name="Spin" type="SpinBox" parent="Content/Body/Columns/Scroll/Holder/FrameCard/FrameRows/RowFov"]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="RatesCard" type="PanelContainer" parent="Content/Body/Columns/Scroll/Holder"]
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="RateRows" type="VBoxContainer" parent="Content/Body/Columns/Scroll/Holder/RatesCard"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="RatesHeading" type="Label" parent="Content/Body/Columns/Scroll/Holder/RatesCard/RateRows"]
+layout_mode = 2
+theme_type_variation = &"HeadingLabel"
+text = "QUAD_SECTION_RATES"
+
+[node name="RowCurve" type="HBoxContainer" parent="Content/Body/Columns/Scroll/Holder/RatesCard/RateRows"]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="Caption" type="Label" parent="Content/Body/Columns/Scroll/Holder/RatesCard/RateRows/RowCurve"]
+custom_minimum_size = Vector2(230, 0)
+layout_mode = 2
+size_flags_vertical = 4
+text = "QUAD_RATES_CURVE"
+
+[node name="CurveOption" type="OptionButton" parent="Content/Body/Columns/Scroll/Holder/RatesCard/RateRows/RowCurve"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+
+[node name="GraphCard" type="PanelContainer" parent="Content/Body/Columns"]
+custom_minimum_size = Vector2(430, 0)
+layout_mode = 2
+size_flags_vertical = 3
+theme_type_variation = &"Card"
+
+[node name="GraphColumn" type="VBoxContainer" parent="Content/Body/Columns/GraphCard"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="GraphHeading" type="Label" parent="Content/Body/Columns/GraphCard/GraphColumn"]
+layout_mode = 2
+theme_type_variation = &"HeadingLabel"
+text = "QUAD_GRAPH"
+
+[node name="Graph" type="Control" parent="Content/Body/Columns/GraphCard/GraphColumn"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(390, 320)
+layout_mode = 2
+size_flags_vertical = 3
+script = ExtResource("2_graph")
+
+[node name="GraphHint" type="Label" parent="Content/Body/Columns/GraphCard/GraphColumn"]
+custom_minimum_size = Vector2(390, 0)
+layout_mode = 2
+theme_type_variation = &"CaptionLabel"
+text = "QUAD_HELP_GRAPH"
+autowrap_mode = 3
+
+[node name="Footer" type="HBoxContainer" parent="Content/Body"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 12
+
+[node name="ButtonResetQuad" type="Button" parent="Content/Body/Footer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"GhostButton"
+text = "QUAD_RESET_QUAD"
+
+[node name="ButtonResetRates" type="Button" parent="Content/Body/Footer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"GhostButton"
+text = "QUAD_RESET_RATES"
+
+[node name="Spacer" type="Control" parent="Content/Body/Footer"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="ButtonBack" type="Button" parent="Content/Body/Footer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+theme_type_variation = &"GhostButton"
+text = "UI_BACK"
+metadata/ui_back = true

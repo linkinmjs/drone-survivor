@@ -1,0 +1,98 @@
+voxsplit 1.0.0 — reporte de «arachnodroid»
+generado            : 2026-09-19T06:25:00Z
+origen              : ../../assets/_raw/Arachnodroid.zip!Package/Arachnoid.vox
+voxel_size          : 0.75 m
+origin_voxel        : [20.0, 20.0, 0.0]
+axis_map            : {'x': '+x', 'y': '+z', 'z': '-y'} (det +1)
+
+parte              padre              vox   tris  quads  emis  bbox local (m)
+----------------------------------------------------------------------------------------------------------------------
+wp_head_visor      hull                44     72     36    sí  [ -2.250, -1.125, -1.125] [  2.250,  1.125,  1.125]
+antenna_l          hull                10     12      6    no  [ -3.750, -0.375, -0.375] [  3.750,  0.375,  0.375]
+antenna_r          hull                10     12      6    no  [ -3.750, -0.375, -0.375] [  3.750,  0.375,  0.375]
+wp_core_a          underbelly          12     22     11    no  [ -1.500,  0.000, -0.750] [  1.500,  1.500,  0.750]
+wp_core_b          underbelly          16     30     15    sí  [ -1.500,  0.000, -0.750] [  1.500,  1.500,  0.750]
+wp_core_c          underbelly           8     20     10    no  [ -1.500,  0.000, -0.375] [  1.500,  1.500,  0.375]
+wp_leg_fl_knee     leg_fl_tibia        15     50     25    sí  [ -1.500, -1.125, -1.125] [  0.750,  1.125,  1.125]
+wp_leg_fr_knee     leg_fr_tibia        15     50     25    sí  [ -0.750, -1.125, -1.125] [  1.500,  1.125,  1.125]
+wp_leg_bl_knee     leg_bl_tibia        15     50     25    sí  [ -1.500, -1.125, -1.125] [  0.750,  1.125,  1.125]
+wp_leg_br_knee     leg_br_tibia        15     50     25    sí  [ -0.750, -1.125, -1.125] [  1.500,  1.125,  1.125]
+leg_fl_foot        leg_fl_tibia        30    104     52    no  [ -1.500, -3.750, -0.375] [  1.500,  0.000,  1.875]
+leg_fr_foot        leg_fr_tibia        30    104     52    no  [ -1.500, -3.750, -0.375] [  1.500,  0.000,  1.875]
+leg_bl_foot        leg_bl_tibia        30    108     54    no  [ -1.500, -3.750, -1.875] [  1.500,  0.000,  0.375]
+leg_br_foot        leg_br_tibia        30    108     54    no  [ -1.500, -3.750, -1.875] [  1.500,  0.000,  0.375]
+leg_fl_tibia       leg_fl_femur        30     42     21    no  [ -1.500, -6.000, -0.375] [  1.500, -0.750,  1.875]
+leg_fr_tibia       leg_fr_femur        30     42     21    no  [ -1.500, -6.000, -0.375] [  1.500, -0.750,  1.875]
+leg_bl_tibia       leg_bl_femur        30     42     21    no  [ -1.500, -6.000, -1.875] [  1.500, -0.750,  0.375]
+leg_br_tibia       leg_br_femur        30     42     21    no  [ -1.500, -6.000, -1.875] [  1.500, -0.750,  0.375]
+leg_fl_femur       leg_fl_coxa         58     88     44    no  [ -1.875, -7.500, -3.000] [  1.125,  0.000,  2.250]
+leg_fr_femur       leg_fr_coxa         58     88     44    no  [ -1.125, -7.500, -3.000] [  1.875,  0.000,  2.250]
+leg_bl_femur       leg_bl_coxa         58     88     44    no  [ -1.875, -7.500, -2.250] [  1.125,  0.000,  3.000]
+leg_br_femur       leg_br_coxa         58     88     44    no  [ -1.125, -7.500, -2.250] [  1.875,  0.000,  3.000]
+leg_fl_coxa        shoulder_ring       29     60     30    no  [ -3.375, -0.750, -6.375] [  0.375,  0.750,  0.375]
+leg_fr_coxa        shoulder_ring       29     60     30    no  [ -0.375, -0.750, -6.375] [  3.375,  0.750,  0.375]
+leg_bl_coxa        shoulder_ring       29     60     30    no  [ -3.375, -0.750, -0.375] [  0.375,  0.750,  6.375]
+leg_br_coxa        shoulder_ring       29     60     30    no  [ -0.375, -0.750, -0.375] [  3.375,  0.750,  6.375]
+neck               hull               188    220    110    no  [ -3.000, -2.625, -3.750] [  3.000,  0.375,  3.750]
+shoulder_ring      hull               156    404    202    no  [ -6.000, -1.125, -6.000] [  6.000,  1.125,  6.000]
+carapace           shoulder_ring      456    556    278    sí  [-10.500, -0.750, -6.000] [ 10.500,  0.750,  6.000]
+underbelly         carapace           844   1130    565    no  [ -9.750, -7.500, -6.000] [  9.750,  0.000,  6.000]
+hull               -                 1615    412    206    sí  [ -3.750, -0.375,-12.000] [  3.750,  6.375,  5.250]
+----------------------------------------------------------------------------------------------------------------------
+TOTAL                                4007   4274   2137
+
+partes              : 31 (23 estructurales + 8 puntos débiles)
+voxels del .vox     : 4007
+voxels asignados    : 4007
+voxels sin asignar  : 0
+triángulos          : 4274
+quads (greedy)      : 2137
+primitivas / mallas : 39 / 31
+nodos del GLB       : 32 (1 raíz 'ArachnodroidRoot' + 31 nodos de parte)
+bbox del modelo (m) : min [-10.5, 0.0, -13.5]  max [10.5, 29.25, 13.5]
+altura total (m)    : 29.2500
+huella X × Z (m)    : 21.0000 × 27.0000
+GLB                 : 355128 bytes
+
+índices emisivos:
+    6  RGB (254, 120, 231)  voxels    2  weight 0.82  flux 3  energy 3.28
+    7  RGB (249, 140, 90)  voxels   13  weight 0.72  flux 1  energy 0.72
+    8  RGB (55, 170, 248)  voxels   11  weight 0.65  flux 1  energy 0.65
+   14  RGB (254, 120, 231)  voxels    2  weight 0.18  flux 3  energy 0.72
+  emissiveStrength del material voxel_emissive: 3.28
+
+jerarquía:
+  ArachnodroidRoot
+  `-- hull
+      |-- wp_head_visor
+      |-- antenna_l
+      |-- antenna_r
+      |-- neck
+      `-- shoulder_ring
+          |-- leg_fl_coxa
+          |   `-- leg_fl_femur
+          |       `-- leg_fl_tibia
+          |           |-- wp_leg_fl_knee
+          |           `-- leg_fl_foot
+          |-- leg_fr_coxa
+          |   `-- leg_fr_femur
+          |       `-- leg_fr_tibia
+          |           |-- wp_leg_fr_knee
+          |           `-- leg_fr_foot
+          |-- leg_bl_coxa
+          |   `-- leg_bl_femur
+          |       `-- leg_bl_tibia
+          |           |-- wp_leg_bl_knee
+          |           `-- leg_bl_foot
+          |-- leg_br_coxa
+          |   `-- leg_br_femur
+          |       `-- leg_br_tibia
+          |           |-- wp_leg_br_knee
+          |           `-- leg_br_foot
+          `-- carapace
+              `-- underbelly
+                  |-- wp_core_a
+                  |-- wp_core_b
+                  `-- wp_core_c
+
+CHECK voxsplit: OK

@@ -1,0 +1,41 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://drone/drone_rig.gd" id="1_rig"]
+[ext_resource type="PackedScene" path="res://drone/drones/drone_quad.tscn" id="2_drone"]
+[ext_resource type="Script" path="res://drone/flight/flight_controller.gd" id="3_controller"]
+[ext_resource type="Script" path="res://drone/radio/radio_controller.gd" id="4_radio"]
+[ext_resource type="Script" path="res://drone/camera_rig.gd" id="5_camera_rig"]
+[ext_resource type="Script" path="res://drone/fpv_camera/fpv_camera.gd" id="6_fpv_camera"]
+[ext_resource type="PackedScene" path="res://hud/hud.tscn" id="7_flight_hud"]
+
+[node name="DroneRig" type="Node3D"]
+script = ExtResource("1_rig")
+
+[node name="Drone" parent="." node_paths=PackedStringArray("controller") instance=ExtResource("2_drone")]
+controller = NodePath("FlightController")
+
+[node name="FlightController" type="Node" parent="Drone" node_paths=PackedStringArray("drone")]
+script = ExtResource("3_controller")
+drone = NodePath("..")
+
+[node name="CameraRig" type="Node3D" parent="Drone"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.048, -0.05)
+script = ExtResource("5_camera_rig")
+
+[node name="FPVCamera" type="Camera3D" parent="Drone/CameraRig"]
+keep_aspect = 0
+cull_mask = 524287
+far = 2000.0
+near = 0.02
+script = ExtResource("6_fpv_camera")
+
+; `FlightHUD` (WP-08, `docs/12` §2): hermano del `Drone`, como manda `docs/03` §8. Es
+; un `Control` bajo un `Node3D`, así que se dibuja en la capa 0 del canvas de la
+; viewport —encima del compuesto del ojo de pez, que vive en la −2— y queda fuera de
+; sus `SubViewport`: no se deforma con la imagen. Lo alimenta `drone_rig.gd`.
+
+[node name="FlightHUD" parent="." instance=ExtResource("7_flight_hud")]
+
+[node name="RadioController" type="Node" parent="." node_paths=PackedStringArray("target")]
+script = ExtResource("4_radio")
+target = NodePath("../Drone")
