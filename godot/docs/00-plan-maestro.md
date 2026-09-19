@@ -179,7 +179,7 @@ Al terminar: resumen de decisiones, desvíos respecto al doc, y salida del check
 - **Eventos**: `Events` publica hechos, nunca comandos; solo el sistema dueño del hecho lo emite.
 - **Física**: capas de `02-configuracion-del-proyecto.md`; ningún `Area3D` como hitbox; consultas con `PhysicsDirectSpaceState3D`.
 - **Verificación**: cada feature entrega `tools/<feature>_check.tscn` que devuelve código ≠ 0 al fallar y restaura la configuración del jugador.
-- **Git**: rama por WP, un commit por WP (o pocos, coherentes), mensaje en español imperativo (`Agregar el rig de patas procedural`), sin push salvo pedido del usuario.
+- **Git**: **ningún commit ni push sin confirmación explícita del usuario** (regla fijada el 2026-09-19). Los agentes trabajan en el árbol de trabajo sobre archivos disjuntos; cuando el usuario autoriza, se hace un commit por WP (o por checkpoint) con mensaje en español imperativo (`Agregar el rig de patas procedural`).
 - **Assets**: `assets/_raw/` lleva `.gdignore`; todo lo importable vive en `assets/<dominio>/`; texturas comprimidas para VRAM con mipmaps.
 
 ## 7. Estado
@@ -215,6 +215,8 @@ Revisión cruzada de los 17 documentos: firmas del bus, nombres de método, grup
 ### Decisiones pendientes del usuario
 
 Solo éstas requieren al usuario; todo lo demás quedó cerrado arriba.
+
+> **Diferido por decisión del usuario (2026-09-19)**: los puntos 1 a 4 (nombre legal, licencias de packs, fuente del boot y tipografía) se resuelven al final del proyecto, cuando el juego esté encaminado. Mientras tanto no se crean `LICENSE`/`NOTICE`/`CREDITS.md` y `project_check` no los exige; la fuente del boot y las fuentes Recursive se usan tal cual durante el desarrollo.
 
 1. **Nombre legal completo del titular** del copyright, para `LICENSE`, `NOTICE` y `CREDITS.md` (`02` D-7, `16` §7). Bloquea el cierre de WP-01 en su parte legal, no el código.
 2. **Licencias de los dos packs de assets**: los nueve `.vox` de mechas (incluido `Mecha01.rar`) y el pack de ciudad *VoxelCity Free Sample*. Hay que confirmar uso comercial, derecho de modificación y crédito exigido antes del checkpoint 3 (`16` §4). Si alguno no permite uso comercial, el reemplazo es caro.
