@@ -1,0 +1,575 @@
+# 13 — Identidad visual y audio
+
+> Estado: borrador v1 · Fecha: 2026-09-19 · Gobierna: WP-24, WP-25, WP-26, WP-27, WP-28 · Depende de: `docs/02-configuracion-del-proyecto.md`, `docs/04-especificacion-configuracion-y-menus.md`, `docs/10-ciudad-destructible.md`, `docs/12-interfaz-y-hud.md`
+
+## 1. Objetivo y alcance
+
+Define **cómo se ve y cómo suena** Drone Survivor: la identidad de marca y de UI (WP-25), el entorno de render y sus presets (WP-24), los efectos visuales (WP-26), el audio y la música adaptativa (WP-27), y la sacudida de cámara con el overlay FPV (WP-28).
+
+**Incluye**
+
+- Dirección de arte, `UIPalette` nueva con contraste verificado, tipografías bajo OFL y regeneración del tema.
+- Backdrop 3D en vivo del menú principal; conservación de la tarjeta de boot del estudio "Ominoso".
+- `world/environment_battle.tres`, `world/sun_dusk.tres`, `CameraAttributesPractical`, `ReflectionProbe` locales y presets LOW/MEDIUM/HIGH/ULTRA.
+- Catálogo de VFX por evento con nodo, duración, pool y presupuesto.
+- Distribución de buses, audio 3D, presupuesto de voces y música por 3 capas.
+- `CameraRig` con modelo de trauma y `fpv_overlay.gdshader`.
+- Checks `render_check`, `vfx_check`, `audio_check`, `shake_check` y capturas de menús.
+
+**NO incluye**
+
+- Qué dibuja cada componente del HUD ni el recorrido de menús (`docs/12`).
+- Los menús de gráficos y audio en sí, ni su persistencia (`docs/04`); acá se define **qué** apaga cada preset, no la pantalla que lo elige.
+- El pipeline voxel ni los materiales de los modelos (`docs/05`, `docs/10`).
+- Licencias y atribuciones finales (`docs/16`), que este documento alimenta.
+
+## 2. Dirección de arte e identidad
+
+### 2.1 Premisa
+
+Una ciudad voxel al anochecer, fría y azulada, con ventanas encendidas; sobre ella, colosos voxel de silueta negra con emisivos saturados (cian en visores y rodillas, naranja en respiraderos, magenta ventral). El jugador ve todo a través del video de un dron FPV: viñeta, ruido y aberración sutiles. La UI es oscura, militar y holográfica, de esquinas rectas (radio 2 px) y líneas de 1 px.
+
+**Decisión de color de acento: ámbar.** El cian queda reservado como color **diegético**: marca lo que pertenece al enemigo y lo que se puede romper (puntos débiles, cajas de objetivo). Si la UI también fuera cian, el jugador no distinguiría "información mía" de "objetivo". El ámbar además es el hue de mayor contraste sobre un fondo casi negro (10.7:1) y arrastra la connotación de radio militar. El cian se conserva como `TARGET`, no como acento de UI.
+
+### 2.2 `UIPalette` (propuesta)
+
+`gui/theme/ui_palette.gd` — constantes; `ThemeBuilder` genera `main_theme.tres` a partir de ellas.
+
+| Constante | Hex | Uso | Contraste vs `BG` |
+|---|---|---|---|
+| `BG` | `#0A0D10` | fondo base de pantallas | — |
+| `BG_TOP` | `#0E1318` | gradiente superior del fondo | — |
+| `BG_BOTTOM` | `#05070A` | gradiente inferior | — |
+| `SCRIM` | `#05070ACC` | velo sobre el backdrop 3D (80 %) | — |
+| `SURFACE` | `#131A20` | paneles y tarjetas | — |
+| `SURFACE_ALT` | `#1A232B` | filas alternas, campos | — |
+| `SURFACE_HOVER` | `#22303A` | hover y presionado | — |
+| `BORDER` | `#2A3742` | bordes de 1 px | — |
+| `BORDER_STRONG` | `#3E5261` | separadores y encabezados | — |
+| `BORDER_FOCUS` | `#FFB020` | anillo de foco, 2 px | 10.7:1 |
+| `TEXT` | `#E6EDF3` | texto principal | 16.5:1 (AAA) |
+| `TEXT_DIM` | `#9FB0BE` | texto secundario | 8.8:1 (AAA) |
+| `TEXT_MUTED` | `#78899A` | ayudas, unidades, deshabilitado | 5.4:1 (AA) |
+| `ACCENT` | `#FFB020` | acento, valores activos | 10.7:1 (AAA) |
+| `ACCENT_DIM` | `#B87A14` | acento presionado / relleno | 5.4:1 (AA) |
+| `DANGER` | `#FF4D4D` | peligro, daño, derrota | 6.0:1 (AA) |
+| `DANGER_DIM` | `#B03030` | relleno de barras críticas | — |
+| `SUCCESS` | `#4ADE80` | confirmaciones, pilas, victoria | 11.2:1 (AAA) |
+| `TARGET` | `#38E1FF` | **diegético**: puntos débiles y cajas de objetivo | 12.4:1 (AAA) |
+| `SHADOW` | `#00000099` | sombras de paneles | — |
+| `GRAPH_BG` | `#0C1116` | fondo del gráfico de rates | — |
+| `GRAPH_GRID` | `#22303A` | rejilla | — |
+| `GRAPH_AXIS` | `#5A6B78` | ejes | — |
+| `GRAPH_PITCH` | `#FFB020` | curva de cabeceo | — |
+| `GRAPH_ROLL` | `#38E1FF` | curva de alabeo | — |
+| `GRAPH_YAW` | `#A78BFA` | curva de guiñada | — |
+| `HUD_TEXT` | `#E8F4F8` | texto del HUD sobre el video | — |
+| `HUD_SHADOW` | `#000000B3` | contorno de 4 px del HUD | — |
+| `HUD_BOX` | `#7FE8FF` | cajas y marcos del HUD | — |
+| `HUD_REC` | `#FF3B30` | punto REC | — |
+
+Márgenes y métricas: `MARGIN_XS 4`, `MARGIN_SM 8`, `MARGIN_MD 16`, `MARGIN_LG 24`, `MARGIN_XL 40`, `RADIUS 2`, `BORDER_WIDTH 1`, `FOCUS_WIDTH 2`, `ROW_HEIGHT 44`.
+
+Verificación de contraste: todos los colores de texto superan 4.5:1 sobre `BG` **y** sobre `SURFACE` (peor caso `TEXT_MUTED` sobre `SURFACE`: 4.9:1). El check de menús captura las pantallas para revisión visual; el cálculo de contraste se hace una vez en WP-25 con una función auxiliar en `tools/build_theme.gd` que aborta si algún par cae bajo 4.5:1.
+
+### 2.3 Tipografías (OFL)
+
+Tres roles, candidatas por rol. Todas SIL Open Font License 1.1 en Google Fonts; se descarga el paquete, se guarda el `LICENSE.txt` junto a los `.ttf` en `gui/theme/fonts/` y se registra en `CREDITS.md`.
+
+| Rol | Propuesta | Alternativas | URL |
+|---|---|---|---|
+| Display (títulos, marca, números grandes) | **Chakra Petch** SemiBold | Rajdhani Bold, Saira Condensed | `https://fonts.google.com/specimen/Chakra+Petch` · `https://fonts.google.com/specimen/Rajdhani` |
+| Texto de UI (menús, descripciones) | **Barlow Semi Condensed** Regular/Medium | Inter, IBM Plex Sans | `https://fonts.google.com/specimen/Barlow+Semi+Condensed` · `https://fonts.google.com/specimen/Inter` |
+| Mono (HUD, readouts, gráficos) | **JetBrains Mono** Medium | IBM Plex Mono, Share Tech Mono | `https://fonts.google.com/specimen/JetBrains+Mono` · `https://fonts.google.com/specimen/IBM+Plex+Mono` |
+
+Criterios: Chakra Petch tiene terminaciones cortadas y ancho angosto (aire de HUD militar) sin caer en la ilegibilidad de las fuentes "tecno"; Barlow Semi Condensed mantiene densidad en los menús de opciones, que tienen filas largas; JetBrains Mono tiene dígitos de altura x grande y 0/O y 1/l inconfundibles, que es lo único que importa en un readout. Recursive (ya presente, OFL) se conserva como respaldo si alguna de las tres falla en el import.
+
+Tamaños base: display 44/32/24 px, texto 20/18/16 px, mono 24 px en el HUD y 18 px en los gráficos. `Theme` con *type variations* `TitleLabel`, `SubtitleLabel`, `MonoLabel`, `DangerButton`, `PrimaryButton`, `CardPanel`.
+
+### 2.4 Regeneración del tema
+
+`tools/build_theme.gd` sigue siendo la única fuente: lee `UIPalette`, arma `StyleBoxFlat` y `FontVariation` y escribe `gui/theme/main_theme.tres`. Nunca se edita el `.tres` a mano.
+
+```
+"C:/Users/Mauri/Godot/Godot_4.7/Godot_v4.7-stable_win64_console.exe" --headless --path godot --script res://tools/build_theme.gd
+```
+
+El mismo script genera `hud/hud_theme.tres` (mono 24 px, contorno 4 px con `HUD_SHADOW`) y verifica los contrastes.
+
+### 2.5 Backdrop 3D del menú principal
+
+`gui/backdrop/menu_backdrop.tscn`:
+
+```
+MenuBackdrop (Control)
+├── SubViewportContainer (stretch = true)
+│   └── SubViewport (1280×720, UPDATE_ALWAYS, own_world_3d, msaa_3d = off)
+│       ├── WorldEnvironment (environment_menu.tres: mismo cielo, glow sí, SDFGI no)
+│       ├── Sun (DirectionalLight3D, sun_dusk.tres, sombras a 2048)
+│       ├── Skyline (12–18 piezas de city/pieces, gi_mode = DISABLED)
+│       ├── ColossusSilhouette (MeshInstance3D, malla de baja densidad, emisivos cian)
+│       └── DriftCamera (Camera3D + Tween en bucle de 40 s, ±3 m y ±2°)
+└── Scrim (ColorRect, color = SCRIM)
+```
+
+Presupuesto: ≤ 2.5 ms de GPU a 1080p. En preset LOW se reemplaza por `assets/gui/menu_backdrop_low.webp` (captura estática del mismo encuadre) y el `SubViewport` no se instancia. `MenuScreen` ya soporta fondo/backdrop: el backdrop se le pasa como escena de fondo, sin tocar su código.
+
+### 2.6 Boot
+
+La tarjeta de boot del estudio "Ominoso" (`gui/boot/`) se conserva **tal cual**, incluido su audio; es identidad de estudio y ya está verificada por `boot_check`. Solo se actualizan sus colores si dependen de `UIPalette`.
+
+## 3. Entorno y luz
+
+### 3.1 `world/environment_battle.tres`
+
+`Environment` compartido por el nivel de batalla y por los checks de render. Valores propuestos:
+
+| Bloque | Propiedad | Valor |
+|---|---|---|
+| Fondo | `background_mode` | `BG_SKY` |
+| Cielo | `sky.sky_material` | `PhysicalSkyMaterial` |
+| | `rayleigh_coefficient` / `rayleigh_color` | `2.4` / `#527ac7` |
+| | `mie_coefficient` / `mie_eccentricity` / `mie_color` | `0.012` / `0.82` / `#f0ad6b` |
+| | `turbidity` / `sun_disk_scale` | `12.0` / `1.6` |
+| | `ground_color` | `#090A0D` |
+| | `sky.radiance_size` / `sky.process_mode` | `RADIANCE_SIZE_256` / `PROCESS_MODE_HIGH_QUALITY` |
+| Ambiente | `ambient_light_source` | `AMBIENT_SOURCE_SKY` |
+| | `ambient_light_sky_contribution` / `ambient_light_energy` | `1.0` / `1.0` |
+| SDFGI | `sdfgi_enabled` | `true` (HIGH/ULTRA) |
+| | `sdfgi_cascades` / `sdfgi_cascade0_distance` | `5` / `16.0` m → 256 m de cobertura |
+| | `sdfgi_use_occlusion` / `sdfgi_bounce_feedback` | `true` / `0.5` |
+| | `sdfgi_read_sky_light` / `sdfgi_energy` | `true` / `1.0` |
+| | `sdfgi_normal_bias` / `sdfgi_probe_bias` | `1.1` / `1.1` |
+| | `sdfgi_y_scale` | `SDFGI_Y_SCALE_100_PERCENT` (ciudad vertical) |
+| SSAO | `ssao_enabled` | `true` (MEDIUM+) |
+| | `radius` / `intensity` / `power` / `detail` | `1.6` / `2.2` / `1.5` / `0.5` |
+| | `horizon` / `sharpness` / `light_affect` / `ao_channel_affect` | `0.06` / `0.98` / `0.0` / `0.0` |
+| SSIL | `ssil_enabled` | `false` (solo ULTRA, o fallback B de §3.5) |
+| | `radius` / `intensity` / `sharpness` / `normal_rejection` | `4.0` / `1.0` / `0.98` / `1.0` |
+| Niebla de profundidad | `fog_enabled` / `fog_density` | `true` / `0.0016` |
+| | `fog_light_color` / `fog_light_energy` | `#6B7A9E` / `1.0` |
+| | `fog_sun_scatter` / `fog_aerial_perspective` / `fog_sky_affect` | `0.25` / `0.40` / `0.30` |
+| Niebla volumétrica | `volumetric_fog_enabled` | `true` (HIGH/ULTRA) |
+| | `density` / `albedo` / `anisotropy` | `0.012` / `#9EA8C7` / `0.35` |
+| | `length` / `detail_spread` | `96.0` (128 en ULTRA) / `2.0` |
+| | `gi_inject` / `ambient_inject` / `sky_affect` | `0.6` / `0.4` / `0.35` |
+| | `emission` / `emission_energy` | `#0D0F17` / `0.4` |
+| | `temporal_reprojection_enabled` / `_amount` | `true` / `0.9` |
+| Glow | `glow_enabled` / `glow_blend_mode` | `true` / `GLOW_BLEND_MODE_SCREEN` |
+| | `glow_levels/1..7` | `0.0, 0.2, 0.8, 1.0, 0.6, 0.2, 0.0` |
+| | `glow_intensity` / `glow_strength` / `glow_bloom` | `0.85` / `1.0` / `0.15` |
+| | `glow_hdr_threshold` / `_scale` / `_luminance_cap` | `0.95` / `2.0` / `12.0` |
+| Tonemap | `tonemap_mode` | `TONE_MAP_AGX` |
+| | `tonemap_exposure` / `tonemap_white` / `tonemap_contrast` | `1.0` / `2.0` / `1.10` |
+| Ajustes | `adjustment_enabled` | `true` |
+| | `brightness` / `contrast` / `saturation` | `1.0` / `1.04` / `1.06` |
+| | `adjustment_color_correction` | `world/lut_dusk.tres` (`Texture3D` 32³) |
+
+Notas de Godot 4.7 que el implementador debe respetar: el glow corre **antes** del tonemap desde 4.6, así que estos valores ya están pensados para HDR; la niebla volumétrica se mezcla por transmitancia desde 4.7, y `rendering/environment/fog/use_legacy_blending` se deja en `false`.
+
+**AgX y no ACES**: la escena está llena de emisivos muy saturados (cian de los puntos débiles, naranja de los respiraderos, trazadores). ACES desplaza el tono de esas fuentes hacia el blanco-rosado al saturarse; AgX conserva el hue mientras sube el brillo, que es exactamente lo que hace legible un punto débil brillante. ACES queda como prueba A/B en WP-24.
+
+### 3.2 `world/sun_dusk.tres` y atributos de cámara
+
+Un `DirectionalLight3D` no se puede guardar como `.tres`, así que `sun_dusk.tres` es un **recurso propio** `SunProfile extends Resource` que `world/sun_light.gd` (`@tool`) aplica al nodo. Así el mismo sol se comparte entre el nivel, el backdrop del menú y los checks.
+
+| Campo de `SunProfile` | Valor | Comentario |
+|---|---|---|
+| `intensity_lux` / `temperature_k` | `2400.0` / `3200.0` | crepúsculo civil, luz cálida rasante; requiere `use_physical_light_units = true` |
+| `angle_degrees` / `angular_distance` | `Vector3(-6, -118, 0)` / `0.6` | sol 6° sobre el horizonte, por detrás-derecha; penumbra suave |
+| `shadow_enabled` / `shadow_mode` | `true` / `SHADOW_PARALLEL_4_SPLITS` | |
+| `shadow_max_distance` / `shadow_split_1/2/3` | `320.0` m / `0.06`, `0.16`, `0.40` | valores de HIGH; ver presets |
+| `shadow_blend_splits` / `shadow_fade_start` | `true` / `0.85` | |
+| `shadow_normal_bias` / `shadow_bias` / `shadow_opacity` | `1.6` / `0.06` / `1.0` | voxels grandes: normal bias alto |
+
+`CameraAttributesPractical` en el `WorldEnvironment`: `exposure_multiplier = 1.0`, `exposure_sensitivity = 100.0` (ISO), `auto_exposure_enabled = false` (la auto-exposición pulsa cuando el jefe llena la pantalla), `dof_blur_far_enabled = false`, `dof_blur_near_enabled = false`.
+
+Ajustes de proyecto asociados (`docs/02`): `directional_shadow/size = 8192`, `soft_shadow_filter_quality = 3`, `use_physical_light_units = true`, `occlusion_culling = true`.
+
+### 3.3 GI local y `gi_mode`
+
+- `ReflectionProbe` locales, `update_mode = UPDATE_ONCE`, `box_projection = true`, `max_distance = 120`: 4 en HIGH (plaza central, avenida, azotea, calle lateral), 6 en ULTRA, 2 en MEDIUM, 0 en LOW.
+- `gi_mode` por tipo de malla:
+
+| Malla | `gi_mode` | Motivo |
+|---|---|---|
+| Edificios intactos y calles | `GI_MODE_STATIC` | son la fuente de rebote |
+| Piezas de edificio dañado (`StageDamaged`) | `GI_MODE_STATIC` | mismo lugar, mismo aporte |
+| Ruinas (`StageRubble`) | `GI_MODE_DISABLED` | la malla cambia al colapsar; lo fija `docs/10` §3.2 (riesgo 9) |
+| `DebrisChunk` (rígidos) | `GI_MODE_DISABLED` | se mueven; evitan el popping de SDFGI |
+| Enemigo y partes desprendidas | `GI_MODE_DISABLED` | cinemáticos y enormes |
+| Dron, proyectiles, VFX | `GI_MODE_DISABLED` | irrelevantes para el rebote |
+
+### 3.4 Presets de calidad
+
+`Graphics` (autoload, `docs/04`) aplica el preset; este documento define **qué** cambia cada uno.
+
+| Ajuste | LOW | MEDIUM | HIGH | ULTRA |
+|---|---|---|---|---|
+| SDFGI | off | off | on, 4 cascadas | on, 5 cascadas |
+| Ambiente si SDFGI off | color `#2A3A52`, energía 0.55 | ídem | — | — |
+| SSIL | off | off | off | on |
+| SSAO | off | on (radio 1.2) | on | on |
+| Niebla volumétrica | off | off | on (96 m) | on (128 m) |
+| Niebla de profundidad | on | on | on | on |
+| Glow | on, niveles 3–5 | on | on | on |
+| MSAA 3D | off | 2× | 4× | 8× |
+| Sombras direccionales | 2048, 2 splits, 120 m | 4096, 4 splits, 200 m | 8192, 4 splits, 320 m | 8192, 4 splits, 420 m |
+| Filtro de sombra suave | 0 (duras) | 1 | 2 | 3 |
+| Escala de render 3D (FSR 1.0) | 70 % | 85 % | 100 % | 100 % |
+| Ojo de pez | FAST 480p | FAST 720p | FAST 720p | **FULL** 1080p |
+| `ReflectionProbe` | 0 | 2 | 4 | 6 |
+| Emisores de partículas simultáneos | 6 | 8 | 12 | 12 |
+| `Decal` simultáneos | 8 | 16 | 32 | 32 |
+| Backdrop 3D del menú | imagen estática | vivo | vivo | vivo |
+| `fpv_overlay` | solo viñeta | completo | completo | completo |
+
+El ojo de pez FULL usa varios `SubViewport` y es el mayor costo por sí solo: por eso queda restringido a ULTRA, con `cull_mask` y `visibility_range` para no renderizar la ciudad lejana cinco veces.
+
+### 3.5 Plan A/B de SDFGI
+
+Riesgo 9 del plan: la ciudad cambia de forma cuando los edificios colapsan y SDFGI puede mostrar popping de iluminación indirecta.
+
+- **Variante A (por defecto)**: SDFGI encendido, `bounce_feedback 0.5`, escombros en `GI_MODE_DISABLED`, y las transiciones de etapa de edificio reemplazan la malla **en un solo frame** para que la actualización de cascada sea una sola.
+- **Variante B (respaldo)**: `sdfgi_enabled = false`, `ambient_light_source = AMBIENT_SOURCE_COLOR` con `#2A3A52` a 0.55, `ssil_enabled = true` y 6 `ReflectionProbe`.
+
+`render_check` corre las dos y reporta fps medio, percentil 1 y draw calls de cada una; la elección definitiva la toma el usuario en el checkpoint 4 con las capturas al lado.
+
+## 4. VFX
+
+Todos los efectos se piden a un `VFXPool` (nodo del nivel, bajo `Pools`), que recicla por LRU y **devuelve `null` si el presupuesto está lleno** en vez de crear nodos nuevos. `GPUParticles3D` siempre con `one_shot = true`, `explosiveness = 1.0`, `fixed_fps = 30`, `interpolate = true`, `draw_order = DRAW_ORDER_VIEW_DEPTH`, `gi_mode = DISABLED`.
+
+| Evento | Escena | Contenido | Duración | Pool | Presupuesto |
+|---|---|---|---|---|---|
+| Fogonazo | `vfx/muzzle_flash.tscn` | `OmniLight3D` (3 m, energía 4→0) + quad emisivo + 8 chispas | 0.06 s luz / 0.18 s partículas | fijo en el `WeaponMount` | no cuenta (1 emisor permanente) |
+| Impacto en blindaje | `vfx/impact_armor.tscn` | 16 chispas + `Decal` 0.35 m | 0.35 s / decal 6 s | 12 | 1 emisor |
+| Impacto en punto débil | `vfx/impact_weak.tscn` | 24 chispas `TARGET` + flash | 0.45 s | 8 | 1 emisor |
+| Impacto en ciudad | `vfx/impact_city.tscn` | 20 de polvo + 6 esquirlas | 0.80 s | 8 | 1 emisor |
+| Polvo de pisada | `vfx/foot_dust.tscn` | 40 planas + `FogVolume` caja de 6 m | 1.4 s | 4 (una por pata) | 1 emisor |
+| Derrumbe de edificio | `vfx/collapse.tscn` | 120 partículas + `FogVolume` de 18 m | 3.0 s | 2 | 2 emisores |
+| Desprendimiento de parte | `vfx/part_detach.tscn` | 30 chispas + 20 de humo | 1.2 s siguiendo al `DebrisChunk` | 4 | 2 emisores |
+| Haz del láser | `vfx/laser_beam.tscn` | cilindro con `vfx/beam.gdshader` + `OmniLight3D` en el impacto + 12 chispas | vida del ataque | 2 | 1 emisor |
+| Anillo de EMP | `vfx/emp_ring.tscn` | toro escalado 0→45 m por `Tween` + destello | 0.9 s | 1 | 0 emisores |
+| Decal de pisotón | `vfx/stomp_decal.tscn` | `Decal` rojo de 18 m, parpadeo 4 Hz | 1.1 s telegrafía + 4 s marca | 2 | 0 emisores |
+| Chispas de parte dañada | `vfx/damaged_sparks.tscn` | 12 chispas en bucle, ancladas a partes con hp < 35 % | continuo | 4 | 1 emisor c/u |
+
+**Presupuesto duro: ≤ 12 `GPUParticles3D` emitiendo a la vez** (6 en LOW, 8 en MEDIUM). `VFXPool.active_emitters()` lo expone y `vfx_check` lo verifica cada frame.
+
+`vfx/beam.gdshader` (`shader_type spatial`, `unshaded`, `blend_add`, `cull_disabled`): desplazamiento de UV en el eje del cilindro (`scroll_speed`), término de fresnel para engrosar el borde, pulso senoidal de intensidad y `ALPHA` por gradiente radial. Uniforms: `beam_color`, `core_color`, `scroll_speed`, `fresnel_power`, `pulse_hz`, `intensity`.
+
+## 5. Audio
+
+### 5.1 Buses
+
+`default_bus_layout.tres`, 7 buses, todos enrutados a `Master`:
+
+| Bus | dB por defecto | Contenido | Efectos |
+|---|---|---|---|
+| `Master` | `0.0` | — | `AudioEffectCompressor` (umbral −12 dB, ratio 4:1, ataque 20 ms, release 180 ms) → `AudioEffectLimiter` (techo −0.5 dB) |
+| `Motors` | `-4.0` | motores y hélices del dron | — |
+| `Weapons` | `-3.0` | disparos, impactos, sobrecalentamiento | — |
+| `Enemies` | `-2.0` | servos, pisadas, telegrafías, láser | — |
+| `City` | `-5.0` | derrumbes, ambiente urbano, alarmas | `AudioEffectReverb` (room 0.6, damping 0.4, wet 0.12) |
+| `UI` | `-6.0` | sonidos de `UI`, boot | — |
+| `Music` | `-8.0` | stems y stings | `AudioEffectLowPassFilter` (corte 600 Hz, resonancia 0.5), **deshabilitado** salvo en pausa |
+
+El autoload `Audio` (`docs/04`) es el dueño de los volúmenes persistidos; usa `AudioServer.set_bus_volume_db(idx, linear_to_db(v))` y nunca calcula decibeles a mano. Al pausar, `PauseMenu` pide `AudioServer.set_bus_effect_enabled(AudioServer.get_bus_index("Music"), 0, true)`.
+
+### 5.2 Audio 3D y presupuesto de voces
+
+`AudioStreamPlayer3D` con:
+
+| Propiedad | Valor | Nota |
+|---|---|---|
+| `attenuation_model` | `ATTENUATION_INVERSE_SQUARE_DISTANCE` | |
+| `unit_size` | 8 m (impactos) · 24 m (servos) · 48 m (pisadas, derrumbes) | distancia a la que el volumen es 0 dB |
+| `max_distance` | `600.0` para pisadas y servos; 200 para impactos | |
+| `panning_strength` | `1.0` | |
+| `doppler_tracking` | `DOPPLER_TRACKING_PHYSICS_STEP` en proyectiles y enemigo | |
+| `area_mask` | `0` | valor por defecto en 4.7; no se usa `audio_bus_override` |
+
+`AudioPool` (nodo del nivel) reparte un presupuesto de **24 voces** con topes por categoría: motores 4, armas 6, enemigos 6, ciudad 6, UI 2. Al pedir una voz con el tope lleno se recicla la más lejana al oyente; si empatan, la más vieja. `active_voices() -> int` lo expone para el check.
+
+### 5.3 Música por capas
+
+Tres stems del mismo tema, misma duración y tempo (120 BPM, 32 compases = 64 s), OGG 48 kHz estéreo:
+
+- `ambient` — pads, ciudad dormida, sin percusión.
+- `tension` — pulso grave, arpegio apagado.
+- `combat` — percusión completa, metales.
+
+Se montan en un `AudioStreamSynchronized` con `stream_count = 3` y se reproducen en un `MusicDirector extends AudioStreamPlayer` (bus `Music`). Los cruces se hacen con `AudioStreamPlaybackSynchronized.set_stream_volume(i, db)` interpolado por `Tween` en 2.5 s: los tres stems nunca se reinician, así que no hay saltos de fase ni clics.
+
+| Situación | `ambient` | `tension` | `combat` |
+|---|---|---|---|
+| `INTRO` | 0 dB | −18 dB | −80 dB |
+| `BATTLE`, fases `p1_siege` y `p2_alert` | −4 dB | 0 dB | −80 dB |
+| `BATTLE`, fases `p3_fury`, `p4_belly`, `p5_selfdestruct` | −10 dB | −4 dB | 0 dB |
+| Dron destruido / respawn | −6 dB | −10 dB | −24 dB |
+| `VICTORY` / `DEFEAT` | −80 dB, con sting | −80 dB | −80 dB |
+
+`set_phase()` recibe el `phase_id` (`StringName`) de `Events.enemy_phase_changed`, no un entero: los ids de fase son cadenas estables definidas en `docs/07`. Dentro de `BATTLE`, `set_intensity(v)` modula `tension` ±6 dB según una intensidad continua `v = f(distancia al jefe, daño recibido en los últimos 5 s)`, para que la música respire sin cambiar de capa.
+
+Los stings de victoria y derrota son archivos aparte en un segundo `AudioStreamPlayer`; si en P3 hacen falta transiciones por compás, se migran a `AudioStreamInteractive` (4.3+), que permite `TRANSITION_TO_TIME_PREVIOUS_POSITION` para volver al punto donde quedó la capa.
+
+### 5.4 Fuentes de sonido
+
+1. **Sintetizados por herramienta propia** (preferido): `tools/generate_sfx.gd` headless, en la línea del `generate_ui_sounds.gd` existente, construye `AudioStreamWAV` desde `PackedByteArray` con ráfagas de ruido, ADSR y filtros. Cubre fogonazo, impactos, zumbido de servo, alarma de calor, EMP, pitidos de HUD y los loops de motor de `docs/03`. Sin licencias de terceros y regenerable.
+2. **CC0** para lo que no salga bien sintetizado (derrumbes, viento urbano), con la fuente anotada en `CREDITS.md`.
+3. **CC BY** solo si es imprescindible, siempre con atribución (como ya ocurre con el audio de boot). Todo esto se cierra en `docs/16` antes de publicar.
+
+## 6. Cámara: modelo de trauma
+
+`drone/camera_rig.gd` — `class_name CameraRig extends Node3D`, padre de la `FPVCamera`.
+
+```gdscript
+@export var max_translation: float = 0.08          # m
+@export var max_rotation_degrees: float = 2.5
+@export var decay_per_second: float = 1.4
+@export var noise_speed: float = 22.0
+
+func add_trauma(amount: float) -> void
+func get_trauma() -> float
+```
+
+Modelo: `_trauma = maxf(_trauma - decay_per_second * delta, 0.0)`; el desplazamiento es proporcional a `_trauma * _trauma` (una sacudida chica se siente sutil y una grande, violenta). Tres muestras de un `FastNoiseLite` (`TYPE_SIMPLEX_SMOOTH`, `frequency = 0.9`, `seed = RoundManager.derive_seed("camera")`) en `(t, 0)`, `(t, 37)` y `(t, 74)` dan las tres componentes; la misma técnica se repite para la rotación. Con `trauma = 1.0` y decaimiento 1.4/s, la sacudida se extingue en 0.72 s.
+
+Escucha `Events.camera_trauma(amount: float, position: Vector3)` (firma canónica, `docs/02` §5.1) y atenúa por distancia cuando la posición es finita: `amount * clampf(1.0 - distancia / 80.0, 0.15, 1.0)`.
+
+Tabla de trauma. Los valores marcados con ▸ los **emite otro documento** y acá solo se registran para tener la escala completa en un solo lugar; si allá cambian, manda el otro documento.
+
+| Evento | Trauma | Origen |
+|---|---|---|
+| Disparo | 0.03 (acumulable, techo efectivo ~0.25 en ráfaga) | este doc |
+| Impacto recibido en el casco | 0.25 | este doc |
+| ▸ `stomp` del jefe | 0.60 | `docs/07` |
+| ▸ Recolocación tras `climb` | 0.50 | `docs/07` |
+| ▸ Aterrizaje de `pounce` | 0.90 | `docs/07` |
+| ▸ Parte rota / desprendida (`break_trauma`) | 0.35 | `docs/06` |
+| ▸ Dron destruido | 1.00 | `docs/09` |
+| ▸ Detonación del jefe (P5) | 1.00 | `docs/07` |
+| Derrumbe de edificio | 0.30 (atenuado por distancia) | este doc |
+| Pulso EMP | 0.60 | este doc |
+| Objetivo completado | 0.08 | `docs/11` |
+
+La sacudida mueve la cámara **de verdad**, así que el horizonte del HUD en modo `camera` la sigue automáticamente: no hay dos sistemas que sincronizar.
+
+## 7. `fpv_overlay.gdshader`
+
+`ColorRect` full-rect con `ShaderMaterial`, dentro de un `CanvasLayer(layer = -1)` hijo del `DroneRig`: queda sobre la imagen 3D y **debajo** del `FlightHUD` (capa 0), que debe leerse siempre nítido.
+
+```glsl
+shader_type canvas_item;
+uniform sampler2D screen_tex : hint_screen_texture, filter_linear_mipmap;
+uniform float damage : hint_range(0.0, 1.0) = 0.0;
+uniform float emp : hint_range(0.0, 1.0) = 0.0;
+uniform float vignette_strength : hint_range(0.0, 1.0) = 0.35;
+uniform float noise_amount : hint_range(0.0, 0.3) = 0.035;
+uniform float scanline_amount : hint_range(0.0, 0.3) = 0.06;
+uniform float scanline_count = 540.0;
+uniform float aberration_px = 1.2;
+```
+
+Comportamiento:
+
+- **Base siempre activa**: viñeta radial, scanlines finas y ruido de grano. Vende el "esto es un video", no debe notarse conscientemente.
+- **`damage`**: multiplica el ruido hasta ×4, tiñe los bordes hacia `DANGER`, sube la aberración cromática a 4 px y hace latir la viñeta a 1.5 Hz. Se alimenta de `Events.hull_changed(ratio)` como `1.0 - ratio`.
+- **`emp`**: desplaza horizontalmente bloques de `floor(UV.y * 24.0)` filas con un desplazamiento pseudoaleatorio por bloque, desatura hasta 0.2 y agrega una barra brillante que recorre la pantalla. Se alimenta de la señal local `EnergySystem.emp_hit(glitch_seconds)` (`docs/09`) y decae 1→0 en esos segundos; es exactamente el mismo valor que usa `CombatHUD.GlitchLayer` (`docs/12`), así que el glitch del HUD y el de la imagen están en fase.
+- Un solo pase, presupuesto ≤ 0.25 ms a 1080p. En preset LOW se reduce a la viñeta.
+
+## 8. Interfaz pública
+
+| Archivo | Clase / recurso | Notas |
+|---|---|---|
+| `gui/theme/ui_palette.gd` | `UIPalette` | solo `const`; sin estado |
+| `gui/theme/theme_builder.gd` | `ThemeBuilder` | genera `main_theme.tres` y `hud_theme.tres` |
+| `gui/backdrop/menu_backdrop.gd` | `MenuBackdrop` | `set_live(enabled: bool)` |
+| `world/environment_battle.tres` | `Environment` | compartido nivel + checks |
+| `world/environment_menu.tres` | `Environment` | backdrop, sin SDFGI |
+| `world/sun_profile.gd` | `SunProfile extends Resource` | campos de §3.2 |
+| `world/sun_light.gd` | `SunLight extends DirectionalLight3D` | `@tool`; `@export var profile: SunProfile` |
+| `world/lut_dusk.tres` | `Texture3D` | corrección de color |
+| `vfx/vfx_pool.gd` | `VFXPool extends Node` | ver abajo |
+| `vfx/beam.gdshader` | shader espacial | haz del láser |
+| `audio/audio_pool.gd` | `AudioPool extends Node` | ver abajo |
+| `audio/music_director.gd` | `MusicDirector extends AudioStreamPlayer` | ver abajo |
+| `drone/camera_rig.gd` | `CameraRig extends Node3D` | §6 |
+| `drone/fpv_camera/fpv_overlay.gdshader` | shader de canvas | §7 |
+
+```gdscript
+# VFXPool
+func request(id: StringName, xform: Transform3D, parent: Node3D = null) -> Node3D   # null si no hay presupuesto
+func release(node: Node3D) -> void
+func active_emitters() -> int
+func budget() -> int
+
+# AudioPool
+func play_3d(stream: AudioStream, position: Vector3, category: StringName,
+        volume_db: float = 0.0, pitch: float = 1.0) -> AudioStreamPlayer3D
+func play_ui(stream: AudioStream, volume_db: float = 0.0) -> void
+func active_voices() -> int
+
+# MusicDirector
+func set_round_state(state: int) -> void
+func set_phase(phase_id: StringName) -> void
+func set_intensity(value: float) -> void          # 0..1
+func play_sting(id: StringName) -> void
+func stem_volume_db(index: int) -> float          # para el check
+```
+
+`VFXPool` y `AudioPool` escuchan el bus y traducen hechos en efectos; ningún sistema de gameplay instancia partículas ni reproduce sonidos por su cuenta. Firmas conciliadas con los documentos dueños:
+
+| Señal | Firma | Efecto disparado |
+|---|---|---|
+| `shot_fired` | `(origin: Vector3, direction: Vector3)` | fogonazo, sonido en `Weapons` |
+| `hit_confirmed` | `(position: Vector3, weak: bool, lethal: bool)` | `impact_armor` / `impact_weak` según `weak` |
+| `enemy_part_broken` | `(enemy, part_id: StringName, position: Vector3)` | `part_detach`, chispas, trauma |
+| `building_destroyed` | `(position: Vector3, value: int)` | `collapse`, trauma atenuado por distancia, destello de `CityBar` |
+| `enemy_attack_telegraphed` | `(enemy, attack_id: StringName, duration: float)` | `stomp_decal`, anillo de EMP, línea guía del láser |
+| `enemy_phase_changed` | `(enemy, phase_id: StringName)` | recoloreo de emisivos, cambio de stem |
+| `drone_damaged` | `(amount: float, source_position: Vector3)` | chispas del dron, uniform `damage` |
+| `battery_collected` | `(amount: float, position: Vector3)` | destello `SUCCESS`, sonido en `City` |
+| `camera_trauma` | `(amount: float, position: Vector3)` | `CameraRig.add_trauma` con atenuación |
+
+El `AudioRig` del enemigo (`docs/06`) reproduce sus propios servos y telegrafías con sus `AudioStreamPlayer3D`; el `AudioPool` solo le impone el bus `Enemies` y el tope de 6 voces.
+
+## 9. Parámetros y valores iniciales
+
+| Parámetro | Valor | Dónde |
+|---|---|---|
+| Acento de UI | `#FFB020` (ámbar) | `UIPalette.ACCENT` |
+| Color diegético de objetivo | `#38E1FF` (cian) | `UIPalette.TARGET` |
+| Contraste mínimo exigido | 4.5:1 sobre `BG` y sobre `SURFACE` | `build_theme.gd` |
+| Radio de esquinas | 2 px | `ThemeBuilder` |
+| Fuentes | Chakra Petch / Barlow Semi Condensed / JetBrains Mono | `gui/theme/fonts/` |
+| Sol | 2400 lux, 3200 K, 6° de elevación | `sun_dusk.tres` |
+| Sombras (HIGH) | 8192, 4 splits, 320 m | proyecto + `SunProfile` |
+| SDFGI (HIGH) | 4 cascadas, `cascade0 = 16 m` | `environment_battle.tres` |
+| Niebla volumétrica | densidad 0.012, anisotropía 0.35, 96 m | ídem |
+| Glow | `SCREEN`, intensidad 0.85, umbral 0.95 | ídem |
+| Tonemap | AgX, exposición 1.0, white 2.0, contraste 1.10 | ídem |
+| `ReflectionProbe` | 4 en HIGH, `UPDATE_ONCE` | nivel |
+| Emisores de partículas | ≤ 12 (6 LOW / 8 MEDIUM) | `VFXPool` |
+| Decals | ≤ 32 | nivel |
+| Voces de audio | ≤ 24 | `AudioPool` |
+| Buses | `Master, Motors, Weapons, Enemies, City, UI, Music` | `default_bus_layout.tres` |
+| Volúmenes por defecto | 0 / −4 / −3 / −2 / −5 / −6 / −8 dB | ídem |
+| `max_distance` de pisadas y servos | 600 m | `AudioStreamPlayer3D` |
+| Cruce de stems | 2.5 s | `MusicDirector` |
+| Tempo y largo de stems | 120 BPM, 64 s | assets |
+| Trauma: decaimiento | 1.4 /s | `CameraRig` |
+| Trauma: máximos | 0.08 m y 2.5° | ídem |
+| Trauma: ruido | `SIMPLEX_SMOOTH`, frecuencia 0.9, velocidad 22 | ídem |
+| Overlay FPV | viñeta 0.35, ruido 0.035, scanlines 0.06, aberración 1.2 px | `fpv_overlay.gdshader` |
+| Glitch de EMP | 3.0 s, 1→0 lineal | `docs/12` |
+| Presupuesto de render | ≥ 60 fps a 1080p, < 900 draw calls | `render_check` |
+
+## 10. Criterios de aceptación y checks headless
+
+Comando base de los checks sin imagen:
+
+```
+"C:/Users/Mauri/Godot/Godot_4.7/Godot_v4.7-stable_win64_console.exe" --headless --path godot res://tools/<x>_check.tscn
+```
+
+Los que miden o capturan imagen **no pueden correr con `--headless`** (no hay GPU): usan `--windowed`.
+
+### 10.1 `render_check` (WP-24)
+
+```
+"C:/Users/Mauri/Godot/Godot_4.7/Godot_v4.7-stable_win64_console.exe" --windowed --resolution 1920x1080 --path godot res://tools/render_check.tscn -- --shots=user://shots/render
+```
+
+| # | Verifica |
+|---|---|
+| 1 | Carga `battle_level` con `district_a` (60 edificios), el Arachnodroid y el ojo de pez en FAST, preset HIGH |
+| 2 | Tras 120 frames de calentamiento, promedia 600 frames: fps medio ≥ 60 y percentil 1 ≥ 45 |
+| 3 | `RENDER_TOTAL_DRAW_CALLS_IN_FRAME` máximo < 900 |
+| 4 | Repite la medición con la variante B de SDFGI (§3.5) e imprime la comparación en una tabla |
+| 5 | Repite con preset LOW: fps medio ≥ 120 (margen para portátiles) |
+| 6 | Captura `render_high.png`, `render_low.png` y `render_sdfgi_off.png` |
+| 7 | Restaura el preset de gráficos del jugador al terminar |
+
+### 10.2 `vfx_check` (WP-26)
+
+```
+"C:/Users/Mauri/Godot/Godot_4.7/Godot_v4.7-stable_win64_console.exe" --headless --path godot res://tools/vfx_check.tscn
+```
+
+| # | Verifica |
+|---|---|
+| 1 | Dispara 200 pedidos al `VFXPool` en 20 s, mezclando los 11 tipos |
+| 2 | `active_emitters()` nunca supera 12 (ni 8 en MEDIUM, ni 6 en LOW) |
+| 3 | Todo nodo pedido vuelve al pool: el conteo de hijos del pool es estable tras 20 s |
+| 4 | Sin fugas: `OBJECT_NODE_COUNT` y `OBJECT_ORPHAN_NODE_COUNT` iguales al inicio y al final (±0) |
+| 5 | Con el presupuesto lleno, `request()` devuelve `null` y no crea nodos |
+| 6 | Ningún `GPUParticles3D` queda `emitting = true` pasada su vida + 0.5 s |
+
+### 10.3 `audio_check` (WP-27)
+
+```
+"C:/Users/Mauri/Godot/Godot_4.7/Godot_v4.7-stable_win64_console.exe" --headless --path godot res://tools/audio_check.tscn
+```
+
+| # | Verifica |
+|---|---|
+| 1 | Existen los 7 buses con el nombre exacto y todos enrutan a `Master` |
+| 2 | `Master` tiene compresor y limitador; `Music` tiene un pasa-bajos deshabilitado; habilitarlo y deshabilitarlo funciona |
+| 3 | 30 fuentes 3D simultáneas → `AudioPool.active_voices()` ≤ 24 y ninguna categoría supera su tope |
+| 4 | Transición de stems `INTRO → BATTLE → fase 3`: cada `stem_volume_db` se mueve de forma monótona y ningún paso de 20 ms cambia más de 6 dB (sin clics) |
+| 5 | Los tres stems comparten la misma posición de reproducción (±5 ms) tras 30 s |
+| 6 | Restaura los volúmenes de bus del jugador al terminar |
+
+### 10.4 `shake_check` (WP-28)
+
+```
+"C:/Users/Mauri/Godot/Godot_4.7/Godot_v4.7-stable_win64_console.exe" --headless --path godot res://tools/shake_check.tscn
+```
+
+| # | Verifica |
+|---|---|
+| 1 | `add_trauma(1.0)` → `get_trauma()` llega a 0.0 antes de 1.5 s (teórico 0.72 s) |
+| 2 | Durante la sacudida, el desplazamiento nunca supera 0.08 m ni 2.5° |
+| 3 | Al terminar, la cámara vuelve exactamente a su transformada base (error < 1e-4) |
+| 4 | `Events.camera_trauma(0.5, p)` a 160 m aporta ≤ 0.5 × 0.15 |
+| 5 | Con sacudida activa, `project_direction` del horizonte sigue el movimiento de la cámara: la diferencia entre el desplazamiento angular de la cámara y el del horizonte proyectado es < 1 px en los tres modos de ojo de pez |
+| 6 | Sumar trauma 30 veces en un frame no supera 1.0 |
+
+### 10.5 Capturas de menús (WP-25)
+
+```
+"C:/Users/Mauri/Godot/Godot_4.7/Godot_v4.7-stable_win64_console.exe" --windowed --resolution 960x540 --path godot res://tools/menu_shots_check.tscn -- --shots=user://shots/menus
+```
+
+Ocho capturas obligatorias para revisión visual: menú principal (con backdrop vivo), menú de rondas, hub de opciones, opciones de juego + HUD con preview, opciones de gráficos, opciones de audio, opciones de controles y hangar (quad + gráfico de rates). Opcionales: pausa y tarjeta de resultado. El check falla si alguna pantalla no se instancia o si queda algún `Label` con el texto igual a su clave de traducción (síntoma de clave faltante en el CSV).
+
+## 11. Riesgos y decisiones abiertas
+
+| # | Asunto | Estado |
+|---|---|---|
+| 1 | **SDFGI y ciudad cambiante** (riesgo 9 del plan): popping al colapsar edificios. Mitigado con escombros `GI_MODE_DISABLED`, reemplazo de malla en un solo frame y la variante B. Decide el usuario con `render_check` | abierto hasta el checkpoint 4 |
+| 2 | **Ojo de pez FULL** (riesgo 7): varios `SubViewport` multiplican el costo. Restringido a ULTRA; si igual no llega a 60 fps, se baja su resolución interna antes que apagar SDFGI | mitigado |
+| 3 | AgX vs ACES: AgX conserva el hue de los emisivos pero desatura la escena general. Si el resultado se ve lavado, la alternativa es ACES con saturación 1.12 en `adjustments` | abierto, A/B en WP-24 |
+| 4 | `sun_dusk.tres` como `SunProfile` en vez de un nodo guardado: es la única forma real de tener un `.tres` de luz. Agrega un script `@tool` de 30 líneas | resuelto |
+| 5 | La LUT `lut_dusk.tres` todavía no existe; hasta que se autoree, `adjustment_color_correction` va vacío y solo actúan brillo/contraste/saturación | pendiente, WP-24 |
+| 6 | Los valores del `Environment` son una **propuesta de partida**: densidad de niebla, umbral de glow y cascadas de SDFGI se ajustan mirando capturas, no en abstracto | esperado |
+| 7 | 24 voces puede quedar corto con 4 patas pisando, derrumbes y ráfaga sostenida. El tope por categoría existe justamente para que el arma no ahogue las telegrafías | abierto, medir en WP-23 |
+| 8 | Los stems deben exportarse con exactamente el mismo largo o `AudioStreamSynchronized` desfasa; el check lo verifica a los 30 s | acordado |
+| 9 | Licencias de las tres fuentes y de cualquier sonido CC0/CC BY: se registran en `CREDITS.md` y se auditan en `docs/16` antes de publicar | pendiente |
+| 10 | El backdrop 3D en vivo puede tirar el fps del menú en máquinas modestas; por eso LOW usa una imagen y el `SubViewport` no se instancia siquiera | resuelto |
+| 11 | `render_check` necesita GPU y no corre en el CI de GitHub por defecto; queda marcado como check local (ver `docs/15`) | acordado |
+| 12 | El decal del `stomp` (18 m) y el anillo del `emp_pulse` (45 m) los pide `docs/07` como telegrafía obligatoria, no como adorno: si el `VFXPool` los descarta por presupuesto, el ataque queda sin aviso. Ambos tienen **pool dedicado y 0 emisores de partículas**, justamente para que nunca compitan por el presupuesto | resuelto |
+| 13 | Los valores de trauma de `stomp`, `pounce`, `climb` y detonación los fija `docs/07` y los de rotura `docs/06`; este documento solo los tabula. Si divergen, manda el documento dueño | acordado |
+
+## 12. Referencias cruzadas
+
+- `02-configuracion-del-proyecto.md` — ajustes de render, sombras, unidades físicas, oclusión.
+- `03-especificacion-nucleo-de-vuelo.md` — `FPVCamera`, modos de ojo de pez, audio de motores.
+- `04-especificacion-configuracion-y-menus.md` — autoloads `Graphics` y `Audio`, menús que aplican los presets y los volúmenes.
+- `05-pipeline-voxel.md` — emisivos de la paleta voxel que alimentan el glow.
+- `09-energia-y-danio.md` — origen del uniform `damage` y de los eventos de trauma.
+- `10-ciudad-destructible.md` — etapas de edificio, `DebrisPool`, derrumbes.
+- `11-rondas-y-objetivos.md` — estados de ronda que dirigen la música y la cámara de intro.
+- `12-interfaz-y-hud.md` — `UIPalette` aplicada al HUD, `hud_theme.tres`, `emp_strength`, pausa y filtro de música.
+- `15-verificacion-y-ci.md` — qué checks corren en CI y cuáles son locales por requerir GPU.
+- `16-licencias-y-atribucion.md` — OFL de las fuentes, CC0/CC BY de los sonidos, packs voxel.
