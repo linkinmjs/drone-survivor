@@ -59,6 +59,9 @@ var speed_ref: float = 6.0
 ## Recorte del factor `velocidad / speed_ref`.
 var speed_clamp: Vector2 = Vector2(0.6, 1.8)
 
+## Segundos que tarda el factor de modo en ir de una marcha a la otra.
+var blend_time: float = 0.45
+
 ## Altura mínima del arco del paso, en metros.
 var step_height_min: float = 3.0
 
@@ -67,6 +70,7 @@ var step_height_bias: float = 2.0
 
 var _legs: Array = []
 var _pair_of: Dictionary[int, int] = {}
+var _mode_factor: float = 1.0
 
 
 ## Cablea las patas y copia los ajustes del perfil.
@@ -81,8 +85,35 @@ func setup(legs: Array, profile: LegRigProfile) -> void:
 		speed_clamp = profile.speed_clamp
 		step_height_min = profile.step_height_min
 		step_height_bias = profile.step_height_bias
+		blend_time = profile.gait_blend_time
 	_build_pairs()
 	refresh()
+	_mode_factor = _mode_target()
+
+
+## Interpola el factor de modo hacia el de la marcha actual (WP-24d).
+##
+## El cambio de trote a trípode acorta el paso un 30 % y el de trípode a
+## arrastre lo alarga un 86 %: aplicarlos de golpe se ve como un tirón en el
+## tranco siguiente, justo en el instante en que el jugador acaba de reventar una
+## rodilla y está mirando. Interpolado en [member blend_time] la cojera aparece
+## en dos trancos en vez de en uno.
+func blend(delta: float) -> void:
+	if delta <= 0.0:
+		return
+	_mode_factor = lerpf(_mode_factor, _mode_target(),
+			1.0 - exp(-delta / maxf(blend_time, 0.01)))
+
+
+## Factor de paso que le corresponde al modo actual.
+func _mode_target() -> float:
+	match gait:
+		Gait.DRAG:
+			return DRAG_STEP_FACTOR
+		Gait.TRIPOD:
+			return TRIPOD_STEP_FACTOR
+		_:
+			return 1.0
 
 
 ## Recalcula el modo con las patas que quedan (`docs/06` §8.3, `set_available`).
@@ -181,16 +212,13 @@ func partner_of(leg: Leg) -> Leg:
 	return null
 
 
-## Duración del paso a [param speed] (`docs/06` §8.4): 0.55 s a 6 m/s, 0.31 s a
-## 11 m/s y 0.92 s casi detenido. El arrastre lo alarga un 30 %.
+## Duración del paso a [param speed] (`docs/06` §8.4, con `step_duration` 0.80 s
+## desde WP-24d): 0.80 s a 6 m/s, 0.44 s a 11 m/s y 1.33 s casi detenido. El
+## arrastre lo alarga un 30 % y el trípode lo acorta un 30 %, interpolados por
+## [method blend].
 func step_time_for(speed: float) -> float:
 	var factor := clampf(speed / speed_ref, speed_clamp.x, speed_clamp.y)
-	var time := step_duration / maxf(factor, 0.01)
-	if gait == Gait.DRAG:
-		time *= DRAG_STEP_FACTOR
-	elif gait == Gait.TRIPOD:
-		time *= TRIPOD_STEP_FACTOR
-	return time
+	return step_duration * _mode_factor / maxf(factor, 0.01)
 
 
 ## Altura del arco de un paso que salva [param height_delta] metros de desnivel.

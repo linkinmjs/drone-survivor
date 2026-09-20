@@ -38,10 +38,17 @@
 ##
 ## ## Discrepancias con `docs/09` que este check resuelve
 ##
-## - **Sub-check 5**: el documento pide a la vez que un dron desarmado al 50 % suba
-##   a 60 % en 10 s y que «el tope de reposo es 10 % (desde 5 % → 10.0, no más)».
-##   Son incompatibles. Se verifica la regla de §2.1, que es la que justifica el
-##   mecanismo: el techo es absoluto y al 50 % no se recarga nada.
+## - **Sub-check 5 contra §2.1**: el documento describe una recarga en reposo de
+##   1 %/s con techo de 10 %, y además se contradice en §5 (pide que un dron
+##   desarmado al 50 % suba a 60 % en 10 s **y** que el tope sea 10 %). WP-24e cierra
+##   las dos puntas apagando el mecanismo: `idle_recharge = 0`. La salida del bloqueo
+##   a 0 % —lo único que la recarga venía a resolver— es ahora la reconstrucción del
+##   sub-check 9. Acá se verifica que un dron desarmado **no se mueve**, venga de
+##   donde venga.
+## - **Sub-checks 9 y 10 contra §2.2**: el documento deja al dron agotado bloqueado
+##   hasta encontrar una pila. Desde WP-24e la batería a 0 % reconstruye el dron como
+##   si hubiera muerto —doce segundos, `Events.drone_destroyed`, −300 y ×0.6— y lo
+##   devuelve con `respawn_energy_depleted` (20 %), no con los 60 % del casco.
 ## - **Sub-check 20 contra §2.5**: §2.5 dice que el acumulador reactiva «otra» pila
 ##   y §5 pide cinco de vuelta tras recoger dos y esperar 25 s. Gana el sub-check:
 ##   el acumulador es uno solo y rellena hasta el objetivo de una vez.
@@ -65,8 +72,8 @@ const NEGATIVE_ARG: String = "negative"
 const DOC_MAX_ENERGY: float = 100.0
 const DOC_BASE_DRAIN: float = 0.55
 const DOC_THROTTLE_DRAIN: float = 0.85
-const DOC_IDLE_RECHARGE: float = 1.0
-const DOC_IDLE_CAP: float = 10.0
+const DOC_IDLE_RECHARGE: float = 0.0
+const DOC_IDLE_CAP: float = 0.0
 const DOC_CRITICAL_RATIO: float = 0.15
 const DOC_CRITICAL_EXIT_RATIO: float = 0.18
 const DOC_CRITICAL_THRUST: float = 0.82
@@ -74,6 +81,7 @@ const DOC_BATTERY_AMOUNT: float = 30.0
 const DOC_EMP_DRAIN: float = 25.0
 const DOC_EMP_GLITCH: float = 3.0
 const DOC_RESPAWN_ENERGY: float = 60.0
+const DOC_RESPAWN_ENERGY_DEPLETED: float = 20.0
 const DOC_ENERGY_PER_SHOT: float = 0.45
 
 const DOC_MAX_HP: float = 100.0
@@ -171,6 +179,10 @@ var _critical_exits: int = 0
 var _depleted_events: int = 0
 var _emp_events: int = 0
 var _emp_last_seconds: float = -1.0
+
+## Energía con la que volvió el dron de la reconstrucción por batería agotada. La
+## mide el sub-check 9 y la vuelve a aseverar el 16.
+var _measured_depleted_energy: float = -1.0
 
 var _city_hp: float = CITY_HP
 var _drive_spawner: bool = false
@@ -285,6 +297,8 @@ func _check_profiles() -> void:
 			"EnergyProfile.emp_glitch_seconds")
 	expect_near(energy_profile.respawn_energy, DOC_RESPAWN_ENERGY, 0.001,
 			"EnergyProfile.respawn_energy")
+	expect_near(energy_profile.respawn_energy_depleted, DOC_RESPAWN_ENERGY_DEPLETED, 0.001,
+			"EnergyProfile.respawn_energy_depleted")
 
 	var hull_profile := _hull.profile
 	expect_near(hull_profile.max_hp, DOC_MAX_HP, 0.001, "HullProfile.max_hp")
@@ -365,6 +379,17 @@ func _advance(seconds: float) -> int:
 	var ticks := int(round(seconds / PHYSICS_STEP))
 	for _i: int in ticks:
 		_tick()
+	return ticks
+
+
+## Corre la cuenta de la reconstrucción a 100 Hz hasta que el dron vuelve a volar y
+## devuelve los ticks que tardó. Los sistemas bajo prueba no se mueven solos
+## (`docs/09` §5): los bombea [method _tick], `_respawn._physics_process` incluido.
+func _finish_respawn() -> int:
+	var ticks := 0
+	while _respawn.is_respawning() and ticks < RESPAWN_MAX_TICKS:
+		_tick()
+		ticks += 1
 	return ticks
 
 
@@ -492,39 +517,33 @@ func _check_drain_shot() -> void:
 
 # --- 5. drain_disarmed ------------------------------------------------------------------------
 
+## Un dron desarmado **no recarga nada** (WP-24e): `idle_recharge` e
+## `idle_recharge_cap` valen 0 y este sub-check mide que la batería no se mueve un
+## milésimo en diez segundos, venga de donde venga. La salida del bloqueo a 0 % es
+## el sub-check 9, no esperar sentado.
 func _check_drain_disarmed() -> void:
 	await get_tree().physics_frame
 	_drone.disarm()
 	expect(not _drone.is_armed(), "5 drain_disarmed: el dron no se desarmó")
+	expect_near(_energy.profile.idle_recharge, 0.0, 0.001,
+			"5 drain_disarmed: la recarga en reposo tiene que estar apagada")
+	expect_near(_energy.profile.idle_recharge_cap, 0.0, 0.001,
+			"5 drain_disarmed: el techo de la recarga en reposo tiene que estar apagado")
 
-	# Desde 5 %: sube 1 %/s y se planta en el techo de 10 %.
-	_energy.reset(5.0)
-	var _ticks := _advance(DRAIN_SECONDS)
-	expect_near(_energy.energy, DOC_IDLE_CAP, EXACT_TOLERANCE,
-			"5 drain_disarmed: desde 5 % la recarga se planta en el techo de 10 %")
-	var from_five := _energy.energy
-
-	# Desde 9.5 %: llega al techo y no lo pasa.
-	_energy.reset(9.5)
-	_ticks = _advance(DRAIN_SECONDS)
-	expect_near(_energy.energy, DOC_IDLE_CAP, EXACT_TOLERANCE,
-			"5 drain_disarmed: desde 9.5 % la recarga no pasa del techo")
-
-	# Por encima del techo la recarga en reposo no hace nada (`docs/09` §2.1).
-	_energy.reset(50.0)
-	_ticks = _advance(DRAIN_SECONDS)
-	expect_near(_energy.energy, 50.0, EXACT_TOLERANCE,
-			"5 drain_disarmed: por encima del techo no se recarga (docs/09 §2.1)")
-	var from_fifty := _energy.energy
-
-	_energy.reset(95.0)
-	_ticks = _advance(DRAIN_SECONDS)
+	var measured: Array[float] = []
+	# 5 % era el caso que subía al techo, 9.5 % el que lo rozaba y 50 % el que ya
+	# estaba por encima: los tres tienen que quedarse clavados.
+	for start: float in [5.0, 9.5, 50.0, 95.0]:
+		_energy.reset(start)
+		var _ticks := _advance(DRAIN_SECONDS)
+		measured.append(_energy.energy)
+		expect_near(_energy.energy, start, EXACT_TOLERANCE,
+				"5 drain_disarmed: desde %.1f %% un dron desarmado no se mueve en %.0f s"
+				% [start, DRAIN_SECONDS])
 	expect(_energy.energy <= DOC_MAX_ENERGY,
 			"5 drain_disarmed: la energía se pasó del máximo")
-	expect_near(_energy.energy, 95.0, EXACT_TOLERANCE,
-			"5 drain_disarmed: desde 95 % no se recarga ni se pasa de 100")
-	_record("5  drain_disarmed ........ 5 %%→%.3f · 9.5 %%→%.3f · 50 %%→%.3f · 95 %%→%.3f"
-			% [from_five, DOC_IDLE_CAP, from_fifty, _energy.energy])
+	_record("5  drain_disarmed ........ 5 %%→%.3f · 9.5 %%→%.3f · 50 %%→%.3f · 95 %%→%.3f (sin recarga en reposo)"
+			% [measured[0], measured[1], measured[2], measured[3]])
 
 
 # --- 6. battery_pickup ------------------------------------------------------------------------
@@ -642,8 +661,17 @@ func _check_critical_hysteresis() -> void:
 
 # --- 9. depleted ------------------------------------------------------------------------------
 
+## Batería a 0 %: desarme, bloqueo del armado **y reconstrucción**.
+##
+## Desde WP-24e el agotamiento no deja al dron esperando una pila que quizá no
+## llegue: dispara la misma secuencia de doce segundos que una muerte por casco
+## —`Events.drone_destroyed` una sola vez, congelado e invisible— y lo devuelve con
+## `respawn_energy_depleted`. Sin esto el 0 % era un ciclo: recargaba 1 %, armaba,
+## caía, recargaba 1 %.
 func _check_depleted() -> void:
 	await get_tree().physics_frame
+	_respawn.reset()
+	_hull.restore()
 	_park_drone()
 	_energy.reset(DOC_MAX_ENERGY)
 	_set_throttle(0.0)
@@ -653,6 +681,7 @@ func _check_depleted() -> void:
 
 	_disarms = 0
 	_depleted_events = 0
+	_destroyed_events = 0
 	_energy.energy = 0.0
 	expect(_energy.is_depleted(), "9 depleted: is_depleted() no es true con 0 %")
 	expect(_depleted_events == 1,
@@ -664,6 +693,17 @@ func _check_depleted() -> void:
 	expect(_controller != null and not _controller.can_arm_energy,
 			"9 depleted: can_arm_energy siguió en true")
 
+	# La reconstrucción arrancó en el mismo tick, con su motivo y su hecho global.
+	expect(_respawn.is_respawning(),
+			"9 depleted: la batería a 0 no arrancó la reconstrucción (docs/09 §2.8)")
+	expect(_respawn.get_reason() == RespawnController.Reason.ENERGY,
+			"9 depleted: el motivo de la reconstrucción es %d y tenía que ser ENERGY"
+			% int(_respawn.get_reason()))
+	expect(_destroyed_events == 1,
+			"9 depleted: Events.drone_destroyed se emitió %d veces, no 1" % _destroyed_events)
+	expect(_drone.freeze, "9 depleted: el dron no quedó congelado")
+	expect(not _drone.visible, "9 depleted: el dron quedó visible durante la reconstrucción")
+
 	_arm_failures.clear()
 	var armed_again := _arm_at_zero_throttle()
 	expect(not armed_again, "9 depleted: el dron armó con la batería a 0")
@@ -671,14 +711,34 @@ func _check_depleted() -> void:
 			"9 depleted: arm_failed no llegó con ERR_ARM_NO_ENERGY (llegó %s)"
 			% str(_arm_failures))
 
-	# Al recuperar energía se vuelve a poder armar: si no, el bloqueo sería eterno.
-	_energy.reset(40.0)
-	expect(not _energy.is_depleted(), "9 depleted: siguió agotado con 40 %")
+	# Los doce segundos, tick a tick, con el mundo corriendo.
+	var ticks := _finish_respawn()
+	expect(ticks < RESPAWN_MAX_TICKS, "9 depleted: la reconstrucción por batería nunca llegó")
+	expect_near(float(ticks) * PHYSICS_STEP, DOC_RESPAWN_SECONDS, RESPAWN_TOLERANCE,
+			"9 depleted: la reconstrucción por batería también dura 12 s")
+	_measured_depleted_energy = _energy.energy
+	expect_near(_energy.energy, DOC_RESPAWN_ENERGY_DEPLETED, 0.001,
+			"9 depleted: el dron tenía que volver con 20 %% y volvió con %.2f %%"
+			% _energy.energy)
+	expect(_destroyed_events == 1,
+			"9 depleted: Events.drone_destroyed se emitió %d veces en toda la secuencia, no 1"
+			% _destroyed_events)
+	expect(not _energy.is_depleted(), "9 depleted: siguió agotado tras reconstruirse")
+	expect(not _energy.is_critical(), "9 depleted: 20 %% está por encima del 18 %% de salida")
 	expect(_controller.can_arm_energy, "9 depleted: can_arm_energy no volvió a true")
+	expect(not _drone.freeze, "9 depleted: el dron quedó congelado tras reconstruirse")
+	expect(_drone.visible, "9 depleted: el dron quedó invisible tras reconstruirse")
+	expect_near(_hull.hp, DOC_MAX_HP, 0.001,
+			"9 depleted: la reconstrucción tiene que devolver el casco entero")
+	expect(_respawn.get_death_count() == 1,
+			"9 depleted: la reconstrucción por batería cuenta como muerte (contador %d)"
+			% _respawn.get_death_count())
 	var armed_ok := _arm_at_zero_throttle()
-	expect(armed_ok, "9 depleted: el dron no pudo rearmar tras recargar")
-	_record("9  depleted .............. desarmes %d · arm_failed %s · rearme %s"
-			% [_disarms, str(_arm_failures), str(armed_ok)])
+	expect(armed_ok, "9 depleted: el dron no pudo armar tras reconstruirse")
+	_record("9  depleted .............. desarmes %d · arm_failed %s · reconstrucción %.2f s por ENERGY · vuelve con %.1f %% · rearme %s"
+			% [_disarms, str(_arm_failures), float(ticks) * PHYSICS_STEP,
+			_measured_depleted_energy, str(armed_ok)])
+	_respawn.reset()
 
 
 # --- 10. emp ----------------------------------------------------------------------------------
@@ -702,6 +762,7 @@ func _check_emp() -> void:
 	_disarms = 0
 	_critical_enters = 0
 	_emp_events = 0
+	_destroyed_events = 0
 	_energy.apply_emp(_energy.profile.emp_drain, _energy.profile.emp_glitch_seconds)
 	expect_near(_energy.energy, 0.0, EXACT_TOLERANCE, "10 emp: 20 % − 25 % debería recortar en 0")
 	expect(_energy.is_critical(), "10 emp: no se entró en crítico tras el EMP")
@@ -709,9 +770,22 @@ func _check_emp() -> void:
 	expect(_energy.is_depleted(), "10 emp: no se llegó a agotado tras el EMP")
 	expect(_disarms == 1, "10 emp: el EMP no desarmó el dron en el mismo tick")
 	expect(_emp_events == 1, "10 emp: emp_hit no se emitió en el segundo pulso")
-	_record("10 emp .................. 80 %%→%.3f · 20 %%→%.3f (crítico %s, agotado %s)"
-			% [after_first, _energy.energy, str(_energy.is_critical()),
-			str(_energy.is_depleted())])
+	# Un EMP que deja la batería en cero dispara la reconstrucción igual que agotarla
+	# volando: es el mismo estado, llegado por otro camino (`docs/09` §2.9).
+	expect(_respawn.is_respawning(),
+			"10 emp: el EMP que deja la batería en 0 tiene que arrancar la reconstrucción")
+	expect(_respawn.get_reason() == RespawnController.Reason.ENERGY,
+			"10 emp: el motivo de la reconstrucción tras el EMP tiene que ser ENERGY")
+	expect(_destroyed_events == 1,
+			"10 emp: Events.drone_destroyed se emitió %d veces tras el EMP, no 1"
+			% _destroyed_events)
+	var emp_ticks := _finish_respawn()
+	expect(emp_ticks < RESPAWN_MAX_TICKS, "10 emp: la reconstrucción tras el EMP nunca llegó")
+	expect_near(_energy.energy, DOC_RESPAWN_ENERGY_DEPLETED, 0.001,
+			"10 emp: tras el EMP el dron vuelve con 20 %%, no con %.2f %%" % _energy.energy)
+	_record("10 emp .................. 80 %%→%.3f · 20 %%→0.000 (crítico %s, agotado %s) · reconstrucción por ENERGY → %.1f %%"
+			% [after_first, str(_critical_enters == 1), str(true), _energy.energy])
+	_respawn.reset()
 	_energy.reset(DOC_MAX_ENERGY)
 
 
@@ -837,6 +911,11 @@ func _check_destroy_and_respawn() -> void:
 	await get_tree().physics_frame
 	_hull.restore()
 	_respawn.reset()
+	# Los sub-checks 9 y 10 reconstruyeron el dron por batería; el 17 cuenta
+	# reapariciones y quiere exactamente las tres de acá.
+	_bus_respawns.clear()
+	_local_respawns.clear()
+	_rig_respawns.clear()
 	_energy.reset(DOC_MAX_ENERGY)
 	_set_throttle(0.0)
 	if not _drone.is_armed():
@@ -941,6 +1020,12 @@ func _one_death_and_respawn(death: int, expected_multiplier: float) -> float:
 		expect(not _hull.is_destroyed(), "16 respawn_state: el casco sigue marcado como destruido")
 		expect_near(_energy.energy, DOC_RESPAWN_ENERGY, 0.001,
 				"16 respawn_state: la energía no quedó en 60 %")
+		expect(_respawn.get_reason() == RespawnController.Reason.HULL,
+				"16 respawn_state: una muerte por casco tiene que dejar el motivo en HULL")
+		# La otra mitad de la regla, medida en el sub-check 9: por batería son 20 %.
+		expect_near(_measured_depleted_energy, DOC_RESPAWN_ENERGY_DEPLETED, 0.001,
+				"16 respawn_state: por casco son 60 %% y por batería 20 %%, y el 9 midió %.2f %%"
+				% _measured_depleted_energy)
 		expect(not _drone.freeze, "16 respawn_state: el dron quedó congelado")
 		expect(_drone.visible, "16 respawn_state: el dron quedó invisible")
 		expect(_drone.linear_velocity.is_zero_approx(),
@@ -960,8 +1045,9 @@ func _one_death_and_respawn(death: int, expected_multiplier: float) -> float:
 		var fpv := _rig.get_fpv_camera()
 		expect(fpv != null and fpv.current,
 				"16 respawn_state: no se volvió a la cámara FPV al reaparecer")
-		_record("16 respawn_state ........ hp %.1f · energía %.1f %% · pos %v · v %v"
-				% [_hull.hp, _energy.energy, _drone.global_position, _drone.linear_velocity])
+		_record("16 respawn_state ........ hp %.1f · energía %.1f %% por casco y %.1f %% por batería · pos %v · v %v"
+				% [_hull.hp, _energy.energy, _measured_depleted_energy,
+				_drone.global_position, _drone.linear_velocity])
 
 	expect_near(_respawn.get_score_multiplier(), expected_multiplier, 0.001,
 			"17 respawn_penalty: multiplicador tras la muerte %d" % (death + 1))

@@ -10,6 +10,11 @@ metallic_specular = 0.25
 roughness = 0.85
 emission_enabled = true
 emission = Color(1, 1, 1, 1)
+; `emission_operator` 1 es MULTIPLY. Con el ADD de fábrica el shader hace
+; `EMISSION = (emission + textura) * energía`, así que un `emission` blanco
+; enciende la **fachada entera** a 1000 nits y no sólo las ventanas del bake:
+; era la ciudad «plana y gris» del checkpoint 3 (WP-24).
+emission_operator = 1
 emission_energy_multiplier = 1.0
 emission_texture = ExtResource("2_emission")
 texture_filter = 5

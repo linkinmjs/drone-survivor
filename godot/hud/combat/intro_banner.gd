@@ -9,11 +9,22 @@
 ##
 ## Es el único componente que [method CombatHUD.set_cinematic] deja encendido junto
 ## con la franja de ciudad, y el único que se apaga al pasar a `BATTLE`.
+##
+## ## La línea de consejo (WP-24d)
+##
+## Bajo el subtítulo va [constant WEAK_HINT_KEY]: «PUNTOS DÉBILES EN CIAN. TODO LO
+## DEMÁS ES BLINDAJE.». Es la única regla del combate que el jugador **no** puede
+## deducir mirando —el 88 % del coloso ignora los disparos (`docs/07` §3)— y los doce
+## segundos de travelling son el único momento de la ronda en el que hay tiempo de
+## leerla sin que nadie te esté pisando.
 class_name HUDIntroBanner
 extends CombatHUDComponent
 
 ## Clave del pie que recuerda que la cinemática se puede saltear.
 const SKIP_KEY: String = "ROUND_INTRO_SKIP"
+
+## Clave del consejo sobre los puntos débiles.
+const WEAK_HINT_KEY: String = "HUD_INTRO_WEAK_HINT"
 
 ## Altura del rótulo como fracción del alto del lienzo.
 const TOP_RATIO: float = 0.34
@@ -62,7 +73,12 @@ func _draw() -> void:
 	if not _goal_key.is_empty():
 		HUDDraw.text(self, HUDDraw.font_mono(), Vector2(left, y), tr(_goal_key), 22,
 				HORIZONTAL_ALIGNMENT_CENTER, BLOCK_WIDTH, CombatHUDPalette.TEXT_DIM)
-		y += 44.0
+		y += 38.0
+	# En cian, porque de cian habla: el color es la mitad del mensaje (`docs/13` §2.1).
+	HUDDraw.text(self, HUDDraw.font_mono(), Vector2(left, y),
+			tr(WEAK_HINT_KEY).to_upper(), 19, HORIZONTAL_ALIGNMENT_CENTER, BLOCK_WIDTH,
+			CombatHUDPalette.with_alpha(CombatHUDPalette.TARGET, 0.92))
+	y += 42.0
 	var lit := fposmod(_time * HINT_BLINK_HZ, 1.0) < 0.6
 	HUDDraw.text(self, HUDDraw.font_mono(), Vector2(left, y), tr(SKIP_KEY).to_upper(), 18,
 			HORIZONTAL_ALIGNMENT_CENTER, BLOCK_WIDTH,

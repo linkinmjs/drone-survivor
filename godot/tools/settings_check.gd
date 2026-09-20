@@ -72,6 +72,8 @@ func _run() -> void:
 	_check_audio_round_trip()
 	_check_game_settings_round_trip()
 	_check_graphics_round_trip()
+	_check_quality_presets()
+	await _check_occlusion_off()
 	_check_quad_round_trip()
 	_check_controls_round_trip()
 	_check_input_map_rebuild()
@@ -267,10 +269,13 @@ func _check_graphics_round_trip() -> void:
 	expect(Graphics.msaa == Graphics.Msaa.X8 and Graphics.shadows == Graphics.Shadows.ULTRA
 			and Graphics.gi == Graphics.Gi.SDFGI and Graphics.volumetric_fog and Graphics.ssao,
 			"los valores que dejó el preset ULTRA sobreviven al guardado")
-	expect(Graphics.fisheye_mode == Graphics.FisheyeMode.FULL
+	# El modo es el que dejó el preset ULTRA, que desde WP-24c es FAST_WIDE y no FULL.
+	expect(Graphics.fisheye_mode == Graphics.FisheyeMode.FAST_WIDE
 			and Graphics.fisheye_resolution == Graphics.FisheyeResolution.P1080
 			and Graphics.fisheye_msaa == Graphics.FisheyeMsaa.X2,
-			"la configuración del ojo de pez sobrevive al guardado")
+			"la configuración del ojo de pez sobrevive al guardado (obtenido modo %d, resolución %d, msaa %d)"
+					% [int(Graphics.fisheye_mode), int(Graphics.fisheye_resolution),
+					int(Graphics.fisheye_msaa)])
 	expect(Graphics.is_headless(), "el check corre en headless y Graphics lo detecta")
 
 	# Los cuatro presets existen y son coherentes con la tabla de `docs/04` §3.5.
@@ -393,6 +398,327 @@ func _check_controls_round_trip() -> void:
 	var reset_fire := Controls.get_action(&"fire")
 	expect(reset_fire != null and reset_fire.axis == 5 and is_equal_approx(reset_fire.axis_min, 0.35),
 			"reset_controller_bindings() vuelve a la banda de fábrica de fire")
+
+
+# --- 3.bis. Tabla de presets de `docs/13` §3.4 (WP-24a) ---------------------------------------
+
+## La tabla de calidad de `docs/13` §3.4 aplicada de verdad: sombras, SDFGI, SSAO,
+## SSIL, niebla, escala de render y emisores.
+##
+## Hasta WP-24a el preset sólo movía cinco booleanos: el alcance y las cascadas de
+## la sombra estaban cableados en cada escena (700 m en `battle_level.tscn`), SDFGI
+## corría con los valores por defecto del motor y apagarlo dejaba la ciudad a
+## oscuras porque nadie ponía el ambiente de respaldo. Esto verifica que cada
+## número de la tabla llega a donde tiene que llegar.
+##
+## **Discrepancia anotada**: `docs/04` §3.5 pedía atlas `2048/4096/8192/8192/16384`
+## y filtros `HARD/SOFT_LOW/SOFT_MEDIUM/SOFT_HIGH/SOFT_ULTRA`. Manda `docs/13` §3.4,
+## que es el documento de los presets: atlas `2048/2048/4096/8192/8192` y el índice
+## HIGH con `SOFT_MEDIUM`, no con `SOFT_HIGH`.
+func _check_quality_presets() -> void:
+	_check_shadow_table()
+	_check_sun_registration()
+	_check_environment_presets()
+	_check_preset_scalars()
+
+
+## Las cuatro tablas de sombra tienen un valor por nivel de `Shadows` y son las de
+## `docs/13` §3.4.
+func _check_shadow_table() -> void:
+	var levels := Graphics.Shadows.size()
+	expect(Graphics.SHADOW_ATLAS_SIZES.size() == levels
+			and Graphics.SHADOW_FILTERS.size() == levels
+			and Graphics.SHADOW_SPLIT_COUNTS.size() == levels
+			and Graphics.SHADOW_DISTANCES.size() == levels
+			and Graphics.SHADOW_SPLIT_1.size() == levels,
+			"las tablas de sombra tienen un valor por nivel de Shadows (%d)" % levels)
+	expect(Graphics.SHADOW_ATLAS_SIZES == [2048, 2048, 4096, 8192, 8192],
+			"atlas de sombra de docs/13 §3.4, obtenido %s" % str(Graphics.SHADOW_ATLAS_SIZES))
+	expect(Graphics.SHADOW_SPLIT_COUNTS == [2, 2, 4, 4, 4],
+			"splits de docs/13 §3.4, obtenido %s" % str(Graphics.SHADOW_SPLIT_COUNTS))
+	expect(Graphics.SHADOW_DISTANCES == [120.0, 120.0, 200.0, 320.0, 420.0],
+			"alcance de sombra de docs/13 §3.4, obtenido %s" % str(Graphics.SHADOW_DISTANCES))
+	expect(Graphics.SHADOW_FILTERS[Graphics.Shadows.HIGH]
+			== RenderingServer.SHADOW_QUALITY_SOFT_MEDIUM,
+			"el filtro de HIGH es SOFT_MEDIUM (docs/13 §3.4 fila «filtro 2»)")
+	expect(Graphics.SHADOW_FILTERS[Graphics.Shadows.VERY_LOW]
+			== RenderingServer.SHADOW_QUALITY_HARD,
+			"el filtro de VERY_LOW es de sombras duras")
+	expect(Graphics.SHADOW_FILTERS[Graphics.Shadows.ULTRA]
+			== RenderingServer.SHADOW_QUALITY_SOFT_HIGH,
+			"el filtro de ULTRA es SOFT_HIGH")
+	print("  presets: atlas %s, splits %s, alcance %s"
+			% [str(Graphics.SHADOW_ATLAS_SIZES), str(Graphics.SHADOW_SPLIT_COUNTS),
+			str(Graphics.SHADOW_DISTANCES)])
+
+
+## `apply_sun_quality()` vuelca la fila del nivel sobre la luz, y `register_sun()`
+## la vuelve a volcar cuando el jugador cambia de preset.
+func _check_sun_registration() -> void:
+	var sun := DirectionalLight3D.new()
+	sun.name = "SunCheck"
+	add_child(sun)
+	var fired: Array[bool] = [false]
+	var on_changed := func() -> void:
+		fired[0] = true
+	var _discard := Graphics.shadows_changed.connect(on_changed)
+
+	Graphics.shadows = Graphics.Shadows.HIGH
+	Graphics.register_sun(sun)
+	expect(sun.directional_shadow_mode == DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
+			and is_equal_approx(sun.directional_shadow_max_distance, 320.0)
+			and sun.directional_shadow_blend_splits
+			and is_equal_approx(sun.directional_shadow_fade_start, Graphics.SHADOW_FADE_START)
+			and is_equal_approx(sun.shadow_normal_bias, Graphics.SHADOW_NORMAL_BIAS),
+			"register_sun() deja el sol en HIGH: 4 splits, 320 m, mezcla y sesgo 1.6"
+			+ " (obtenido %d splits, %.1f m)"
+			% [4 if sun.directional_shadow_mode
+			== DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS else 2,
+			sun.directional_shadow_max_distance])
+	expect(Graphics.get_registered_suns().has(sun), "el sol queda dado de alta")
+
+	fired[0] = false
+	Graphics.shadows = Graphics.Shadows.VERY_LOW
+	Graphics.update_shadows()
+	expect(sun.directional_shadow_mode == DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+			and is_equal_approx(sun.directional_shadow_max_distance, 120.0)
+			and not sun.directional_shadow_blend_splits,
+			"cambiar de preset reaplica la tabla sobre el sol ya registrado"
+			+ " (obtenido %.1f m)" % sun.directional_shadow_max_distance)
+	expect(fired[0], "update_shadows() emite shadows_changed")
+
+	Graphics.shadows_changed.disconnect(on_changed)
+	Graphics.unregister_sun(sun)
+	expect(not Graphics.get_registered_suns().has(sun), "unregister_sun() lo da de baja")
+	sun.queue_free()
+
+
+## `apply_environment_quality()` escribe la fila del preset sobre el `Environment`.
+func _check_environment_presets() -> void:
+	var env := Environment.new()
+
+	Graphics.apply_quality_preset(Graphics.Quality.HIGH, false)
+	Graphics.apply_environment_quality(env)
+	expect(env.sdfgi_enabled and env.sdfgi_cascades == Graphics.SDFGI_CASCADES_HIGH
+			and is_equal_approx(env.sdfgi_cascade0_distance, Graphics.SDFGI_CASCADE0_DISTANCE)
+			and env.sdfgi_y_scale == Environment.SDFGI_Y_SCALE_100_PERCENT
+			and env.sdfgi_use_occlusion
+			and is_equal_approx(env.sdfgi_bounce_feedback, Graphics.SDFGI_BOUNCE_FEEDBACK),
+			"HIGH: SDFGI con %d cascadas, cascada0 de %.0f m, y_scale 100 %% y oclusión"
+			% [env.sdfgi_cascades, env.sdfgi_cascade0_distance])
+	expect(not env.ssil_enabled, "HIGH no enciende SSIL (docs/13 §3.4: sólo ULTRA)")
+	expect(env.ssao_enabled and is_equal_approx(env.ssao_radius, Graphics.SSAO_RADIUS),
+			"HIGH: SSAO con radio %.1f" % env.ssao_radius)
+	expect(env.volumetric_fog_enabled
+			and is_equal_approx(env.volumetric_fog_length, 96.0),
+			"HIGH: niebla volumétrica de 96 m (obtenido %.0f)" % env.volumetric_fog_length)
+
+	Graphics.apply_quality_preset(Graphics.Quality.ULTRA, false)
+	Graphics.apply_environment_quality(env)
+	expect(env.sdfgi_cascades == Graphics.SDFGI_CASCADES_ULTRA and env.ssil_enabled
+			and is_equal_approx(env.volumetric_fog_length, 128.0),
+			"ULTRA: %d cascadas, SSIL encendido y niebla de %.0f m"
+			% [env.sdfgi_cascades, env.volumetric_fog_length])
+
+	Graphics.apply_quality_preset(Graphics.Quality.MEDIUM, false)
+	Graphics.ssao = true
+	Graphics.apply_environment_quality(env)
+	expect(is_equal_approx(env.ssao_radius, Graphics.SSAO_RADIUS_MEDIUM),
+			"MEDIUM: SSAO con radio 1.2 (obtenido %.2f)" % env.ssao_radius)
+
+	Graphics.apply_quality_preset(Graphics.Quality.LOW, false)
+	Graphics.apply_environment_quality(env)
+	expect(not env.sdfgi_enabled and not env.volumetric_fog_enabled and not env.ssao_enabled
+			and not env.ssil_enabled,
+			"LOW: SDFGI, niebla, SSAO y SSIL apagados")
+	expect(env.ambient_light_source == Environment.AMBIENT_SOURCE_COLOR
+			and env.ambient_light_color.is_equal_approx(Graphics.FALLBACK_AMBIENT_COLOR)
+			and is_equal_approx(env.ambient_light_energy, Graphics.FALLBACK_AMBIENT_ENERGY),
+			"LOW: ambiente de respaldo #2A3A52 a 0.55 (docs/13 §3.4), obtenido %s a %.2f"
+			% [env.ambient_light_color.to_html(false), env.ambient_light_energy])
+
+	Graphics.apply_quality_preset(Graphics.Quality.HIGH, false)
+	Graphics.apply_environment_quality(env)
+	expect(env.ambient_light_source == Environment.AMBIENT_SOURCE_SKY,
+			"volver a HIGH devuelve el ambiente al cielo")
+
+
+## El modo de ojo de pez de cada preset y los recortes de las caras laterales
+## (`docs/03` §5, WP-24c).
+##
+## La fila que importa es **HIGH → FAST_WIDE**: es el preset por defecto y el que
+## juega el usuario, y es el que deja de tener el churretón de los costados. LOW y
+## MEDIUM siguen en FAST —donde ahora hay viñeta negra en vez de texel repetido— y
+## ULTRA en FULL.
+func _check_fisheye_presets() -> void:
+	var modes: Array[int] = []
+	for preset: Graphics.Quality in [Graphics.Quality.LOW, Graphics.Quality.MEDIUM,
+			Graphics.Quality.HIGH, Graphics.Quality.ULTRA]:
+		Graphics.apply_quality_preset(preset, false)
+		modes.append(int(Graphics.fisheye_mode))
+	var wanted: Array[int] = [
+		int(Graphics.FisheyeMode.FAST), int(Graphics.FisheyeMode.FAST),
+		int(Graphics.FisheyeMode.FAST_WIDE), int(Graphics.FisheyeMode.FAST_WIDE),
+	]
+	expect(modes == wanted,
+			"el ojo de pez por preset es FAST/FAST/FAST_WIDE/FAST_WIDE, obtenido %s"
+			% str(modes))
+	# FULL ya no lo pide ningún preset, pero sigue existiendo como opción del menú
+	# para quien quiera 170° sin viñeta: el modo y su clave tienen que seguir ahí.
+	expect(not modes.has(int(Graphics.FisheyeMode.FULL)),
+			"ningún preset usa FULL: cuesta 14,1 ms de GPU y se pasa del presupuesto de"
+			+ " draw calls (obtenido %s)" % str(modes))
+	expect(int(Graphics.FisheyeMode.FULL) < Graphics.FisheyeMode.size()
+			and GraphicsMenu.FISHEYE_KEYS[int(Graphics.FisheyeMode.FULL)]
+					== "GFX_FISHEYE_FULL",
+			"FULL sigue siendo elegible a mano desde el menú de gráficos")
+	expect(int(Graphics.FisheyeMode.FAST_WIDE) == 3,
+			"FisheyeMode.FAST_WIDE tiene que valer 3: anexarlo al final es lo que deja"
+			+ " válidos los Graphics.cfg ya escritos (obtuvo %d)"
+			% int(Graphics.FisheyeMode.FAST_WIDE))
+	expect(GraphicsMenu.FISHEYE_KEYS.size() == Graphics.FisheyeMode.size(),
+			"el menú de gráficos tiene una clave por modo de ojo de pez (%d claves, %d modos)"
+			% [GraphicsMenu.FISHEYE_KEYS.size(), Graphics.FisheyeMode.size()])
+
+	Graphics.apply_quality_preset(Graphics.Quality.HIGH, false)
+	var side := Graphics.fisheye_side_height()
+	expect(side == 720,
+			"en HIGH, con la frontal a 1080, las laterales miden 720 px de lado (2/3),"
+			+ " obtenido %d" % side)
+	Graphics.apply_quality_preset(Graphics.Quality.ULTRA, false)
+	var ultra_side := Graphics.fisheye_side_height()
+	expect(ultra_side == 1080,
+			"en ULTRA las laterales igualan a la frontal: 1080 px de lado, obtenido %d"
+			% ultra_side)
+	# WP-24e: las laterales ya **no** llevan un suelo de LOD propio. Un prop de
+	# azotea que cambiaba de LOD al cruzar la costura entre la cara frontal y la
+	# lateral parpadeaba sobre sí mismo dentro del fundido, porque ahí las dos caras
+	# se mezclan y el salto no se esconde.
+	Graphics.apply_quality_preset(Graphics.Quality.HIGH, false)
+	expect(is_equal_approx(Graphics.fisheye_side_mesh_lod(), Graphics.mesh_lod_threshold()),
+			"las laterales usan el mismo LOD que el preset (%.1f px), obtenido %.1f"
+			% [Graphics.mesh_lod_threshold(), Graphics.fisheye_side_mesh_lod()])
+	var lod_by_preset: Array[float] = []
+	for preset: Graphics.Quality in [Graphics.Quality.LOW, Graphics.Quality.MEDIUM,
+			Graphics.Quality.HIGH, Graphics.Quality.ULTRA]:
+		Graphics.apply_quality_preset(preset, false)
+		lod_by_preset.append(Graphics.fisheye_side_mesh_lod()
+				- Graphics.mesh_lod_threshold())
+	for delta: float in lod_by_preset:
+		expect(is_zero_approx(delta),
+				"en algún preset el LOD lateral se aparta del frontal (deltas %s)"
+				% str(lod_by_preset))
+	Graphics.apply_quality_preset(Graphics.Quality.HIGH, false)
+	expect(int(Graphics.fisheye_side_msaa_level()) <= int(Viewport.MSAA_2X)
+			and int(Graphics.fisheye_side_msaa_level())
+					<= int(Graphics.fisheye_msaa_level()),
+			"el MSAA lateral está acotado a 2× y nunca supera el frontal (%d contra %d)"
+			% [int(Graphics.fisheye_side_msaa_level()), int(Graphics.fisheye_msaa_level())])
+
+	# El lado lateral está acotado por arriba y por abajo, para que 2160p no dispare
+	# dos caras de 1440 ni 240p las deje en 160.
+	Graphics.fisheye_resolution = Graphics.FisheyeResolution.P2160
+	var big := Graphics.fisheye_side_height()
+	Graphics.fisheye_resolution = Graphics.FisheyeResolution.P240
+	var small := Graphics.fisheye_side_height()
+	expect(big == Graphics.FISHEYE_SIDE_RANGE.y and small == Graphics.FISHEYE_SIDE_RANGE.x,
+			"el lado lateral se acota a [%d, %d], obtenido %d y %d"
+			% [Graphics.FISHEYE_SIDE_RANGE.x, Graphics.FISHEYE_SIDE_RANGE.y, small, big])
+	print("  ojo de pez por preset: %s; laterales %d² en HIGH y %d² en ULTRA, con LOD %.1f px (el del preset) y MSAA %d"
+			% [str(modes), side, ultra_side, Graphics.fisheye_side_mesh_lod(),
+			int(Graphics.fisheye_side_msaa_level())])
+
+
+## Ninguna viewport pide oclusión por oclusores, en ningún preset (WP-24e).
+##
+## Se prueba sobre una [FPVCamera] de verdad y no sobre `Graphics` a secas porque el
+## bug vivía justamente en el eslabón de abajo: una `SubViewport` **no** hereda
+## `use_occlusion_culling` del proyecto, así que el ojo de pez lo escribe a mano en
+## `_add_face()` y en `_apply_viewport_quality()`, y ahí es donde se dibuja la
+## escena. Con la oclusión encendida, los 15 oclusores horneados del distrito
+## —ceñidos al edificio más alto de cada manzana y nunca retirados al derrumbarlo—
+## tapaban al coloso y se tragaban cuadros enteros cuando la cámara entraba en una
+## losa fantasma. Apagarla cuesta −0,011 ms según `docs/perf/2026-09-20.json`: nada.
+##
+## De paso se comprueba lo otro que viaja por el mismo camino: el LOD de malla de
+## las tres caras, que desde WP-24e es el mismo del preset a los dos lados de la
+## costura.
+func _check_occlusion_off() -> void:
+	expect(not bool(ProjectSettings.get_setting(
+			"rendering/occlusion_culling/use_occlusion_culling", false)),
+			"el proyecto no puede pedir rendering/occlusion_culling/use_occlusion_culling")
+	var camera := FPVCamera.new()
+	camera.name = "OcclusionProbe"
+	add_child(camera)
+	await wait_physics(2)
+
+	var offenders: Array[String] = []
+	var counted := 0
+	var names: Array[String] = ["LOW", "MEDIUM", "HIGH", "ULTRA"]
+	for index: int in names.size():
+		var preset := index as Graphics.Quality
+		Graphics.apply_quality_preset(preset, false)
+		expect(not Graphics.use_occlusion_culling(),
+				"Graphics.use_occlusion_culling() devolvió true en el preset %s" % names[index])
+		camera.set_fisheye_mode(int(Graphics.fisheye_mode))
+		await wait_physics(2)
+		var lod := Graphics.mesh_lod_threshold()
+		for viewport: SubViewport in camera.get_fisheye_viewports():
+			counted += 1
+			if viewport.use_occlusion_culling:
+				offenders.append("%s/%s: oclusión" % [names[index], viewport.name])
+			if not is_equal_approx(viewport.mesh_lod_threshold, lod):
+				offenders.append("%s/%s: LOD %.2f ≠ %.2f"
+						% [names[index], viewport.name, viewport.mesh_lod_threshold, lod])
+	camera.queue_free()
+	await wait_physics(2)
+	Graphics.apply_quality_preset(Graphics.Quality.HIGH, false)
+
+	print("  oclusión: %d sub-viewports del ojo de pez revisadas en 4 presets, %d con oclusión o LOD fuera de sitio"
+			% [counted, offenders.size()])
+	# LOW y MEDIUM van en FAST (una cara) y HIGH y ULTRA en FAST_WIDE (tres): ocho.
+	expect(counted >= 8,
+			"se revisaron %d sub-viewports y los cuatro presets tienen que dar al menos 8"
+			% counted + " (FAST 1 + FAST 1 + FAST_WIDE 3 + FAST_WIDE 3)")
+	expect(offenders.is_empty(),
+			"hay viewports con oclusión activa o con el LOD desparejo: %s"
+			% ", ".join(offenders))
+
+
+## Los escalares por preset: emisores, escala de render y umbral de LOD.
+func _check_preset_scalars() -> void:
+	var emitters: Array[int] = []
+	var scales: Array[float] = []
+	for preset: Graphics.Quality in [Graphics.Quality.LOW, Graphics.Quality.MEDIUM,
+			Graphics.Quality.HIGH, Graphics.Quality.ULTRA]:
+		Graphics.apply_quality_preset(preset, false)
+		Graphics.resolution_scale = 1.0
+		emitters.append(Graphics.max_emitters())
+		scales.append(snappedf(Graphics.fisheye_render_scale(), 0.01))
+	expect(emitters == [6, 8, 12, 12],
+			"max_emitters() es 6/8/12/12 (docs/13 §3.4 y §4), obtenido %s" % str(emitters))
+	var wanted_scales: Array[float] = [0.70, 0.85, 1.0, 1.0]
+	var scales_ok := scales.size() == wanted_scales.size()
+	for index: int in wanted_scales.size():
+		if scales_ok and not is_equal_approx(scales[index], wanted_scales[index]):
+			scales_ok = false
+	expect(scales_ok,
+			"la escala de render es 70/85/100/100 %%, obtenido %s" % str(scales))
+	_check_fisheye_presets()
+	Graphics.apply_quality_preset(Graphics.Quality.HIGH, false)
+	expect(Graphics.fisheye_scaling_mode() == Viewport.SCALING_3D_MODE_BILINEAR,
+			"a escala 1.0 no se paga el paso de FSR")
+	Graphics.apply_quality_preset(Graphics.Quality.LOW, false)
+	expect(Graphics.fisheye_scaling_mode() == Viewport.SCALING_3D_MODE_FSR,
+			"por debajo de 1.0 el escalado es FSR 1.0 (docs/13 §3.4)")
+
+	Graphics.mark_custom_quality()
+	Graphics.shadows = Graphics.Shadows.ULTRA
+	expect(Graphics.effective_quality() == Graphics.Quality.ULTRA,
+			"con preset CUSTOM el efectivo se deduce del nivel de sombras")
+	Graphics.apply_quality_preset(Graphics.Quality.HIGH, false)
+	print("  presets: emisores %s, escala de render %s" % [str(emitters), str(scales)])
+
 
 
 # --- 4. Reconstrucción del `InputMap` ---------------------------------------------------------

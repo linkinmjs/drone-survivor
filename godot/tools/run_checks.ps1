@@ -55,7 +55,8 @@ $Headless = @(
 # En Windows corren con ventana a 960x540.
 $Windowed = @(
     "ui_smoke_test",  # WP-02, ampliado en WP-09 y WP-11
-    "boot_check"      # WP-02
+    "boot_check",     # WP-02
+    "render_check"    # WP-24a: 1920x1080 sin vsync, ver $WindowArgs
 )
 
 # Extendidos: lentos (minutos), corren solo con -Extended o con -Only <nombre>.
@@ -70,7 +71,12 @@ $ProcessTimeouts = @{
 }
 
 # Informativos: reportan pero no cuentan para el codigo de salida (docs/15 seccion 8.5).
-$NonBlocking = @("render_parity_check")
+$NonBlocking = @()
+
+# Argumentos de ventana propios (en vez de --windowed --resolution 960x540).
+$WindowArgs = @{
+    "render_check" = @("--windowed", "--resolution", "1920x1080", "--disable-vsync")
+}
 
 # Argumentos de usuario extra por check, despues de "--".
 $ExtraArgs = @{
@@ -80,6 +86,7 @@ $ExtraArgs = @{
     "loading_check" = @("--timeout=120")
     "ai_check"      = @("--timeout=300")
     "balance_check" = @("--timeout=1500")
+    "render_check"  = @("--shots=tools/out/shots")
 }
 
 # ---------------------------------------------------------------------------
@@ -214,6 +221,7 @@ foreach ($check in $catalog) {
 
     if ($check.Windowed) {
         $godotArgs = @("--windowed", "--resolution", "960x540")
+        if ($WindowArgs.ContainsKey($check.Name)) { $godotArgs = @($WindowArgs[$check.Name]) }
     }
     else {
         $godotArgs = @("--headless")

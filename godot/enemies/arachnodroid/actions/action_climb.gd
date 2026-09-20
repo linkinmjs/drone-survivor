@@ -92,6 +92,12 @@ func _on_active_begin() -> void:
 	var leg_rig := rig()
 	if leg_rig == null:
 		return
+	# La mecánica la pone el rig, pero la **intención** es de esta acción: con
+	# ella encendida el rayo de apoyo prefiere el techo del edificio entre los
+	# candidatos que prueba. Sin esto, con la huella de 22 m de WP-24d los
+	# reposos de las patas delanteras caen fuera de una torre de 18 m de lado y
+	# el jefe la rodearía en vez de subírsele encima.
+	leg_rig.set_climb_intent(true)
 	if not leg_rig.foot_planted.is_connected(_on_foot_planted):
 		var _discard := leg_rig.foot_planted.connect(_on_foot_planted)
 		_connected = true
@@ -191,12 +197,14 @@ func _on_foot_planted(_leg_index: int, position: Vector3, _impact_speed: float) 
 	notify_city_attack()
 
 
-## Suelta la conexión con el rig. Es idempotente.
+## Suelta la conexión con el rig y la intención de trepar. Es idempotente.
 func _disconnect() -> void:
+	var leg_rig := rig()
+	if leg_rig != null:
+		leg_rig.set_climb_intent(false)
 	if not _connected:
 		return
 	_connected = false
-	var leg_rig := rig()
 	if leg_rig != null and leg_rig.foot_planted.is_connected(_on_foot_planted):
 		leg_rig.foot_planted.disconnect(_on_foot_planted)
 

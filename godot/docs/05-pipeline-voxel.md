@@ -518,7 +518,7 @@ Carga `res://enemies/arachnodroid/arachnodroid.glb` como `PackedScene`, la insta
 | 8 | Ningún `Mesh` tiene LOD (`mesh.get_surface_count()` estable y `ArrayMesh.get_lod_count()` inexistente o 0) | exacto |
 | 9 | Los 5 `weak_point` con emisivo (`wp_head_visor`, 4 rodillas) tienen `has_emissive_surface == true` | exacto |
 | 10 | Cada `AnimatableBody3D` tiene `sync_to_physics == false` | exacto |
-| 11 | Los 4 pivotes de rodilla y los 4 pies coinciden con `pivot_world` del sidecar en la **pose de reposo** del GLB: rodillas a **8.625 ± 0.1 m** y pies a **3.75 ± 0.1 m** (medido en WP-12; el 11.0/3.0 de la ficha original nunca fue una pose real: la cadena fémur+tibia+pie del modelo mide 13.6 m, y la pose de marcha realizable de WP-17 deja las rodillas a **7.9 m** con el origen del cuerpo a −3.25 m cuando los pies tocan el suelo; ver `06`/`07`) | 0.1 m |
+| 11 | Los 4 pivotes de rodilla y los 4 pies coinciden con `pivot_world` del sidecar en la **pose de reposo** del GLB: rodillas a **8.625 ± 0.1 m** y pies a **3.75 ± 0.1 m** (medido en WP-12; el 11.0/3.0 de la ficha original nunca fue una pose real: la cadena fémur+tibia+pie del modelo mide 13.6 m, y la pose de marcha realizable de WP-17 dejaba las rodillas a **7.9 m** con el origen del cuerpo a −3.25 m cuando los pies tocan el suelo; ver `06`/`07`). **Actualización de WP-24d (2026-09-20)**: la pose de marcha realizable pasó a dejar las rodillas a **9,4 m** (huella lateral de 22 m), no 7,9; el criterio de reposo no cambia. | 0.1 m |
 
 Imprime `CHECK enemy_import_check: OK` o `FAIL (n fallos)` y sale con 0 o 1. No escribe en `user://`.
 

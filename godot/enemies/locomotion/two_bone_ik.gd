@@ -47,12 +47,18 @@ const EPSILON: float = 0.000001
 ## polo (en mundo; no hace falta que sea unitario ni perpendicular) y
 ## [param stretch_max] el estiramiento máximo de la cadena antes de rendirse.
 ##
+## [param knee_lift] (WP-24d, 0 por defecto) es el piso de elevación de la
+## rodilla como fracción de la perpendicular más vertical de la cadena: con 0 la
+## flexión la manda sólo el polo, como en `docs/06` §8.2; por encima de 0 la
+## rodilla tiene garantizado salir hacia arriba aunque el objetivo quede del lado
+## de dentro de la cadera.
+##
 ## Devuelve `mid` (rodilla), `end` (punta alcanzada), `basis_a`, `basis_b`,
 ## `dir_a`, `dir_b`, `normal` (normal del plano de flexión), `stretched` (la
 ## cadena tuvo que estirarse) y `reachable` (llegó al objetivo pedido).
 ## Nunca devuelve `NaN`: todos los divisores están acotados.
 static func solve(root: Vector3, target: Vector3, len_a: float, len_b: float,
-		pole: Vector3, stretch_max: float) -> Dictionary:
+		pole: Vector3, stretch_max: float, knee_lift: float = 0.0) -> Dictionary:
 	var a := maxf(len_a, MIN_GAP)
 	var b := maxf(len_b, MIN_GAP)
 	var reach := a + b
@@ -75,6 +81,24 @@ static func solve(root: Vector3, target: Vector3, len_a: float, len_b: float,
 		if side.length_squared() < EPSILON:
 			side = dir.cross(Vector3.RIGHT)
 	side = side.normalized()
+
+	# Piso de elevación de la rodilla (WP-24d). El polo define **hacia dónde**
+	# sale la rodilla, pero su componente perpendicular a la cadena se inclina
+	# con ella: si el objetivo queda del lado de dentro de la cadera, esa
+	# componente apunta hacia abajo y la rodilla se dobla hacia adentro y hacia
+	# el suelo —la pose que rompe la silueta de araña—. Con `knee_lift` la
+	# dirección se inclina hacia la perpendicular **más vertical** que existe
+	# para esta cadena, lo justo para que la rodilla nunca salga por debajo.
+	if knee_lift > 0.0:
+		var up_perp := Vector3.UP - dir * dir.dot(Vector3.UP)
+		if up_perp.length_squared() > EPSILON:
+			up_perp = up_perp.normalized()
+			var floor_y := up_perp.y * knee_lift
+			if side.y < floor_y and up_perp.y > side.y:
+				var blend := clampf((floor_y - side.y) / (up_perp.y - side.y), 0.0, 1.0)
+				var lifted := side.lerp(up_perp, blend)
+				if lifted.length_squared() > EPSILON:
+					side = lifted.normalized()
 
 	var stretched := raw > reach
 	var reachable := raw <= limit

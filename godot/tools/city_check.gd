@@ -10,6 +10,23 @@
 ## monótona y que la derrota se publica una sola vez, y termina liberando todo
 ## para que no queden huérfanos.
 ##
+## Desde WP-24b mide además la **forma** de la ciudad, que es lo que el
+## jugador ve y ningún sub-check miraba:
+##
+## - la extensión se rehace con la fórmula de carriles de [CityGrid] —celda de
+##   edificio, calle y avenida tienen anchos distintos— en vez de suponer una
+##   rejilla uniforme;
+## - cada edificio apoya su fachada sobre la línea municipal de la calle a la
+##   que da, con la base a la altura de la vereda y la huella dentro de su celda;
+## - la silueta reparte seis hitos de más de 70 m y quince torres medias;
+## - las marcas de la calzada van **a lo largo** de cada calle (la regresión de
+##   WP-21: los dos ejes compartían transformada y media ciudad las tenía
+##   cruzadas) y los cruces se pavimentan con el mismo material que la calzada;
+## - los props de azotea apoyan enteros sobre el techo y no pasan de 2,5 m la
+##   antena ni de 6,5 m un cartel;
+## - las seis rocas miden de 8 a 18 m y ninguna invade el cono de visión inicial
+##   del dron.
+##
 ## Cierra con una **prueba negativa**: un perfil con el umbral de ruina mal
 ## puesto tiene que producir dos etapas en vez de tres, y el check lo detecta.
 ## Sirve para saber que los sub-checks de etapas miden algo de verdad.
@@ -44,6 +61,46 @@ const FRIENDLY_FIRE_SHOTS: int = 170
 
 ## Ruta del shader que tiene que aparecer en `DAMAGED`.
 const DAMAGE_SHADER_PATH: String = "res://city/damage_overlay.gdshader"
+
+## Material que tienen que compartir calzada y cruces (WP-24b): el cruce se
+## dibuja con una malla propia, pero con **el mismo** `roads.tres`, o sería un
+## lote de dibujo más y un asfalto de otro color.
+const ROADS_MATERIAL_PATH: String = "res://assets/city/materials/roads.tres"
+
+## Altura a la que apoyan los edificios: la de la vereda (`docs/10` §4.4 tras
+## WP-24b). Antes quedaban hundidos 18 cm respecto de la losa de la manzana.
+const BUILDING_BASE_Y: float = 0.18
+
+## Tolerancias de la alineación a la línea municipal, en metros.
+const FACADE_TOLERANCE: float = 0.05
+const BASE_TOLERANCE: float = 0.011
+
+## Reparto de siluetas (WP-24b): seis hitos casi a escala 1 y quince torres
+## medias estiradas. Ver `CityGrid.LANDMARK_SCALE_MIN` y compañía.
+const EXPECTED_LANDMARKS: int = 6
+const LANDMARK_MIN_HEIGHT: float = 70.0
+const MID_TOWER_MIN_HEIGHT: float = 14.0
+const MID_TOWER_MAX_HEIGHT: float = 18.0
+
+## Un [OccluderInstance3D] por manzana: 5 x 3 (`docs/10` §7).
+const EXPECTED_OCCLUDERS: int = 15
+
+## Cotas de las rocas del borde, en metros, y semiángulo del cono que no pueden
+## invadir desde el punto de aparición del dron.
+const ROCK_MIN_HEIGHT: float = 8.0
+const ROCK_MAX_HEIGHT: float = 18.0
+const ROCK_CONE_DEG: float = 30.0
+
+## Tamaño máximo del lado mayor de un prop de azotea, en metros.
+const DISH_MAX_SIZE: float = 2.5
+const SIGN_MAX_SIZE: float = 6.5
+
+## Ventana admitida de [MultiMeshInstance3D] de la red viaria. `docs/10` §7 pide
+## tres; WP-24b los sube a cinco —calzada este-oeste, calzada norte-sur, cruces,
+## veredas y patios— porque una sola malla no puede llevar dos orientaciones de
+## marca vial ni tres piezas distintas.
+const STREET_MULTIMESH_MIN: int = 3
+const STREET_MULTIMESH_MAX: int = 8
 
 var _district: CityGrid = null
 var _integrity: CityIntegrity = null
@@ -92,15 +149,18 @@ func _run() -> void:
 	_check_building_count()
 	_check_hp_mix()
 	_check_grid_layout()
+	_check_skyline()
 	_check_no_body_scale()
 	_check_props_on_roof()
 	_check_street_batching()
 	_check_rocks_and_ground()
+	_check_gi_modes()
 	_check_debris_profiles()
 
 	await _check_stages()
 	await _check_friendly_fire()
 	await _check_collapse_time()
+	await _check_occluders()
 	await _check_siege()
 	await _check_debris_cap()
 	await _check_integrity_run()
@@ -182,27 +242,110 @@ func _check_hp_mix() -> void:
 			"CityIntegrity.get_initial_hp() no coincide con la suma de perfiles")
 
 
-## 4. Rejilla: extensión declarada, ningún edificio en celda de calle y una
-## separación mínima entre centros de una celda.
+## 4. Rejilla **no uniforme** (WP-24b): la extensión es la suma de los anchos de
+## los carriles y no `columnas × celda`, y cada edificio apoya su fachada sobre
+## la línea municipal de la calle a la que da.
+##
+## La fórmula se rehace acá con [method CityGrid.lane_width] en vez de copiar la
+## tabla de anchos: si mañana cambia el ancho de la avenida, el check sigue
+## midiendo lo mismo que la rejilla y no hay que tocarlo. Lo que sí se afirma a
+## mano es la **cuenta** de carriles de cada clase, que es la decisión de diseño.
 func _check_grid_layout() -> void:
 	var extent := _district.get_extent()
-	expect_near(extent.x, float(_district.get_cols()) * _district.cell_size, 0.01,
-			"extensión en X")
-	expect_near(extent.y, float(_district.get_rows()) * _district.cell_size, 0.01,
-			"extensión en Z")
+	for axis: int in 2:
+		var lanes: int = _district.get_cols() if axis == 0 else _district.get_rows()
+		var total := 0.0
+		var blocks := 0
+		var streets := 0
+		var avenues := 0
+		for lane: int in lanes:
+			var width: float = _district.lane_width(axis, lane)
+			total += width
+			match _district.lane_kind(axis, lane):
+				CityGrid.Lane.BLOCK:
+					blocks += 1
+					expect_near(width, _district.cell_size, 0.01,
+							"el carril de edificio %d:%d no mide una celda" % [axis, lane])
+				CityGrid.Lane.AVENUE:
+					avenues += 1
+				_:
+					streets += 1
+			expect_near(_district.street_width_at(axis, lane),
+					0.0 if _district.lane_kind(axis, lane) == CityGrid.Lane.BLOCK else width,
+					0.01, "street_width_at(%d, %d)" % [axis, lane])
+		var span: float = extent.x if axis == 0 else extent.y
+		expect_near(span, total, 0.01, "extensión del eje %d" % axis)
+		var expected_blocks: int = (_district.block_cols if axis == 0 else _district.block_rows) \
+				* _district.block_span
+		expect(blocks == expected_blocks,
+				"carriles de edificio del eje %d: %d, esperados %d"
+				% [axis, blocks, expected_blocks])
+		expect(avenues == 1, "avenidas del eje %d: %d, esperada 1" % [axis, avenues])
+		# Entre N manzanas hay N − 1 huecos; uno es la avenida, y a los N − 2
+		# restantes se suman las dos calles del anillo perimetral: N en total.
+		var expected_streets: int = _district.block_cols if axis == 0 else _district.block_rows
+		expect(streets == expected_streets,
+				"calles del eje %d: %d, esperadas %d" % [axis, streets, expected_streets])
+
 	var seen: Dictionary[Vector2i, bool] = {}
 	for building: Building in _district.get_buildings():
 		var cell: Vector2i = building.get_meta(&"cell", Vector2i(-1, -1))
 		if _district.is_street_cell(cell):
 			fail("'%s' está en la celda de calle %s" % [building.name, str(cell)])
+			continue
 		if seen.has(cell):
 			fail("dos edificios en la celda %s" % str(cell))
 		seen[cell] = true
-		var expected := _district.cell_position(cell)
-		expect(building.position.distance_to(expected) < 0.01,
-				"'%s' no está en el centro de su celda" % building.name)
+		_check_facade(building, cell)
 	expect(seen.size() == EXPECTED_BUILDINGS,
 			"celdas ocupadas: %d, esperadas %d" % [seen.size(), EXPECTED_BUILDINGS])
+	print("  rejilla: %s m (núcleo %s m) · %d carriles X × %d carriles Z · 60 fachadas alineadas"
+			% [str(extent), str(_district.get_core_extent()), _district.get_cols(),
+			_district.get_rows()])
+
+
+## 4b. Fachada sobre la línea municipal, base a la altura de la vereda y huella
+## dentro de la celda.
+##
+## El giro no se lee de un metadato sino del `rotation.y` real del cuerpo: así el
+## check comprueba que la **rotación** y la **posición** cuentan la misma
+## historia, que es lo que se rompería si alguien cambiara una sin la otra.
+func _check_facade(building: Building, cell: Vector2i) -> void:
+	var steps := posmod(roundi(building.rotation.y / (PI * 0.5)), 4)
+	var x0: float = _district.lane_start(0, cell.x)
+	var x1: float = x0 + _district.lane_width(0, cell.x)
+	var z0: float = _district.lane_start(1, cell.y)
+	var z1: float = z0 + _district.lane_width(1, cell.y)
+	var centre: Vector3 = _district.cell_position(cell)
+	var half := building.base_size.z * 0.5
+	var expected := centre
+	match steps:
+		1:
+			expected = Vector3(x0 + half, BUILDING_BASE_Y, centre.z)
+		2:
+			expected = Vector3(centre.x, BUILDING_BASE_Y, z1 - half)
+		3:
+			expected = Vector3(x1 - half, BUILDING_BASE_Y, centre.z)
+		_:
+			expected = Vector3(centre.x, BUILDING_BASE_Y, z0 + half)
+	expect(Vector2(building.position.x - expected.x, building.position.z - expected.z).length()
+					<= FACADE_TOLERANCE,
+			"'%s' (giro %d) está en %s y su línea de fachada es %s"
+			% [building.name, steps, str(building.position), str(expected)])
+	expect(absf(building.position.y - BUILDING_BASE_Y) <= BASE_TOLERANCE,
+			"'%s' apoya en y = %.3f, esperado %.2f ±%.3f"
+			% [building.name, building.position.y, BUILDING_BASE_Y, BASE_TOLERANCE])
+
+	# Huella girada: en los pasos impares el frente va sobre Z.
+	var footprint := Vector2(building.base_size.x, building.base_size.z)
+	if steps % 2 == 1:
+		footprint = Vector2(building.base_size.z, building.base_size.x)
+	expect(building.position.x - footprint.x * 0.5 >= x0 - 0.01
+					and building.position.x + footprint.x * 0.5 <= x1 + 0.01
+					and building.position.z - footprint.y * 0.5 >= z0 - 0.01
+					and building.position.z + footprint.y * 0.5 <= z1 + 0.01,
+			"'%s' (huella %s) se sale de su celda [%.1f, %.1f] × [%.1f, %.1f]"
+			% [building.name, str(footprint), x0, x1, z0, z1])
 
 
 ## 5. Ningún cuerpo escalado; toda la variación de altura vive en la malla y en
@@ -255,9 +398,83 @@ func _check_props_on_roof() -> void:
 			var bottom := _visual_bottom(prop)
 			if is_finite(bottom):
 				worst_gap = maxf(worst_gap, absf(bottom - roof_y))
+			_check_prop_scale(building, prop)
 	expect(props_seen >= 12, "props de azotea encontrados: %d, esperados al menos 12" % props_seen)
 	print("  props de azotea: %d; mayor desvío entre la base de la malla y el techo: %.2f m"
 			% [props_seen, worst_gap])
+
+
+## 5c. Escala y voladizo del prop (WP-24b).
+##
+## Los cuatro props se importaban con el mismo `root_scale = 5.0` que los
+## edificios, calibrado con `BuildingBlock_1`: la antena medía 4,5 m y el cartel
+## de azotea 9, cinco veces lo que debían. Acá se mide el AABB real de la
+## instancia sembrada y se comprueba además que el prop apoya **entero** sobre la
+## azotea, girado en pasos de 90°.
+func _check_prop_scale(building: Building, prop: Node3D) -> void:
+	var size: Vector3 = prop.get_meta(&"base_size", Vector3.ZERO)
+	if size == Vector3.ZERO:
+		fail("'%s/%s' no lleva el metadato base_size" % [building.name, prop.name])
+		return
+	var largest := maxf(size.x, maxf(size.y, size.z))
+	var piece := String(prop.get_meta(&"piece_id", &"?"))
+	var limit := DISH_MAX_SIZE if piece == "SateliteDish" else SIGN_MAX_SIZE
+	expect(largest <= limit,
+			"'%s/%s' (%s) mide %.2f m de lado mayor, tope %.1f m"
+			% [building.name, prop.name, piece, largest, limit])
+
+	# El giro se compara envuelto a (−π, π]: `Node3D.rotation` devuelve el ángulo
+	# que sale de la base, y media vuelta llega tanto como `π` como como `−π`.
+	var steps := posmod(roundi(prop.rotation.y / (PI * 0.5)), 4)
+	var drift := absf(wrapf(prop.rotation.y - float(steps) * (PI * 0.5), -PI, PI))
+	expect(drift <= 0.01,
+			"'%s/%s' está girado %.4f rad, fuera de los pasos de 90° (desvío %.4f)"
+			% [building.name, prop.name, prop.rotation.y, drift])
+	expect(is_zero_approx(prop.rotation.x) and is_zero_approx(prop.rotation.z),
+			"'%s/%s' está inclinado (%s)" % [building.name, prop.name, str(prop.rotation)])
+	var footprint := Vector2(size.x, size.z)
+	if steps % 2 == 1:
+		footprint = Vector2(size.z, size.x)
+	expect(absf(prop.position.x) + footprint.x * 0.5 <= building.base_size.x * 0.5 + 0.01
+					and absf(prop.position.z) + footprint.y * 0.5 <= building.base_size.z * 0.5 + 0.01,
+			"'%s/%s' (huella %s) asoma por el borde de una azotea de %.0f × %.0f m"
+			% [building.name, prop.name, str(footprint),
+			building.base_size.x, building.base_size.z])
+
+
+## 4c. Reparto de siluetas (WP-24b): seis hitos casi a escala 1 —la silueta que
+## `docs/07` §2 necesita para `climb` y `siege_beam`— y quince torres medias de
+## 15 a 17 m. La regresión que atrapa es la de WP-20: aplastar `Building_3` con
+## `height_scale` 0.41–0.54 dejaba pisos de 1,2 m y torres de maqueta.
+func _check_skyline() -> void:
+	var landmarks := 0
+	var mid_towers := 0
+	var tallest := 0.0
+	var shortest := 1e9
+	for building: Building in _district.get_buildings():
+		var height := building.get_height()
+		tallest = maxf(tallest, height)
+		shortest = minf(shortest, height)
+		if not is_equal_approx(building.get_max_hp(), 3500.0):
+			expect(height <= MID_TOWER_MAX_HEIGHT,
+					"'%s' es un bloque bajo de %.1f m, tope %.0f m"
+					% [building.name, height, MID_TOWER_MAX_HEIGHT])
+			continue
+		if height >= LANDMARK_MIN_HEIGHT:
+			landmarks += 1
+			continue
+		mid_towers += 1
+		expect(height >= MID_TOWER_MIN_HEIGHT and height <= MID_TOWER_MAX_HEIGHT,
+				"la torre media '%s' mide %.1f m, fuera de %.0f–%.0f m"
+				% [building.name, height, MID_TOWER_MIN_HEIGHT, MID_TOWER_MAX_HEIGHT])
+	expect(landmarks == EXPECTED_LANDMARKS,
+			"hitos de más de %.0f m: %d, esperados %d"
+			% [LANDMARK_MIN_HEIGHT, landmarks, EXPECTED_LANDMARKS])
+	expect(mid_towers == EXPECTED_TALL - EXPECTED_LANDMARKS,
+			"torres medias: %d, esperadas %d" % [mid_towers, EXPECTED_TALL - EXPECTED_LANDMARKS])
+	print("  silueta: %d hitos de %.0f a %.1f m, %d torres medias y %d bloques desde %.1f m"
+			% [landmarks, LANDMARK_MIN_HEIGHT, tallest, mid_towers,
+			EXPECTED_BUILDINGS - EXPECTED_TALL, shortest])
 
 
 ## Cota inferior (en Y global) de las mallas de [param root]; `INF` si no tiene.
@@ -278,8 +495,15 @@ func _visual_bottom(root: Node3D) -> float:
 	return bottom
 
 
-## 18. Tres `MultiMeshInstance3D` para calzada y veredas, sin colisionadores
-## propios de calle.
+## 18. Red viaria en pocos `MultiMeshInstance3D`, todos con instancias, sin
+## colisionadores propios, con las marcas de la calzada **a lo largo** de cada
+## calle y con los cruces pavimentados con el mismo material que la calzada.
+##
+## Lo de las marcas es lo que arregla WP-24b y lo que hay que impedir que vuelva:
+## hasta WP-21 las calles de los dos ejes usaban la misma transformada, así que
+## la mitad de la ciudad tenía las bandas de la calzada cruzadas. La aserción
+## mira el eje X local de cada instancia —el que sigue las bandas de
+## `Road_Chunk_5`— y exige que apunte a lo largo de su calle.
 func _check_street_batching() -> void:
 	var streets := _district.get_node_or_null(NodePath(CityGrid.STREETS_NODE))
 	if streets == null:
@@ -288,17 +512,96 @@ func _check_street_batching() -> void:
 	var multis := 0
 	var instances := 0
 	var bodies := 0
+	var report: Array[String] = []
 	for node: Node in _all_nodes(streets):
 		var multi := node as MultiMeshInstance3D
 		if multi != null:
 			multis += 1
 			instances += multi.multimesh.instance_count
+			expect(multi.multimesh.instance_count > 0,
+					"el MultiMesh '%s' no tiene instancias" % multi.name)
+			expect(multi.gi_mode == GeometryInstance3D.GI_MODE_STATIC,
+					"el MultiMesh '%s' no tiene gi_mode STATIC (`docs/13` §3.3)" % multi.name)
+			report.append("%s %d" % [multi.name, multi.multimesh.instance_count])
 		if node is PhysicsBody3D:
 			bodies += 1
-	expect(multis == 3, "MultiMeshInstance3D de calle: %d, esperados 3" % multis)
+	expect(multis >= STREET_MULTIMESH_MIN and multis <= STREET_MULTIMESH_MAX,
+			"MultiMeshInstance3D de calle: %d, esperados entre %d y %d"
+			% [multis, STREET_MULTIMESH_MIN, STREET_MULTIMESH_MAX])
 	expect(bodies == 0, "la red viaria trae %d colisionadores propios" % bodies)
 	expect(instances > 0, "los MultiMesh de calle están vacíos")
-	print("  calles: 3 MultiMesh con %d instancias y 0 colisionadores" % instances)
+
+	var east_west := _street_node(streets, CityGrid.ROAD_EW_NODE)
+	var north_south := _street_node(streets, CityGrid.ROAD_NS_NODE)
+	var crossings := _street_node(streets, CityGrid.CROSSINGS_NODE)
+	if east_west == null or north_south == null or crossings == null:
+		fail("faltan los nodos de calzada o de cruce en '%s'" % CityGrid.STREETS_NODE)
+		return
+	_expect_marks_along(east_west, Vector3.RIGHT, Vector3.FORWARD)
+	_expect_marks_along(north_south, Vector3.FORWARD, Vector3.RIGHT)
+
+	# La relación de un cuarto de vuelta, dicha de la forma que pide el encargo:
+	# girar una instancia norte-sur −90° sobre Y la deja orientada como una
+	# este-oeste.
+	var turn := Basis.from_euler(Vector3(0.0, -PI * 0.5, 0.0))
+	var sample := turn * _instance_basis(north_south.multimesh, 0)
+	expect(absf(sample.x.normalized().dot(Vector3.RIGHT)) > 0.999,
+			"girar −90° una instancia norte-sur no la deja como una este-oeste (%s)"
+			% str(sample.x.normalized()))
+
+	expect(east_west.multimesh.mesh == north_south.multimesh.mesh,
+			"las dos calzadas no comparten malla: serían dos lotes de dibujo")
+	var asphalt := crossings.multimesh.mesh.surface_get_material(0)
+	expect(asphalt != null and asphalt.resource_path == ROADS_MATERIAL_PATH,
+			"el cruce usa '%s', se esperaba '%s'"
+			% [asphalt.resource_path if asphalt != null else "nada", ROADS_MATERIAL_PATH])
+	expect(asphalt == east_west.multimesh.mesh.surface_get_material(0),
+			"el cruce no comparte el material con la calzada")
+	print("  calles: %d MultiMesh (%s) con %d instancias y 0 colisionadores"
+			% [multis, ", ".join(report), instances])
+
+
+## Hijo del contenedor de calles con ese nombre.
+func _street_node(streets: Node, name: StringName) -> MultiMeshInstance3D:
+	return streets.get_node_or_null(NodePath(name)) as MultiMeshInstance3D
+
+
+## Base de la instancia [param index], decodificada del búfer crudo.
+##
+## No se usa [method MultiMesh.get_instance_transform] porque esa consulta la
+## contesta el `RenderingServer`, y en `--headless` el controlador es nulo: leer
+## el búfer es lo único que mide de verdad lo que quedó guardado en
+## `district_a.tscn`. Cada instancia son tres filas de cuatro flotantes.
+func _instance_basis(multi_mesh: MultiMesh, index: int) -> Basis:
+	var data := multi_mesh.buffer
+	var base := index * 12
+	if base + 11 >= data.size():
+		return Basis.IDENTITY
+	return Basis(
+			Vector3(data[base], data[base + 4], data[base + 8]),
+			Vector3(data[base + 1], data[base + 5], data[base + 9]),
+			Vector3(data[base + 2], data[base + 6], data[base + 10]))
+
+
+## Comprueba que las instancias de [param node] llevan su eje X local (el de las
+## bandas de la pieza) sobre [param along] y el Z local (el ancho de la calzada)
+## sobre [param across].
+func _expect_marks_along(node: MultiMeshInstance3D, along: Vector3, across: Vector3) -> void:
+	var worst_along := 1.0
+	var worst_across := 1.0
+	for index: int in node.multimesh.instance_count:
+		var basis := _instance_basis(node.multimesh, index)
+		worst_along = minf(worst_along, absf(basis.x.normalized().dot(along)))
+		worst_across = minf(worst_across, absf(basis.z.normalized().dot(across)))
+		expect_near(basis.z.length() * CityGrid.ROAD_PIECE_SIDE, CityGrid.ROADWAY_WIDTH, 0.01,
+				"'%s' instancia %d: la calzada no mide %.0f m de ancho"
+				% [node.name, index, CityGrid.ROADWAY_WIDTH])
+	expect(worst_along > 0.999,
+			"'%s': alguna instancia no lleva las marcas a lo largo de la calle (%.3f)"
+			% [node.name, worst_along])
+	expect(worst_across > 0.999,
+			"'%s': alguna instancia no cruza la calzada a lo ancho (%.3f)"
+			% [node.name, worst_across])
 
 
 ## 16. Seis rocas en `city_rocks` con casco convexo en capa 1, y una sola caja
@@ -306,6 +609,8 @@ func _check_street_batching() -> void:
 func _check_rocks_and_ground() -> void:
 	var rocks := get_tree().get_nodes_in_group(&"city_rocks")
 	expect(rocks.size() == 6, "rocas en 'city_rocks': %d, esperadas 6" % rocks.size())
+	var extent := _district.get_extent()
+	var worst_angle := 180.0
 	for node: Node in rocks:
 		var body := node as StaticBody3D
 		if body == null:
@@ -323,8 +628,20 @@ func _check_rocks_and_ground() -> void:
 			if mesh_instance != null and mesh_instance.mesh != null:
 				height = maxf(height, mesh_instance.mesh.get_aabb().size.y)
 		expect(convex == 1, "la roca '%s' tiene %d formas convexas, esperada 1" % [body.name, convex])
-		expect(height >= 18.0 and height <= 40.0,
-				"la roca '%s' mide %.1f m, fuera de 18–40 m" % [body.name, height])
+		expect(height >= ROCK_MIN_HEIGHT and height <= ROCK_MAX_HEIGHT,
+				"la roca '%s' mide %.1f m, fuera de %.0f–%.0f m"
+				% [body.name, height, ROCK_MIN_HEIGHT, ROCK_MAX_HEIGHT])
+		# Fuera del distrito y fuera del cono de visión inicial del dron: en
+		# WP-21 una roca de 40 m tapaba media pantalla en el primer fotograma.
+		expect(absf(body.position.x) > extent.x * 0.5 or absf(body.position.z) > extent.y * 0.5,
+				"la roca '%s' %s cae dentro del distrito" % [body.name, str(body.position)])
+		var angle: float = _district.spawn_cone_angle(body.position)
+		worst_angle = minf(worst_angle, angle)
+		expect(angle >= ROCK_CONE_DEG,
+				"la roca '%s' está a %.1f° del eje de aparición del dron, mínimo %.0f°"
+				% [body.name, angle, ROCK_CONE_DEG])
+	print("  rocas: 6 de %.0f–%.0f m; la más metida en el eje de aparición, a %.1f° (mínimo %.0f°)"
+			% [ROCK_MIN_HEIGHT, ROCK_MAX_HEIGHT, worst_angle, ROCK_CONE_DEG])
 
 	var ground := _district.get_node_or_null(NodePath(CityGrid.GROUND_NODE)) as StaticBody3D
 	if ground == null:
@@ -337,7 +654,6 @@ func _check_rocks_and_ground() -> void:
 	if box == null:
 		fail("el suelo no tiene BoxShape3D")
 		return
-	var extent := _district.get_extent()
 	expect(box.size.x >= extent.x and box.size.z >= extent.y,
 			"la caja de suelo (%.0f × %.0f) no cubre el distrito (%.0f × %.0f)"
 			% [box.size.x, box.size.z, extent.x, extent.y])
@@ -347,6 +663,56 @@ func _check_rocks_and_ground() -> void:
 
 ## Los dos perfiles comparten como mucho dos mallas de escombro, porque el
 ## `RubbleField` sólo admite cuatro campos y los enemigos reservan dos.
+## `gi_mode` por tipo de malla (`docs/13` §3.3).
+##
+## Es lo único de la iluminación que se hornea en `district_a.tscn`, así que es lo
+## único que puede quedar desincronizado sin que nadie lo note: un edificio en
+## `DISABLED` deja de aportar rebote y las ruinas en `STATIC` hacen parpadear las
+## cascadas de SDFGI al colapsar (riesgo 1 de `docs/13` §11).
+##
+## La regla es por **rol**, no por nombre de nodo: estático lo que no se mueve
+## —edificios intactos, dañados, calles y suelo— y deshabilitado lo que sí
+## —ruinas, escombros, polvo y humo—.
+func _check_gi_modes() -> void:
+	var wrong_static: Array[String] = []
+	var wrong_disabled: Array[String] = []
+	var statics := 0
+	var disabled := 0
+	for node: Node in _all_nodes(_district):
+		var geometry := node as GeometryInstance3D
+		if geometry == null:
+			continue
+		var dynamic := node is GPUParticles3D or _under_rubble(node)
+		if dynamic:
+			disabled += 1
+			if geometry.gi_mode != GeometryInstance3D.GI_MODE_DISABLED:
+				wrong_disabled.append(node.name)
+			continue
+		statics += 1
+		if geometry.gi_mode != GeometryInstance3D.GI_MODE_STATIC:
+			wrong_static.append(node.name)
+	expect(wrong_static.is_empty(),
+			"mallas fijas que no están en GI_MODE_STATIC: %s" % ", ".join(wrong_static))
+	expect(wrong_disabled.is_empty(),
+			"mallas móviles que no están en GI_MODE_DISABLED: %s" % ", ".join(wrong_disabled))
+	expect(statics > 0 and disabled > 0,
+			"el distrito no tiene mallas de los dos tipos (%d fijas, %d móviles)"
+			% [statics, disabled])
+	print("  gi_mode: %d mallas STATIC (edificios, calles y suelo) · %d DISABLED"
+			% [statics, disabled] + " (ruinas, polvo y humo)")
+
+
+## Verdadero si [param node] cuelga de una etapa de ruina, que es la malla que
+## cambia de forma al colapsar.
+func _under_rubble(node: Node) -> bool:
+	var walker := node
+	while walker != null and walker != _district:
+		if walker.name == &"StageRubble":
+			return true
+		walker = walker.get_parent()
+	return false
+
+
 func _check_debris_profiles() -> void:
 	var meshes: Dictionary[Mesh, bool] = {}
 	for building: Building in _district.get_buildings():
@@ -516,6 +882,91 @@ func _check_collapse_time() -> void:
 	print("  derrumbe completo de '%s' (%.1f m): %.2f s con %d escombros"
 			% [_collapse_piece, building.get_height(), elapsed, chunks.size()])
 	_reset_city()
+
+
+# --------------------------------------------------------------------------
+# 8b. Oclusores
+# --------------------------------------------------------------------------
+
+## Al derrumbar el edificio **más alto** de una manzana, el oclusor de esa manzana
+## queda deshabilitado; al reiniciar la ciudad vuelve.
+##
+## Los 15 [OccluderInstance3D] del distrito están horneados en `district_a.tscn`,
+## uno por manzana, con la caja ceñida al edificio más alto —hasta 75 m en los seis
+## hitos del centro— y hasta WP-24e **nadie los retiraba**: el edificio se caía y la
+## losa opaca invisible se quedaba ahí, tapando al coloso y tragándose el cuadro
+## entero cuando la cámara del dron entraba dentro. Ése era el «mapa y enemigo que
+## aparecen y desaparecen» del checkpoint 3b.
+##
+## La oclusión está apagada en todos los presets (`settings_check`), así que hoy esto
+## no cambia un píxel. Se comprueba igual porque es lo que hace que reactivarla sea
+## cambiar una línea del `project.godot` y nada más.
+func _check_occluders() -> void:
+	var container := _district.get_node_or_null(^"Occluders")
+	expect(container != null, "el distrito no trae el nodo 'Occluders'")
+	if container == null:
+		return
+	expect(container.get_child_count() == EXPECTED_OCCLUDERS,
+			"el distrito trae %d oclusores y `docs/10` §7 pide %d"
+			% [container.get_child_count(), EXPECTED_OCCLUDERS])
+
+	# Se busca una manzana cuyo edificio más alto siga intacto: las fases anteriores
+	# ya derribaron algunos.
+	var tallest: Building = null
+	var shorter: Building = null
+	var occluder: OccluderInstance3D = null
+	for building: Building in _district.get_buildings():
+		if building.stage != Building.Stage.INTACT:
+			continue
+		var candidate := _district.occluder_for(building)
+		if candidate == null:
+			continue
+		var block := _district.cell_block(building.get_meta(&"cell", Vector2i(-1, -1)))
+		shorter = _block_mate(block, building)
+		if shorter == null:
+			continue
+		tallest = building
+		occluder = candidate
+		break
+	if tallest == null or occluder == null:
+		fail("no se encontró una manzana intacta con oclusor para la prueba")
+		return
+
+	expect(_district.occluder_for(shorter) == null,
+			"occluder_for() devolvió el oclusor de la manzana para '%s', que no es el más alto"
+			% shorter.name)
+	expect(occluder.visible,
+			"el oclusor '%s' nació deshabilitado" % occluder.name)
+
+	var _applied := tallest.take_damage(tallest.get_max_hp(), tallest.global_position)
+	var elapsed := 0.0
+	var step := 1.0 / float(Engine.physics_ticks_per_second)
+	while elapsed < COLLAPSE_BUDGET + 1.0 and not tallest.is_collapsed():
+		await wait_physics(1)
+		elapsed += step
+	expect(tallest.is_collapsed(), "el hito de la prueba de oclusores no terminó de caerse")
+	expect(not occluder.visible,
+			"'%s' se derrumbó y su oclusor '%s' sigue habilitado: eso es una losa opaca"
+			% [tallest.name, occluder.name] + " invisible tapando la ciudad")
+
+	_reset_city()
+	await wait_physics(2)
+	expect(occluder.visible,
+			"tras reiniciar la ciudad el oclusor '%s' no volvió" % occluder.name)
+	print("  oclusores: %d en el distrito · al caer '%s' (%.1f m) su oclusor '%s' se deshabilita y vuelve con reset()"
+			% [container.get_child_count(), tallest.name, tallest.get_height(),
+			occluder.name])
+
+
+## Otro edificio de la misma manzana que [param building], para comprobar que el
+## oclusor es de uno solo.
+func _block_mate(block: Vector2i, building: Building) -> Building:
+	for other: Building in _district.get_buildings():
+		if other == building:
+			continue
+		if _district.cell_block(other.get_meta(&"cell", Vector2i(-1, -1))) == block:
+			return other
+	return null
 
 
 # --------------------------------------------------------------------------

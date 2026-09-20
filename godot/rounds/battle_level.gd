@@ -45,6 +45,10 @@ extends LevelBase
 
 @onready var _world_environment: WorldEnvironment = $WorldEnvironment
 
+## Iluminación local de la ciudad (`docs/13` §3.3). Se crea acá y no en la escena
+## porque necesita el `CityGrid` que instancia [method RoundManager.begin].
+var _probe_rig: ReflectionProbeRig = null
+
 
 func _ready() -> void:
 	super()
@@ -54,6 +58,7 @@ func _ready() -> void:
 	if round_manager != null:
 		round_manager.begin(self)
 		_bind_spawned_enemies()
+		_build_reflection_probes()
 	else:
 		push_error("BattleLevel: falta el RoundManager (docs/11 §3).")
 
@@ -102,3 +107,42 @@ func _apply_environment_quality() -> void:
 	if _world_environment == null or _world_environment.environment == null:
 		return
 	Graphics.apply_environment_quality(_world_environment.environment)
+	# La cuenta de probes es parte del preset, así que cambiar de calidad en caliente
+	# tiene que rehacerlos. En el primer `_ready()` el distrito todavía no existe y
+	# [method _build_reflection_probes] no hace nada: lo llama otra vez `_ready()`
+	# después de `RoundManager.begin()`.
+	_build_reflection_probes()
+
+
+# --- GI local (`docs/13` §3.3) -----------------------------------------------------------------
+
+## Arma los [ReflectionProbe] de la ciudad sobre puntos que pide a [CityGrid].
+##
+## Sin distrito —un nivel que se abra suelto, o el instante anterior a
+## [method RoundManager.begin]— no hace nada y deja el rig vacío.
+func _build_reflection_probes() -> void:
+	var grid := get_city_grid()
+	if grid == null:
+		return
+	if _probe_rig == null or not is_instance_valid(_probe_rig):
+		_probe_rig = ReflectionProbeRig.new()
+		_probe_rig.name = "ReflectionProbes"
+		add_child(_probe_rig)
+	_probe_rig.rebuild(grid)
+
+
+## La rejilla del distrito instanciado, o `null` si la ronda todavía no lo puso.
+func get_city_grid() -> CityGrid:
+	if round_manager == null or not is_instance_valid(round_manager):
+		return null
+	var integrity := round_manager.city_integrity
+	if integrity == null or not is_instance_valid(integrity):
+		return null
+	return integrity.grid
+
+
+## Los [ReflectionProbe] locales vivos. Lo mira `render_check`.
+func get_reflection_probes() -> Array[ReflectionProbe]:
+	if _probe_rig == null or not is_instance_valid(_probe_rig):
+		return []
+	return _probe_rig.get_probes()

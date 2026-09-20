@@ -1,0 +1,8 @@
+[gd_resource type="CameraAttributesPhysical" format=3]
+
+[resource]
+resource_name = "camera_attributes_dusk"
+exposure_sensitivity = 400.0
+frustum_focus_distance = 5.0
+frustum_focal_length = 2.1
+exposure_aperture = 2.8

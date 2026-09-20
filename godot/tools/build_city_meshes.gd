@@ -15,7 +15,7 @@
 ##   `BoxShape3D` — los dos únicos trozos que la ciudad registra en el
 ##   [RubbleField] (`docs/10` §6 reserva 2 campos para la ciudad y 2 para los
 ##   enemigos).
-## - `world/rocks/rock_{a..f}.res` y `rock_{a..f}.tscn` — seis rocas de 18 a 40 m
+## - `world/rocks/rock_{a..f}.res` y `rock_{a..f}.tscn` — seis rocas de 8 a 18 m
 ##   con `ConvexPolygonShape3D` en la capa 1 y en el grupo `city_rocks`.
 ##
 ## Uso, desde la raíz del repositorio:
@@ -31,8 +31,14 @@ const ROCK_DIR: String = "res://world/rocks"
 ## Semilla fija: dos corridas producen exactamente las mismas mallas.
 const MESH_SEED: int = 20260920
 
-## Altura de las seis rocas, en metros (`docs/10` §4.4: 18–40 m).
-const ROCK_HEIGHTS: Array[float] = [18.0, 23.0, 28.0, 32.0, 36.0, 40.0]
+## Altura de las seis rocas, en metros.
+##
+## `docs/10` §4.4 pide 18–40 m, pero a esa escala dejan de ser accidentes del
+## borde: la de 40 m es más alta que quince de las veintiuna torres y, desde el
+## punto de aparición del dron, tapaba media pantalla (WP-24b). Se bajan a
+## **8–18 m**, que siguen sirviendo de percha para el dron y de cobertura contra
+## el `head_laser` sin competir con la silueta de la ciudad.
+const ROCK_HEIGHTS: Array[float] = [8.0, 10.0, 12.0, 14.0, 16.0, 18.0]
 
 ## Letras de las seis rocas.
 const ROCK_IDS: Array[String] = ["a", "b", "c", "d", "e", "f"]

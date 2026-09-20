@@ -39,12 +39,40 @@ const TIME_PAR: float = 540.0
 ## Tolerancia de huérfanos tras liberar el nivel (fila 14).
 const ORPHAN_TOLERANCE: int = 0
 
-## Filas de la tabla de `docs/11` §11, en orden.
+## Filas de la tabla de `docs/11` §11, en orden. La 15 la agrega WP-24d.
 const ROW_TITLES: Array[String] = [
 	"catálogo consistente", "respaldo de configuración", "instanciado", "estado inicial",
 	"salteo de la cinemática", "objetivos", "determinismo de semilla", "victoria",
 	"puntaje", "persistencia", "derrota", "prioridad", "restauración", "sin huérfanos",
+	"secuencia completa",
 ]
+
+## Las cuatro rodillas del Arachnodroid, en el orden del perfil (`docs/07` §4).
+const KNEE_IDS: Array[StringName] = [
+	&"wp_leg_fl_knee", &"wp_leg_fr_knee", &"wp_leg_bl_knee", &"wp_leg_br_knee",
+]
+
+## Los tres núcleos ventrales (`docs/07` §4).
+const CORE_IDS: Array[StringName] = [&"wp_core_a", &"wp_core_b", &"wp_core_c"]
+
+## Comando con el que se dejan los cuatro motores en régimen de vuelo antes de la
+## tarjeta de resultado. El lazo de control se desengancha para poder fijarlo.
+const MOTOR_COMMAND: float = 0.7
+
+## Ticks que se le dan al audio de motores para llegar a régimen.
+const MOTOR_SETTLE_TICKS: int = 90
+
+## Ticks de física que se le dan para callarse al congelar el dron, y el plazo en
+## segundos de **tiempo de juego** que no puede pasar. Los ticks son muchos porque
+## el desenlace corre a `OUTRO_TIME_SCALE` (×0.35) y cada uno vale 3.5 ms de juego.
+const MOTOR_SILENCE_TICKS: int = 150
+const MOTOR_SILENCE_BUDGET: float = 1.0
+
+## Cuántos objetivos tiene la cadena de la ronda 1 tras WP-24d (`docs/11` §5).
+const CHAIN_LENGTH: int = 5
+
+## Meta de los contadores «RODILLAS n/3» y «NÚCLEOS n/3».
+const COUNT_TARGET: int = 3
 
 ## Estados publicados por `Events.round_state_changed` desde que arrancó el check.
 var _states: Array[int] = []
@@ -75,6 +103,7 @@ func _run() -> void:
 		_check_score_formula()
 		await _check_defeat_run()
 		await _check_priority_run()
+		await _check_sequence_run()
 	_restore_config()
 	Global.debug_freeze_ai = false
 	Events.round_state_changed.disconnect(_on_round_state_changed)
@@ -187,22 +216,33 @@ func _check_skip_and_objectives(manager: RoundManager, enemy: EnemyBase) -> void
 			"5 · un segundo skip_intro() no cambia nada")
 
 	_row(6, _objective_starts.has(0), "6 · se publicó objective_started(0)")
+	_row(6, sequencer.count() == CHAIN_LENGTH,
+			"6 · la cadena de la ronda 1 tiene %d objetivos (tiene %d)"
+					% [CHAIN_LENGTH, sequencer.count()])
 	var objective := sequencer.get_current()
 	_row(6, objective != null, "6 · hay un objetivo en curso tras el salteo")
 	if objective == null:
 		return
+	_row(6, objective is ObjectiveDefendCity,
+			"6 · el primer objetivo de la cadena es ObjectiveDefendCity")
 	_row(6, not objective.get_task_text().is_empty(), "6 · el objetivo tiene texto de tarea")
 	var progress := objective.get_progress()
 	_row(6, progress >= 0.0 and progress <= 1.0,
 			"6 · el progreso del objetivo está en [0, 1] (es %.3f)" % progress)
 
 	# Los objetivos avanzan por hechos del bus, no por su cuenta (`docs/11` §5).
-	Events.enemy_part_broken.emit(enemy, &"wp_leg_fl_knee", Vector3.ZERO)
-	Events.enemy_part_broken.emit(enemy, &"wp_leg_fr_knee", Vector3.ZERO)
+	Events.enemy_part_broken.emit(enemy, KNEE_IDS[0], Vector3.ZERO)
+	Events.enemy_part_broken.emit(enemy, KNEE_IDS[1], Vector3.ZERO)
+	# El contador de rodillas de WP-24d vive ya en el **primer** objetivo, y es el
+	# mismo número con el que arranca el segundo: por eso encadenan.
+	var defend := objective as ObjectiveDefendCity
+	_row(6, defend != null and defend.get_broken_count() == 2,
+			"6 · ObjectiveDefendCity cuenta las 2 rodillas rotas (cuenta %d)"
+					% (defend.get_broken_count() if defend != null else -1))
 	sequencer.skip_current()
 	await wait_frames(1)
 	var second := sequencer.get_current()
-	_row(6, second is ObjectiveBreakParts,
+	_row(6, second is ObjectiveBreakParts and not (second is ObjectiveBreakCores),
 			"6 · el segundo objetivo de la cadena es ObjectiveBreakParts")
 	if not (second is ObjectiveBreakParts):
 		return
@@ -210,9 +250,11 @@ func _check_skip_and_objectives(manager: RoundManager, enemy: EnemyBase) -> void
 	_row(6, parts.get_broken_count() == 2,
 			"6 · ObjectiveBreakParts recupera las 2 rodillas ya rotas (cuenta %d)"
 					% parts.get_broken_count())
-	_row(6, parts.get_progress_text() == "2 / 3",
-			"6 · el texto de progreso es '2 / 3' (es '%s')" % parts.get_progress_text())
-	Events.enemy_part_broken.emit(enemy, &"wp_leg_bl_knee", Vector3.ZERO)
+	var expected := tr(parts.count_key).format([2, COUNT_TARGET])
+	_row(6, parts.get_progress_text() == expected and expected != parts.count_key,
+			"6 · el texto de progreso es '%s' (es '%s')"
+					% [expected, parts.get_progress_text()])
+	Events.enemy_part_broken.emit(enemy, KNEE_IDS[2], Vector3.ZERO)
 	_row(6, not parts.active, "6 · la tercera rodilla cierra ObjectiveBreakParts")
 	await _check_survive_time(manager)
 
@@ -262,10 +304,12 @@ func _check_seed_determinism() -> void:
 
 ## Filas 8 y 10: el bus decide la victoria, la tarjeta aparece y el récord se guarda.
 func _check_victory(manager: RoundManager, enemy: EnemyBase) -> void:
+	var audio := await _spin_up_motors(manager)
 	Events.enemy_defeated.emit(enemy, ENEMY_ID)
 	var won := await _wait_until(func() -> bool:
 			return manager.get_state() == Global.RoundState.VICTORY)
 	_row(8, won, "8 · el bus decide la victoria en menos de %.0f s" % STEP_TIMEOUT_SECONDS)
+	await _check_motor_audio_stops(manager, audio)
 	var card_up := await _wait_until(func() -> bool: return manager.get_result_card() != null)
 	_row(8, card_up, "8 · la victoria termina mostrando la tarjeta de resultado")
 	_row(8, is_equal_approx(Engine.time_scale, 1.0),
@@ -290,6 +334,64 @@ func _check_victory(manager: RoundManager, enemy: EnemyBase) -> void:
 			"10 · un puntaje peor no pisa el récord")
 	_row(10, GameSettings.has_completed(ROUND_ID),
 			"10 · la ronda queda marcada como completada")
+
+
+## Deja los cuatro motores en régimen de vuelo y devuelve el [MotorAudio] del rig.
+##
+## Sin esto el dron de `round_check` nunca arma —no hay piloto— y el audio ya está
+## en silencio cuando llega la tarjeta, así que comprobar el corte no probaría nada.
+## El lazo de control se desengancha igual que en `audio_check`: lo que se mide es
+## régimen → volumen, no vuelo.
+func _spin_up_motors(manager: RoundManager) -> MotorAudio:
+	var rig := manager.drone_rig
+	if rig == null or not is_instance_valid(rig):
+		return null
+	var audio := rig.get_motor_audio()
+	var drone := rig.get_drone()
+	if audio == null or drone == null:
+		return null
+	var radio := rig.get_radio()
+	if radio != null:
+		radio.enabled = false
+	drone.set_controller(null)
+	var commands: Array[float] = [MOTOR_COMMAND, MOTOR_COMMAND, MOTOR_COMMAND, MOTOR_COMMAND]
+	drone.test_motor_commands = commands
+	if not drone.arm():
+		_row(8, false, "8 · no se pudo armar el dron para medir el corte del audio de motores")
+		return null
+	await wait_physics(MOTOR_SETTLE_TICKS)
+	return audio
+
+
+## Fila 8 (WP-24e): congelar el dron para la tarjeta apaga el audio de motores.
+##
+## `RoundManager._freeze_drone(true)` usa el mismo `freeze` que la reconstrucción, y
+## con el cuerpo congelado no corre `Drone._integrate_forces()`: las rpm se quedan
+## clavadas. Hasta WP-24e los ocho loops de [MotorAudio] seguían con el volumen y el
+## tono del último cuadro vivo, así que el dron zumbaba **indefinidamente** sobre la
+## tarjeta de VICTORY o de DEFEAT. El plazo se mide en tiempo de juego porque el
+## desenlace corre en cámara lenta.
+func _check_motor_audio_stops(manager: RoundManager, audio: MotorAudio) -> void:
+	if audio == null:
+		return
+	var drone := manager.drone_rig.get_drone() if manager.drone_rig != null else null
+	_row(8, drone != null and drone.freeze,
+			"8 · el estado terminal deja el dron congelado (freeze %s)"
+					% str(drone != null and drone.freeze))
+	var step := 1.0 / float(Engine.physics_ticks_per_second)
+	var seconds := 0.0
+	var ticks := 0
+	while ticks < MOTOR_SILENCE_TICKS and audio.get_active_voice_count() > 0:
+		seconds += step * Engine.time_scale
+		await wait_physics(1)
+		ticks += 1
+	var left := audio.get_active_voice_count()
+	print("  MotorAudio: %d voces %.3f s de juego (%d ticks) después de congelar el dron para la tarjeta"
+			% [left, seconds, ticks])
+	_row(8, left == 0 and seconds <= MOTOR_SILENCE_BUDGET,
+			"8 · con el dron congelado por la tarjeta el audio de motores se detiene:"
+					+ " quedaron %d voces tras %.3f s de juego (tope %.1f s)"
+					% [left, seconds, MOTOR_SILENCE_BUDGET])
 
 
 # --- Fila 9: la fórmula de puntaje ------------------------------------------------------------
@@ -427,6 +529,115 @@ func _check_priority_run() -> void:
 			"14 · liberar el nivel no deja huérfanos (antes %d, después %d)"
 					% [before_orphans, after_orphans])
 	print("  14 · nodos vivos: antes %d, después %d" % [before_nodes, after_nodes])
+
+
+# --- Fila 15: la secuencia entera con hechos sintéticos ---------------------------------------
+
+## Recorre la cadena de WP-24d de punta a punta inyectando **sólo** hechos del bus.
+##
+## Es la fila que responde al feedback que gobierna WP-24d: la cadena vieja se
+## verificaba a pedazos —fila 6 salteaba el primer objetivo a mano— y nunca se probó
+## que los cinco eslabones se encadenaran solos. Acá no hay un solo `skip_current()`:
+## tres rodillas llevan a los núcleos, `p5_selfdestruct` lleva a la detonación y
+## `enemy_defeated` termina la ronda.
+##
+## El jefe está congelado (`docs/11` §11), así que las fases no se reevalúan y los
+## objetivos las leen del **evento**, que es para lo que existe
+## [method Objective.phase_index_of].
+func _check_sequence_run() -> void:
+	var level := await _enter_level(SEED_A)
+	if level == null:
+		return
+	var manager := level.get_round_manager()
+	var sequencer := manager.sequencer
+	var enemy := _first_enemy(manager)
+	if sequencer == null or enemy == null:
+		_row(15, false, "15 · la ronda no trae secuenciador o enemigo")
+		await _discard_level(level)
+		return
+	manager.skip_intro()
+	await wait_frames(1)
+
+	# 0 · CONTENÉ EL ASEDIO, con el contador de rodillas.
+	var defend := sequencer.get_current() as ObjectiveDefendCity
+	_row(15, defend != null, "15 · la cadena abre con ObjectiveDefendCity")
+	Events.enemy_part_broken.emit(enemy, KNEE_IDS[0], Vector3.ZERO)
+	var knee_text := tr("OBJ_COUNT_KNEES").format([1, COUNT_TARGET])
+	_row(15, defend != null and defend.get_progress_text() == knee_text,
+			"15 · con una rodilla rota el contador dice '%s' (dice '%s')"
+					% [knee_text, defend.get_progress_text() if defend != null else ""])
+
+	# 0 → 1 · la fase `p2_alert` cierra el asedio.
+	Events.enemy_phase_changed.emit(enemy, &"p2_alert")
+	var at_parts := await _wait_for_index(sequencer, 1)
+	_row(15, at_parts and sequencer.get_current() is ObjectiveBreakParts,
+			"15 · p2_alert lleva al objetivo de las rodillas (índice %d)"
+					% sequencer.current_index)
+
+	# 1 → 2 · las tres rodillas abren la carcasa.
+	Events.enemy_part_broken.emit(enemy, KNEE_IDS[1], Vector3.ZERO)
+	Events.enemy_part_broken.emit(enemy, KNEE_IDS[2], Vector3.ZERO)
+	var at_cores := await _wait_for_index(sequencer, 2)
+	var cores := sequencer.get_current() as ObjectiveBreakCores
+	_row(15, at_cores and cores != null,
+			"15 · 3 rodillas llevan al objetivo de los núcleos (índice %d)"
+					% sequencer.current_index)
+	var core_text := tr("OBJ_COUNT_CORES").format([0, COUNT_TARGET])
+	_row(15, cores != null and cores.get_progress_text() == core_text
+					and core_text != "OBJ_COUNT_CORES",
+			"15 · el contador de núcleos dice '%s' (dice '%s')"
+					% [core_text, cores.get_progress_text() if cores != null else ""])
+	_row(15, cores != null and tr(cores.get_task_text()) != cores.get_task_text(),
+			"15 · la tarea de los núcleos está traducida ('%s')"
+					% (cores.get_task_text() if cores != null else ""))
+
+	# 2 → 3 · dos núcleos rotos arrancan la autodestrucción (`docs/07` §6).
+	Events.enemy_part_broken.emit(enemy, CORE_IDS[0], Vector3.ZERO)
+	Events.enemy_part_broken.emit(enemy, CORE_IDS[1], Vector3.ZERO)
+	Events.enemy_phase_changed.emit(enemy, &"p5_selfdestruct")
+	var at_fuse := await _wait_for_index(sequencer, 3)
+	var fuse := sequencer.get_current() as ObjectiveSelfdestruct
+	_row(15, at_fuse and fuse != null,
+			"15 · p5_selfdestruct lleva al objetivo de la detonación (índice %d)"
+					% sequencer.current_index)
+	# La cuenta atrás del jefe no tiene arranque público y con la IA congelada
+	# `_tick_selfdestruct` no corre (`docs/11` §11), así que el check escribe los tres
+	# campos que escribiría `_start_selfdestruct` y el valor se queda quieto.
+	enemy.set(&"_selfdestruct_left", 45.0)
+	enemy.set(&"_selfdestruct_total", 45.0)
+	enemy.set(&"_selfdestruct_running", true)
+	_row(15, fuse != null and fuse.get_progress_text() == "0:45",
+			"15 · la cuenta regresiva se formatea como m:ss (dice '%s')"
+					% (fuse.get_progress_text() if fuse != null else ""))
+	_row(15, fuse != null and is_equal_approx(fuse.get_progress(), 0.0),
+			"15 · la mecha arranca en 0 (arranca en %.3f)"
+					% (fuse.get_progress() if fuse != null else -1.0))
+
+	# 3 → 4 · `enemy_defeated` cierra la detonación y la ronda.
+	_row(15, sequencer.objectives.size() == CHAIN_LENGTH
+					and sequencer.objectives[CHAIN_LENGTH - 1] is ObjectiveDefeatEnemy,
+			"15 · el último eslabón de la cadena sigue siendo ObjectiveDefeatEnemy")
+	Events.enemy_defeated.emit(enemy, ENEMY_ID)
+	await wait_frames(1)
+	_row(15, fuse != null and not fuse.active,
+			"15 · enemy_defeated cierra el objetivo de la detonación")
+	var won := await _wait_until(func() -> bool:
+			return manager.get_state() == Global.RoundState.VICTORY)
+	_row(15, won, "15 · la secuencia entera termina en VICTORY")
+	# Igual que la fila 8: hay que dejar terminar el remate para que
+	# [member Engine.time_scale] vuelva a 1.0 antes de tirar el nivel, o la fila 13
+	# encontraría el reloj del juego en cámara lenta.
+	var card_up := await _wait_until(func() -> bool: return manager.get_result_card() != null)
+	_row(15, card_up and is_equal_approx(Engine.time_scale, 1.0),
+			"15 · la tarjeta aparece y Engine.time_scale vuelve a 1.0 (quedó en %.3f)"
+					% Engine.time_scale)
+	await _discard_level(level)
+
+
+## Espera a que el secuenciador esté corriendo el objetivo [param index].
+func _wait_for_index(sequencer: ObjectiveSequencer, index: int) -> bool:
+	return await _wait_until(func() -> bool:
+			return sequencer.current_index == index and sequencer.is_running())
 
 
 # --- Fila 13: restauración --------------------------------------------------------------------

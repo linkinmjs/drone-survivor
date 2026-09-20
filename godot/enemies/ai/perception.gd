@@ -105,6 +105,7 @@ func _physics_process(delta: float) -> void:
 		if not _ready_to_sense:
 			return
 
+	PerfProbe.begin(&"perception")
 	var step := 1.0 / maxf(_profile().hz, 0.5)
 	_accumulator += delta
 	_since_sample += delta
@@ -121,6 +122,7 @@ func _physics_process(delta: float) -> void:
 		var real_step := _since_sample
 		_since_sample = 0.0
 		_sample(maxf(real_step, 0.0001))
+	PerfProbe.end(&"perception")
 
 
 # --------------------------------------------------------------------------

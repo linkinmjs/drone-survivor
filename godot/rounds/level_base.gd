@@ -39,6 +39,13 @@ const MAIN_MENU_SCENE: String = "res://gui/main_menu.tscn"
 ## Cuadros dibujados por cámara durante el precalentamiento (`docs/11` §3.1).
 const WARMUP_FRAMES: int = 3
 
+## Nombre convencional del sol del nivel. Es el que [method _register_sun] le pasa
+## a `Graphics` para que le aplique la tabla de sombras del preset.
+const SUN_NODE: NodePath = ^"Sun"
+
+## Nombre convencional del `WorldEnvironment` del nivel.
+const WORLD_ENVIRONMENT_NODE: NodePath = ^"WorldEnvironment"
+
 ## Respaldo de [method _resume_input_held]: si la entrada de pausa sigue apretada
 ## después de este tiempo, se despausa igual. Evita quedarse trabado si el jugador
 ## suelta el mando o si la acción quedó pegada.
@@ -74,6 +81,11 @@ var _previous_sticks_suspended: bool = false
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_PAUSABLE
+	# Antes que nada: el `Environment` propio y el sol dado de alta. Las subclases
+	# llaman a `Graphics.apply_environment_quality()` justo después de `super()`,
+	# así que para entonces el clon ya tiene que estar puesto.
+	_clone_environment()
+	_register_sun()
 	# Mientras se vuela, los sticks pilotan: no navegan menús. El menú de pausa los
 	# devuelve a la navegación (`docs/04` §4.9).
 	_previous_sticks_suspended = StickNavigation.suspended
@@ -107,6 +119,58 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed(&"change_camera", false, true):
 		get_viewport().set_input_as_handled()
 		change_camera()
+
+
+# --- Render del nivel (WP-24a) ---------------------------------------------------------------
+
+## Reemplaza el `Environment` del `WorldEnvironment` por una **copia propia** del
+## nivel.
+##
+## `world/environment_battle.tres` lo comparten el nivel de batalla, el de vuelo
+## libre y los dos showcases. `Graphics.apply_environment_quality()` escribe sobre
+## él —SDFGI, SSAO, niebla, ambiente de respaldo— y, como los recursos viven en la
+## caché mientras alguien los referencie, esas escrituras sobrevivían al nivel: un
+## check que corriera en LOW dejaba el `.tres` con SDFGI apagado para el que
+## corriera después, y el editor se encontraba el recurso mutado. Con un clon por
+## nivel cada uno escribe el suyo.
+##
+## La copia es superficial a propósito: el `Sky` y su material son de sólo lectura
+## para el preset, y duplicarlos obligaría a recalcular la radiancia por nivel.
+##
+## Devuelve el clon, o `null` si el nivel no tiene `WorldEnvironment`.
+func _clone_environment() -> Environment:
+	var world := get_node_or_null(WORLD_ENVIRONMENT_NODE) as WorldEnvironment
+	if world == null or world.environment == null:
+		return null
+	var clone := world.environment.duplicate(false) as Environment
+	if clone == null:
+		return null
+	clone.resource_local_to_scene = true
+	world.environment = clone
+	return clone
+
+
+## Da de alta el sol del nivel en `Graphics`, que le aplica la tabla de sombras del
+## preset y se lo vuelve a aplicar cada vez que el jugador cambie de calidad
+## (`docs/13` §3.4).
+##
+## Las escenas traían el alcance, las cascadas y los sesgos cableados —700 m y
+## cuatro splits en `battle_level.tscn`—, así que el preset no llegaba a la luz. Lo
+## busca por el nombre convencional `Sun` y, si no está, se queda con la primera
+## `DirectionalLight3D` del nivel.
+##
+## Devuelve el sol registrado, o `null` si el nivel no tiene ninguna luz direccional.
+func _register_sun() -> DirectionalLight3D:
+	var sun := get_node_or_null(SUN_NODE) as DirectionalLight3D
+	if sun == null:
+		for node: Node in find_children("*", "DirectionalLight3D", true, false):
+			sun = node as DirectionalLight3D
+			if sun != null:
+				break
+	if sun == null:
+		return null
+	Graphics.register_sun(sun)
+	return sun
 
 
 # --- Precalentamiento ------------------------------------------------------------------------

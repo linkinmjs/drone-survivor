@@ -181,10 +181,100 @@ func _report(grid: Variant) -> void:
 	for key: String in by_piece:
 		print("    %-26s ×%-3d  HP %7.0f  altura %5.1f – %5.1f m" \
 				% [key, by_piece[key], by_piece_hp[key], by_piece_min[key], by_piece_max[key]])
-	print("  HP total: %.0f · extensión %s m · celda %.0f m" \
-			% [total_hp, str(grid.get_extent()), grid.cell_size])
+	print("  HP total: %.0f · extensión %s m (núcleo %s m) · celda %.0f m" \
+			% [total_hp, str(grid.get_extent()), str(grid.get_core_extent()), grid.cell_size])
+	_report_lanes(grid)
+	_report_streets(grid)
+	_report_rocks(grid)
+	_report_markers(grid)
 	var occluders: Node = grid.get_node(NodePath("Occluders"))
 	print("  rocas: %d · oclusores: %d" % [grid.get_rocks().size(), occluders.get_child_count()])
+
+
+## Plano de carriles por eje: clase y ancho de cada uno, y la suma que da la
+## extensión. Es la tabla que `city_check` rehace con la fórmula nueva.
+func _report_lanes(grid: Variant) -> void:
+	for axis: int in 2:
+		var names := ["X", "Z"]
+		var line := ""
+		var total := 0.0
+		var count: int = grid.get_cols() if axis == 0 else grid.get_rows()
+		for lane: int in count:
+			var kind: int = grid.lane_kind(axis, lane)
+			var width: float = grid.lane_width(axis, lane)
+			total += width
+			line += "%s%.0f " % [["B", "c", "A"][kind], width]
+		print("  carriles %s (%d): %s= %.0f m" % [names[axis], count, line, total])
+	print("  avenidas: cruce en %s · calle %.0f m (vereda %.0f) · avenida %.0f m (vereda %.0f, cantero %.0f)" \
+			% [str(grid.avenue_crossing()), grid.street_width, grid.street_sidewalk,
+			grid.avenue_width, grid.avenue_sidewalk, grid.avenue_median])
+
+
+## Instancias por [MultiMeshInstance3D] de la red viaria.
+func _report_streets(grid: Variant) -> void:
+	var streets: Node = grid.get_node(NodePath("Streets"))
+	var total := 0
+	var line := ""
+	for child: Node in streets.get_children():
+		var multi := child as MultiMeshInstance3D
+		if multi == null:
+			continue
+		total += multi.multimesh.instance_count
+		line += "%s %d · " % [multi.name, multi.multimesh.instance_count]
+	print("  calles: %d MultiMesh (%s%d instancias)" % [streets.get_child_count(), line, total])
+
+
+## Altura de cada roca y su ángulo respecto de la línea de visión inicial del
+## dron: ninguna puede caer dentro del cono de 30°.
+func _report_rocks(grid: Variant) -> void:
+	for rock: Variant in grid.get_rocks():
+		var height := 0.0
+		for child: Node in rock.get_children():
+			var mesh_instance := child as MeshInstance3D
+			if mesh_instance != null and mesh_instance.mesh != null:
+				height = maxf(height, mesh_instance.mesh.get_aabb().size.y)
+		print("    %-8s %s  alto %5.1f m  ángulo al centro %5.1f°  al rumbo del dron %5.1f°" \
+				% [rock.name, str(rock.position), height,
+				grid.spawn_cone_angle(rock.position), grid.spawn_view_angle(rock.position)])
+
+
+## Candidatos para `BatterySpawner/Marker*`: los cruces de calle y las azoteas
+## más altas. Se copian a mano a `rounds/battle_level.tscn`, que no lo genera
+## esta herramienta.
+func _report_markers(grid: Variant) -> void:
+	var crossings: Array[String] = []
+	for lane_x: int in grid.get_cols():
+		if grid.lane_kind(0, lane_x) == 0:
+			continue
+		for lane_z: int in grid.get_rows():
+			if grid.lane_kind(1, lane_z) == 0:
+				continue
+			crossings.append("(%.0f, %.0f)" % [grid.lane_centre(0, lane_x),
+					grid.lane_centre(1, lane_z)])
+	print("  cruces de calle (%d): %s" % [crossings.size(), ", ".join(crossings)])
+
+	var sorted: Array = grid.get_buildings()
+	sorted.sort_custom(func(a: Variant, b: Variant) -> bool:
+		return a.get_height() > b.get_height())
+	for index: int in mini(3, sorted.size()):
+		var building: Variant = sorted[index]
+		print("    hito   %-14s %s  techo %.1f m  huella %.0f × %.0f m" \
+				% [building.name, str(building.position),
+				building.position.y + building.get_height(),
+				building.base_size.x, building.base_size.z])
+	# Azoteas de torre media, que son las que sirven de puesto de pila: un techo
+	# de 16 m está al alcance del dron y el de un hito de 80 no.
+	var shown := 0
+	for building: Variant in sorted:
+		if shown >= 4:
+			break
+		var height: float = building.get_height()
+		if height < 14.0 or height > 18.0:
+			continue
+		shown += 1
+		print("    azotea %-14s %s  techo %.1f m  huella %.0f × %.0f m" \
+				% [building.name, str(building.position), building.position.y + height,
+				building.base_size.x, building.base_size.z])
 
 
 # --------------------------------------------------------------------------

@@ -1,18 +1,13 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://tools/enemy_showcase.gd" id="1_showcase"]
 [ext_resource type="Environment" path="res://world/environment_battle.tres" id="2_env"]
 [ext_resource type="PackedScene" path="res://enemies/arachnodroid/arachnodroid.tscn" id="3_arachnodroid"]
 [ext_resource type="Script" path="res://city/debris_pool.gd" id="4_debris_pool"]
 [ext_resource type="Script" path="res://city/rubble_field.gd" id="5_rubble_field"]
-
-[sub_resource type="CameraAttributesPhysical" id="CameraAttributesPhysical_showcase"]
-frustum_focus_distance = 5.0
-frustum_focal_length = 2.1
-exposure_aperture = 16.0
-exposure_shutter_speed = 100.0
-auto_exposure_enabled = false
-exposure_sensitivity = 100.0
+[ext_resource type="CameraAttributesPhysical" path="res://world/camera_attributes_dusk.tres" id="6_camera_attributes"]
+[ext_resource type="Script" path="res://world/sun_light.gd" id="7_sun_light"]
+[ext_resource type="Resource" path="res://world/sun_dusk.tres" id="8_sun_profile"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ground"]
 albedo_color = Color(0.16, 0.17, 0.19, 1)
@@ -31,13 +26,17 @@ script = ExtResource("1_showcase")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = ExtResource("2_env")
-camera_attributes = SubResource("CameraAttributesPhysical_showcase")
+camera_attributes = ExtResource("6_camera_attributes")
 
+; Sol de atardecer compartido (`docs/13` §3.2, WP-24): `world/sun_dusk.tres` pone
+; 2400 lux a 3200 K y 6° sobre el horizonte, y `Graphics.register_sun()` le vuelca
+; la tabla de sombras del preset. El showcase tenía sol y exposición propios
+; —2.4 × 100 000 lux contra f/16 e ISO 100— y quedó 7 pasos fuera de calibración
+; cuando WP-24 recalibró `world/environment_battle.tres`.
 [node name="Sun" type="DirectionalLight3D" parent="."]
-transform = Transform3D(0.707107, -0.5, 0.5, 0, 0.707107, 0.707107, -0.707107, -0.5, 0.5, 0, 80, 0)
-light_energy = 2.4
+script = ExtResource("7_sun_light")
+profile = ExtResource("8_sun_profile")
 shadow_enabled = true
-directional_shadow_max_distance = 220.0
 
 [node name="Ground" type="StaticBody3D" parent="."]
 collision_layer = 1

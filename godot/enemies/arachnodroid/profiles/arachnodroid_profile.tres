@@ -19,6 +19,7 @@
 [sub_resource type="Resource" id="Resource_0sdy6"]
 resource_name = "ArachnodroidLegRig"
 script = ExtResource("11_3vx3i")
+reach_trigger = 0.95
 gait_pairs = Array[PackedInt32Array]([PackedInt32Array(0, 3), PackedInt32Array(1, 2)])
 
 [sub_resource type="Resource" id="Resource_1teah"]

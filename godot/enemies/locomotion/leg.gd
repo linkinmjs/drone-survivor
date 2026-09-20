@@ -19,7 +19,12 @@ const PLANTED: float = -1.0
 
 ## Giro máximo de la coxa respecto de su reposo, en grados. Más que esto haría
 ## que la pata cruzara por debajo de la carcasa.
-const COXA_YAW_LIMIT: float = 40.0
+##
+## WP-24d lo sube de 40° a 55°: con la huella abierta 5 m hacia afuera la pata
+## nace mucho más lateral, así que el mismo tranco longitudinal pide más yaw de
+## coxa y el recorte empezaba a torcer el plano de flexión —la rodilla se iba
+## hacia abajo— antes de que la pata se acercara a la carcasa.
+const COXA_YAW_LIMIT: float = 55.0
 
 ## Índice de la pata dentro del rig, en el orden en que las agrupó [EnemyBase].
 var index: int = 0
@@ -97,7 +102,10 @@ var step_from: Vector3 = Vector3.ZERO
 var step_t: float = PLANTED
 
 ## Duración del paso en curso, en segundos.
-var step_time: float = 0.55
+var step_time: float = 0.80
+
+## Segundos que la pata lleva apoyada desde el último [method ProceduralLegRig._plant].
+var stance_time: float = 0.0
 
 ## Altura del arco del paso en curso, en metros.
 var step_height: float = 3.0
@@ -125,7 +133,11 @@ var _measured: bool = false
 
 ## Cablea los nodos desde el diccionario que arma [EnemyBase] (`docs/06` §2.1
 ## punto 6) y mide la pose de reposo. Devuelve `false` si la pata no sirve.
-func bind(data: Dictionary, body: Node3D, pole_body: Vector3) -> bool:
+##
+## [param lateral_spread] abre la huella de marcha hacia afuera (ver
+## [method measure]); el rig le pasa `LegRigProfile.stance_spread`.
+func bind(data: Dictionary, body: Node3D, pole_body: Vector3,
+		lateral_spread: float = 0.0) -> bool:
 	index = int(data.get("index", 0))
 	side = StringName(data.get("side", &""))
 	pole = pole_body
@@ -138,14 +150,27 @@ func bind(data: Dictionary, body: Node3D, pole_body: Vector3) -> bool:
 	foot = _node_of(data.get("foot", null))
 	if femur == null or tibia == null or foot == null:
 		return false
-	measure(body, pole_body)
+	measure(body, pole_body, lateral_spread)
 	return _measured
 
 
 ## Mide longitudes, pivotes y marcos de alabeo sobre la pose actual, que es la
 ## de reposo del GLB. Todo lo que el IK usa sale de acá: ni una cifra del
 ## modelo vive en el código.
-func measure(body: Node3D, pole_body: Vector3) -> void:
+##
+## [param lateral_spread] separa el reposo del pie [b]hacia afuera en X[/b],
+## sobre la huella del modelo. Es lo que dobla la rodilla y la saca del cuerpo
+## (WP-24d): el Arachnodroid trae el pie casi bajo la cadera —(±6, 0, ∓11.625)
+## contra una cadera en (±6.375, 17.25, ∓10.5)—, así que la cadena cuelga casi
+## vertical, el fémur baja 6.1 m y la rodilla queda a 7.9 m, metida bajo la
+## panza. Con el pie separado en X el segmento cadera→tobillo se inclina hacia
+## afuera, el polo lateral empuja la rodilla hacia arriba y hacia afuera, y la
+## silueta pasa a leerse como una araña.
+##
+## La separación se aplica [b]acá[/b] y no en el rig a propósito: [member
+## _coxa_rest_dir] se mide contra el reposo ya separado, de modo que la coxa
+## parte de yaw 0 y conserva enteros sus ±40° de recorrido.
+func measure(body: Node3D, pole_body: Vector3, lateral_spread: float = 0.0) -> void:
 	var body_inverse := body.global_transform.affine_inverse()
 	femur_length = maxf(tibia.position.length(), TwoBoneIK.MIN_GAP)
 	tibia_length = maxf(foot.position.length(), TwoBoneIK.MIN_GAP)
@@ -158,6 +183,9 @@ func measure(body: Node3D, pole_body: Vector3) -> void:
 	coxa_offset = body_inverse * (hip.global_position if hip != null else femur.global_position)
 	var ankle_rest := body_inverse * foot.global_position
 	base_rest_offset = Vector3(ankle_rest.x, ankle_rest.y - ankle_lift, ankle_rest.z)
+	if lateral_spread > 0.0:
+		var outward := signf(base_rest_offset.x)
+		base_rest_offset.x += (outward if outward != 0.0 else 1.0) * lateral_spread
 	rest_offset = base_rest_offset
 
 	# Marcos de reposo: llevan la dirección en la que cuelga cada hueso sobre la
@@ -228,10 +256,11 @@ func reach(stretch_max: float) -> float:
 ## Aplica la pose: gira la coxa en yaw hacia [param ankle], resuelve el IK y
 ## escribe **sólo** las bases locales de fémur, tibia y pie.
 ##
-## [param pole_world] es el vector de polo ya llevado a mundo y
-## [param normal] la normal sobre la que apoya (o apoyará) la planta.
+## [param pole_world] es el vector de polo ya llevado a mundo,
+## [param normal] la normal sobre la que apoya (o apoyará) la planta y
+## [param knee_lift] el piso de elevación de la rodilla (ver [TwoBoneIK]).
 func apply(body_xform: Transform3D, ankle: Vector3, pole_world: Vector3,
-		stretch_max: float, normal: Vector3) -> void:
+		stretch_max: float, normal: Vector3, knee_lift: float = 0.0) -> void:
 	if broken or not _measured:
 		return
 	if not (is_instance_valid(femur) and is_instance_valid(tibia) and is_instance_valid(foot)):
@@ -240,7 +269,7 @@ func apply(body_xform: Transform3D, ankle: Vector3, pole_world: Vector3,
 	_aim_coxa(body_xform, ankle)
 
 	var solution := TwoBoneIK.solve(hip_world(), ankle, femur_length, tibia_length,
-			pole_world, stretch_max)
+			pole_world, stretch_max, knee_lift)
 	stretched = bool(solution["stretched"])
 	_write_basis(femur, _femur_rest_frame, solution["dir_a"] as Vector3,
 			solution["normal"] as Vector3)

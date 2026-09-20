@@ -1,4 +1,4 @@
-[gd_scene load_steps=18 format=3]
+[gd_scene load_steps=20 format=3]
 
 [ext_resource type="Script" path="res://hud/combat/combat_hud.gd" id="1_combat_hud"]
 [ext_resource type="Theme" path="res://hud/hud_theme.tres" id="2_hud_theme"]
@@ -17,6 +17,8 @@
 [ext_resource type="Script" path="res://hud/combat/respawn_overlay.gd" id="15_respawn"]
 [ext_resource type="Script" path="res://hud/combat/intro_banner.gd" id="16_intro"]
 [ext_resource type="Script" path="res://hud/combat/glitch_layer.gd" id="17_glitch"]
+[ext_resource type="Script" path="res://hud/combat/weak_point_hint.gd" id="18_weak_hint"]
+[ext_resource type="Script" path="res://hud/combat/coach_tip.gd" id="19_coach"]
 
 ; HUD de combate del nivel (`docs/12` §4). Capa 20, propiedad del `BattleLevel`:
 ; sobrevive al respawn porque el dron no es su dueño (`docs/12` §1.1).
@@ -61,6 +63,21 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("4_damage")
+
+; Marcador del punto débil expuesto más cercano (WP-24d). También en espacio de
+; pantalla: cuando el punto débil no está en cuadro, la flecha tiene que tocar el
+; borde de verdad.
+
+[node name="WeakPointHint" type="Control" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("18_weak_hint")
 
 ; Lienzo de diseño de 1280 × 720, el mismo del `FlightHUD`: con el mismo factor de
 ; escala los dos HUD nunca se pisan a ninguna resolución (`docs/12` §4).
@@ -181,6 +198,20 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("14_objective")
+
+; Consejo contextual de una línea (WP-24d), en el renglón libre entre el aviso de
+; telegrafía y el retículo.
+
+[node name="CoachTip" type="Control" parent="Root/Frame"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("19_coach")
 
 [node name="RespawnOverlay" type="Control" parent="Root/Frame"]
 unique_name_in_owner = true

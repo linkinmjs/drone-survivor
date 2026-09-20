@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tools/environment_shots.gd" id="1_environment_shots"]
+
+[node name="EnvironmentShots" type="Node"]
+script = ExtResource("1_environment_shots")
+check_name = "environment_shots"
+default_timeout = 600.0

@@ -329,9 +329,11 @@ func _physics_process(delta: float) -> void:
 		if _weapon != null:
 			_weapon.fire_pressed = false
 		return
+	PerfProbe.begin(&"bot_pilot")
 	_apply_kinematic()
 	if mode == Mode.IDLE:
 		_tick_idle(delta)
+		PerfProbe.end(&"bot_pilot")
 		return
 	_tick_dodge(delta)
 	_tick_target(delta)
@@ -339,6 +341,7 @@ func _physics_process(delta: float) -> void:
 	_move(delta)
 	_tick_trigger(delta)
 	_feed_energy()
+	PerfProbe.end(&"bot_pilot")
 
 
 ## Partida de control: el dron se queda posado donde apareció, armado para que la

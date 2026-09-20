@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="SunProfile" format=3]
+
+[ext_resource type="Script" path="res://world/sun_profile.gd" id="1_yt70j"]
+
+[resource]
+resource_name = "sun_dusk"
+script = ExtResource("1_yt70j")
+light_color = Color(1, 0.7200783, 0.48282117, 1)

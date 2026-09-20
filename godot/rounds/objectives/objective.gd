@@ -113,6 +113,29 @@ func _physics_process(delta: float) -> void:
 	_tick(delta)
 
 
+## Posición de [param phase_id] en las fases del [EnemyProfile] de [param enemy], o
+## `-1` si el enemigo no tiene perfil o no declara esa fase.
+##
+## Existe para que un objetivo pueda comparar **la fase que trae el evento** y no sólo
+## la que devuelve `current_phase_index()`. Las fases se reevalúan a 4 Hz (`docs/06`
+## §2), así que `Events.enemy_phase_changed` llega antes que el polling; y con el jefe
+## congelado de `round_check` (`docs/11` §11) el polling no llega **nunca**, que es
+## justo el caso en el que el check inyecta la fase por el bus.
+##
+## Es estática y vive acá, en la base, porque la usan dos objetivos distintos y la
+## cuenta —recorrer `profile.phases` buscando un id— no tiene nada de específico de
+## ninguno de los dos.
+static func phase_index_of(enemy: Node3D, phase_id: StringName) -> int:
+	var boss := enemy as EnemyBase
+	if boss == null or boss.profile == null or phase_id == &"":
+		return -1
+	for index: int in boss.profile.phases.size():
+		var phase: Dictionary = boss.profile.phases[index]
+		if StringName(phase.get("id", &"")) == phase_id:
+			return index
+	return -1
+
+
 ## Verdadero si el dron está armado y por encima de [param min_altitude] metros.
 func is_airborne(min_altitude: float) -> bool:
 	if drone == null or not is_instance_valid(drone) or fc == null:

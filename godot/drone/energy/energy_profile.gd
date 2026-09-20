@@ -31,15 +31,22 @@ class_name EnergyProfile extends Resource
 @export_range(0.0, 10.0) var throttle_drain: float = 0.85
 
 ## Recarga por segundo con el dron **desarmado**, en %/s (`docs/09` §2.1).
-@export_range(0.0, 10.0) var idle_recharge: float = 1.0
+##
+## **Apagada desde WP-24e** (`idle_recharge = 0`). La recarga en reposo existía como
+## única salida del bloqueo a 0 %, y esa salida ahora es la reconstrucción: a batería
+## agotada el dron se reconstruye como si muriera y vuelve con
+## [member respawn_energy_depleted]. Dejar las dos cosas a la vez regalaba autonomía
+## gratis —bastaba desarmar y esperar— y además producía el ciclo de 1 % que el
+## piloto veía como «arma, cae, arma, cae». El campo se conserva porque el balance de
+## WP-23 puede querer volver a encenderlo.
+@export_range(0.0, 10.0) var idle_recharge: float = 0.0
 
 ## Techo de la recarga en reposo, en la escala 0–100.
 ##
 ## Es un **techo absoluto**: la recarga solo actúa mientras `energy` esté por
-## debajo de este valor. Existe para que un dron a 0 % lejos de una pila no quede
-## en bloqueo irrecuperable, no para regalar autonomía; con 10 % hay ~10 s de vuelo,
-## lo justo para llegar a la baliza más cercana (`docs/09` §2.1).
-@export_range(0.0, 100.0) var idle_recharge_cap: float = 10.0
+## debajo de este valor. Con [member idle_recharge] en 0 no hace nada; se conserva,
+## igual que el otro campo, para el día que WP-23 quiera reactivar el mecanismo.
+@export_range(0.0, 100.0) var idle_recharge_cap: float = 0.0
 
 # --- Estados (`docs/09` §2.2) -----------------------------------------------------------------
 
@@ -68,8 +75,19 @@ class_name EnergyProfile extends Resource
 ## señal local [signal EnergySystem.emp_hit] (`docs/09` §2.9).
 @export_range(0.0, 10.0) var emp_glitch_seconds: float = 3.0
 
-## Energía con la que reaparece el dron tras un respawn (`docs/09` §2.8).
+## Energía con la que reaparece el dron tras un respawn **por casco**
+## (`docs/09` §2.8).
 @export_range(0.0, 100.0) var respawn_energy: float = 60.0
+
+## Energía con la que reaparece el dron tras un respawn **por batería agotada**.
+##
+## Es menos que [member respawn_energy] a propósito: quedarse sin batería es un
+## error de gestión del piloto, no un golpe del jefe, y la reconstrucción ya cuesta
+## los mismos 12 s, los −300 puntos y el ×0.6. Devolver 60 % convertiría el
+## agotamiento en una recarga cara pero cómoda; con 20 % el dron vuelve con el
+## tiempo justo para ir a una pila, que es exactamente la decisión que el piloto no
+## tomó a tiempo.
+@export_range(0.0, 100.0) var respawn_energy_depleted: float = 20.0
 
 # --- Publicación ------------------------------------------------------------------------------
 

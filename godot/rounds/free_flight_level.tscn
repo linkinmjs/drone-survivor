@@ -1,4 +1,4 @@
-[gd_scene load_steps=24 format=3]
+[gd_scene load_steps=26 format=3]
 
 [ext_resource type="Script" path="res://rounds/free_flight_level.gd" id="1_level"]
 [ext_resource type="Environment" path="res://world/environment_battle.tres" id="2_env"]
@@ -9,6 +9,9 @@
 [ext_resource type="Script" path="res://rounds/free_flight_target.gd" id="7_target"]
 [ext_resource type="Script" path="res://drone/energy/battery_spawner.gd" id="8_battery_spawner"]
 [ext_resource type="PackedScene" path="res://drone/energy/battery_pickup.tscn" id="9_battery_pickup"]
+[ext_resource type="CameraAttributesPhysical" path="res://world/camera_attributes_dusk.tres" id="10_camera_attributes"]
+[ext_resource type="Script" path="res://world/sun_light.gd" id="11_sun_light"]
+[ext_resource type="Resource" path="res://world/sun_dusk.tres" id="12_sun_profile"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ground"]
 albedo_color = Color(0.16, 0.17, 0.19, 1)
@@ -61,14 +64,6 @@ size = Vector3(14, 14, 6)
 [sub_resource type="BoxShape3D" id="BoxShape3D_target"]
 size = Vector3(14, 14, 6)
 
-[sub_resource type="CameraAttributesPhysical" id="CameraAttributesPhysical_ff"]
-frustum_focus_distance = 5.0
-frustum_focal_length = 2.1
-exposure_aperture = 16.0
-exposure_shutter_speed = 100.0
-auto_exposure_enabled = false
-exposure_sensitivity = 100.0
-
 [node name="FreeFlightLevel" type="Node3D" node_paths=PackedStringArray("respawn_point", "drone_rig")]
 script = ExtResource("1_level")
 respawn_point = NodePath("Respawn")
@@ -76,13 +71,14 @@ drone_rig = NodePath("DroneRig")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = ExtResource("2_env")
-camera_attributes = SubResource("CameraAttributesPhysical_ff")
+camera_attributes = ExtResource("10_camera_attributes")
 
+; Sol de atardecer compartido (`docs/13` §3.2, WP-24): `world/sun_dusk.tres` pone
+; 2400 lux a 3200 K y 6° sobre el horizonte, y `Graphics` le vuelca la tabla de
+; sombras del preset en cuanto el nivel lo registra.
 [node name="Sun" type="DirectionalLight3D" parent="."]
-transform = Transform3D(0.707107, 0, -0.707107, -0.5, 0.707107, -0.5, 0.5, 0.707107, 0.5, 0, 80, 0)
-light_energy = 1.1
-shadow_enabled = true
-directional_shadow_max_distance = 220.0
+script = ExtResource("11_sun_light")
+profile = ExtResource("12_sun_profile")
 
 [node name="Ground" type="StaticBody3D" parent="."]
 collision_layer = 1

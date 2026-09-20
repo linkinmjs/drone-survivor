@@ -295,6 +295,15 @@ func move_body(delta: float, desired_velocity: Vector3) -> void:
 
 ## Gira el cuerpo hacia [param target] a [member EnemyProfile.turn_rate] grados
 ## por segundo (`docs/06` §7 punto 4).
+##
+## El giro se compone **sobre la base**, girándola alrededor de la vertical del
+## mundo, y el rumbo se lee del eje frontal, no de `rotation.y` (WP-24d). Con el
+## cuerpo inclinado por el rig —y en una rampa de 20° lo está siempre— escribir
+## `rotation.y` obliga a descomponer la base en ángulos de Euler y a recomponerla
+## desde ellos en cada tick de física: la inclinación se repartía entre los tres
+## ángulos y volvía alterada, de modo que el coloso cabeceaba en cada corrección
+## de rumbo. Es la misma lectura de rumbo que usan
+## [method ProceduralLegRig._heading_yaw] y el [AudioRig].
 func face_toward(target: Vector3, delta: float) -> void:
 	if profile == null or Global.debug_freeze_ai:
 		return
@@ -302,10 +311,15 @@ func face_toward(target: Vector3, delta: float) -> void:
 	to_target.y = 0.0
 	if to_target.length_squared() < 0.0001:
 		return
+	var current := global_basis.orthonormalized()
+	var forward := -current.z
+	if absf(forward.x) < 0.000001 and absf(forward.z) < 0.000001:
+		return
+	var yaw := atan2(-forward.x, -forward.z)
 	var desired := atan2(-to_target.x, -to_target.z)
-	var difference := wrapf(desired - rotation.y, -PI, PI)
+	var difference := wrapf(desired - yaw, -PI, PI)
 	var max_turn := deg_to_rad(profile.turn_rate) * delta
-	rotation.y += clampf(difference, -max_turn, max_turn)
+	global_basis = Basis(Vector3.UP, clampf(difference, -max_turn, max_turn)) * current
 
 
 ## Fuerza el tambaleo por [param seconds] (`docs/06` §7 punto 6).

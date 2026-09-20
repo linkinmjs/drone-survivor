@@ -3,6 +3,10 @@
 > Estado: borrador v1 · Fecha: 2026-09-19 · Gobierna: WP-03, WP-09, WP-10, WP-11 · Depende de: `02-configuracion-del-proyecto.md`, `03-especificacion-nucleo-de-vuelo.md`, `12-interfaz-y-hud.md`, `11-rondas-y-objetivos.md`
 
 ## 1. Objetivo y alcance
+
+> **Nota de WP-24c (2026-09-20)**: `Graphics.FisheyeMode` pasa a `{OFF, FULL, FAST, FAST_WIDE}` (`_read_enum` acota, los `.cfg` viejos siguen válidos); presets de ojo de pez `[FAST 480p, FAST 720p, FAST_WIDE 1080p, FAST_WIDE 1080p]` con `fisheye_side_height/_msaa_level/_mesh_lod()` por preset; el menú de gráficos suma `GFX_FISHEYE_FAST_WIDE` («Rápido amplio» / «Fast wide»); FULL sigue disponible en el menú. `settings_check._check_fisheye_presets()` lo verifica.
+
+> **Nota de WP-24a (2026-09-20)**: las tablas de sombras de §3.5 quedaron desactualizadas: `Graphics` usa atlas `2048/2048/4096/8192/8192` y filtros `SOFT_LOW/SOFT_LOW/SOFT_LOW/SOFT_MEDIUM/SOFT_HIGH` por nivel de sombras (`docs/13` §3.4 manda), más distancia y splits por preset (`SHADOW_SPLIT_COUNTS/DISTANCES/SPLIT_1`) aplicados con `apply_sun_quality()` al sol registrado por cada nivel (`register_sun()`, señal `shadows_changed`). Los presets también fijan escala de render y oclusión de las `SubViewport` del ojo de pez, `mesh_lod_threshold`, SDFGI/SSIL/SSAO/niebla/ambiente de respaldo y `max_emitters()`; `Quality.CUSTOM` se resuelve con `effective_quality()` a partir del nivel de sombras. El menú de gráficos no cambió (rótulos genéricos). `settings_check` verifica las tablas.
 > Nota del checkpoint 2 (2026-09-19): los defaults persistidos de rates en `QuadSettings` pasan a **ACTUAL 5 / 30 / 25** (centro 50 deg/s, máximo 300 deg/s, expo 0,25), valores que el usuario fijó en su prueba con gamepad porque 7/67/54 era demasiado sensible; `reset_rates()` vuelve a estos. `ControlProfile.new()` conserva 7/67/54 como perfil de referencia de `03` §3.6.
 
 

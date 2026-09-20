@@ -1,7 +1,11 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=10 format=3]
 
+[ext_resource type="Script" path="res://tools/flight_sandbox.gd" id="0_sandbox"]
 [ext_resource type="Environment" path="res://world/environment_battle.tres" id="1_environment"]
 [ext_resource type="PackedScene" path="res://drone/drone_rig.tscn" id="2_rig"]
+[ext_resource type="CameraAttributesPhysical" path="res://world/camera_attributes_dusk.tres" id="3_camera_attributes"]
+[ext_resource type="Script" path="res://world/sun_light.gd" id="4_sun_light"]
+[ext_resource type="Resource" path="res://world/sun_dusk.tres" id="5_sun_profile"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_ground"]
 size = Vector3(800, 1, 800)
@@ -14,33 +18,25 @@ albedo_color = Color(0.17, 0.19, 0.21, 1)
 metallic_specular = 0.25
 roughness = 0.95
 
-[sub_resource type="CameraAttributesPhysical" id="CameraAttributesPhysical_sandbox"]
-frustum_focus_distance = 5.0
-frustum_focal_length = 2.1
-exposure_aperture = 16.0
-exposure_shutter_speed = 100.0
-auto_exposure_enabled = false
-exposure_sensitivity = 100.0
-
 ; Exposición del `WorldEnvironment`, igual que en `rounds/free_flight_level.tscn`
 ; (`docs/03` §1, nota de WP-06): con `use_physical_light_units` y un sol de 100 000 lux,
 ; un `WorldEnvironment` sin `camera_attributes` deja la imagen en blanco.
 
 [node name="FlightSandbox" type="Node3D"]
+script = ExtResource("0_sandbox")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = ExtResource("1_environment")
-camera_attributes = SubResource("CameraAttributesPhysical_sandbox")
+camera_attributes = ExtResource("3_camera_attributes")
 
-; El sol apunta **hacia abajo**: `DirectionalLight3D` emite por su `−Z` local, y el
-; que tenía esta escena lo apuntaba hacia arriba, de modo que el suelo solo recibía
-; la luz ambiente del cielo. Acá queda a 45° de elevación desde el noroeste.
-; Discrepancia anotada: `rounds/free_flight_level.tscn` tiene el mismo sol invertido
-; (WP-06); no se toca acá porque `rounds/` no es de este paquete de trabajo.
+; Sol de atardecer compartido (`docs/13` §3.2, WP-24). El que tenía esta escena
+; apuntaba hacia arriba y el suelo sólo recibía la luz del cielo; ahora el ángulo,
+; la intensidad y la temperatura los pone `world/sun_dusk.tres`, el mismo recurso
+; que usan los dos niveles.
 
 [node name="SunLight" type="DirectionalLight3D" parent="."]
-transform = Transform3D(-0.6000001, -0.5656854, 0.56568545, 0, 0.7071068, 0.70710677, -0.79999995, 0.42426413, -0.42426416, 0, 20, 0)
-shadow_enabled = true
+script = ExtResource("4_sun_light")
+profile = ExtResource("5_sun_profile")
 
 [node name="Ground" type="StaticBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)

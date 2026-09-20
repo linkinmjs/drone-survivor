@@ -17,11 +17,11 @@
 ## [codeblock]
 ## CombatHUD (CanvasLayer, layer 20)
 ## └── Root (Control, full rect, mouse_filter = IGNORE)
-##     ├── OffscreenMarkers · DamageDirection      ← espacio de **pantalla**
+##     ├── OffscreenMarkers · DamageDirection · WeakPointHint   ← espacio de **pantalla**
 ##     └── Frame (Control escalado, lienzo 1280 × 720)
 ##         ├── EnergyBar · HullBar · HeatGauge · Reticle · HitMarker
 ##         ├── BossBar · CityBar · TelegraphWarning · RoundTimer · ObjectiveLine
-##         ├── RespawnOverlay · IntroBanner
+##         ├── CoachTip · RespawnOverlay · IntroBanner
 ##         └── GlitchLayer
 ## [/codeblock]
 ##
@@ -50,9 +50,14 @@ const LAYER: int = 20
 ## `FlightHUD` ([constant FlightHUD.MIN_LAYOUT_SIZE]), a propósito.
 const LAYOUT_SIZE: Vector2 = Vector2(1280.0, 720.0)
 
-## Los quince componentes que [method show_component] sabe encender y apagar.
+## Los diecisiete componentes que [method show_component] sabe encender y apagar.
+##
+## [constant Component.WEAK_HINT] y [constant Component.COACH] son los dos que agrega
+## WP-24d y van **al final** a propósito: los quince anteriores conservan su valor, y
+## un `enum` de HUD que renumera es un `enum` que rompe cualquier estado guardado.
 enum Component {ENERGY, HULL, HEAT, RETICLE, HIT_MARKER, BOSS, CITY, MARKERS,
-		DAMAGE, TELEGRAPH, TIMER, OBJECTIVE, RESPAWN, INTRO, GLITCH}
+		DAMAGE, TELEGRAPH, TIMER, OBJECTIVE, RESPAWN, INTRO, GLITCH,
+		WEAK_HINT, COACH}
 
 ## Lo único que se ve en modo cinemático (`docs/12` §4.2). Se guarda como
 ## `Array[int]` porque un `Array` tipado con un `enum` no es un tipo de contenedor
@@ -90,6 +95,8 @@ var _objective: HUDObjectiveLine = null
 var _respawn: HUDRespawnOverlay = null
 var _intro: HUDIntroBanner = null
 var _glitch: HUDGlitchLayer = null
+var _weak_hint: HUDWeakPointHint = null
+var _coach: HUDCoachTip = null
 
 ## Cámara impuesta con [method set_camera]; si es `null` manda la que dibuja la escena.
 var _camera: Camera3D = null
@@ -219,6 +226,10 @@ func bind_enemy(enemy: Node3D) -> void:
 	_enemies.append(enemy)
 	if _boss != null:
 		_boss.bind_enemy(enemy)
+	if _weak_hint != null:
+		_weak_hint.bind_enemy(enemy)
+	if _coach != null:
+		_coach.bind_enemy(enemy)
 
 
 ## Da de baja un enemigo.
@@ -228,6 +239,10 @@ func unbind_enemy(enemy: Node3D) -> void:
 	_enemies.erase(enemy)
 	if _boss != null:
 		_boss.unbind_enemy(enemy)
+	if _weak_hint != null:
+		_weak_hint.unbind_enemy(enemy)
+	if _coach != null:
+		_coach.unbind_enemy(enemy)
 
 
 ## Enemigos vinculados, en orden de aparición.
@@ -280,6 +295,8 @@ func set_camera(camera: Camera3D) -> void:
 		_damage.camera = _camera
 	if _telegraph != null:
 		_telegraph.camera = _camera
+	if _weak_hint != null:
+		_weak_hint.camera = _camera
 
 
 ## Cámara efectiva: la impuesta si sigue viva, si no la que dibuja la escena.
@@ -308,6 +325,8 @@ func set_cinematic(enabled: bool) -> void:
 			_telegraph.clear_warning()
 		if _glitch != null:
 			_glitch.stop()
+		if _coach != null:
+			_coach.clear_tip()
 	_apply_visibility()
 
 
@@ -369,6 +388,10 @@ func component_node(component: Component) -> CombatHUDComponent:
 			return _intro
 		Component.GLITCH:
 			return _glitch
+		Component.WEAK_HINT:
+			return _weak_hint
+		Component.COACH:
+			return _coach
 		_:
 			return null
 
@@ -439,9 +462,17 @@ func _on_weapon_heat_changed(ratio: float, overheated: bool) -> void:
 		_heat.set_heat(ratio, overheated)
 
 
+## Un impacto en un punto débil es el acuse de que el jugador entendió: apaga el
+## marcador de ayuda y reinicia el reloj de los ocho segundos (WP-24d).
 func _on_hit_confirmed(_position: Vector3, weak: bool, lethal: bool) -> void:
 	if _hit_marker != null:
 		_hit_marker.add_hit(weak, lethal)
+	if not weak:
+		return
+	if _weak_hint != null:
+		_weak_hint.on_weak_hit()
+	if _coach != null:
+		_coach.on_weak_hit()
 
 
 func _on_drone_damaged(amount: float, source_position: Vector3) -> void:
@@ -463,11 +494,19 @@ func _on_enemy_spawned(enemy: Node3D, _enemy_id: StringName) -> void:
 func _on_enemy_part_broken(enemy: Node3D, part_id: StringName, _position: Vector3) -> void:
 	if _boss != null:
 		_boss.on_part_broken(enemy, part_id)
+	if _weak_hint != null:
+		_weak_hint.on_part_broken(enemy, part_id)
+	if _coach != null:
+		_coach.on_part_broken(enemy, part_id)
 
 
 func _on_enemy_weak_point_state(enemy: Node3D, wp_id: StringName, exposed: bool) -> void:
 	if _boss != null:
 		_boss.on_weak_point_state(enemy, wp_id, exposed)
+	if _weak_hint != null:
+		_weak_hint.on_weak_point_state(enemy, wp_id, exposed)
+	if _coach != null:
+		_coach.on_weak_point_state(enemy, wp_id, exposed)
 
 
 func _on_enemy_phase_changed(enemy: Node3D, phase_id: StringName) -> void:
@@ -479,6 +518,8 @@ func _on_enemy_attack_telegraphed(enemy: Node3D, attack_id: StringName,
 		duration: float) -> void:
 	if _telegraph != null:
 		_telegraph.on_telegraph(enemy, attack_id, duration)
+	if _coach != null:
+		_coach.on_telegraph(enemy, attack_id, duration)
 
 
 func _on_enemy_defeated(enemy: Node3D, _enemy_id: StringName) -> void:
@@ -505,6 +546,10 @@ func _on_round_state_changed(state: int) -> void:
 	match state:
 		Global.RoundState.INTRO:
 			_refresh_intro_keys()
+			# Ronda nueva, consejos nuevos: los de la partida anterior ya se dieron
+			# por dados y el jugador que reintenta puede ser otro (WP-24d).
+			if _coach != null:
+				_coach.reset()
 			set_cinematic(true)
 		Global.RoundState.BATTLE:
 			set_cinematic(false)
@@ -574,10 +619,11 @@ func _refresh_intro_keys() -> void:
 	_intro.set_round(String(data.get("name_key", "")), String(data.get("goal_key", "")))
 
 
-## Los catorce componentes que dibujan, sin el [HUDGlitchLayer], que los mueve.
+## Los dieciséis componentes que dibujan, sin el [HUDGlitchLayer], que los mueve.
 func _components() -> Array[CombatHUDComponent]:
 	return [_energy, _hull, _heat, _reticle, _hit_marker, _boss, _city_bar, _markers,
-			_damage, _telegraph, _timer, _objective, _respawn, _intro]
+			_damage, _telegraph, _timer, _objective, _respawn, _intro, _weak_hint,
+			_coach]
 
 
 ## A quiénes sacude el EMP. El propio [HUDGlitchLayer] no está: moverse a sí mismo no
@@ -668,6 +714,8 @@ func _collect_nodes() -> void:
 	_respawn = get_node_or_null(^"%RespawnOverlay") as HUDRespawnOverlay
 	_intro = get_node_or_null(^"%IntroBanner") as HUDIntroBanner
 	_glitch = get_node_or_null(^"%GlitchLayer") as HUDGlitchLayer
+	_weak_hint = get_node_or_null(^"%WeakPointHint") as HUDWeakPointHint
+	_coach = get_node_or_null(^"%CoachTip") as HUDCoachTip
 	var missing := PackedStringArray()
 	for pair: Array in [["Root", _root], ["Frame", _frame], ["EnergyBar", _energy],
 			["HullBar", _hull], ["HeatGauge", _heat], ["Reticle", _reticle],
@@ -675,7 +723,8 @@ func _collect_nodes() -> void:
 			["OffscreenMarkers", _markers], ["DamageDirection", _damage],
 			["TelegraphWarning", _telegraph], ["RoundTimer", _timer],
 			["ObjectiveLine", _objective], ["RespawnOverlay", _respawn],
-			["IntroBanner", _intro], ["GlitchLayer", _glitch]]:
+			["IntroBanner", _intro], ["GlitchLayer", _glitch],
+			["WeakPointHint", _weak_hint], ["CoachTip", _coach]]:
 		if pair[1] == null:
 			missing.append(String(pair[0]))
 	if not missing.is_empty():

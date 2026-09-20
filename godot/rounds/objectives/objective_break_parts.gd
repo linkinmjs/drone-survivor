@@ -18,6 +18,14 @@ class_name ObjectiveBreakParts extends Objective
 ## Cuántas de [member part_ids] hay que romper para cerrar el objetivo.
 @export_range(1, 16) var required_count: int = 3
 
+## Clave de traducción del contador de la línea de progreso, con `{0}` rotas y `{1}`
+## pedidas (`OBJ_COUNT_KNEES`, `OBJ_COUNT_CORES`).
+##
+## Es una clave y no un `"%d / %d"` a secas porque el contador es lo que **enseña**
+## (WP-24d): «RODILLAS 2/3» dice qué hay que romper y «2 / 3» no dice nada. Vacía
+## vuelve al formato desnudo, que es lo que quiere una ronda sin nada que enseñar.
+@export var count_key: String = "OBJ_COUNT_KNEES"
+
 ## Ids ya rotos, sin repetidos.
 var _broken: Dictionary[StringName, bool] = {}
 
@@ -25,6 +33,8 @@ var _broken: Dictionary[StringName, bool] = {}
 func _on_start() -> void:
 	if not Events.enemy_part_broken.is_connected(_on_part_broken):
 		var _discard := Events.enemy_part_broken.connect(_on_part_broken)
+	if not Events.enemy_weak_point_state.is_connected(_on_weak_point_state):
+		var _discard := Events.enemy_weak_point_state.connect(_on_weak_point_state)
 	_recount()
 
 
@@ -36,6 +46,8 @@ func _on_restart() -> void:
 func _on_stop() -> void:
 	if Events.enemy_part_broken.is_connected(_on_part_broken):
 		Events.enemy_part_broken.disconnect(_on_part_broken)
+	if Events.enemy_weak_point_state.is_connected(_on_weak_point_state):
+		Events.enemy_weak_point_state.disconnect(_on_weak_point_state)
 
 
 func get_task_text() -> String:
@@ -46,8 +58,12 @@ func get_progress() -> float:
 	return clampf(float(_broken.size()) / float(maxi(required_count, 1)), 0.0, 1.0)
 
 
+## Contador «RODILLAS 2/3» de la línea de objetivo (`docs/12` §4.1).
 func get_progress_text() -> String:
-	return "%d / %d" % [mini(_broken.size(), required_count), required_count]
+	var done := mini(_broken.size(), required_count)
+	if count_key.is_empty():
+		return "%d / %d" % [done, required_count]
+	return tr(count_key).format([done, required_count])
 
 
 func get_success_text() -> String:
@@ -65,6 +81,19 @@ func _on_part_broken(_enemy: Node3D, part_id: StringName, _position: Vector3) ->
 	_broken[part_id] = true
 	if _broken.size() >= required_count:
 		finish()
+
+
+## Un punto débil que cambia de estado es la segunda fuente del contador (WP-24d).
+##
+## `enemy_part_broken` es el hecho que manda, pero llega **una vez**: si el objetivo
+## todavía no había arrancado cuando la rodilla cayó, ese evento se perdió. La
+## exposición, en cambio, se recalcula a 10 Hz (`docs/06` §2) y cada cambio es una
+## oportunidad barata de recontar contra las partes reales del enemigo.
+func _on_weak_point_state(_enemy: Node3D, weak_point_id: StringName,
+		_exposed: bool) -> void:
+	if not active or not _counts(weak_point_id):
+		return
+	_recount()
 
 
 ## Recuenta contra lo que ya pasó: si una rodilla cayó antes de que este objetivo

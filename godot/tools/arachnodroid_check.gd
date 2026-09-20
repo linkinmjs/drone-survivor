@@ -892,12 +892,16 @@ func _reset_stage(attack_id: StringName) -> void:
 	_rig.snap_to_ground()
 	match attack_id:
 		&"climb", &"siege_beam":
-			# Los dos apuntan a la ciudad. Trepar exige estar [b]pegado[/b]: con
-			# la torre de 18 m de lado, a 11 m del centro los reposos de las
-			# patas delanteras ya caen dentro de la huella y su rayo de apoyo
-			# encuentra el techo. El asedio dispara de lejos, así que le sobra
-			# con plantarse a 34 m.
-			var standoff := 18.0 if attack_id == &"climb" else 34.0
+			# Los dos apuntan a la ciudad. Trepar exige estar [b]pegado[/b]:
+			# 12 m, no los 18 de WP-19. Con la huella de marcha de WP-24d —los
+			# pies a ±11 m— las patas delanteras **straddlean** una torre de
+			# 18 m de lado, así que el techo lo encuentra el candidato replegado
+			# del rayo de apoyo, que cae a ±5.5 m del eje; para que ese
+			# candidato entre en la huella de la torre el cuerpo tiene que estar
+			# a menos de 15 m del centro, y los 3 s de ventana activa no dan
+			# para recorrer los 14 m que faltaban desde 18. El asedio dispara de
+			# lejos, así que le sobra con plantarse a 34 m.
+			var standoff := 12.0 if attack_id == &"climb" else 34.0
 			_enemy.global_position = _tower.global_position + Vector3(standoff, 0.0, 0.0)
 			_enemy.look_at_from_position(_enemy.global_position,
 					_tower.global_position, Vector3.UP)

@@ -71,6 +71,21 @@ const PHYSICS_STEP: float = 0.01
 ## Ticks que se dejan para que el régimen y el volumen se asienten.
 const SETTLE_TICKS: int = 90
 
+## Comando con el que se deja a los motores en régimen de vuelo antes de congelar
+## el cuerpo. Tiene que dejarlos **muy por encima** del ralentí: lo que se prueba es
+## que el audio calla aunque las rpm se queden altas.
+const FREEZE_COMMAND: float = 0.7
+
+## Segundos que se le dan al audio para caer al silencio con el cuerpo congelado.
+##
+## El limitador de pendiente de [constant MotorAudio.SLEW_DB_PER_SECOND] tarda
+## 80 / 300 = 0.27 s en ir de 0 dB a −80; medio segundo deja margen y sigue siendo
+## imperceptible sobre la tarjeta de reconstrucción.
+const FREEZE_FADE_BUDGET: float = 0.5
+
+## Tope de ticks del bucle de medición del desvanecido (2 s a 100 Hz).
+const FREEZE_MAX_TICKS: int = 200
+
 @export var rig_path: NodePath = ^"DroneRig"
 
 var _rig: DroneRig = null
@@ -303,6 +318,7 @@ func _check_motor_audio() -> void:
 	for player: AudioStreamPlayer in players:
 		if player.playing and player.volume_db > MotorAudio.SILENT_DB + 0.5:
 			loud += 1
+	await _check_frozen_body(players)
 	_audio.set_enabled(false)
 	await wait_physics(2)
 	var after_disable := _audio.get_active_voice_count()
@@ -313,6 +329,106 @@ func _check_motor_audio() -> void:
 			% [loud, MotorAudio.SILENT_DB])
 	expect(after_disable == 0, "set_enabled(false) dejó %d voces sonando" % after_disable)
 	_drone.set_controller(controller)
+
+
+## 6b — Con el **cuerpo congelado** el audio calla igual, aunque las rpm se queden
+## clavadas en régimen de vuelo, y vuelve solo al descongelar y armar.
+##
+## Es el bug que reportó el piloto en el checkpoint 3b: «a veces queda sonando lo
+## último». `RespawnController._begin()` y `RoundManager._freeze_drone(true)` ponen
+## `freeze = true`, y con el cuerpo congelado no corre `Drone._integrate_forces()`,
+## que es el único sitio donde se llama a `DroneMotor.step()`. Las rpm se quedan
+## donde estaban, `envelope_for()` las lee, y los ocho loops —que son
+## `LOOP_FORWARD`— siguen sonando con el volumen y el tono del último cuadro vivo
+## hasta el final de la ronda.
+##
+## Los tres criterios: las ocho voces caen a `SILENT_DB` en menos de medio segundo,
+## `_stop()` ocurre de verdad (cero voces sonando), y el retorno es **automático**:
+## descongelar y armar vuelve a dar sonido sin que nadie rehabilite nada. Lo
+## último importa tanto como lo primero: arreglar esto con `set_enabled(false)`
+## dejaría el audio mudo en cualquier camino de salida que se olvide de encenderlo.
+func _check_frozen_body(players: Array[AudioStreamPlayer]) -> void:
+	var armed := _drone.arm()
+	if not armed:
+		fail("6 no se pudo rearmar el dron para la prueba de cuerpo congelado")
+		return
+	_set_commands(FREEZE_COMMAND)
+	await wait_physics(SETTLE_TICKS)
+	var flying := _audible_count(players)
+	var rpm_before := _max_rpm()
+
+	# Exactamente lo que hace `RespawnController._begin()`, en el mismo orden.
+	_drone.force_disarm()
+	_drone.freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
+	_drone.freeze = true
+
+	var ticks := 0
+	var silent_at := -1.0
+	while ticks < FREEZE_MAX_TICKS:
+		await wait_physics(1)
+		ticks += 1
+		if silent_at < 0.0 and _audible_count(players) == 0:
+			silent_at = float(ticks) * PHYSICS_STEP
+		if silent_at >= 0.0 and _audio.get_active_voice_count() == 0:
+			break
+	var stopped := _audio.get_active_voice_count() == 0
+	var rpm_frozen := _max_rpm()
+
+	# Y el regreso: descongelar y armar, sin tocar `enabled`.
+	_drone.freeze = false
+	var rearmed := _drone.arm()
+	_set_commands(FREEZE_COMMAND)
+	await wait_physics(SETTLE_TICKS)
+	var back := _audible_count(players)
+
+	# Se deja el banco como estaba antes de 6b: desarmado y en silencio, que es lo
+	# que el cierre del check espera.
+	_set_commands(0.0)
+	_drone.force_disarm()
+	await wait_physics(SETTLE_TICKS)
+
+	print("  [6b] con freeze: %d voces audibles antes → silencio a los %.3f s (rpm %.0f → %.0f, o sea clavadas), _stop() %s tras %.2f s; al descongelar y armar vuelven %d voces"
+			% [flying, silent_at, rpm_before, rpm_frozen, str(stopped),
+			float(ticks) * PHYSICS_STEP, back])
+	expect(flying > 0,
+			"6 la prueba no vale: el dron no llegó a sonar antes de congelarse")
+	expect(rpm_frozen >= _idle_rpm(),
+			"6 la prueba no vale: las rpm cayeron a %.0f con el cuerpo congelado (ralentí %.0f),"
+			% [rpm_frozen, _idle_rpm()]
+			+ " así que el silencio pudo venir del motor y no de la regla de congelado")
+	expect(silent_at >= 0.0 and silent_at <= FREEZE_FADE_BUDGET,
+			"6 con el cuerpo congelado las ocho voces tardaron %.3f s en caer a %.0f dB (tope %.2f s)"
+			% [silent_at, MotorAudio.SILENT_DB, FREEZE_FADE_BUDGET])
+	expect(stopped,
+			"6 con el cuerpo congelado quedaron %d voces sonando: `_stop()` no llegó"
+			% _audio.get_active_voice_count())
+	expect(rearmed and back > 0,
+			"6 al descongelar y armar el audio no volvió (%d voces audibles): el arreglo no puede"
+			% back + " dejar el nodo apagado")
+
+
+## Reproductores por encima del suelo de volumen.
+func _audible_count(players: Array[AudioStreamPlayer]) -> int:
+	var count := 0
+	for player: AudioStreamPlayer in players:
+		if player.volume_db > MotorAudio.SILENT_DB + MotorAudio.SILENCE_MARGIN_DB:
+			count += 1
+	return count
+
+
+## Régimen más alto de los cuatro motores, en rpm.
+func _max_rpm() -> float:
+	var top := 0.0
+	for motor: DroneMotor in _drone.get_motors():
+		top = maxf(top, absf(motor.rpm))
+	return top
+
+
+## Ralentí del primer motor, que es el umbral bajo el cual la envolvente se
+## desvanece sola.
+func _idle_rpm() -> float:
+	var motors := _drone.get_motors()
+	return motors[0].idle_rpm if not motors.is_empty() else 0.0
 
 
 ## Los criterios de `docs/13` §10.3 que dependen de piezas de WP-27.

@@ -78,6 +78,18 @@ const NO_GROUND: float = -1.0
 ## [constant NO_GROUND] y no hay efecto suelo.
 var ground_ray: RayCast3D = null
 
+## Empuje del último [method compute_forces_into], en newtons sobre el eje del
+## rotor; negativo en reversa.
+var last_thrust: float = 0.0
+
+## Módulo del par aerodinámico del último [method compute_forces_into], en N·m.
+## Siempre positivo: el signo lo pone quien llama con `spin · signo(rpm)`.
+var last_torque: float = 0.0
+
+## Fuerza en plano del último [method compute_forces_into], en newtons y en
+## coordenadas de mundo.
+var last_in_plane: Vector3 = Vector3.ZERO
+
 
 func _ready() -> void:
 	ground_ray = get_node_or_null(^"GroundRay") as RayCast3D
@@ -98,16 +110,32 @@ func _ready() -> void:
 ## - `in_plane_force`: newtons, perpendicular al eje, en coordenadas de mundo.
 func compute_forces(rpm: float, velocity_of_prop_world: Vector3, axis_world: Vector3,
 		height_agl: float) -> Dictionary:
-	var result: Dictionary = {
-		"thrust": 0.0,
-		"torque": 0.0,
-		"in_plane_force": Vector3.ZERO,
+	compute_forces_into(rpm, velocity_of_prop_world, axis_world, height_agl)
+	return {
+		"thrust": last_thrust,
+		"torque": last_torque,
+		"in_plane_force": last_in_plane,
 	}
+
+
+## Lo mismo que [method compute_forces], pero **sin asignar nada**: deja el
+## resultado en [member last_thrust], [member last_torque] y [member last_in_plane].
+##
+## Es la versión que usa el integrador del dron. Con cuatro hélices y diez
+## sub-pasos son cuarenta llamadas por tick de física a 100 Hz: cuarenta
+## diccionarios de tres claves por tick, cuatro mil por segundo, que el recolector
+## de GDScript tiene que barrer. Medido en WP-24a sobre `boss_and_city`, el
+## integrador pasaba 0,254 ms de los 2,4 ms del tick, y esta era la mayor parte.
+func compute_forces_into(rpm: float, velocity_of_prop_world: Vector3,
+		axis_world: Vector3, height_agl: float) -> void:
+	last_thrust = 0.0
+	last_torque = 0.0
+	last_in_plane = Vector3.ZERO
 	if not is_finite(rpm) or is_zero_approx(rpm):
-		return result
+		return
 	var axis := axis_world.normalized()
 	if axis.is_zero_approx():
-		return result
+		return
 
 	var revolutions := absf(rpm) / 60.0
 	var squared := revolutions * revolutions
@@ -116,7 +144,7 @@ func compute_forces(rpm: float, velocity_of_prop_world: Vector3, axis_world: Vec
 
 	# Empuje y par estáticos.
 	var thrust := c_t * AIR_DENSITY * squared * d4
-	result["torque"] = c_q * AIR_DENSITY * squared * d4 * diameter
+	last_torque = c_q * AIR_DENSITY * squared * d4 * diameter
 
 	# Relación de avance: el aire que entra por el eje resta empuje al subir y lo
 	# suma al descender, acotado a `[0.2, 1.2]` para que el modelo no se dé vuelta
@@ -131,13 +159,12 @@ func compute_forces(rpm: float, velocity_of_prop_world: Vector3, axis_world: Vec
 		# Girando al revés la pala trabaja con el perfil invertido: la mitad de
 		# empuje y hacia el otro lado (`docs/03` §2.2).
 		thrust = -thrust * REVERSE_EFFICIENCY
-	result["thrust"] = thrust
+	last_thrust = thrust
 
 	# Arrastre en plano: se opone a la componente de la velocidad perpendicular
 	# al eje y es lo que frena la traslación cuando el piloto suelta los sticks.
 	var in_plane := velocity_of_prop_world - axis * axial_speed
-	result["in_plane_force"] = in_plane * (-k_h * revolutions * d2)
-	return result
+	last_in_plane = in_plane * (-k_h * revolutions * d2)
 
 
 ## Par aerodinámico en N·m a [param rpm], sin corregir por avance ni por suelo.

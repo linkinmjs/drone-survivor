@@ -27,6 +27,29 @@
 ## [method body_height_target] devuelve `media_de_pies + hip_height − 17.25`.
 ## Esos 3.25 m de agachada son los que doblan la rodilla: la pose de reposo del
 ## GLB trae la cadena al 99.7 % de extensión y caminar así sería imposible.
+##
+## [b]Marcha creíble (WP-24d)[/b]. El rig de WP-17 cumplía los umbrales de
+## `docs/06` §16.2 y aun así se veía mal: el jefe «se movía raro». Siete cambios,
+## todos medibles en `gait_check`:
+##
+## 1. [b]Huella lateral[/b] (`stance_spread`, ahora en ±X): el pie nace 5 m más
+##    afuera, el fémur se inclina y la rodilla sube de 7.9 m a 9.4 m.
+## 2. [b]Zancada centrada[/b] ([method _step_target]): el objetivo lleva el
+##    avance del vuelo **más** media zancada, así la pata posa por delante tanto
+##    como despega por detrás en vez de vivir arrastrada.
+## 3. [b]Arco con peso[/b] ([method _advance_step]): `smootherstep` horizontal y
+##    un arco sesgado que llega al contacto con velocidad cero.
+## 4. [b]Apoyo alcanzable[/b] ([method _project]): el rayo elige entre cinco
+##    objetivos el primero que la cadena alcance, en vez de plantar el pie en el
+##    primer punto sólido aunque esté 30 m más abajo.
+## 5. [b]Cuerpo vivo[/b]: rebote en fase con el ciclo, balanceo de ≤ 3°,
+##    respiración de servos en reposo, flexión de rodillas al aterrizar y los
+##    25° de cabeceo que `docs/07` §5.3 le pide al trepado.
+## 6. [b]Terreno difícil[/b]: la cadera se hunde cuando el apoyo pide más cadena
+##    de la que hay ([method _reach_crouch]) y el vuelo en curso se apura cuando
+##    la pata que aguanta se queda corta ([method _hurry_factor]).
+## 7. [b]Giro[/b]: umbral de paso propio (`turn_step_trigger`) y paso más corto,
+##    de modo que girar son pasos en el lugar y no un pie arrastrado.
 class_name ProceduralLegRig extends Node3D
 
 ## Se apoyó un pie. [param impact_speed] alimenta el volumen de la pisada.
@@ -60,6 +83,20 @@ const DEFAULT_HIP_HEIGHT: float = 14.0
 ## afuera **y atrás**, como las de una araña.
 const KNEE_POLE_BACK: float = 0.30
 
+## Piso de elevación de la rodilla que el rig le pide al IK (`TwoBoneIK.solve`).
+const KNEE_MIN_LIFT: float = 0.30
+
+## Sesgo hacia arriba del vector de polo (WP-24d).
+##
+## El polo define en qué dirección sale la rodilla del segmento cadera→tobillo.
+## Con el polo puramente horizontal, esa dirección se inclina con la pata: en
+## cuanto el pie queda del lado de dentro de su cadera —un tranco que cruzó, un
+## giro a medias— la rodilla se va hacia **abajo y hacia adentro**, que es
+## exactamente la pose que rompe la silueta de araña. Con una componente
+## vertical el polo garantiza un piso: la rodilla sale siempre hacia arriba,
+## salga hacia donde salga en horizontal.
+const KNEE_POLE_UP: float = 0.30
+
 ## Velocidad por debajo de la cual el cuerpo se considera quieto, en m/s.
 const IDLE_SPEED: float = 0.25
 
@@ -69,8 +106,80 @@ const TURN_RATE_EPS: float = 2.0
 ## Fracción del alcance a la que se recorta el re-balance de reposos.
 const REBALANCE_LIMIT: float = 0.35
 
-## Adelanto del objetivo del paso, como fracción de `step_trigger`.
-const STEP_LEAD: float = 0.5
+## Tope del adelanto del objetivo del paso, como fracción de la cadena.
+##
+## El adelanto de [method _step_target] vale `v · step_time + step_trigger`, que
+## a velocidad de crucero son 8.3 m y no crece: por encima de `speed_ref` la
+## duración del paso se acorta en la misma proporción. El tope es contra una
+## velocidad disparatada (un empujón, un `time_scale` alto), no contra la marcha.
+const MAX_STRIDE_REACH: float = 0.70
+
+## Velocidad a la que el adelanto por `step_trigger` ya entra entero, en m/s.
+const LEAD_RAMP_SPEED: float = 1.0
+
+## Giro a partir del cual el adelanto angular por `step_trigger` entra entero,
+## en rad/s.
+const TURN_LEAD_RATE: float = 0.20
+
+## Sesgo del vértice del arco del paso: el pie sube pronto y baja tarde.
+const STEP_LIFT_SKEW: float = 0.80
+
+## Agudeza del arco. Por encima de 1 la velocidad vertical del pie llega a cero
+## en el contacto, que es lo que hace que el apoyo se lea firme.
+const STEP_LIFT_SHARPNESS: float = 1.35
+
+## Ritmo con el que entra y sale la respiración de reposo, en s⁻¹.
+const IDLE_BLEND_RATE: float = 3.0
+
+## Ritmo con el que entra y sale el cabeceo del trepado, en s⁻¹.
+const CLIMB_BLEND_RATE: float = 1.6
+
+## Fracción de la cadena por encima de la cual el cuerpo empieza a agacharse.
+const COMFORT_REACH: float = 0.86
+
+## Cuánto puede hundirse la cadera para que el apoyo llegue, en metros.
+const MAX_REACH_CROUCH: float = 5.0
+
+## Fracción de la cadena a partir de la cual el vuelo en curso se acelera.
+const HURRY_REACH: float = 0.88
+
+## Cuánto llega a acelerarse el vuelo cuando la pata apoyada se queda sin cadena.
+const MAX_HURRY: float = 2.2
+
+## Ritmo con el que la cadera **baja** para que el apoyo llegue, en s⁻¹. Bajar
+## es urgente —el pie ya no llega— y subir no, así que la recuperación usa el
+## suavizado normal del cuerpo.
+const REACH_SINK_RATE: float = 12.0
+
+## Apoyo mínimo antes de que una pata pueda volver a pedir paso, como fracción
+## de la duración del paso.
+##
+## El desvío que dispara el paso se mide **sin signo**, y con la zancada centrada
+## de WP-24d el pie aterriza justo a `step_trigger` de su reposo: sin esta
+## histéresis la pata pediría turno en el mismo tick en que apoya. Un apoyo
+## mínimo es además lo que impide el castañeteo en terreno irregular, y se mide
+## en fracciones del paso para que valga igual a 6 m/s que arrastrándose.
+const MIN_STANCE_RATIO: float = 0.35
+
+## Cuánto más urgente es un paso de giro que uno de avance a la misma velocidad
+## de pie.
+##
+## Girando en el sitio el pie viaja de costado, justo en la dirección en la que
+## la pata ya nace separada del cuerpo, así que el mismo desplazamiento le cuesta
+## mucha más cadena que avanzando. Con el paso un 60 % más corto y más frecuente
+## el giro son **pasos cortos en el lugar** —lo que hace un cuadrúpedo pesado— y
+## ningún pie se queda arrastrado media vuelta por detrás.
+const TURN_STEP_URGENCY: float = 1.6
+
+## Fracción de la cadena (sin estirar) hasta la que se acepta un apoyo nuevo.
+##
+## Un rayo puede devolver un punto perfectamente sólido y perfectamente
+## inalcanzable: el borde de una escalera de 12 m, el pie de una torre, el filo
+## de la rampa. Plantar ahí deja el pie colgando en el aire —2.6 m medidos en
+## WP-24d— porque el IK no llega. Con este tope el objetivo se retrae como manda
+## `docs/06` §8.4 para el abismo, y la zancada se acorta sola en rampa y en
+## escalón, que es además lo que haría cualquier cuadrúpedo.
+const PLANT_REACH: float = 0.97
 
 ## Media longitud del rayo corto que confirma el apoyo, en metros.
 const SUPPORT_SPAN: float = 3.0
@@ -141,6 +250,12 @@ var _exclude: Array[RID] = []
 var _tick_usec: int = 0
 var _tick_count: int = 0
 var _last_tick_usec: int = 0
+var _cycle_phase: float = 0.0
+var _gait_activity: float = 0.0
+var _climb_blend: float = 0.0
+var _idle_time: float = 0.0
+var _reach_sink: float = 0.0
+var _climb_intent: bool = false
 
 
 func _ready() -> void:
@@ -188,17 +303,14 @@ func setup(data: Array[Dictionary]) -> void:
 	for entry: Dictionary in data:
 		var leg := Leg.new()
 		var pole := _pole_for(entry)
-		if not leg.bind(entry, _body, pole):
+		# La huella de marcha se abre **hacia los lados** sobre la del modelo
+		# (`LegRigProfile.stance_spread`): es lo que separa el tobillo de la
+		# cadera en horizontal, dobla la rodilla y la saca del cuerpo. Va dentro
+		# de `bind()` para que la coxa mida su reposo contra la huella ya abierta.
+		if not leg.bind(entry, _body, pole, _spread()):
 			Global.startup_errors.append("ERR_ENEMY_LEG_INCOMPLETE")
 			push_error("ProceduralLegRig: la pata %d no se pudo medir." % legs.size())
 			continue
-		# La huella de marcha se abre sobre la del modelo: con la cadera a
-		# `hip_height` la rodilla se dobla y el polígono de apoyo crece.
-		var spread := _spread()
-		var outward := Vector3(leg.base_rest_offset.x, 0.0, leg.base_rest_offset.z)
-		if spread > 0.0 and not outward.is_zero_approx():
-			leg.base_rest_offset += outward.normalized() * spread
-			leg.rest_offset = leg.base_rest_offset
 		hip_sum += leg.hip_offset.y
 		radius_sum += Vector2(leg.rest_offset.x, leg.rest_offset.z).length()
 		legs.append(leg)
@@ -432,6 +544,25 @@ func crouch() -> float:
 	return maxf(_crouch, _crouch_hold)
 
 
+## Enciende o apaga la **intención de trepar** (`docs/07` §5.3).
+##
+## Con ella activa, el rayo de colocación prefiere un techo de ciudad por encima
+## del apoyo actual entre todos los candidatos que prueba, en vez de quedarse con
+## el primero que la cadena alcance. Es lo que convierte a `climb` en una
+## decisión de verdad: sin ella, un coloso con 22 m de huella nunca posaría un
+## pie sobre una torre de 18 m de lado —sus reposos caen fuera de la huella del
+## edificio— y trepar dependería de que el terreno se lo regalara.
+##
+## La enciende [ActionClimb] al abrir su ventana activa y la apaga al cerrarla.
+func set_climb_intent(active: bool) -> void:
+	_climb_intent = active
+
+
+## `true` mientras el rig busca activamente un techo donde apoyar.
+func has_climb_intent() -> bool:
+	return _climb_intent
+
+
 ## Modo de marcha actual: `TROT`, `TRIPOD`, `DRAG`, `LEAP` o `IDLE`.
 func gait_name() -> StringName:
 	return _gait.gait_name()
@@ -535,15 +666,41 @@ func _tick_walk(delta: float) -> void:
 	# alejarían de los apoyos y el trote levantaría dos patas justo en el
 	# instante en que el gate de apoyo las cuenta.
 	var frozen := _stagger_left > 0.0 or _is_staggered() or _is_locomotion_locked()
+	# El trote serializa los pares: mientras uno vuela, el otro **tiene** que
+	# aguantar, y en una rampa de 20° el cuerpo le sube 1.6 m encima en lo que
+	# dura el vuelo — más cadena de la que le queda. Cuando eso pasa, el vuelo en
+	# curso se apura hasta 2.2×: el turno del par que sufre llega antes, la
+	# invariante del trote no se toca y el paso rápido se lee como lo que es, un
+	# tranco corto de terreno difícil.
+	var hurry := _hurry_factor()
 	for leg: Leg in legs:
 		if leg.broken:
 			continue
 		if leg.is_airborne():
-			_advance_step(leg, delta)
+			_advance_step(leg, delta * hurry)
+		else:
+			leg.stance_time += delta
 	_refresh_support()
 	if not frozen:
 		_choose_step(body_xform)
+	_tick_cycle(delta)
 	_apply_body_pose(delta)
+
+
+## Avanza la fase del ciclo de marcha y la mezcla marcha/reposo.
+##
+## La fase corre sola a `1 / (2 · step_time)` —un ciclo son los dos pares— y
+## [method _choose_step] la re-sincroniza en cada despegue, así el rebote no se
+## va a la deriva cuando la cadencia cambia. `_gait_activity` es la que apaga el
+## rebote y enciende la respiración cuando el coloso se planta.
+func _tick_cycle(delta: float) -> void:
+	_idle_time += delta
+	var step_time := _gait.step_time_for(_effective_speed())
+	_cycle_phase = fposmod(_cycle_phase + delta / maxf(2.0 * step_time, 0.01), 1.0)
+	var moving := _speed > IDLE_SPEED or absf(_yaw_rate) > deg_to_rad(TURN_RATE_EPS)
+	_gait_activity = lerpf(_gait_activity, 1.0 if moving else 0.0,
+			1.0 - exp(-IDLE_BLEND_RATE * delta))
+	_gait.blend(delta)
 
 
 ## Elige **una sola** pata —y en trote su diagonal— para dar el paso: la más
@@ -560,7 +717,7 @@ func _choose_step(body_xform: Transform3D) -> void:
 			continue
 		if _pose_override.has(leg.index):
 			continue
-		var need := _step_need(leg, _rest_target(leg, body_xform))
+		var need := _step_need(leg, body_xform)
 		if need >= best_need:
 			best_need = need
 			best = leg
@@ -568,6 +725,9 @@ func _choose_step(body_xform: Transform3D) -> void:
 		return
 	if not _begin_step(best, body_xform):
 		return
+	# El rebote del cuerpo se re-sincroniza con el par que sale: media fase por
+	# par, de modo que la cadera esté abajo justo en el intercambio de apoyos.
+	_cycle_phase = 0.5 * float(maxi(_gait.pair_of(best.index), 0) % 2)
 	# En trote la diagonal compañera despega en el mismo instante, la necesite o
 	# no: eso es exactamente un trote, y es lo que mantiene el par en fase.
 	var partner := _gait.partner_of(best)
@@ -579,16 +739,52 @@ func _choose_step(body_xform: Transform3D) -> void:
 ## su reposo más que `step_trigger`, la cadena llegó a `reach_trigger` de su
 ## alcance, o el rayo ya no encuentra suelo donde apoyaba.
 ##
-## El disparo se mide contra el **reposo deseado**, no contra el suelo bajo él,
-## que es lo que dice el documento y lo que permite tirar un solo rayo por paso
-## en vez de cuatro por tick.
-func _step_need(leg: Leg, rest_target: Vector3) -> float:
+## El desvío se mide **sin signo** contra el reposo de ahora —no contra el
+## objetivo del paso, que lleva el adelanto—, y la histéresis la pone
+## [constant MIN_STANCE_RATIO]. Con la zancada centrada de WP-24d el desvío
+## recorre `step_trigger` → 0 → `step_trigger` a lo largo del apoyo, así que el
+## umbral se cumple justo al aterrizar y justo al despegar; el apoyo mínimo es lo
+## que separa los dos casos. Medirlo con signo sobre la dirección de fuga del
+## reposo, que fue el primer intento, deja pasar la deriva **perpendicular** —la
+## de un giro mientras se avanza— y la pata se quedaba media vuelta por detrás.
+##
+## La cadena, en cambio, no espera: si el tramo cadera→tobillo ya se pasó de
+## `reach_trigger`, la pata pide turno aunque acabe de apoyar.
+func _step_need(leg: Leg, body_xform: Transform3D) -> float:
 	if not leg.supported:
 		return 4.0
-	var need := leg.plant_position.distance_to(rest_target) / maxf(_profile().step_trigger, 0.01)
 	var span := leg.hip_world().distance_to(leg.plant_position + Vector3.UP * leg.ankle_lift)
 	var limit := (leg.femur_length + leg.tibia_length) * maxf(_profile().reach_trigger, 0.01)
-	return maxf(need, span / limit)
+	var reach_need := span / limit
+	if leg.stance_time < MIN_STANCE_RATIO * maxf(leg.step_time, 0.01):
+		return reach_need
+	# Trepando, una pata que todavía pisa la calle siempre tiene algo que hacer:
+	# tantear el techo. Sin esto el coloso llega al pie de la torre, se planta
+	# —ya no hay deriva que dispare nada— y no vuelve a levantar un pie.
+	if _climb_intent and not leg.plant_is_city:
+		return maxf(reach_need, 1.0)
+	var drift := _rest_now(leg, body_xform) - leg.plant_position
+	drift.y = 0.0
+	return maxf(drift.length() / _trigger(), reach_need)
+
+
+## Umbral de paso vigente: [member LegRigProfile.step_trigger] avanzando y
+## [member LegRigProfile.turn_step_trigger] girando, mezclados por cuánto manda
+## el giro sobre el avance.
+##
+## Girando en el sitio el pie se desplaza **de costado**, y de costado la pata ya
+## nace a `stance_spread` de la cadera: 3 m más de deriva lateral dejan el
+## tobillo a 7.6 m en horizontal y la cadena se queda sin alcance (medido en
+## WP-24d: 0.78 m de deslizamiento y `stretched` en el giro de la rampa). Con
+## pasos cortos en el lugar el giro no arrastra un solo pie: 0.003 m medidos en
+## el giro de 180° de `gait_check`.
+func _trigger() -> float:
+	var base := maxf(_profile().step_trigger, 0.01)
+	var tangential := absf(_yaw_rate) * _foot_radius
+	if tangential <= _speed:
+		return base
+	var share := clampf((tangential - _speed) / maxf(tangential, 0.01), 0.0, 1.0)
+	return lerpf(base, maxf(_profile().turn_step_trigger, 0.01), share)
 
 
 ## Refresca, **una pata por tick**, si todavía hay suelo bajo el apoyo.
@@ -612,33 +808,179 @@ func _refresh_support() -> void:
 	leg.supported = not space.intersect_ray(_query).is_empty()
 
 
-## Dónde querrá estar el pie cuando vuelva a apoyar: su reposo en espacio del
-## cuerpo, adelantado por el avance y por el giro.
+## Reposo de la pata **ahora mismo**, en el mundo. Es contra este punto que se
+## mide el retraso que dispara el paso.
+func _rest_now(leg: Leg, body_xform: Transform3D) -> Vector3:
+	return body_xform * leg.rest_offset
+
+
+## Dónde tiene que aterrizar el pie para que la zancada quede **centrada** en su
+## reposo (`docs/06` §8.4, corregido en WP-24d).
 ##
-## El pie apunta a donde **estará** su reposo, no a donde está. El giro se
-## anticipa un paso entero y el avance sólo medio: el pie recién posado tarda un
-## paso en volver a despegar y mientras tanto el cuerpo sigue girando, así que
-## con menos anticipación la pata queda detrás del giro y agota el estiramiento
-## esperando su turno. A 15 m del centro, girar a 25°/s barre más metros por
-## segundo que caminar a 6 m/s.
-func _rest_target(leg: Leg, body_xform: Transform3D) -> Vector3:
+## El adelanto tiene dos sumandos y los dos son necesarios:
+##
+## 1. `v · step_time` — lo que el cuerpo avanza [b]durante el vuelo[/b]. Sin
+##    esto el pie apunta a donde el reposo está, no a donde estará, y aterriza ya
+##    retrasado.
+## 2. `max(step_trigger, v · step_time / 2)` — media zancada más, porque durante
+##    el apoyo siguiente el pie se queda quieto mientras el reposo se le escapa.
+##    Cuánto se le escapa depende de quién mande: si el apoyo lo corta
+##    `step_trigger`, son `step_trigger` metros; si lo corta el turno del trote
+##    —el caso del giro, donde el reposo barre 6.8 m/s y el umbral de 1.6 m se
+##    cumple enseguida—, son `v · step_time`, y la mitad de eso centra la
+##    zancada. Con este sumando el pie posa por delante tanto como despega por
+##    detrás.
+##
+## WP-17 adelantaba `min(v · step_time, step_trigger) · 0.5` —1.75 m a velocidad
+## de crucero, contra los 8.3 m que pide la geometría—, así que la pata pasaba
+## todo el apoyo arrastrada: el tramo cadera→tobillo vivía al 94 % de la cadena,
+## la rodilla no se doblaba y `gait_check` medía 0.61 m de pie flotando sobre su
+## propio apoyo porque el IK ya no llegaba.
+func _step_target(leg: Leg, body_xform: Transform3D) -> Vector3:
 	var step_time := _gait.step_time_for(_effective_speed())
-	var turn := clampf(_yaw_rate * step_time, -MAX_TURN_LEAD, MAX_TURN_LEAD)
 	var pivot := body_xform.origin
+	var turn := clampf(_turn_lead(step_time), -MAX_TURN_LEAD, MAX_TURN_LEAD)
 	var rest := pivot + Basis(Vector3.UP, turn) * (body_xform * leg.rest_offset - pivot)
-	if _speed <= IDLE_SPEED:
+	if _speed <= 0.0001:
 		return rest
-	return rest + _heading * minf(_speed * step_time * STEP_LEAD,
-			_profile().step_trigger * STEP_LEAD)
+	var ramp := minf(1.0, _speed / LEAD_RAMP_SPEED)
+	var stance := _speed * step_time
+	var lead := stance + maxf(_trigger(), stance * 0.5) * ramp
+	return rest + _heading * minf(lead, _stride_cap())
 
 
-## Proyecta el reposo de la pata contra el suelo. Si cae al vacío, retrae el
-## objetivo un 40 % hacia el cuerpo y reintenta una sola vez (`docs/06` §8.4).
+## Adelanto angular del objetivo, con los mismos dos sumandos que el lineal: lo
+## que el cuerpo gira durante el vuelo más el arco que corresponde a
+## `step_trigger` al radio de la huella.
+##
+## A 15 m del centro, girar a 25°/s barre más metros por segundo que caminar a
+## 6 m/s: sin este adelanto la pata queda detrás del giro y agota el
+## estiramiento esperando su turno.
+func _turn_lead(step_time: float) -> float:
+	if absf(_yaw_rate) < 0.0001:
+		return 0.0
+	var arc := _trigger() / maxf(_foot_radius, 1.0)
+	var stance := absf(_yaw_rate) * step_time
+	var ramp := minf(1.0, absf(_yaw_rate) / TURN_LEAD_RATE)
+	return _yaw_rate * step_time + signf(_yaw_rate) * maxf(arc, stance * 0.5) * ramp
+
+
+## Tope duro del adelanto lineal, en metros.
+func _stride_cap() -> float:
+	if legs.is_empty():
+		return 8.0
+	return (legs[0].femur_length + legs[0].tibia_length) * MAX_STRIDE_REACH
+
+
+## Proyecta el objetivo del paso contra el suelo y elige el mejor apoyo
+## alcanzable (`docs/06` §8.4, ampliado en WP-24d con el criterio de alcance).
+##
+## Se prueban, en orden, el objetivo con adelanto entero, con medio adelanto, el
+## reposo pelado y tres poses cada vez más plegadas bajo el cuerpo. Gana el
+## primero que la cadena alcance; si ninguno lo hace —el jefe está al borde de
+## una rampa de 41 m o al final de una escalera de 12— gana el menos malo, que
+## es el que deja la pata menos estirada. Sin esto el rig plantaba el pie en el
+## primer punto sólido que devolvía el rayo aunque estuviera 30 m más abajo, y
+## el IK dejaba el pie colgando en el aire.
+##
+## Lo que se recorta es el adelanto, no la pata: la zancada se acorta sola en
+## rampa y en escalón, que es lo que hace cualquier cuadrúpedo.
+##
+## Con [method set_climb_intent] encendida se recorre la lista **entera** y gana
+## cualquier techo de ciudad que aparezca, aunque haya un apoyo de calle
+## perfectamente bueno antes: es la diferencia entre rodear la torre y subirse.
+##
+## En marcha normal el primer candidato gana y se tira **un solo rayo por paso**,
+## que es el presupuesto de `docs/06` §8.4; los otros cinco sólo se pagan en el
+## terreno —o la acción— que los necesita.
 func _project(leg: Leg, body_xform: Transform3D) -> Dictionary:
-	var ground := _ray(_rest_target(leg, body_xform))
-	if not bool(ground["hit"]):
-		ground = _ray(body_xform * (leg.rest_offset * 0.6))
-	return ground
+	var step_time := _gait.step_time_for(_effective_speed())
+	var rest := _rest_now(leg, body_xform)
+	var target := _step_target(leg, body_xform)
+	var limit := (leg.femur_length + leg.tibia_length) * PLANT_REACH
+	var candidates: Array[Vector3] = [
+		target,
+		rest.lerp(target, 0.55),
+		rest,
+		body_xform * _folded_rest(leg, 0.45),
+		body_xform * _folded_rest(leg, 0.0),
+		body_xform * (leg.rest_offset * 0.5),
+	]
+	var chosen: Dictionary = {}
+	var climbable: Dictionary = {}
+	var best: Dictionary = {}
+	var best_span := INF
+	for point: Vector3 in candidates:
+		var ground := _ray(point)
+		if not bool(ground["hit"]):
+			continue
+		var span := _landing_span(leg, body_xform, ground, step_time)
+		# Trepar es la excepción (`docs/07` §5.3): subir el pie al techo de un
+		# edificio se acepta **aunque hoy no llegue**, porque en cuanto el paso
+		# arranca el cuerpo ya sube con él —[method _contact_point] interpola el
+		# suelo bajo el pie en vuelo— y para cuando aterriza la cadera está a
+		# media altura del techo. Es el único caso en que el coloso se
+		# compromete con un apoyo que todavía no alcanza, y es justo la silueta
+		# que el juego quiere: el jefe subido a una torre.
+		var climb := _is_climb_target(leg, ground)
+		if climb and climbable.is_empty():
+			climbable = ground
+		if chosen.is_empty() and (span <= limit or climb):
+			chosen = ground
+			if not _climb_intent:
+				# Marcha normal: **un solo rayo por paso**, que es el
+				# presupuesto de `docs/06` §8.4.
+				return chosen
+		if span < best_span:
+			best_span = span
+			best = ground
+	if not climbable.is_empty():
+		return climbable
+	if not chosen.is_empty():
+		return chosen
+	if not best.is_empty():
+		return best
+	return {"hit": false, "point": target, "normal": Vector3.UP, "collider": null,
+			"city": false}
+
+
+## `true` si el apoyo que devolvió el rayo es un techo de ciudad **por encima**
+## del apoyo actual de la pata: el caso de trepar.
+func _is_climb_target(leg: Leg, ground: Dictionary) -> bool:
+	if not bool(ground["city"]):
+		return false
+	return (ground["point"] as Vector3).y > leg.plant_position.y + 1.0
+
+
+## Repliegue del reposo hacia el cuerpo **conservando la apertura lateral**: el
+## pie se acerca por delante y por detrás, nunca por dentro.
+##
+## Escalar el reposo entero —lo que hacía el repliegue del abismo de WP-17—
+## mete el pie por debajo de la cadera, y con el pie del lado de dentro el plano
+## de flexión se invierte: la rodilla se va hacia abajo y hacia adentro en vez de
+## hacia arriba y hacia afuera. Medido en WP-24d: 8.1 m de rodilla contra los
+## 9.4 m del resto de las patas en el mismo tick. Por eso este repliegue va
+## **antes** que el escalado entero en la lista de candidatos, y el escalado
+## queda sólo para el borde del que no se vuelve.
+func _folded_rest(leg: Leg, amount: float) -> Vector3:
+	return Vector3(leg.rest_offset.x, leg.rest_offset.y, leg.rest_offset.z * amount)
+
+
+## Distancia de la cadera al tobillo **en el instante del aterrizaje**.
+##
+## La cadera se mide donde estará, no donde está: el cuerpo avanza
+## `v · step_time` y gira `ω · step_time` durante el vuelo, y el objetivo lleva
+## justo ese adelanto. Comparar contra la cadera de ahora daba 14.4 m en una
+## zancada perfectamente normal —por encima de la cadena de 13.59 m—, así que el
+## rig recortaba **todas** las zancadas y las patas se quedaban atrás.
+func _landing_span(leg: Leg, body_xform: Transform3D, ground: Dictionary,
+		step_time: float) -> float:
+	var ankle := (ground["point"] as Vector3) + Vector3.UP * leg.ankle_lift
+	var pivot := body_xform.origin
+	var turn := clampf(_yaw_rate * step_time, -MAX_TURN_LEAD, MAX_TURN_LEAD)
+	var hip := pivot + Basis(Vector3.UP, turn) * (leg.hip_world() - pivot)
+	hip += _heading * _speed * step_time
+	return hip.distance_to(ankle)
 
 
 ## Rayo de apoyo vertical de ±`foot_ray_span` sobre [param point], con máscara
@@ -681,23 +1023,40 @@ func _begin_step(leg: Leg, body_xform: Transform3D) -> bool:
 	leg.step_time = _gait.step_time_for(_effective_speed())
 	leg.step_height = _gait.step_height_for(leg.target.y - leg.step_from.y)
 	leg.step_t = 0.0
+	leg.stance_time = 0.0
 	leg.planted = false
 	return true
 
 
 ## Avanza el arco del paso; al llegar a 1 apoya el pie.
+##
+## Las dos componentes del arco llegan al contacto con **velocidad cero**
+## (WP-24d), que es lo que separa un apoyo de un golpe:
+##
+## - **Horizontal**: `smootherstep`, con velocidad y aceleración nulas en los dos
+##   extremos. Un pie de 9 t ni despega de golpe ni frena contra el suelo.
+## - **Vertical**: `sin(π · t^0.80)^1.35`. El exponente de dentro adelanta el
+##   vértice a t = 0.42 —el pie levanta pronto y se toma el resto del tranco para
+##   bajar—; el de fuera aplana la llegada, de modo que la velocidad vertical
+##   tiende a cero en el contacto en vez de los 17 m/s que daba el `sin(π t)` de
+##   WP-17. Y como el pie ya está sobre el objetivo al plantar, [method _plant]
+##   no tiene nada que corregir: el apoyo es firme desde el primer fotograma.
 func _advance_step(leg: Leg, delta: float) -> void:
 	leg.step_t += delta / maxf(leg.step_time, 0.01)
 	if leg.step_t >= 1.0:
 		_plant(leg)
 		return
-	var travel := leg.step_from.lerp(leg.target, leg.step_t)
-	leg.foot_position = travel + Vector3.UP * leg.step_height * sin(PI * leg.step_t)
+	var t := leg.step_t
+	var travel := t * t * t * (t * (t * 6.0 - 15.0) + 10.0)
+	var lift := pow(sin(PI * pow(t, STEP_LIFT_SKEW)), STEP_LIFT_SHARPNESS)
+	leg.foot_position = leg.step_from.lerp(leg.target, travel)
+	leg.foot_position += Vector3.UP * leg.step_height * lift
 
 
 ## Apoya el pie: fija el apoyo, avisa y cobra el aplastamiento si pisó ciudad.
 func _plant(leg: Leg) -> void:
 	leg.step_t = Leg.PLANTED
+	leg.stance_time = 0.0
 	leg.planted = true
 	# El apoyo nuevo salió de un rayo: hay suelo debajo por construcción, y sin
 	# esto un `supported` viejo en falso pediría un paso nada más apoyar.
@@ -734,48 +1093,177 @@ func _crush(leg: Leg) -> void:
 ## Altura e inclinación del cuerpo. La XZ no se toca: es de `move_body`.
 func _apply_body_pose(delta: float) -> void:
 	var support := _support_points()
-	var planted_mean := _planted_mean()
 	var rate := _profile().height_smooth_rate
-	_ground_height = lerpf(_ground_height, planted_mean, 1.0 - exp(-rate * delta))
+	_ground_height = lerpf(_ground_height, _support_mean(support),
+			1.0 - exp(-rate * delta))
 	_plane_normal = _fit_plane(support)
+	_climb_blend = lerpf(_climb_blend, 1.0 if _on_city() else 0.0,
+			1.0 - exp(-CLIMB_BLEND_RATE * delta))
 
 	var up_target := Vector3.UP.slerp(_plane_normal, _profile().tilt_blend).normalized()
 	_basis_target = _basis_with_up(up_target)
 	var blend := 1.0 - exp(-_profile().tilt_smooth_rate * delta)
-	var posed := _body.global_basis.orthonormalized().slerp(_basis_target, blend)
+	var posed := _body.global_basis.orthonormalized().slerp(
+			_climb_pitch(_gait_sway(_basis_target)), blend)
 	if _stagger_left > 0.0:
 		posed = _wobble(posed)
 	_body.global_basis = posed.orthonormalized()
 
-	var height := body_height_target() - crouch() * _hip_height()
+	var wanted := _reach_crouch()
+	var sink_rate := REACH_SINK_RATE if wanted > _reach_sink else _profile().body_smoothing
+	_reach_sink = lerpf(_reach_sink, wanted, 1.0 - exp(-sink_rate * delta))
+	var height := body_height_target() - crouch() * _hip_height() + _bob_offset() - _reach_sink
 	if is_finite(height):
 		_body.global_position = Vector3(_body.global_position.x, height,
 				_body.global_position.z)
 
 
-## Media de la altura de los pies apoyados; si no queda ninguno, la última.
-func _planted_mean() -> float:
+## Altura de referencia del apoyo: la media de [param support], que trae el
+## apoyo de las patas plantadas y el **objetivo** de las que están en vuelo.
+##
+## Hasta WP-24d promediaba sólo las plantadas, y como en trote hay dos en el aire
+## la media saltaba en cada intercambio de pares: el cuerpo cabeceaba a destiempo
+## del ciclo. Con el objetivo de las que vuelan la media es continua y además el
+## cuerpo **anticipa** el terreno — sube antes de que el pie pise el escalón, que
+## es lo que hace cualquier cuadrúpedo.
+func _support_mean(support: Array[Vector3]) -> float:
+	if support.is_empty():
+		return _ground_height
 	var total := 0.0
-	var count := 0
+	for point: Vector3 in support:
+		total += point.y
+	return total / float(support.size())
+
+
+## Rebote vertical de la cadera, en metros.
+##
+## Caminando, la cadera baja en cada intercambio de pares y sube a media
+## zancada: `−A · cos(4π · fase)` da los dos mínimos por ciclo que corresponden a
+## los dos apoyos. Quieto, la sustituye la respiración de servos.
+func _bob_offset() -> float:
+	if _leap_phase != LeapPhase.NONE:
+		return 0.0
+	var amplitude := _profile().body_bob * _hip_height()
+	var walking := -amplitude * cos(TAU * 2.0 * _cycle_phase) * _gait_activity
+	return walking + _idle_offset() * (1.0 - _gait_activity)
+
+
+## Cuánto se acelera el vuelo en curso por culpa de la pata apoyada más
+## estirada: 1 mientras a todas les sobre cadena, hasta [constant MAX_HURRY]
+## cuando una ya no llega.
+func _hurry_factor() -> float:
+	var worst := 0.0
 	for leg: Leg in legs:
-		if leg.broken or not leg.planted:
+		if leg.broken or leg.is_airborne():
 			continue
-		total += leg.plant_position.y
-		count += 1
-	return total / float(count) if count > 0 else _ground_height
+		var chain := leg.femur_length + leg.tibia_length
+		var span := leg.hip_world().distance_to(
+				leg.plant_position + Vector3.UP * leg.ankle_lift)
+		worst = maxf(worst, span / maxf(chain, 0.01))
+	if worst <= HURRY_REACH:
+		return 1.0
+	var stress := clampf((worst - HURRY_REACH) / (1.0 - HURRY_REACH), 0.0, 1.0)
+	return lerpf(1.0, MAX_HURRY, stress)
 
 
-## Puntos de apoyo para el plano: el actual si la pata está apoyada, el objetivo
-## del paso si está en vuelo. Con dos puntos el plano degenera, y en trote
-## siempre hay dos patas en el aire: sin esto la inclinación parpadearía en
-## cada tranco.
+## Cuánto tiene que hundirse la cadera para que el apoyo le quede cómodo a la
+## pata más estirada, en metros.
+##
+## `hip_height` (14 m) y la cadena (13.59 m) no dejan casi holgura vertical: en
+## cuanto el terreno obliga a un pie a quedarse unos metros por debajo del resto
+## —el borde de un escalón de 12 m, el filo de la rampa, el pie que quedó abajo
+## mientras los otros suben a un techo— la pata se queda sin alcance y el pie
+## flota. Bajar la cadera lo que haga falta es lo que hace cualquier cuadrúpedo,
+## y convierte un pie colgando en una pose agazapada. Sirve para las dos formas
+## de quedarse corto: hundiendo el cuerpo se acorta la componente vertical del
+## tramo cadera→tobillo **y** se libera alcance para la horizontal.
+##
+## En llano no hace nada: con las cuatro patas a la misma altura el tramo se
+## queda en el 81–87 % de la cadena y el umbral de confort es el 90 %.
+func _reach_crouch() -> float:
+	var worst := 0.0
+	for leg: Leg in legs:
+		if leg.broken or leg.is_airborne():
+			continue
+		var span := leg.hip_world().distance_to(
+				leg.plant_position + Vector3.UP * leg.ankle_lift)
+		var comfort := (leg.femur_length + leg.tibia_length) * COMFORT_REACH
+		worst = maxf(worst, span - comfort)
+	return clampf(worst, 0.0, MAX_REACH_CROUCH)
+
+
+## Respiración de servos del reposo: ±`idle_breath` metros a `idle_breath_hz`.
+func _idle_offset() -> float:
+	var amplitude := _profile().idle_breath
+	if amplitude <= 0.0:
+		return 0.0
+	return amplitude * sin(TAU * _profile().idle_breath_hz * _idle_time)
+
+
+## Balanceo del cuerpo en fase con el ciclo: alabeo hacia la diagonal que
+## sostiene y un cabeceo desfasado un cuarto de ciclo. Los dos juntos se quedan
+## por debajo de los 6° que WP-24d exige en llano.
+func _gait_sway(source: Basis) -> Basis:
+	if _gait_activity <= 0.001 or _leap_phase != LeapPhase.NONE:
+		return source
+	var amount := _gait_activity * (1.0 - crouch())
+	var roll := deg_to_rad(_profile().gait_roll) * sin(TAU * _cycle_phase) * amount
+	var pitch := deg_to_rad(_profile().gait_pitch) * cos(TAU * _cycle_phase) * amount
+	var rolled := source.rotated(source.z.normalized(), roll)
+	return rolled.rotated(source.x.normalized(), pitch)
+
+
+## Levanta el morro mientras trepa hasta el **piso** de `climb_pitch`
+## (`docs/07` §5.3: «el cuerpo cabecea 25° hacia arriba»).
+##
+## Se mide lo que el plano de apoyo ya inclina y se agrega sólo lo que falta: así
+## el gesto se lee igual subiendo a un bloque de 8 m que a una torre de 30, y no
+## se acumula con la inclinación de la rampa.
+func _climb_pitch(source: Basis) -> Basis:
+	if _climb_blend <= 0.001:
+		return source
+	var current := asin(clampf(-source.z.y, -1.0, 1.0))
+	var missing := maxf(0.0, deg_to_rad(_profile().climb_pitch) - current)
+	if missing <= 0.0:
+		return source
+	return source.rotated(source.x.normalized(), missing * _climb_blend)
+
+
+## `true` si alguna pata sana se apoya sobre un collider de capa `city`.
+func _on_city() -> bool:
+	for leg: Leg in legs:
+		if not leg.broken and leg.planted and leg.plant_is_city:
+			return true
+	return false
+
+
+## Puntos de apoyo para el plano y para la altura: uno por pata sana, siempre
+## los cuatro. Con dos puntos el plano degenera, y en trote siempre hay dos
+## patas en el aire: sin esto la inclinación parpadearía en cada tranco.
 func _support_points() -> Array[Vector3]:
 	var points: Array[Vector3] = []
 	for leg: Leg in legs:
 		if leg.broken:
 			continue
-		points.append(leg.target if leg.is_airborne() else leg.plant_position)
+		points.append(_contact_point(leg))
 	return points
+
+
+## Punto de contacto **virtual** de una pata: su apoyo si está plantada y, si
+## está en vuelo, el punto del suelo por el que va pasando.
+##
+## WP-17 usaba el **objetivo** del paso para las patas en vuelo, y eso sesga la
+## media y el plano: en una rampa de 20° el objetivo está siempre unos 2.5 m
+## cuesta arriba del apoyo que la pata deja, así que con dos patas en vuelo el
+## rig creía el suelo 1.3 m más alto de lo que estaba, subía el cuerpo y dejaba
+## a las dos patas apoyadas sin cadena — 2.5 m de pie flotando, medidos en
+## WP-24d. Interpolar el suelo que el pie va sobrevolando es continuo en los dos
+## extremos del paso y no sesga nada.
+func _contact_point(leg: Leg) -> Vector3:
+	if not leg.is_airborne():
+		return leg.plant_position
+	var t := clampf(leg.step_t, 0.0, 1.0)
+	return leg.step_from.lerp(leg.target, t * t * (3.0 - 2.0 * t))
 
 
 ## Plano de mínimos cuadrados sobre [param points] (`docs/06` §8.5).
@@ -865,7 +1353,7 @@ func _apply_legs() -> void:
 			normal = leg.target_normal
 		else:
 			ankle = leg.plant_position + Vector3.UP * leg.ankle_lift
-		leg.apply(body_xform, ankle, pole, stretch, normal)
+		leg.apply(body_xform, ankle, pole, stretch, normal, KNEE_MIN_LIFT)
 
 
 ## Coloca los cuatro pies en el suelo de una sola vez, sin paso: es la pose de
@@ -937,9 +1425,16 @@ func _tick_leap(delta: float) -> void:
 			if _leap_time >= _leap_flight:
 				_land()
 		LeapPhase.LAND:
-			_crouch = lerpf(_crouch, 0.0, 1.0 - exp(-_profile().body_smoothing * delta))
+			# El cuerpo se hunde y vuelve en `land_crouch_time`: es el único
+			# sitio donde el salto pesa (`docs/06` §8.6 punto 4 y `docs/13` §6).
+			# La campana `sin(π·u)` arranca y termina en cero, así que ni el
+			# aterrizaje ni la recuperación pegan un salto de altura.
+			var hold := maxf(_profile().land_crouch_time, 0.01)
+			var progress := clampf(_leap_time / hold, 0.0, 1.0)
+			_crouch = _profile().land_crouch * sin(PI * progress)
 			_apply_body_pose(delta)
-			if _leap_time >= _profile().land_stagger:
+			if _leap_time >= maxf(_profile().land_stagger, hold):
+				_crouch = 0.0
 				_leap_phase = LeapPhase.NONE
 				_gait.set_leaping(false)
 
@@ -996,7 +1491,7 @@ func _land() -> void:
 	_leap_phase = LeapPhase.LAND
 	_leap_time = 0.0
 	_needs_snap = false
-	_ground_height = _planted_mean()
+	_ground_height = _support_mean(_support_points())
 	_body.global_position = Vector3(_body.global_position.x, body_height_target(),
 			_body.global_position.z)
 	# El bamboleo del aterrizaje es **del rig**, no del enemigo: se queda en el
@@ -1019,7 +1514,7 @@ func _land() -> void:
 ## queda ahí (`docs/06` §8.7, con la altura corregida en WP-19b).
 ##
 ## El suelo se vuelve a medir con un rayo bajo el cuerpo en vez de fiarse de
-## [member _ground_height]: sin patas apoyadas, [method _planted_mean] devuelve
+## [member _ground_height]: sin patas apoyadas, [method _support_mean] devuelve
 ## el último valor conocido y se queda congelado, así que un jefe que cayera
 ## sobre un techo o en una rampa se hundiría en él.
 func _tick_downed(delta: float) -> void:
@@ -1045,11 +1540,7 @@ func _update_state() -> void:
 	if _stagger_left > 0.0 or _is_staggered():
 		_state = STATE_STAGGER
 		return
-	_climbing = false
-	for leg: Leg in legs:
-		if not leg.broken and leg.planted and leg.plant_is_city:
-			_climbing = true
-			break
+	_climbing = _on_city()
 	if _climbing:
 		_state = STATE_CLIMB
 		return
@@ -1140,7 +1631,8 @@ func _pole_for(entry: Dictionary) -> Vector3:
 	if root != null and root.mesh != null and _body != null:
 		var local := _body.global_transform.affine_inverse() * root.mesh.global_position
 		lateral = signf(local.x) if absf(local.x) > 0.001 else 1.0
-	return (Vector3(lateral, 0.0, 0.0) + Vector3.BACK * KNEE_POLE_BACK).normalized()
+	return (Vector3(lateral, KNEE_POLE_UP, 0.0)
+			+ Vector3.BACK * KNEE_POLE_BACK).normalized()
 
 
 ## RID de las partes propias, para que el rayo de apoyo no se enganche con el
@@ -1191,7 +1683,7 @@ func _spread() -> float:
 ## en el sitio la velocidad lineal es 0 y el paso saldría lentísimo justo cuando
 ## más rápido tiene que moverse la pata.
 func _effective_speed() -> float:
-	return maxf(_speed, absf(_yaw_rate) * _foot_radius)
+	return maxf(_speed, absf(_yaw_rate) * _foot_radius * TURN_STEP_URGENCY)
 
 
 ## `true` cuando se perdieron todas las patas que tolera el enemigo.

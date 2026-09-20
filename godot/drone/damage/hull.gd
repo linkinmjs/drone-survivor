@@ -170,6 +170,20 @@ func reset() -> void:
 	restore()
 
 
+## Saca el casco de juego **sin publicar nada**: deja de aceptar daño hasta el
+## siguiente [method restore], y ni [signal destroyed] ni `Events.drone_destroyed`
+## se emiten.
+##
+## Lo llama [RespawnController] cuando la reconstrucción no la disparó el casco
+## —batería agotada, `docs/09` §2.8—: durante los doce segundos el dron sigue
+## congelado en el mundo, con su colisionador puesto, y un barrido del jefe que le
+## bajara los últimos puntos publicaría un **segundo** `Events.drone_destroyed` por
+## la misma reconstrucción. El `RoundManager` lo contaría como una muerte de más.
+func deactivate() -> void:
+	_destroyed = true
+	_cooldowns.clear()
+
+
 ## Velocidad con la que el dron entró al último paso de física. Es la que usa la
 ## fórmula de choque; `energy_check` la escribe para inyectar impactos sintéticos.
 func set_previous_velocity(value: Vector3) -> void:

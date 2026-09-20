@@ -40,8 +40,11 @@ const SHADOW_KEYS: Array[String] = ["GFX_QUALITY_VERY_LOW", "GFX_QUALITY_LOW",
 ## Clave de traducción de cada [enum Graphics.Gi].
 const GI_KEYS: Array[String] = ["UI_OFF", "GFX_GI_SDFGI"]
 
-## Clave de traducción de cada [enum Graphics.FisheyeMode].
-const FISHEYE_KEYS: Array[String] = ["UI_OFF", "GFX_FISHEYE_FULL", "GFX_FISHEYE_FAST"]
+## Clave de traducción de cada [enum Graphics.FisheyeMode]. El orden es el del enum,
+## no el del costo: `FAST_WIDE` se anexó al final en WP-24c para no reinterpretar los
+## `Graphics.cfg` ya escritos.
+const FISHEYE_KEYS: Array[String] = ["UI_OFF", "GFX_FISHEYE_FULL", "GFX_FISHEYE_FAST",
+		"GFX_FISHEYE_FAST_WIDE"]
 
 ## Clave de traducción de cada [enum Graphics.FisheyeMsaa]; la última copia el MSAA
 ## del juego.

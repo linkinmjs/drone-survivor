@@ -12,31 +12,43 @@
 ##    throttle` por segundo, con acumulador propio en [method _physics_process]
 ##    (nunca un [Timer], `docs/09` §1).
 ## 2. **Recarga en reposo** con el dron desarmado, a `idle_recharge` %/s y solo
-##    por debajo de `idle_recharge_cap`: es la salida del bloqueo a 0 % lejos de
-##    una pila.
+##    por debajo de `idle_recharge_cap`. **Apagada desde WP-24e**: las dos constantes
+##    valen 0 en `default_energy.tres` y este bloque no hace nada. La salida del
+##    bloqueo a 0 % ya no es esperar sino la reconstrucción de `docs/09` §2.8, que
+##    [RespawnController] dispara con [signal depleted] y termina con 20 % de
+##    batería. El mecanismo se conserva entero porque el balance de WP-23 puede
+##    querer volver a encenderlo con un número distinto.
 ## 3. **Cobra** los disparos con [method consume], que es **todo o nada**:
 ##    `docs/08` depende de eso para no emitir medios disparos.
 ## 4. Lleva la máquina de estados `NORMAL → CRITICAL → DEPLETED` con **histéresis**
-##    de salida, aplica [method Drone.set_thrust_scale] y baja
-##    [member FlightController.can_arm_energy] cuando la batería se agota.
+##    de salida, aplica [method Drone.set_thrust_scale], baja
+##    [member FlightController.can_arm_energy] y emite [signal depleted] cuando la
+##    batería se agota. Esa señal es la que [RespawnController] convierte en una
+##    reconstrucción de doce segundos (`docs/09` §2.8).
 ## 5. Publica `Events.energy_changed(ratio, critical)` al cambiar de estado y
 ##    cuando `ratio` se mueve al menos [member EnergyProfile.publish_epsilon].
 ##
-## **Dos discrepancias registradas con `docs/09`**:
+## **Tres discrepancias registradas con `docs/09`**:
 ##
+## - §2.1 describe una recarga en reposo de 1 %/s con techo de 10 %. WP-24e la
+##   apaga: con la reconstrucción por batería agotada ya hay salida del bloqueo a
+##   0 %, y tener las dos cosas regalaba autonomía —bastaba desarmar y esperar— y
+##   producía el ciclo de 1 % que el piloto veía como «arma, se cae, arma, se cae».
 ## - §5 sub-check 5 pide que un dron desarmado a 50 % suba a 60 % en 10 s y a la
 ##   vez que «el tope de reposo es 10 % (desde 5 % → 10.0, no más)». Las dos frases
-##   no pueden ser ciertas al mismo tiempo. Manda §2.1, que es donde se justifica
-##   la regla: la recarga en reposo existe **solo** para salir del bloqueo a 0 % y
-##   da «~10 s de vuelo, suficiente para llegar a la pila más cercana». Por eso
-##   [member EnergyProfile.idle_recharge_cap] es un techo absoluto y un dron
-##   desarmado al 50 % se queda al 50 %.
+##   no pueden ser ciertas al mismo tiempo, y con la recarga apagada ninguna de las
+##   dos vale: un dron desarmado se queda exactamente donde está.
 ## - §2.1 habla de recarga «con el dron **desarmado**» y el Anexo de §4 le cobra
 ##   `base_drain` a un dron «armado en el suelo». Estar posado, entonces, no
 ##   recarga: lo que decide es el armado, no el contacto con el suelo.
 class_name EnergySystem extends Node
 
 ## La batería llegó a 0 %. Se emite una sola vez por agotamiento.
+##
+## La escucha [RespawnController], que reconstruye el dron como si hubiera muerto y
+## lo devuelve con [member EnergyProfile.respawn_energy_depleted]. Va por señal
+## **local** y no por el bus por lo mismo que [signal Hull.destroyed]: un segundo
+## dron en escena no puede disparar la reconstrucción del primero.
 signal depleted()
 
 ## Se entró en estado crítico (`ratio < critical_ratio`).
@@ -108,7 +120,8 @@ func _physics_process(delta: float) -> void:
 		if rate > 0.0:
 			_write_energy(_energy - rate * delta)
 		return
-	# Reposo: solo por debajo del techo, y sin pasarse de él.
+	# Reposo: solo por debajo del techo, y sin pasarse de él. Con el perfil del MVP
+	# —`idle_recharge = 0` desde WP-24e— esto sale acá y la batería no se mueve.
 	if profile.idle_recharge <= 0.0 or _energy >= profile.idle_recharge_cap:
 		return
 	_write_energy(minf(_energy + profile.idle_recharge * delta, profile.idle_recharge_cap))

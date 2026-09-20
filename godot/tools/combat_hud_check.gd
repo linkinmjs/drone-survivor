@@ -46,13 +46,25 @@ const STEP: float = 1.0 / 60.0
 ## Frames que se dejan pasar para que la escena dibuje antes de capturar.
 const SETTLE_FRAMES: int = 6
 
-## Títulos de las filas, en orden.
+## Títulos de las filas, en orden. Las dos últimas las agrega WP-24d.
 const ROW_TITLES: Array[String] = [
 	"componentes presentes y dibujando", "energía, casco y calor", "hitmarkers",
-	"barra del jefe", "franja de ciudad", "marcadores fuera de pantalla",
+	"barra del jefe por grupos", "franja de ciudad", "marcadores fuera de pantalla",
 	"dirección del daño", "aviso de telegrafía", "glitch de EMP",
 	"cuenta de reconstrucción", "modo cinemático", "cronómetro y objetivo",
 	"claves de traducción", "prueba negativa", "sin conexiones colgadas",
+	"marcador del punto débil", "consejos contextuales",
+]
+
+## Cuántos componentes tiene el `CombatHUD` tras WP-24d.
+const COMPONENT_COUNT: int = 17
+
+## Grupos de la barra del jefe, como `[primera_barra, cuántas, clave del rótulo]`
+## (`docs/07` §4: 4 rodillas, 1 visor, 3 núcleos).
+const BOSS_GROUPS: Array[Array] = [
+	[0, 4, "HUD_WP_GROUP_KNEE"],
+	[4, 1, "HUD_WP_GROUP_VISOR"],
+	[5, 3, "HUD_WP_GROUP_CORE"],
 ]
 
 ## Puntos de prueba de la fila 6, en coordenadas **locales de cámara**: seis alrededor
@@ -147,6 +159,8 @@ func _run() -> void:
 	await _check_glitch()
 	await _check_respawn()
 	_check_timer_and_objective()
+	await _check_weak_hint()
+	await _check_coach()
 	_check_translations()
 	_check_negative()
 	await _shoot_all()
@@ -236,7 +250,7 @@ func _check_components() -> void:
 	print("  [1] %d componentes · %d sin nodo · %d ocultos · %d sin responder · %d sin dibujar"
 			% [names.size(), missing.size(), invisible.size(), unresponsive.size(),
 			silent.size()])
-	_row(1, names.size() == 15 and missing.is_empty() and invisible.is_empty()
+	_row(1, names.size() == COMPONENT_COUNT and missing.is_empty() and invisible.is_empty()
 			and unresponsive.is_empty() and silent.is_empty(),
 			"1 · faltan [%s], ocultos [%s], no responden [%s], no dibujaron [%s]"
 			% [", ".join(missing), ", ".join(invisible), ", ".join(unresponsive),
@@ -299,8 +313,9 @@ func _check_hit_markers() -> void:
 
 # --- Fila 4 -----------------------------------------------------------------------------------
 
-## Ocho barras —4 rodillas + visor + 3 núcleos, `docs/07` §4—, estados de exposición y
-## chevrons de fase. Al romper las ocho partes, las ocho barras quedan vacías.
+## Ocho barras —4 rodillas + visor + 3 núcleos, `docs/07` §4—, **sus tres rótulos de
+## grupo** (WP-24d), estados de exposición y chevrons de fase. Al romper las ocho
+## partes, las ocho barras quedan vacías.
 func _check_boss_bar() -> void:
 	var boss := _hud.component_node(CombatHUD.Component.BOSS) as HUDBossBar
 	# La fila 1 ya alimentó el HUD y dejó una rodilla rota: la barra arranca de cero
@@ -318,15 +333,44 @@ func _check_boss_bar() -> void:
 		expected.append(String(id))
 	var order_ok := ids == expected
 
+	# WP-24d: los tres grupos salen del `hud_key` del perfil, con su tramo exacto de
+	# barras y su rótulo plural traducido.
+	var groups_ok := boss.group_count() == BOSS_GROUPS.size()
+	var labels := PackedStringArray()
+	for index: int in mini(boss.group_count(), BOSS_GROUPS.size()):
+		var wanted: Array = BOSS_GROUPS[index]
+		var span := boss.group_span(index)
+		var label := boss.group_label(index)
+		labels.append(label)
+		groups_ok = groups_ok and span == Vector2i(int(wanted[0]), int(wanted[1])) \
+				and boss.group_label_key(index) == String(wanted[2]) \
+				and not label.is_empty() and label != String(wanted[2])
+
 	# Exposición por evento: el visor se enciende mientras el jefe ataca
-	# (`docs/07` §4) y se apaga al terminar.
+	# (`docs/07` §4) y se apaga al terminar. El grupo entero lo acompaña y destella,
+	# que es lo que convierte la barra en una instrucción (WP-24d).
+	var visor_quiet := not boss.is_group_exposed(1) and boss.group_pulse(1) <= 0.0
 	Events.enemy_weak_point_state.emit(_enemy, &"wp_head_visor", true)
 	await _advance(0.05)
 	var visor_on := boss.is_exposed_at(4)
+	var visor_group_on := boss.is_group_exposed(1) and boss.group_pulse(1) > 0.0
+	var visor_state := boss.state_at(4) == HUDBossBar.State.EXPOSED
+	var cores_covered := boss.state_at(5) == HUDBossBar.State.COVERED \
+			and not boss.is_group_exposed(2)
 	Events.enemy_weak_point_state.emit(_enemy, &"wp_head_visor", false)
 	await _advance(0.05)
 	var visor_off := not boss.is_exposed_at(4)
-	var knees_on := boss.is_exposed_at(0) and boss.is_exposed_at(1)
+	var knees_on := boss.is_exposed_at(0) and boss.is_exposed_at(1) \
+			and boss.is_group_exposed(0)
+
+	# Los núcleos al abrirse la carcasa: el grupo pasa a expuesto y destella.
+	for core: StringName in [&"wp_core_a", &"wp_core_b", &"wp_core_c"]:
+		Events.enemy_weak_point_state.emit(_enemy, core, true)
+	await _advance(0.05)
+	var cores_pulse := boss.is_group_exposed(2) and boss.group_pulse(2) > 0.0
+	# El destello es breve: a los 0.6 s ya no queda nada encendido.
+	await _advance(HUDBossBar.PULSE_SECONDS + 0.1)
+	var pulse_done := boss.group_pulse(2) <= 0.0 and boss.is_group_exposed(2)
 
 	Events.enemy_phase_changed.emit(_enemy, &"p3_fury")
 	await _advance(0.05)
@@ -335,24 +379,34 @@ func _check_boss_bar() -> void:
 	# Una sola rodilla rota: la barra cae y las otras siete siguen llenas.
 	Events.enemy_part_broken.emit(_enemy, WEAK_POINT_IDS[0], Vector3.ZERO)
 	await _advance(0.05)
-	var one_broken := boss.is_broken_at(0) and is_zero_approx(boss.bar_fill(0)) \
-			and boss.bar_fill(1) > 0.99
+	var one_broken := boss.state_at(0) == HUDBossBar.State.BROKEN \
+			and is_zero_approx(boss.bar_fill(0)) and boss.bar_fill(1) > 0.99
 
 	for index: int in range(1, WEAK_POINT_IDS.size()):
 		Events.enemy_part_broken.emit(_enemy, WEAK_POINT_IDS[index], Vector3.ZERO)
 	await _advance(0.05)
 	var empty := 0
 	for index: int in count:
-		if boss.is_broken_at(index) and is_zero_approx(boss.bar_fill(index)):
+		if boss.state_at(index) == HUDBossBar.State.BROKEN \
+				and is_zero_approx(boss.bar_fill(index)):
 			empty += 1
-	print("  [4] %d barras (orden %s) · visor on/off %s/%s · fase %d · vacías %d"
-			% [count, str(order_ok), str(visor_on), str(visor_off), phase, empty])
-	_row(4, count == 8 and order_ok and visor_on and visor_off and knees_on
-			and phase == 3 and one_broken and empty == 8,
-			"4 · barras %d (esperado 8), orden %s, visor %s/%s, rodillas %s, fase %d "
-			% [count, str(order_ok), str(visor_on), str(visor_off), str(knees_on), phase]
-			+ "(esperado 3), una rota %s, vacías %d (esperado 8)"
-			% [str(one_broken), empty])
+	var all_broken := boss.is_group_broken(0) and boss.is_group_broken(1) \
+			and boss.is_group_broken(2)
+	print("  [4] %d barras (orden %s) · grupos [%s] · visor on/off %s/%s · "
+			% [count, str(order_ok), ", ".join(labels), str(visor_on), str(visor_off)]
+			+ "pulso núcleos %s · fase %d · vacías %d"
+			% [str(cores_pulse), phase, empty])
+	_row(4, count == 8 and order_ok and groups_ok and visor_quiet and visor_on
+			and visor_group_on and visor_state and cores_covered and visor_off
+			and knees_on and cores_pulse and pulse_done and phase == 3 and one_broken
+			and empty == 8 and all_broken,
+			"4 · barras %d (esperado 8), orden %s, grupos %s [%s], visor %s/%s (grupo %s), "
+			% [count, str(order_ok), str(groups_ok), ", ".join(labels), str(visor_on),
+			str(visor_off), str(visor_group_on)]
+			+ "núcleos cubiertos %s, pulso %s→apagado %s, rodillas %s, fase %d "
+			% [str(cores_covered), str(cores_pulse), str(pulse_done), str(knees_on), phase]
+			+ "(esperado 3), una rota %s, vacías %d (esperado 8), grupos rotos %s"
+			% [str(one_broken), empty, str(all_broken)])
 
 
 # --- Fila 5 -----------------------------------------------------------------------------------
@@ -561,7 +615,20 @@ func _check_respawn() -> void:
 	await _advance(0.05)
 	var showing := overlay.is_showing()
 	var remaining := overlay.remaining()
+	var hull_plain := not overlay.shows_no_battery()
 	await _shoot("respawn")
+
+	# WP-24e: la reconstrucción por batería agotada escribe «SIN BATERÍA» bajo el
+	# título, y la del casco no. Es la única diferencia visible entre las dos, y sin
+	# ella el piloto no puede saber que lo que falló fue la gestión de la batería.
+	controller.reset()
+	controller.force_respawn(RespawnController.Reason.ENERGY)
+	await _advance(0.05)
+	await wait_physics(2)
+	await _advance(0.05)
+	var no_battery := overlay.shows_no_battery()
+	var battery_text := tr(HUDRespawnOverlay.NO_BATTERY_KEY)
+
 	# Se cancela la cuenta: el resto del check necesita el dron visible y en su sitio.
 	controller.reset()
 	_freeze_drone()
@@ -569,13 +636,20 @@ func _check_respawn() -> void:
 	var _focused := level.focus_camera(_rig.get_fpv_camera())
 	await _advance(0.05)
 	var cleared := not overlay.is_showing()
-	print("  [10] en reposo %s · visible %s · faltan %.1f s · cancelado %s"
-			% [str(idle), str(showing), remaining, str(cleared)])
+	print("  [10] en reposo %s · visible %s · faltan %.1f s · cancelado %s · por casco sin motivo %s · por batería '%s' %s"
+			% [str(idle), str(showing), remaining, str(cleared), str(hull_plain),
+			battery_text, str(no_battery)])
 	_row(10, idle and showing and absf(remaining - RESPAWN_SECONDS) <= RESPAWN_TOLERANCE
 			and cleared,
 			"10 · reposo %s, visible %s, restante %.2f s (esperado %.1f ±%.1f), cancelado %s"
 			% [str(idle), str(showing), remaining, RESPAWN_SECONDS, RESPAWN_TOLERANCE,
 			str(cleared)])
+	_row(10, hull_plain and no_battery,
+			"10 · el cartel distingue los dos motivos: por casco sin línea de motivo (%s),"
+			% str(hull_plain) + " por batería con «%s» (%s)" % [battery_text, str(no_battery)])
+	_row(10, battery_text != HUDRespawnOverlay.NO_BATTERY_KEY,
+			"10 · la clave '%s' está traducida (devolvió la clave cruda)"
+			% HUDRespawnOverlay.NO_BATTERY_KEY)
 
 
 # --- Fila 12 ----------------------------------------------------------------------------------
@@ -603,6 +677,137 @@ func _check_timer_and_objective() -> void:
 			% [text, str(well_formed), shown, elapsed, title])
 
 
+# --- Fila 16 ----------------------------------------------------------------------------------
+
+## El marcador del punto débil no aparece antes de los ocho segundos, aparece después,
+## trae el rótulo del grupo y la distancia, y se apaga con un acierto débil (WP-24d).
+##
+## El reloj se adelanta con [method WeakPointTracker.set_idle_seconds] en vez de
+## avanzar ocho segundos de reloj manual: ocho segundos son 480 pasos de 1/60 y en la
+## corrida con ventana son ocho segundos de pared. Lo que sí se mide de verdad es que
+## el acumulador **suba** con el tiempo y que el umbral esté donde dice estar: se
+## cruza con dos pasos de 0.1 s alrededor de los 8.0 s.
+func _check_weak_hint() -> void:
+	var hint := _hud.component_node(CombatHUD.Component.WEAK_HINT) as HUDWeakPointHint
+	hint.clear_enemies()
+	hint.bind_enemy(_enemy)
+	# Las cuatro rodillas están expuestas siempre (`docs/07` §4); se publica por el
+	# bus para que el check no dependa de que la IA congelada las haya evaluado.
+	for index: int in 4:
+		Events.enemy_weak_point_state.emit(_enemy, WEAK_POINT_IDS[index], true)
+	hint.on_weak_hit()
+	await _advance(0.5)
+	var counting := hint.tracker.idle_seconds() > 0.4 and hint.tracker.has_exposed()
+	var quiet := not hint.is_active()
+
+	hint.tracker.set_idle_seconds(WeakPointTracker.IDLE_SECONDS - 0.15)
+	await _advance(0.1)
+	var still_quiet := not hint.is_active()
+	await _advance(0.1)
+	var armed := hint.is_active()
+	# Un par de pasos más para que la opacidad suba y el componente elija blanco.
+	await _advance(HUDWeakPointHint.FADE_SECONDS + 0.1)
+	var showing := hint.is_showing()
+	var target_id := hint.target_id()
+	var label_key := hint.label_key()
+	var metres := hint.distance()
+	var knee_ids := PackedStringArray()
+	for index: int in 4:
+		knee_ids.append(String(WEAK_POINT_IDS[index]))
+	var on_a_knee := knee_ids.has(String(target_id)) and label_key == "WP_KNEE"
+
+	# Acertarle a un débil lo apaga: es el acuse de que el jugador entendió.
+	Events.hit_confirmed.emit(Vector3.ZERO, true, false)
+	await _advance(HUDWeakPointHint.FADE_SECONDS + 0.2)
+	var off := not hint.is_active() and not hint.is_showing()
+	print("  [16] cuenta %.2f s · antes %s · después %s · blanco '%s' (%s) a %.0f m · apagado %s"
+			% [hint.tracker.idle_seconds(), str(quiet), str(armed), target_id, label_key,
+			metres, str(off)])
+	_row(16, counting and quiet and still_quiet and armed and showing and on_a_knee
+			and metres > 0.0 and off,
+			"16 · acumula %s, callado antes %s/%s, activo después %s, visible %s, "
+			% [str(counting), str(quiet), str(still_quiet), str(armed), str(showing)]
+			+ "blanco '%s' con rótulo '%s' (esperado una rodilla), %.1f m, apagado %s"
+			% [target_id, label_key, metres, str(off)])
+	hint.on_weak_hit()
+
+
+# --- Fila 17 ----------------------------------------------------------------------------------
+
+## Los cuatro consejos contextuales salen con su disparador, **una sola vez cada uno**
+## y se van solos (WP-24d).
+func _check_coach() -> void:
+	var coach := _hud.component_node(CombatHUD.Component.COACH) as HUDCoachTip
+	coach.reset()
+	# La fila 4 rompió los ocho puntos débiles por el bus: sin tirar ese estado, el
+	# reloj de los débiles no arrancaría nunca porque no quedaría ninguno expuesto.
+	coach.clear_enemies()
+	coach.bind_enemy(_enemy)
+
+	# Primer `head_laser`: el visor se expone mientras carga.
+	Events.enemy_attack_telegraphed.emit(_enemy, &"head_laser", 1.4)
+	await _advance(0.1)
+	var visor_tip := coach.current_key() == "HUD_COACH_VISOR" and coach.is_showing()
+	var translated := coach.display_text() != coach.current_key() \
+			and not coach.display_text().is_empty()
+
+	# El segundo `head_laser` **no** repite: un consejo que se repite es ruido.
+	coach.clear_tip()
+	await _advance(0.05)
+	Events.enemy_attack_telegraphed.emit(_enemy, &"head_laser", 1.4)
+	await _advance(0.1)
+	var once := coach.current_key().is_empty() and not coach.is_showing()
+
+	Events.enemy_attack_telegraphed.emit(_enemy, &"emp_pulse", 1.0)
+	await _advance(0.1)
+	var emp_tip := coach.current_key() == "HUD_COACH_EMP"
+	Events.enemy_attack_telegraphed.emit(_enemy, &"stomp", 1.0)
+	await _advance(0.1)
+	var stomp_tip := coach.current_key() == "HUD_COACH_STOMP"
+
+	# El cuarto no lo dispara un ataque sino el reloj de los puntos débiles.
+	for index: int in 4:
+		Events.enemy_weak_point_state.emit(_enemy, WEAK_POINT_IDS[index], true)
+	coach.clear_tip()
+	coach.tracker.set_idle_seconds(WeakPointTracker.IDLE_SECONDS - 0.05)
+	await _advance(0.2)
+	var weak_tip := coach.current_key() == HUDCoachTip.WEAK_KEY \
+			and coach.has_fired(HUDCoachTip.WEAK_KEY)
+
+	# Y se va solo, sin que nadie lo cierre.
+	await _advance(HUDCoachTip.TIP_SECONDS + HUDCoachTip.FADE_SECONDS + 0.2)
+	var faded := not coach.is_showing()
+	var fired := coach.fired_count()
+
+	# Ningún consejo puede salirse del bloque en ningún idioma: `HUDDraw.text` recorta
+	# y un consejo cortado a la mitad enseña menos que ninguno. La primera captura de
+	# WP-24d mostraba «EL RESTO ES BLIND» a 20 px, y de ahí sale el ajuste de cuerpo.
+	var tip_keys := PackedStringArray([HUDCoachTip.WEAK_KEY])
+	for key: String in HUDCoachTip.TIP_KEYS.values():
+		tip_keys.append(key)
+	var previous := TranslationServer.get_locale()
+	var overflow := PackedStringArray()
+	for locale: String in ["es", "en"]:
+		TranslationServer.set_locale(locale)
+		for key: String in tip_keys:
+			var width := coach.text_width(tr(key))
+			if width > HUDCoachTip.BLOCK_WIDTH - HUDCoachTip.PADDING * 2.0:
+				overflow.append("%s@%s(%.0fpx)" % [key, locale, width])
+	TranslationServer.set_locale(previous)
+
+	print("  [17] visor %s · una sola vez %s · emp %s · stomp %s · débiles %s · "
+			% [str(visor_tip), str(once), str(emp_tip), str(stomp_tip), str(weak_tip)]
+			+ "%d consejos disparados · se fue solo %s · %d se pasan de ancho"
+			% [fired, str(faded), overflow.size()])
+	_row(17, visor_tip and translated and once and emp_tip and stomp_tip and weak_tip
+			and faded and fired == 4 and overflow.is_empty(),
+			"17 · visor %s (traducido %s), una sola vez %s, emp %s, stomp %s, "
+			% [str(visor_tip), str(translated), str(once), str(emp_tip), str(stomp_tip)]
+			+ "débiles %s, se fue solo %s, disparados %d (esperado 4), se pasan [%s]"
+			% [str(weak_tip), str(faded), fired, ", ".join(overflow)])
+	coach.reset()
+
+
 # --- Fila 13 ----------------------------------------------------------------------------------
 
 ## Ninguna clave nueva se queda sin texto en es ni en en. Es la red del riesgo 12 de
@@ -613,12 +818,25 @@ func _check_translations() -> void:
 			HUDCityBar.LABEL_KEY, HUDReticle.LOCK_KEY, HUDBossBar.PHASE_KEY,
 			HUDBossBar.FALLBACK_NAME_KEY, HUDRespawnOverlay.TITLE_KEY,
 			HUDRespawnOverlay.MULTIPLIER_KEY, HUDIntroBanner.SKIP_KEY,
-			HUDObjectiveLine.STEP_KEY, HUDTelegraphWarning.GENERIC_KEY])
+			HUDObjectiveLine.STEP_KEY, HUDTelegraphWarning.GENERIC_KEY,
+			HUDIntroBanner.WEAK_HINT_KEY, HUDCoachTip.WEAK_KEY])
 	for key: String in HUDOffscreenMarkers.KIND_KEYS.values():
 		keys.append(key)
 	for attack: String in ["stomp", "leg_sweep", "head_laser", "siege_beam", "emp_pulse",
 			"pounce", "shake_off", "climb"]:
 		keys.append(HUDTelegraphWarning.KEY_PREFIX + attack.to_upper())
+	# Las claves que agrega WP-24d: los consejos, los rótulos de grupo de la barra
+	# —que salen del `hud_key` del perfil, no de una tabla de acá—, los rótulos del
+	# marcador de punto débil y los contadores de la línea de objetivo.
+	for key: String in HUDCoachTip.TIP_KEYS.values():
+		keys.append(key)
+	for group: Array in BOSS_GROUPS:
+		keys.append(String(group[2]))
+	for key: String in ["WP_KNEE", "WP_VISOR", "WP_CORE", "OBJ_COUNT_KNEES",
+			"OBJ_COUNT_CORES", "OBJ_BREAK_CORES_TITLE", "OBJ_BREAK_CORES_DESC",
+			"OBJ_BREAK_CORES_DONE", "OBJ_SELFDESTRUCT_TITLE", "OBJ_SELFDESTRUCT_DESC",
+			"OBJ_SELFDESTRUCT_DONE"]:
+		keys.append(key)
 
 	var previous := TranslationServer.get_locale()
 	var missing := PackedStringArray()
@@ -712,6 +930,25 @@ func _shoot_all() -> void:
 	await wait_frames(SETTLE_FRAMES)
 	await shot("combat_hud")
 
+	# WP-24d: la barra con sus rótulos, el consejo contextual y el marcador cian del
+	# punto débil, los tres a la vez. Es la captura que hay que mirar para decidir si
+	# la pantalla enseña o satura.
+	var coach := _hud.component_node(CombatHUD.Component.COACH) as HUDCoachTip
+	var hint := _hud.component_node(CombatHUD.Component.WEAK_HINT) as HUDWeakPointHint
+	coach.reset()
+	var _shown := coach.show_tip(HUDCoachTip.WEAK_KEY)
+	hint.clear_enemies()
+	hint.bind_enemy(_enemy)
+	for index: int in 4:
+		Events.enemy_weak_point_state.emit(_enemy, WEAK_POINT_IDS[index], true)
+	hint.tracker.set_idle_seconds(WeakPointTracker.IDLE_SECONDS + 1.0)
+	await _advance(HUDWeakPointHint.FADE_SECONDS + 0.2)
+	await wait_frames(SETTLE_FRAMES)
+	await shot("coach_hint")
+	coach.clear_tip()
+	hint.on_weak_hit()
+	await _advance(HUDWeakPointHint.FADE_SECONDS + 0.2)
+
 	# Con el EMP encendido: la captura tiene que seguir siendo legible.
 	var energy_system := _rig.get_energy_system()
 	if energy_system != null:
@@ -723,8 +960,8 @@ func _shoot_all() -> void:
 		var glitch := _hud.component_node(CombatHUD.Component.GLITCH) as HUDGlitchLayer
 		glitch.stop()
 	await _advance(0.1)
-	print("  [capturas] combat_hud.png, glitch.png, cinematic.png y respawn.png en %s"
-			% shots_dir)
+	print("  [capturas] combat_hud.png, coach_hint.png, glitch.png, cinematic.png y "
+			+ "respawn.png en %s" % shots_dir)
 
 
 func _shoot(label: String) -> void:

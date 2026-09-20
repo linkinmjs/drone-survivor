@@ -157,6 +157,11 @@ var _under_siege: bool = false
 var _destroyed_emitted: bool = false
 var _pile_rest_scale: Vector3 = Vector3.ONE
 
+## [CityGrid] al que pertenece este edificio. Se resuelve tarde y se cachea; el
+## tipo es [Node3D] y el despacho por `has_method` para no cerrar el ciclo
+## `city_grid.gd` → `building.gd` → `city_grid.gd`.
+var _grid: Node3D = null
+
 
 func _ready() -> void:
 	if not is_in_group(GROUP):
@@ -409,6 +414,7 @@ func reset() -> void:
 		intact_shape.set_deferred(&"disabled", false)
 	if rubble_shape != null:
 		rubble_shape.set_deferred(&"disabled", true)
+	_set_occluder_enabled(true)
 
 
 # --------------------------------------------------------------------------
@@ -473,6 +479,7 @@ func _finish_collapse() -> void:
 		intact_shape.set_deferred(&"disabled", true)
 	if rubble_shape != null:
 		rubble_shape.set_deferred(&"disabled", false)
+	_set_occluder_enabled(false)
 	if _destroyed_emitted:
 		return
 	_destroyed_emitted = true
@@ -483,6 +490,44 @@ func _finish_collapse() -> void:
 # --------------------------------------------------------------------------
 # Escombros
 # --------------------------------------------------------------------------
+
+## Enciende o apaga el [OccluderInstance3D] de la manzana, si este edificio es el
+## que lo define (el más alto).
+##
+## La oclusión por oclusores está apagada en todos los presets desde WP-24e
+## (`Graphics.use_occlusion_culling()`), así que hoy esto no cambia un solo píxel.
+## Existe igual porque **el bug era éste**: los 15 oclusores se hornean en
+## `district_a.tscn` ceñidos al edificio más alto de cada manzana y nadie los
+## retiraba al derrumbarlo, así que quedaba una losa opaca invisible de hasta 75 m
+## tapando al coloso y tragándose el cuadro cuando la cámara entraba en ella. Con
+## esto, volver a encender la oclusión es cambiar una línea del `project.godot`.
+##
+## Se usa `visible`, que es lo que el `RenderingServer` mira para armar la lista de
+## oclusores del escenario, y no borrar el recurso: así [method reset] lo devuelve
+## sin tener que reconstruir la caja.
+func _set_occluder_enabled(enabled: bool) -> void:
+	var grid := _resolve_grid()
+	if grid == null:
+		return
+	var occluder := grid.call(&"occluder_for", self) as OccluderInstance3D
+	if occluder == null:
+		return
+	occluder.visible = enabled
+
+
+## Primer ancestro que sepa resolver oclusores, o `null` en un banco de pruebas que
+## use edificios sueltos fuera de un distrito.
+func _resolve_grid() -> Node3D:
+	if _grid != null and is_instance_valid(_grid):
+		return _grid
+	var node := get_parent()
+	while node != null:
+		if node.has_method(&"occluder_for"):
+			_grid = node as Node3D
+			return _grid
+		node = node.get_parent()
+	return null
+
 
 ## Pide al [DebrisPool] entre `debris_count_min` y `debris_count_max` trozos con
 ## impulso radial hacia afuera y hacia arriba (`docs/10` §3.2 paso 1).

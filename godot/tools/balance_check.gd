@@ -130,8 +130,23 @@ const MIN_WINDOWS_PER_MINUTE: float = 1.5
 ## alcanza a tirar ya reparten 101 000 de daño contra los 78 000 que hacen falta:
 ## un tercio se desperdicia sobre edificios ya en ruinas y el reloj lo marca el
 ## tiempo que el coloso pasa caminando de una torre a la siguiente. Se asevera
-## **240–450** y la diferencia queda anotada como discrepancia.
-const RANGE_CONTROL: Vector2 = Vector2(240.0, 450.0)
+## **240–480** y la diferencia queda anotada como discrepancia.
+##
+## **El techo sube de 450 a 480 en WP-24d**, con permiso del orquestador y por
+## dos motivos que empujan en la misma dirección y ninguno es el daño:
+##
+## 1. El distrito de WP-24b tiene manzanas con fachadas alineadas y el jefe hace
+##    un 22 % más de `approach` entre blancos; el control ya medía 444–470 s
+##    contra un techo de 450 sin margen para el ruido de la métrica.
+## 2. La marcha de WP-24d baja la cadencia de 1.8 a 1.0 apoyos por segundo
+##    —`step_duration` 0.55 → 0.80, que es lo que hace que 900 t se lean
+##    pesadas—, y con `crush_damage` 900 por apoyo la presión ambiental de
+##    `walk` (`docs/07` §5.2) cae en la misma proporción.
+##
+## Medido con las dos cosas: **461 s**. Subir `crush_damage` para compensar era
+## la alternativa, pero mueve un número de balance de `docs/07` §12 y acelera
+## también las tres partidas con dron, que ya están en rango.
+const RANGE_CONTROL: Vector2 = Vector2(240.0, 480.0)
 
 ## Presupuesto de física con jefe y ciudad, en ms/tick.
 ##

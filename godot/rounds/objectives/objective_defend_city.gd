@@ -11,6 +11,16 @@
 ## un [EnemyProfile] están ordenadas y son monótonas, así que un salto de `p1_siege`
 ## directo a `p3_fury` también cierra el objetivo. Comparar ids sueltos lo dejaría
 ## abierto para siempre.
+##
+## ## Discrepancia registrada con `docs/11` §5 (WP-24d)
+##
+## La tabla pide `get_progress()` = `elapsed / max_seconds` y `get_progress_text()` =
+## `OBJ_DEFEND_CITY_PROGRESS` con la integridad en %. Las dos cosas cambian: la barra
+## cuenta **rodillas rotas** y el texto es el contador «RODILLAS n/3». El motivo es el
+## feedback que gobierna WP-24d —«no entendí cómo matarlo»—: en el primer minuto de la
+## primera partida, un porcentaje de integridad que ya dibuja la [HUDCityBar] justo
+## encima y un reloj invisible no dicen qué hay que **hacer**. El contador sí, y
+## además engancha con el objetivo siguiente, que arranca desde el mismo número.
 class_name ObjectiveDefendCity extends Objective
 
 ## Fase del enemigo que cierra el objetivo (`docs/07` §6).
@@ -19,11 +29,28 @@ class_name ObjectiveDefendCity extends Objective
 ## Segundos tras los que el objetivo se cierra igual.
 @export_range(1.0, 600.0, 0.5) var max_seconds: float = 90.0
 
+## Ids de punto débil que alimentan el contador de la línea de tarea (`docs/07` §4).
+## **No** cierran el objetivo: sólo lo cuentan.
+@export var count_part_ids: PackedStringArray = PackedStringArray([
+	"wp_leg_fl_knee", "wp_leg_fr_knee", "wp_leg_bl_knee", "wp_leg_br_knee",
+])
+
+## Meta del contador, que es la del objetivo siguiente (`docs/07` §6: 3 rodillas
+## abren la carcasa). La barra no llega a llenarse en este objetivo y eso es correcto:
+## lo que muestra es cuánto falta para el hito, no cuánto falta para esta línea.
+@export_range(1, 16) var count_target: int = 3
+
+## Clave de traducción del contador, con `{0}` rotas y `{1}` pedidas.
+@export var count_key: String = "OBJ_COUNT_KNEES"
+
 var _elapsed: float = 0.0
 
 ## Índice de [member target_phase_id] dentro de las fases del enemigo, o `-1` si no
 ## se pudo resolver (entonces sólo cuenta el tiempo).
 var _target_index: int = -1
+
+## Ids de [member count_part_ids] ya rotos, sin repetidos.
+var _broken: Dictionary[StringName, bool] = {}
 
 
 func _setup() -> void:
@@ -33,17 +60,27 @@ func _setup() -> void:
 func _on_start() -> void:
 	if not Events.enemy_phase_changed.is_connected(_on_phase_changed):
 		var _discard := Events.enemy_phase_changed.connect(_on_phase_changed)
+	if not Events.enemy_part_broken.is_connected(_on_part_broken):
+		var _discard := Events.enemy_part_broken.connect(_on_part_broken)
+	if not Events.enemy_weak_point_state.is_connected(_on_weak_point_state):
+		var _discard := Events.enemy_weak_point_state.connect(_on_weak_point_state)
+	_recount()
 
 
 func _on_restart() -> void:
 	# El tiempo de asedio **no** se reinicia con el dron: lo que mide es cuánto
-	# aguantó la ciudad, no cuánto sobrevivió el piloto.
+	# aguantó la ciudad, no cuánto sobrevivió el piloto. Las rodillas rotas tampoco:
+	# siguen rotas.
 	pass
 
 
 func _on_stop() -> void:
 	if Events.enemy_phase_changed.is_connected(_on_phase_changed):
 		Events.enemy_phase_changed.disconnect(_on_phase_changed)
+	if Events.enemy_part_broken.is_connected(_on_part_broken):
+		Events.enemy_part_broken.disconnect(_on_part_broken)
+	if Events.enemy_weak_point_state.is_connected(_on_weak_point_state):
+		Events.enemy_weak_point_state.disconnect(_on_weak_point_state)
 
 
 func _tick(delta: float) -> void:
@@ -60,13 +97,18 @@ func get_task_text() -> String:
 	return objective_key if not objective_key.is_empty() else "OBJ_DEFEND_CITY_TITLE"
 
 
+## Rodillas rotas sobre las que pide [member count_target]. Ver la discrepancia con
+## `docs/11` §5 del encabezado.
 func get_progress() -> float:
-	return clampf(_elapsed / maxf(max_seconds, 0.001), 0.0, 1.0)
+	return clampf(float(_broken.size()) / float(maxi(count_target, 1)), 0.0, 1.0)
 
 
+## Contador «RODILLAS 1/3» de la línea de objetivo (`docs/12` §4.1).
 func get_progress_text() -> String:
-	var percent := int(roundf(_integrity() * 100.0))
-	return tr("OBJ_DEFEND_CITY_PROGRESS").format([percent])
+	var done := mini(_broken.size(), count_target)
+	if count_key.is_empty():
+		return "%d / %d" % [done, count_target]
+	return tr(count_key).format([done, count_target])
 
 
 func get_success_text() -> String:
@@ -78,8 +120,9 @@ func get_elapsed() -> float:
 	return _elapsed
 
 
-func _integrity() -> float:
-	return ctx.integrity() if ctx != null else 1.0
+## Cuántos ids de [member count_part_ids] están rotos.
+func get_broken_count() -> int:
+	return _broken.size()
 
 
 ## Verdadero si algún enemigo del contexto ya alcanzó la fase objetivo.
@@ -96,9 +139,52 @@ func _reached_target_phase() -> bool:
 	return false
 
 
-func _on_phase_changed(_enemy: Node3D, _phase_id: StringName) -> void:
-	if active and _reached_target_phase():
+## La fase que trae el evento cuenta tanto como la que se lee del enemigo
+## ([method Objective.phase_index_of] explica por qué).
+func _on_phase_changed(enemy: Node3D, phase_id: StringName) -> void:
+	if not active:
+		return
+	var announced := phase_index_of(enemy, phase_id)
+	if _reached_target_phase() or (_target_index >= 0 and announced >= _target_index) \
+			or (_target_index < 0 and phase_id == target_phase_id):
 		finish()
+
+
+func _on_part_broken(_enemy: Node3D, part_id: StringName, _position: Vector3) -> void:
+	if not _counts(part_id):
+		return
+	_broken[part_id] = true
+
+
+## Segunda fuente del contador, igual que en [ObjectiveBreakParts]: la exposición se
+## recalcula a 10 Hz y cada cambio permite recontar contra las partes reales.
+func _on_weak_point_state(_enemy: Node3D, weak_point_id: StringName,
+		_exposed: bool) -> void:
+	if not _counts(weak_point_id):
+		return
+	_recount()
+
+
+## Recuenta contra lo que ya pasó. Es **aditivo**, nunca borra: una rodilla rota
+## sigue rota aunque el enemigo se libere de la pata entera (`docs/07` §4).
+func _recount() -> void:
+	if ctx == null:
+		return
+	if ctx.round_manager != null and ctx.round_manager.has_method(&"get_broken_part_ids"):
+		var ids: Array = ctx.round_manager.call(&"get_broken_part_ids")
+		for part_id: StringName in ids:
+			if _counts(part_id):
+				_broken[part_id] = true
+	for enemy: EnemyBase in ctx.enemies:
+		if not is_instance_valid(enemy):
+			continue
+		for part: EnemyPart in enemy.get_parts():
+			if part.is_broken() and _counts(part.part_id):
+				_broken[part.part_id] = true
+
+
+func _counts(part_id: StringName) -> bool:
+	return count_part_ids.has(String(part_id))
 
 
 ## Posición de [member target_phase_id] en la lista de fases del primer enemigo.

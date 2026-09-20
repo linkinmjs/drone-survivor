@@ -161,6 +161,16 @@ var _propellers: Array[DronePropeller] = []
 var _prop_offsets: PackedVector3Array = PackedVector3Array()
 var _prop_heights: PackedFloat32Array = PackedFloat32Array()
 var _commands: PackedFloat32Array = PackedFloat32Array()
+
+## El mismo nodo que [member controller], ya tipado, cuando es un [FlightController].
+##
+## [member controller] es un `Node` suelto a propósito —un banco de pruebas puede
+## colgarle cualquier cosa que tenga `integrate()`— pero llamarlo con
+## `has_method` + `call` por sub-paso cuesta una búsqueda por nombre y el
+## empaquetado de los dos argumentos en `Variant`, diez veces por tick. Con la
+## referencia tipada la llamada es directa; el camino dinámico sigue existiendo
+## para cualquier otro nodo (`docs/03` §2.5).
+var _flight_controller: FlightController = null
 var _blade_meshes: Array[MeshInstance3D] = []
 var _disk_meshes: Array[MeshInstance3D] = []
 var _blade_spins: PackedInt32Array = PackedInt32Array()
@@ -207,6 +217,7 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	if _motors.is_empty():
 		return
 	var profile_begin := Time.get_ticks_usec() if profiling else 0
+	PerfProbe.begin(&"drone_integrator")
 	if _has_pending_transform:
 		state.transform = _pending_transform
 		state.linear_velocity = Vector3.ZERO
@@ -215,6 +226,7 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 		_has_expected_velocity = false
 	var step := state.step
 	if step <= 0.0:
+		PerfProbe.end(&"drone_integrator")
 		return
 
 	_detect_impact(state)
@@ -246,16 +258,15 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 				continue
 			var offset := body_basis * _prop_offsets[index]
 			var prop_velocity := velocity + angular.cross(offset)
-			var forces := propeller.compute_forces(motor.rpm, prop_velocity, thrust_axis,
+			propeller.compute_forces_into(motor.rpm, prop_velocity, thrust_axis,
 					_prop_heights[index])
-			var applied: Vector3 = thrust_axis * float(forces["thrust"])
-			applied += forces["in_plane_force"] as Vector3
+			var applied := thrust_axis * propeller.last_thrust + propeller.last_in_plane
 			force += applied
 			torque += offset.cross(applied)
 			# Par de reacción: `+spin`, no `−spin`. Ver la nota de discrepancia
 			# de la cabecera.
 			torque += thrust_axis * (float(motor.spin) * signf(motor.rpm)
-					* float(forces["torque"]))
+					* propeller.last_torque)
 
 		# Arrastre del cuerpo, cuadrático y por eje (`docs/03` §2.4).
 		var local_velocity := inverse_basis * velocity
@@ -296,6 +307,7 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	_has_expected_velocity = true
 	if _crash_cooldown > 0.0:
 		_crash_cooldown = maxf(_crash_cooldown - step, 0.0)
+	PerfProbe.end(&"drone_integrator")
 	if profiling:
 		var spent := Time.get_ticks_usec() - profile_begin
 		_profile_total_usec += spent
@@ -535,6 +547,7 @@ func set_controller(node: Node) -> void:
 ## Reemite las cuatro señales de vuelo del controlador como propias, que es lo que
 ## consume el HUD (`docs/03` §9): el dron es la única fachada del núcleo de vuelo.
 func _connect_controller() -> void:
+	_flight_controller = controller as FlightController
 	if controller == null:
 		return
 	if controller.has_signal(&"armed") and not controller.is_connected(&"armed", _on_controller_armed):
@@ -549,6 +562,7 @@ func _connect_controller() -> void:
 
 
 func _disconnect_controller() -> void:
+	_flight_controller = null
 	if controller == null:
 		return
 	for pair: Array in [[&"armed", _on_controller_armed], [&"disarmed", _on_controller_disarmed],
@@ -714,16 +728,27 @@ func _collect_motors() -> void:
 	_fill_commands(0.0)
 
 
-## Capa visual (1..20) reservada para las piezas del propio dron que la cámara FPV no
-## debe dibujar: la carcasa `camera` del modelo voxel queda justo delante del lente y,
-## con 150° de ojo de pez, tapaba el centro de la imagen. Las cámaras externas la ven.
+## Capa visual (1..20) reservada para el modelo del propio dron, que la cámara FPV no
+## debe dibujar.
+##
+## Va **todo** el modelo, no sólo la carcasa `camera`. Con la FPV rectilínea alcanzaba
+## con esconder la carcasa, porque el encuadre de 120° dejaba el chasis fuera; pero las
+## caras laterales de `FisheyeMode.FAST_WIDE` miran a ±60° y ven los brazos, los
+## motores y las hélices **a centímetros** del plano cercano de 0,02 m. Tan cerca de
+## un sol de 2 400 lux se van a blanco puro, y el compuesto salía con un anillo
+## exterior quemado (WP-24c).
+##
+## La `FPVCamera` de `drone_rig.tscn` excluye esta capa con `cull_mask = 524287`
+## (capas 1..19) y sus sub-cámaras la heredan. Las cámaras externas —`FollowCamera`,
+## `CameraFixed`, `IntroCamera` y las vistas del hangar— no tocan `cull_mask`, así que
+## siguen viendo el dron entero.
 const FPV_HIDDEN_VISUAL_LAYER: int = 20
 
 
 ## Empareja las mallas `prop_N` y `prop_disk_N` del GLB con su motor usando el
 ## metadato `motor_index` que escribe `asset_import/import_drone.gd`. Buscar por
-## metadato y no por ruta deja libre el nombre del nodo del modelo. Además manda la
-## pieza `camera` a [constant FPV_HIDDEN_VISUAL_LAYER].
+## metadato y no por ruta deja libre el nombre del nodo del modelo. Además manda
+## **todas** las mallas del modelo a [constant FPV_HIDDEN_VISUAL_LAYER].
 func _collect_model_meshes() -> void:
 	_blade_meshes.clear()
 	_disk_meshes.clear()
@@ -741,9 +766,9 @@ func _collect_model_meshes() -> void:
 		var mesh := node as MeshInstance3D
 		if mesh == null:
 			continue
-		if String(mesh.name) == "camera":
-			mesh.layers = 1 << (FPV_HIDDEN_VISUAL_LAYER - 1)
-			continue
+		# Chasis, brazos, motores, hélices, discos, batería y led: todo fuera de la
+		# vista FPV. Las hélices siguen girando para las cámaras externas.
+		mesh.layers = 1 << (FPV_HIDDEN_VISUAL_LAYER - 1)
 		if not mesh.has_meta(&"motor_index"):
 			continue
 		var slot := int(mesh.get_meta(&"motor_index")) - 1
@@ -783,6 +808,11 @@ func _on_quad_settings_updated() -> void:
 ## Comandos de motor de este sub-paso: los del controlador si lo hay, los de
 ## prueba si no.
 func _resolve_commands(dt: float) -> PackedFloat32Array:
+	if _flight_controller != null:
+		var typed := _flight_controller.integrate(dt, _flight_state)
+		for index: int in _commands.size():
+			_commands[index] = typed[index] if index < typed.size() else 0.0
+		return _commands
 	if controller != null and controller.has_method(&"integrate"):
 		var returned: Variant = controller.call(&"integrate", dt, _flight_state)
 		var values := returned as Array

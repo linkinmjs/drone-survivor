@@ -68,9 +68,24 @@ var _recycled: int = 0
 var _pool_size: int = 0
 var _last_effective_damage: float = 0.0
 
+## Parámetros del rayo de avance, **reutilizados** en vez de recreados.
+##
+## `PhysicsRayQueryParameters3D.create()` construye un objeto nuevo y un `Array`
+## de exclusión nuevo por cada rayo. Con once proyectiles vivos eso son once
+## objetos y once arreglos por tick de física, mil cien por segundo a 100 Hz, que
+## el recolector de GDScript tiene que barrer (WP-24a). Acá se crean una sola vez
+## y se reescriben campo a campo.
+var _query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.new()
+
+## Arreglo de exclusión del rayo: el cuerpo que disparó, y nada más.
+var _exclude: Array[RID] = []
+
 
 func _ready() -> void:
 	add_to_group(GROUP)
+	_query.collide_with_areas = false
+	_query.collide_with_bodies = true
+	_query.hit_from_inside = false
 	_build(profile.pool_size if profile != null else 256)
 	_ensure_tracer_renderer()
 	_ensure_impact_pool()
@@ -83,6 +98,7 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if delta <= 0.0:
 		return
+	PerfProbe.begin(&"projectile_pool")
 	var space := _space_state()
 	var index := _active.size() - 1
 	while index >= 0:
@@ -117,6 +133,7 @@ func _physics_process(delta: float) -> void:
 		index -= 1
 	if tracer_renderer != null:
 		tracer_renderer.commit()
+	PerfProbe.end(&"projectile_pool")
 
 
 ## Da de alta un proyectil. Devuelve `false` sólo si el pool está sin construir.
@@ -320,15 +337,14 @@ func _space_state() -> PhysicsDirectSpaceState3D:
 
 func _cast(space: PhysicsDirectSpaceState3D, from: Vector3, to: Vector3,
 		projectile: Projectile) -> Dictionary:
-	var mask := profile.hit_mask if profile != null else PhysicsLayers.QUERY_SHOT
-	var exclude: Array[RID] = []
+	_query.from = from
+	_query.to = to
+	_query.collision_mask = profile.hit_mask if profile != null else PhysicsLayers.QUERY_SHOT
+	_exclude.clear()
 	if projectile.shooter_rid.is_valid():
-		exclude.append(projectile.shooter_rid)
-	var query := PhysicsRayQueryParameters3D.create(from, to, mask, exclude)
-	query.collide_with_areas = false
-	query.collide_with_bodies = true
-	query.hit_from_inside = false
-	return space.intersect_ray(query)
+		_exclude.append(projectile.shooter_rid)
+	_query.exclude = _exclude
+	return space.intersect_ray(_query)
 
 
 ## Aplica la tabla de resolución por capa de `docs/08` §2.7 y publica

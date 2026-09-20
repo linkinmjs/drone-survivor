@@ -23,6 +23,36 @@ extends CheckRunner
 ## Ver `assets/city/README.md`.
 const ROOT_SCALE: float = 5.0
 
+## `nodes/root_scale` **por pieza** (WP-24b).
+##
+## `docs/10` §2.2 fija un único factor para las 13 piezas, pero ese 5.0 se
+## calibró sólo con `BuildingBlock_1`: deja los edificios y las calles bien
+## —pisos de 2,7 a 4,2 m, calzada de 10 m— y los cuatro props **cinco veces más
+## grandes de lo que deberían**. Una antena parabólica de 4,5 m y un cartel de
+## azotea de 9 m eran la mitad de la razón por la que la ciudad no tenía escala.
+## Cada prop pasa a su propio factor, con la referencia real entre paréntesis:
+##
+## [codeblock]
+## SateliteDish   5.0 -> 2.0   4.50 m  ->  1.80 m  (antena doméstica)
+## Advertising_6  5.0 -> 2.8   6.00 x 9.00 m -> 3.36 x 5.04 m  (cartel vertical)
+## Advertising_7  5.0 -> 3.3   9.00 x 4.50 m -> 5.94 x 2.97 m  (cartel horizontal)
+## Advertising_5  5.0 -> 3.0   3.50 x 8.00 m -> 2.10 x 4.80 m  (cartel de fachada)
+## [/codeblock]
+const ROOT_SCALE_BY_PIECE: Dictionary[StringName, float] = {
+	&"SateliteDish": 2.0,
+	&"Advertising_5": 3.0,
+	&"Advertising_6": 2.8,
+	&"Advertising_7": 3.3,
+}
+
+## Tolerancia del cotejo de `nodes/root_scale` (`docs/10` §11.1 sub-check 6).
+const ROOT_SCALE_TOLERANCE: float = 0.01
+
+## Cotas de tamaño de los props, en metros: la antena no puede pasar de una
+## azotea y un cartel no puede medir más que media fachada.
+const DISH_MAX_SIZE: float = 2.5
+const SIGN_MAX_SIZE: float = 6.5
+
 ## Ruta del script de post-import que deben declarar los 13 presets.
 const IMPORT_SCRIPT: String = "res://asset_import/import_city_piece.gd"
 
@@ -202,6 +232,24 @@ func _check_scale() -> void:
 				"scale_sanity: '%s' mide %.3f m de alto, fuera de (%.1f, %.1f)"
 				% [piece, height, SANITY_MIN, SANITY_MAX])
 
+	_check_prop_scale()
+
+
+## 4b. Escala de los props (WP-24b): la antena entra en una azotea y ningún
+## cartel llega al tamaño de una fachada. Se mide el AABB real de la pieza ya
+## importada, no el `root_scale` del preset: es la cota que de verdad importa y
+## la que atrapa un cambio de malla, no sólo un cambio de preset.
+func _check_prop_scale() -> void:
+	for piece: StringName in PROP_PIECES:
+		if not _bounds.has(piece):
+			continue
+		var size := _bounds[piece].size
+		var largest := maxf(size.x, maxf(size.y, size.z))
+		var limit := DISH_MAX_SIZE if piece == &"SateliteDish" else SIGN_MAX_SIZE
+		expect(largest <= limit,
+				"prop_scale: '%s' mide %.2f × %.2f × %.2f m; su lado mayor (%.2f m) pasa de %.1f m"
+				% [piece, size.x, size.y, size.z, largest, limit])
+
 
 ## 6. Los 13 presets `.fbx.import` declaran los valores de `docs/10` §2.2.
 func _check_import_options() -> void:
@@ -215,7 +263,11 @@ func _check_import_options() -> void:
 		_expect_param(config, path, "nodes/root_type", "StaticBody3D")
 		_expect_param(config, path, "nodes/root_name", String(piece))
 		_expect_param(config, path, "nodes/apply_root_scale", true)
-		_expect_param(config, path, "nodes/root_scale", ROOT_SCALE)
+		var expected_scale: float = ROOT_SCALE_BY_PIECE.get(piece, ROOT_SCALE)
+		var actual_scale := float(config.get_value("params", "nodes/root_scale", 0.0))
+		expect(absf(actual_scale - expected_scale) <= ROOT_SCALE_TOLERANCE,
+				"import_options: '%s' tiene nodes/root_scale = %.3f, se esperaba %.3f ±%.2f"
+				% [path.get_file(), actual_scale, expected_scale, ROOT_SCALE_TOLERANCE])
 		_expect_param(config, path, "meshes/generate_lods", true)
 		_expect_param(config, path, "meshes/create_shadow_meshes", true)
 		_expect_param(config, path, "meshes/ensure_tangents", true)

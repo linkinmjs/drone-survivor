@@ -661,20 +661,38 @@ func _build_weak_points() -> Array[WeakPointProfile]:
 	return points
 
 
-## Ajustes del rig de patas de `docs/07` §12.
+## Ajustes del rig de patas de `docs/07` §12, con los ajustes de marcha de
+## WP-24d anotados uno a uno (antes → después → qué corrige).
 func _build_leg_rig() -> LegRigProfile:
 	var rig := LegRigProfile.new()
 	rig.resource_name = "ArachnodroidLegRig"
-	rig.step_trigger = 3.5
-	rig.reach_trigger = 0.85
-	rig.step_duration = 0.55
-	rig.step_height_min = 3.0
+	# 3.5 → 3.0 m: con el reposo del pie 5.0 m más afuera, cada metro de deriva
+	# longitudinal cuesta más cadena. Con 3.0 la rodilla no baja de 8.6 m ni en
+	# el instante de apoyar, que es donde la pata está más estirada.
+	rig.step_trigger = 3.0
+	# Nuevo en WP-24d: girando en el sitio el pie deriva de costado, justo donde
+	# la pata ya nace separada 4.2 m, y 3.5 m de deriva dejaban el tobillo a
+	# 7.3 m de la cadera en horizontal. Con 1.6 m el giro son pasos cortos.
+	rig.turn_step_trigger = 1.6
+	# 0.85 → 0.95: con la zancada centrada el tramo cadera→tobillo llega al 87 %
+	# de la cadena en llano y al 94 % en rampa, así que a 0.85 las cuatro patas
+	# pedían turno en cada tick de la rampa y la marcha se volvía un forcejeo.
+	rig.reach_trigger = 0.95
+	# 0.55 → 0.80 s: 1.8 trancos por segundo y por pata era un ritmo de insecto
+	# para 900 t. Con 0.80 s el ciclo dura 1.97 s y un par apoya cada 0.98 s.
+	rig.step_duration = 0.80
+	# 3.0 → 3.5 m: con la zancada larga de WP-24d un arco de 3 m se leía plano.
+	rig.step_height_min = 3.5
 	rig.step_height_bias = 2.0
 	rig.speed_ref = 6.0
 	rig.speed_clamp = Vector2(0.6, 1.8)
 	rig.stretch_max = 1.15
-	rig.tilt_blend = 0.6
-	rig.tilt_smooth_rate = 4.0
+	# 0.6 → 0.75: el cuerpo seguía la rampa de 20° a 12° y los 8° de desajuste
+	# los pagaba el par de abajo, que se quedaba recto como un puntal. A 15° la
+	# rampa sigue dentro de la banda [8°, 16°] de `docs/06` §16.2.
+	rig.tilt_blend = 0.75
+	# 4.0 → 6.0 s⁻¹: para que el balanceo del ciclo no llegue amortiguado.
+	rig.tilt_smooth_rate = 6.0
 	rig.height_smooth_rate = 4.0
 	rig.foot_ray_span = 40.0
 	rig.foot_ray_mask = PhysicsLayers.QUERY_FOOT
@@ -682,7 +700,12 @@ func _build_leg_rig() -> LegRigProfile:
 	rig.leap_tuck_time = 0.5
 	rig.tripod_min_planted = 2
 	# Ajustes que agrega WP-17 al rig procedural (`docs/06` §8.3, §8.5 y §8.6).
-	rig.stance_spread = 1.5
+	# 1.5 radial → 4.2 lateral: el ensanchamiento radial movía los pies hacia
+	# adelante y hacia atrás (las patas están en ∓11.625 de Z y ±6 de X), no
+	# hacia afuera. El tobillo quedaba a 2.5 m de la cadera, la cadena colgaba
+	# casi vertical y la rodilla se quedaba a 7.9 m, bajo la panza. Con 4.2 m
+	# laterales el tobillo queda a 4.6 m y la rodilla sube a 9.1–9.6 m.
+	rig.stance_spread = 5.0
 	rig.body_smoothing = 4.0
 	rig.drag_speed_factor = 0.55
 	rig.jump_max_distance = 60.0
@@ -699,6 +722,18 @@ func _build_leg_rig() -> LegRigProfile:
 	rig.downed_body_height = -6.0
 	rig.stagger_wobble = 4.0
 	rig.stagger_frequency = 5.0
+	# Peso y cadencia de la marcha (WP-24d). Todo lo de acá abajo es nuevo: sin
+	# ello el coloso caminaba sin acento, se quedaba como una estatua al pararse
+	# y aterrizaba de un salto de 60 m sin doblar una rodilla.
+	rig.body_bob = 0.02
+	rig.gait_roll = 2.0
+	rig.gait_pitch = 1.5
+	rig.gait_blend_time = 0.45
+	rig.idle_breath = 0.15
+	rig.idle_breath_hz = 0.30
+	rig.land_crouch = 0.12
+	rig.land_crouch_time = 0.30
+	rig.climb_pitch = 25.0
 	return rig
 
 

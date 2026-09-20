@@ -33,7 +33,7 @@ HEADLESS=(project_check loading_check settings_check city_import_check enemy_imp
 
 # Checks que necesitan framebuffer real (capturas, docs/15 seccion 3.1). Corren
 # bajo xvfb-run cuando no hay display.
-WINDOWED=(ui_smoke_test boot_check)   # WP-02
+WINDOWED=(ui_smoke_test boot_check render_check)   # WP-02, WP-24a
 
 # Extendidos: lentos (minutos); corren solo con RUN_EXTENDED=1 o como unico check.
 EXTENDED=(balance_check)   # WP-23
@@ -43,7 +43,12 @@ declare -A PROCESS_TIMEOUTS=()
 PROCESS_TIMEOUTS[balance_check]=1800
 
 # Informativos: reportan pero no cuentan para el codigo de salida.
-NON_BLOCKING=(render_parity_check)
+# render_check necesita GPU real: en CI (xvfb, sin Vulkan) solo informa.
+NON_BLOCKING=(render_check)
+
+# Argumentos de ventana propios (en vez de --windowed --resolution 960x540).
+declare -A WINDOW_ARGS=()
+WINDOW_ARGS[render_check]="--windowed --resolution 1920x1080 --disable-vsync"
 
 # Argumentos de usuario extra por check, despues de "--".
 declare -A EXTRA_ARGS=()
@@ -53,6 +58,7 @@ EXTRA_ARGS[loading_check]="--timeout=120"
 EXTRA_ARGS[weapon_check]="--timeout=240"
 EXTRA_ARGS[ai_check]="--timeout=300"
 EXTRA_ARGS[balance_check]="--timeout=1500"
+EXTRA_ARGS[render_check]="--shots=tools/out/shots"
 
 # ---------------------------------------------------------------------------
 
@@ -134,7 +140,13 @@ run_check() {
 		if [ -z "${DISPLAY:-}" ] && command -v xvfb-run > /dev/null 2>&1; then
 			cmd=(timeout --kill-after=10 "$proc_timeout" xvfb-run -a "$GODOT")
 		fi
-		cmd+=(--windowed --resolution 960x540)
+		if [ -n "${WINDOW_ARGS[$name]:-}" ]; then
+			# shellcheck disable=SC2206
+			local wargs=(${WINDOW_ARGS[$name]})
+			cmd+=("${wargs[@]}")
+		else
+			cmd+=(--windowed --resolution 960x540)
+		fi
 	else
 		cmd+=(--headless)
 	fi

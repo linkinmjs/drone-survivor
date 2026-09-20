@@ -40,6 +40,18 @@
 ## antes. Si ninguno está callado —un salto brusco de régimen— el cambio espera al
 ## frame siguiente y ese motor suena 10 ms con una sola banda.
 ##
+## **Cuerpo congelado: el régimen deja de ser un dato.** `RigidBody3D.freeze`
+## apaga [method Drone._integrate_forces], que es el único sitio donde corre
+## [method DroneMotor.step]: con el dron congelado —la reconstrucción de
+## `docs/09` §2.8 y la tarjeta de VICTORY/DEFEAT de `docs/11` §6.3 lo congelan— las
+## rpm quedan clavadas en las del último cuadro vivo y la envolvente se quedaría
+## sonando para siempre. Por eso [method _is_cut] trata el cuerpo congelado como
+## **régimen cero**: la envolvente baja a [constant SILENT_DB] por el limitador de
+## pendiente de siempre —0,27 s desde el máximo, sin clic— y [method _stop] corta
+## los ocho loops. No se toca [member enabled]: el audio vuelve solo en cuanto el
+## cuerpo se descongela y el dron se arma, sin que ningún camino de salida tenga
+## que acordarse de rehabilitarlo.
+##
 ## **Headless**: con el controlador Dummy el `AudioServer` sigue mezclando, así que
 ## `playing`, `volume_db`, `pitch_scale` y la posición de reproducción valen lo
 ## mismo que con tarjeta de sonido. Los checks se apoyan en eso.
@@ -130,11 +142,12 @@ func _physics_process(delta: float) -> void:
 		return
 	if not enabled:
 		return
-	if _drone.is_armed() and not _playing:
+	var cut := _is_cut()
+	if _drone.is_armed() and not _playing and not cut:
 		_start()
 	for index: int in _motors.size():
-		_update_motor(index, delta)
-	if _playing and not _drone.is_armed() and _is_silent():
+		_update_motor(index, delta, cut)
+	if _playing and (cut or not _drone.is_armed()) and _is_silent():
 		_stop()
 
 
@@ -289,7 +302,12 @@ func _warn_once(message: String) -> void:
 
 
 ## Actualiza las dos voces de un motor: reparte las bandas, y fija volumen y tono.
-func _update_motor(index: int, delta: float) -> void:
+##
+## Con [param cut] la envolvente apunta a [constant SILENT_DB] en vez de al régimen:
+## el reparto entre bandas y el `pitch_scale` se siguen calculando con las rpm
+## clavadas, pero a −80 dB no se oyen y el estado queda coherente para cuando el
+## dron vuelva a volar.
+func _update_motor(index: int, delta: float, cut: bool) -> void:
 	var motor := _motors[index]
 	var max_rpm := maxf(motor.max_rpm, 1.0)
 	var rpm := absf(motor.rpm)
@@ -301,8 +319,8 @@ func _update_motor(index: int, delta: float) -> void:
 	# cambiar el loop sin que nadie lo oiga.
 	var blend := smoothstep(0.0, 1.0, _band_blend(ratio, low))
 
-	_envelopes[index] = move_toward(_envelopes[index], envelope_for(motor),
-			SLEW_DB_PER_SECOND * delta)
+	var target := SILENT_DB if cut else envelope_for(motor)
+	_envelopes[index] = move_toward(_envelopes[index], target, SLEW_DB_PER_SECOND * delta)
 	var envelope := _envelopes[index]
 
 	var first := index * VOICES_PER_MOTOR
@@ -414,6 +432,20 @@ func _start_offset(slot: int) -> float:
 	return length * float(slot) / float(maxi(_players.size(), 1))
 
 
+## `true` cuando el régimen que llevan los motores ya no describe nada.
+##
+## Hoy hay un solo caso y es el cuerpo congelado: `freeze` corta
+## [method Drone._integrate_forces], que es quien llama a [method DroneMotor.step],
+## así que `motor.rpm` se queda en el valor del último cuadro integrado. Lo ponen la
+## reconstrucción (`RespawnController._begin()`) y la tarjeta de fin de ronda
+## (`RoundManager._freeze_drone()`); los dos desarman antes, así que el
+## [method _stop] de [method _physics_process] llega en cuanto la envolvente toca el
+## suelo. Desarmar **sin** congelar no entra acá: ahí las rpm sí caen solas con
+## `tau_down` y el volumen las sigue, que es el desvanecido de siempre.
+func _is_cut() -> bool:
+	return _drone != null and _drone.freeze
+
+
 ## `true` si los ocho reproductores ya están en el suelo de volumen.
 func _is_silent() -> bool:
 	for player: AudioStreamPlayer in _players:
@@ -423,7 +455,7 @@ func _is_silent() -> bool:
 
 
 func _on_armed(_mode_key: String) -> void:
-	if not enabled:
+	if not enabled or _is_cut():
 		return
 	if _build():
 		_start()

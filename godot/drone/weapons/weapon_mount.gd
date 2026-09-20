@@ -157,12 +157,18 @@ func _physics_process(delta: float) -> void:
 	# vuelo no tienen por qué pagar 256 proyectiles y 48 nodos de VFX por existir.
 	if _pool == null:
 		_pool = _find_pool()
+	PerfProbe.begin(&"weapon_mount")
 	_track_aim()
 	_update_burst(delta)
+	PerfProbe.end(&"weapon_mount")
+	PerfProbe.begin(&"aim_assist")
 	_update_assist(delta)
+	PerfProbe.end(&"aim_assist")
+	PerfProbe.begin(&"weapon_mount")
 	_update_heat(delta)
 	_update_cadence(delta)
 	_publish_heat(false)
+	PerfProbe.end(&"weapon_mount")
 
 
 ## Dispara **ahora**, saltándose la cadencia pero no las otras tres compuertas.

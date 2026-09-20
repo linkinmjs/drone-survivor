@@ -1,31 +1,26 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://tools/city_showcase.gd" id="1_showcase"]
 [ext_resource type="Environment" path="res://world/environment_battle.tres" id="2_env"]
 [ext_resource type="Script" path="res://city/debris_pool.gd" id="3_debris_pool"]
 [ext_resource type="Script" path="res://city/rubble_field.gd" id="4_rubble_field"]
-
-[sub_resource type="CameraAttributesPhysical" id="CameraAttributesPhysical_showcase"]
-frustum_focus_distance = 5.0
-frustum_focal_length = 2.1
-exposure_aperture = 16.0
-exposure_shutter_speed = 100.0
-auto_exposure_enabled = false
-exposure_sensitivity = 100.0
+[ext_resource type="CameraAttributesPhysical" path="res://world/camera_attributes_dusk.tres" id="5_camera_attributes"]
+[ext_resource type="Script" path="res://world/sun_light.gd" id="6_sun_light"]
+[ext_resource type="Resource" path="res://world/sun_dusk.tres" id="7_sun_profile"]
 
 [node name="CityShowcase" type="Node3D"]
 script = ExtResource("1_showcase")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = ExtResource("2_env")
-camera_attributes = SubResource("CameraAttributesPhysical_showcase")
+camera_attributes = ExtResource("5_camera_attributes")
 
+; Sol de atardecer compartido (`docs/13` §3.2, WP-24): `world/sun_dusk.tres` pone
+; 2400 lux a 3200 K y 6° sobre el horizonte, y `Graphics` le vuelca la tabla de
+; sombras del preset en cuanto el nivel lo registra.
 [node name="Sun" type="DirectionalLight3D" parent="."]
-transform = Transform3D(0.707107, -0.5, 0.5, 0, 0.707107, 0.707107, -0.707107, -0.5, 0.5, 0, 220, 0)
-light_energy = 1.45
-shadow_enabled = true
-directional_shadow_mode = 2
-directional_shadow_max_distance = 700.0
+script = ExtResource("6_sun_light")
+profile = ExtResource("7_sun_profile")
 
 [node name="DebrisPool" type="Node3D" parent="." node_paths=PackedStringArray("rubble_field")]
 script = ExtResource("3_debris_pool")

@@ -1,0 +1,68 @@
+{
+  "date": "2026-09-20",
+  "godot": "4.7.stable",
+  "commit": "71b8387",
+  "display": "Windows",
+  "resolution": "1920x1080",
+  "window_frames": 300,
+  "discarded_frames": 60,
+  "scenarios": {
+    "boss_and_city": {
+      "frames": 300,
+      "physics_ms_avg": 1.757,
+      "physics_ms_p95": 2.281,
+      "physics_ms_max": 2.281,
+      "physics_ticks": 336,
+      "frames_without_tick": 0,
+      "physics_breakdown_ms": {
+        "drone_integrator": 0.2,
+        "projectile_pool": 0.01,
+        "weapon_mount": 0.011,
+        "aim_assist": 0.005,
+        "perception": 0.005,
+        "bot_pilot": 0.065,
+        "instrumentado_total": 0.296
+      },
+      "physics_active_bodies_avg": 0.0,
+      "physics_collision_pairs_avg": 0.0,
+      "physics_islands_avg": 0.0,
+      "draw_calls_avg": 775.713,
+      "draw_calls_p95": 791.0,
+      "draw_calls_max": 795.0,
+      "primitives_avg": 357292.267,
+      "primitives_p95": 362349.0,
+      "primitives_max": 364025.0,
+      "gpu_ms_root_avg": 0.124,
+      "gpu_ms_root_p95": 0.146,
+      "gpu_ms_root_max": 0.356,
+      "cpu_ms_render_avg": 0.281,
+      "cpu_ms_render_p95": 0.413,
+      "gpu_ms_fisheye": [
+        6.98,
+        1.915,
+        1.971
+      ],
+      "gpu_ms_fisheye_max": [
+        11.956,
+        2.739,
+        3.257
+      ],
+      "gpu_ms_fisheye_total": 10.867,
+      "gpu_ms_total": 10.991,
+      "frame_ms_avg": 11.208,
+      "frame_ms_p99": 15.374,
+      "frame_ms_max": 16.933,
+      "fps_wall": 89.22,
+      "fps_avg": 68.018,
+      "fps_p95": 61.943,
+      "fps_min": 61.943,
+      "fps_median": 69.565,
+      "fps_engine": 98.667,
+      "fps_engine_p1": 65.045,
+      "vram_bytes": 2852796912.0,
+      "vram_mb": 2720.639,
+      "node_count": 1162
+    }
+  },
+  "ablation": []
+}

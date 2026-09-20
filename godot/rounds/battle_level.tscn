@@ -1,7 +1,10 @@
-[gd_scene load_steps=20 format=3]
+[gd_scene load_steps=24 format=3]
 
 [ext_resource type="Script" path="res://rounds/battle_level.gd" id="1_level"]
 [ext_resource type="Environment" path="res://world/environment_battle.tres" id="2_env"]
+[ext_resource type="CameraAttributesPhysical" path="res://world/camera_attributes_dusk.tres" id="19_camera_attributes"]
+[ext_resource type="Script" path="res://world/sun_light.gd" id="20_sun_light"]
+[ext_resource type="Resource" path="res://world/sun_dusk.tres" id="21_sun_profile"]
 [ext_resource type="Script" path="res://city/city_integrity.gd" id="3_integrity"]
 [ext_resource type="PackedScene" path="res://drone/drone_rig.tscn" id="4_rig"]
 [ext_resource type="Script" path="res://drone/weapons/impact_fx_pool.gd" id="5_impact_pool"]
@@ -17,15 +20,9 @@
 [ext_resource type="Script" path="res://rounds/objectives/objective_defend_city.gd" id="15_defend_city"]
 [ext_resource type="Script" path="res://rounds/objectives/objective_break_parts.gd" id="16_break_parts"]
 [ext_resource type="Script" path="res://rounds/objectives/objective_defeat_enemy.gd" id="17_defeat_enemy"]
+[ext_resource type="Script" path="res://rounds/objectives/objective_break_cores.gd" id="22_break_cores"]
+[ext_resource type="Script" path="res://rounds/objectives/objective_selfdestruct.gd" id="23_selfdestruct"]
 [ext_resource type="PackedScene" path="res://hud/combat/combat_hud.tscn" id="18_combat_hud"]
-
-[sub_resource type="CameraAttributesPhysical" id="CameraAttributesPhysical_battle"]
-frustum_focus_distance = 5.0
-frustum_focal_length = 2.1
-exposure_aperture = 16.0
-exposure_shutter_speed = 100.0
-auto_exposure_enabled = false
-exposure_sensitivity = 100.0
 
 [node name="BattleLevel" type="Node3D" node_paths=PackedStringArray("respawn_point", "respawn_camera", "drone_rig", "round_manager", "combat_hud")]
 script = ExtResource("1_level")
@@ -35,20 +32,25 @@ drone_rig = NodePath("DroneRig")
 round_manager = NodePath("RoundManager")
 combat_hud = NodePath("CombatHUDSlot/CombatHUD")
 
+; La exposición es la de `world/camera_attributes_dusk.tres` (f/2,8 · 1/100 s ·
+; ISO 200), compartida por los dos niveles y por los showcases: con
+; `use_physical_light_units` es la cámara la que decide cuánto del sol de 2400 lux
+; y de los emisivos de 1000 nits llega al tonemapper (`docs/13` §3.2, WP-24).
+
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = ExtResource("2_env")
-camera_attributes = SubResource("CameraAttributesPhysical_battle")
+camera_attributes = ExtResource("19_camera_attributes")
 
-; Sol de atardecer sobre la ciudad entera: el distrito mide 480 × 288 m, así que la
-; sombra direccional necesita bastante más alcance que la del nivel de vuelo libre
-; (`docs/13`). Los mismos números que usa `tools/city_showcase.tscn`.
+; Sol de atardecer sobre la ciudad entera: el distrito mide 432 × 272 m (WP-24b), y
+; el alcance, las cascadas y los sesgos de la sombra los pone `Graphics` por preset
+; desde que `LevelBase` lo registra (WP-24a). Lo que queda acá es el **look**, y lo
+; trae `world/sun_dusk.tres` a través de `SunLight`: 2400 lux a 3200 K, 6° sobre el
+; horizonte. La transformada la escribe `apply_profile()` en `_ready()`; la de la
+; escena sólo importa en el editor antes de que corra el `@tool`.
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
-transform = Transform3D(0.707107, -0.5, 0.5, 0, 0.707107, 0.707107, -0.707107, -0.5, 0.5, 0, 220, 0)
-light_energy = 1.45
-shadow_enabled = true
-directional_shadow_mode = 2
-directional_shadow_max_distance = 700.0
+script = ExtResource("20_sun_light")
+profile = ExtResource("21_sun_profile")
 
 ; Integridad de la ciudad (`docs/10` §5). Arranca sin edificios: el distrito todavía
 ; no existe. `RoundManager` le inyecta el `CityGrid` instanciado y llama a `rebuild()`.
@@ -84,10 +86,19 @@ rubble_field = NodePath("RubbleField")
 [node name="RubbleField" type="Node3D" parent="Pools/DebrisPool"]
 script = ExtResource("8_rubble_field")
 
-; Puestos de pila (`docs/09` §2.5): ocho marcadores en cruces de calle del distrito,
-; entre 4 y 6 m de altura, de los que el spawner mantiene cinco activos. Los cruces
-; son los únicos puntos garantizados sin edificio: la rejilla tiene período 3 celdas
-; de 32 m, con calzada en x ∈ {−160, −64, 32, 128, 224} y z ∈ {−64, 32, 128}.
+; Puestos de pila (`docs/09` §2.5): ocho marcadores del distrito, de los que el spawner
+; mantiene cinco activos. Seis van sobre cruces de calle interiores, entre 4 y 6 m de
+; altura, y dos sobre azoteas de torre media. Tras WP-24b la rejilla no es uniforme: los
+; carriles de calzada caen en x ∈ {−208, −128, −48, 40, 128, 208} y z ∈ {−128, −48, 40, 128},
+; con la avenida en x = 40 y z = 40 y el anillo perimetral en ±208 y ±128. Los cruces son
+; los únicos puntos garantizados sin edificio, y los seis elegidos cubren el distrito de
+; punta a punta: si se juntan cerca del centro el dron deja de perder tiempo yendo a
+; buscarlos y el ciclo de trabajo del arma se dispara.
+;
+; Las dos azoteas van a `techo + 3,2 m` y no a `techo + 1,5` como pedía el encargo: el
+; spawner valida el sitio con una esfera de `clearance_radius` 2,5 m sobre las capas
+; `city | debris`, así que a 1,5 m la esfera todavía muerde la caja del edificio y el
+; puesto no se activaría nunca.
 
 [node name="BatterySpawner" type="Node3D" parent="."]
 script = ExtResource("9_battery_spawner")
@@ -99,28 +110,28 @@ retry_interval = 1.0
 clearance_mask = 384
 
 [node name="Marker1" type="Marker3D" parent="BatterySpawner"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -160, 5, -64)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -208, 5, -48)
 
 [node name="Marker2" type="Marker3D" parent="BatterySpawner"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -64, 4, 32)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -48, 4, 40)
 
 [node name="Marker3" type="Marker3D" parent="BatterySpawner"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32, 6, 128)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 40, 6, 128)
 
 [node name="Marker4" type="Marker3D" parent="BatterySpawner"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 128, 4.5, -64)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 128, 4.5, -48)
 
 [node name="Marker5" type="Marker3D" parent="BatterySpawner"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 224, 5, 32)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 208, 5, 40)
 
 [node name="Marker6" type="Marker3D" parent="BatterySpawner"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -160, 4, 128)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -128, 4, 128)
 
 [node name="Marker7" type="Marker3D" parent="BatterySpawner"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32, 5.5, -64)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -72, 20.2, -34.5)
 
 [node name="Marker8" type="Marker3D" parent="BatterySpawner"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -64, 6, 128)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18.5, 19.8, 104)
 
 ; Reaparición: 40 m sobre el borde sureste del distrito (`docs/11` §3), mirando al
 ; centro de la ciudad y, más allá, al acceso norte por donde entra el coloso. Queda
@@ -198,6 +209,19 @@ objective_hud = NodePath("../ObjectiveHUD")
 
 ; Cadena de objetivos de la ronda 1, en orden (`docs/11` §5). `ObjectiveSurviveTime`
 ; existe y se verifica, pero **no** está acá: es para las rondas de intercepción.
+;
+; WP-24d la reescribió para que **enseñe**. El feedback de la primera partida fue «no
+; entendí cómo matarlo», y la cadena vieja —contener / romper partes / derrotar— no
+; nombraba ni una sola vez las rodillas cian, los tres núcleos ni el cono desde abajo.
+; Ahora cada eslabón dice qué hay que disparar y lleva su contador:
+;
+;   0 CONTENÉ EL ASEDIO    · disparale a las rodillas cian  · RODILLAS n/3
+;   1 ROMPÉ 3 RODILLAS     · tres rodillas abren la carcasa · RODILLAS n/3
+;   2 CARCASA ABIERTA      · los 3 núcleos desde abajo      · NÚCLEOS n/3
+;   3 DERROTALO ANTES…     · la cuenta del jefe             · m:ss
+;   4 DERROTÁ AL ENEMIGO   · cierre                         · estructura %
+;
+; Los contadores encadenan: el 1 arranca en el número donde quedó el 0.
 
 [node name="ObjectiveSequencer" type="Node" parent="RoundManager"]
 script = ExtResource("13_sequencer")
@@ -209,6 +233,9 @@ objective_key = "OBJ_DEFEND_CITY_DESC"
 success_delay = 0.8
 target_phase_id = &"p2_alert"
 max_seconds = 90.0
+count_part_ids = PackedStringArray("wp_leg_fl_knee", "wp_leg_fr_knee", "wp_leg_bl_knee", "wp_leg_br_knee")
+count_target = 3
+count_key = "OBJ_COUNT_KNEES"
 
 [node name="BreakParts" type="Node" parent="RoundManager/ObjectiveSequencer"]
 script = ExtResource("16_break_parts")
@@ -217,6 +244,31 @@ objective_key = "OBJ_BREAK_PARTS_DESC"
 success_delay = 0.8
 part_ids = PackedStringArray("wp_leg_fl_knee", "wp_leg_fr_knee", "wp_leg_bl_knee", "wp_leg_br_knee")
 required_count = 3
+count_key = "OBJ_COUNT_KNEES"
+
+; Arranca en el mismo cuadro en el que la tercera rodilla abre la carcasa (`docs/07`
+; §6, P4), y cierra con el segundo núcleo, que es el que dispara `p5_selfdestruct`.
+
+[node name="BreakCores" type="Node" parent="RoundManager/ObjectiveSequencer"]
+script = ExtResource("22_break_cores")
+title_key = "OBJ_BREAK_CORES_TITLE"
+objective_key = "OBJ_BREAK_CORES_DESC"
+success_delay = 0.8
+part_ids = PackedStringArray("wp_core_a", "wp_core_b", "wp_core_c")
+required_count = 3
+count_key = "OBJ_COUNT_CORES"
+end_phase_id = &"p5_selfdestruct"
+enemy_ids = PackedStringArray("arachnodroid")
+
+[node name="Selfdestruct" type="Node" parent="RoundManager/ObjectiveSequencer"]
+script = ExtResource("23_selfdestruct")
+title_key = "OBJ_SELFDESTRUCT_TITLE"
+objective_key = "OBJ_SELFDESTRUCT_DESC"
+success_delay = 0.8
+enemy_ids = PackedStringArray("arachnodroid")
+remaining_method = &"selfdestruct_remaining"
+total_method = &"selfdestruct_total"
+fallback_seconds = 45.0
 
 [node name="DefeatEnemy" type="Node" parent="RoundManager/ObjectiveSequencer"]
 script = ExtResource("17_defeat_enemy")
