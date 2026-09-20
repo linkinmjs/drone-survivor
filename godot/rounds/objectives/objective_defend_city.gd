@@ -12,6 +12,15 @@
 ## directo a `p3_fury` también cierra el objetivo. Comparar ids sueltos lo dejaría
 ## abierto para siempre.
 ##
+## ## Edificio protegido (WP-25b)
+##
+## Si la ronda declara uno (`docs/11` §1), el título pasa a ser «PROTEGÉ: ESCUELA 12»
+## y su caída marca el objetivo como **fallido** con [method Objective.fail] —lo
+## reenvía `RoundManager` desde `CityIntegrity.protected_fallen`—. Fallido no es
+## terminado: el objetivo sigue corriendo, sigue cerrándose con `p2_alert` o con el
+## reloj, y la cadena continúa. No hay derrota directa, que sigue siendo cosa de la
+## integridad y sólo de la integridad.
+##
 ## ## Discrepancia registrada con `docs/11` §5 (WP-24d)
 ##
 ## La tabla pide `get_progress()` = `elapsed / max_seconds` y `get_progress_text()` =
@@ -42,6 +51,13 @@ class_name ObjectiveDefendCity extends Objective
 
 ## Clave de traducción del contador, con `{0}` rotas y `{1}` pedidas.
 @export var count_key: String = "OBJ_COUNT_KNEES"
+
+## Título cuando la ronda declara un edificio protegido, con `{0}` = su nombre
+## (`docs/11` §1). Sin protegido manda [member Objective.title_key].
+@export var protected_title_key: String = "OBJ_PROTECT_TITLE"
+
+## Línea que reemplaza al título cuando el protegido cayó, con `{0}` = su nombre.
+@export var protected_failed_key: String = "OBJ_PROTECT_FAILED"
 
 var _elapsed: float = 0.0
 
@@ -91,6 +107,44 @@ func _tick(delta: float) -> void:
 		return
 	if _elapsed >= max_seconds:
 		finish()
+
+
+## «PROTEGÉ: ESCUELA 12» cuando la ronda nombra un edificio, y el título genérico
+## «CONTENÉ EL ASEDIO» cuando no (`docs/11` §1).
+##
+## El nombre se resuelve **en cada llamada** y no se cachea: el HUD reconstruye sus
+## textos en `NOTIFICATION_TRANSLATION_CHANGED` y un nombre cacheado se quedaría en
+## el idioma anterior.
+func get_title_text() -> String:
+	var name_text := _protected_name()
+	if name_text.is_empty() or protected_title_key.is_empty():
+		return super()
+	return tr(protected_title_key).format([name_text])
+
+
+## «ESCUELA 12: CAÍDA». Vacía si la ronda no declara protegido: entonces no hay
+## nada que se pueda haber caído y el objetivo nunca se marca fallido.
+func get_failed_text() -> String:
+	var name_text := _protected_name()
+	if name_text.is_empty() or protected_failed_key.is_empty():
+		return ""
+	return tr(protected_failed_key).format([name_text])
+
+
+## Nombre del edificio protegido de la ronda en **mayúsculas de HUD**, o `""`.
+##
+## La clave `BLD_*` guarda «Escuela 12» en caja de oración porque la tarjeta de
+## resultado la muestra así; los textos `OBJ_*` visibles van en mayúsculas desde
+## WP-24d. Un solo nombre por edificio y cada superficie lo escribe como habla.
+##
+## Se lo pide a [CityIntegrity] y no a `RoundManager` porque el contexto ya trae la
+## integridad tipada y el `round_manager` viene como [Node] suelto (`docs/11` §4.2:
+## el objetivo no conoce la máquina de ronda).
+func _protected_name() -> String:
+	if ctx == null or ctx.city_integrity == null or not is_instance_valid(ctx.city_integrity):
+		return ""
+	var building := ctx.city_integrity.get_protected()
+	return building.display_name().to_upper() if building != null else ""
 
 
 func get_task_text() -> String:

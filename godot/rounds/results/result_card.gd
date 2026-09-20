@@ -7,7 +7,9 @@
 ## el árbol esté en pausa.
 ##
 ## Dos mitades: a la derecha el detalle de la partida, que se construye con
-## [method RoundResult.summary_rows]; a la izquierda un [ChoiceMenu], que aporta el
+## [method RoundResult.summary_rows] —desde WP-25b **abre por el bloque «Qué quedó en
+## pie»** y deja el puntaje y la medalla al final, `docs/narrativa` §8—; a la
+## izquierda un [ChoiceMenu], que aporta el
 ## título, el fundido de fondo, la navegación con teclado, mando y sticks, y la señal
 ## `chosen(id)` (`docs/01` §2.3). La tarjeta no decide nada: reemite esa elección en
 ## [signal chosen] y [RoundManager] hace el cambio de escena.
@@ -30,6 +32,10 @@ const MEDAL_RADIUS: float = 26.0
 
 ## Color con el que se resaltan los valores que baten un récord.
 const HIGHLIGHT: Color = Color("#D8A21A")
+
+## Cuerpo del encabezado de bloque, en píxeles. Un punto por debajo de las filas:
+## es un rótulo, no un título de pantalla.
+const HEADER_SIZE: int = 21
 
 ## Resultado que se dibuja. Lo fija [method setup] antes de entrar al árbol.
 var result: RoundResult = null
@@ -119,6 +125,9 @@ func _fill_panel() -> void:
 		return
 
 	for row: Dictionary in result.summary_rows():
+		if bool(row.get("header", false)):
+			_add_header(tr(String(row["label_key"])))
+			continue
 		_add_row(tr(String(row["label_key"])), String(row["value_text"]), bool(row["highlight"]))
 
 	_panel.add_child(_separator())
@@ -141,6 +150,18 @@ func _fill_panel() -> void:
 	badge.custom_minimum_size = Vector2(MEDAL_RADIUS * 2.4, MEDAL_RADIUS * 2.4)
 	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	medal_row.add_child(badge)
+
+
+## Encabezado de bloque: una sola línea, sin valor, en la fuente de títulos y un
+## cuerpo por debajo de las filas (`docs/11` §1, WP-25b).
+##
+## No introduce estilos nuevos: usa la misma [method _make_label] que las filas, con
+## la fuente y el ámbar que ya traía la tarjeta. Lo único propio es que no lleva
+## columna de valor, porque no mide nada: anuncia lo que viene.
+func _add_header(label_text: String) -> void:
+	var label := _make_label(label_text, HEADER_SIZE, HIGHLIGHT)
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_panel.add_child(label)
 
 
 ## Fila `etiqueta … valor`, con el valor alineado a la derecha.

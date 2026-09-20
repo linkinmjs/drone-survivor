@@ -327,7 +327,7 @@ func _play(round_seed: int, bot_mode: int, label: String, sigma := -1.0,
 	if brain != null:
 		_discard = brain.action_changed.connect(_on_action_changed)
 
-	_manager.skip_intro()
+	_manager.skip_to_battle()
 	await wait_frames(2)
 	_bot.start()
 
@@ -728,11 +728,12 @@ func _showcase(round_seed: int, kill_at: float = -1.0) -> void:
 	add_child(_bot)
 	_bot.setup(rig, _enemy, _level.get_node_or_null(^"BatterySpawner") as BatterySpawner,
 			RoundCatalog.derive_seed("bot"))
-	# La cinemática **no** se saltea: el recorrido tiene que ver la INTRO entera.
-	while _manager.get_state() == Global.RoundState.INTRO:
+	# Ni la alerta ni la cinemática se saltean: el recorrido tiene que ver la
+	# apertura entera, que desde WP-25b es ALERT → estática → INTRO.
+	while _pre_battle(_manager.get_state()):
 		await get_tree().process_frame
 	_bot.start()
-	print("  INTRO terminada, el bot toma el mando")
+	print("  apertura terminada (ALERT + INTRO), el bot toma el mando")
 	var killed := kill_at < 0.0
 	while true:
 		await get_tree().process_frame
@@ -929,8 +930,16 @@ func _percentile(p: float) -> float:
 	return float(values[index])
 
 
+## Verdadero mientras la ronda siga en su apertura: la alerta del taller o la
+## cinemática (`docs/11` §1).
+func _pre_battle(state: int) -> bool:
+	return state == Global.RoundState.ALERT or state == Global.RoundState.INTRO
+
+
 func _state_name(state: int) -> String:
 	match state:
+		Global.RoundState.ALERT:
+			return "ALERT"
 		Global.RoundState.INTRO:
 			return "INTRO"
 		Global.RoundState.BATTLE:

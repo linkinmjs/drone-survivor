@@ -43,6 +43,18 @@ const RESPAWN_MULTIPLIER_STEP: float = 0.6
 ## Piso del multiplicador de respawn (`docs/11` §12, fila 2).
 const RESPAWN_MULTIPLIER_FLOOR: float = 0.3
 
+## Cómo terminó el edificio protegido de la ronda (`docs/11` §1).
+enum Protected {
+	NONE,     ## La ronda no declara edificio protegido.
+	STANDING, ## Intacto.
+	DAMAGED,  ## Con boquetes, pero en pie.
+	FALLEN,   ## Ruina.
+}
+
+## Clave de traducción de cada estado, indexada por [enum Protected].
+const PROTECTED_KEYS: Array[String] = ["", "RESULT_PROTECTED_STANDING",
+		"RESULT_PROTECTED_DAMAGED", "RESULT_PROTECTED_FALLEN"]
+
 ## Id de catálogo de la ronda jugada.
 var round_id: String = ""
 
@@ -54,6 +66,18 @@ var time_seconds: float = 0.0
 
 ## Integridad de la ciudad al terminar, de 0.0 a 1.0.
 var city_integrity: float = 1.0
+
+## Cómo terminó el edificio protegido, un valor de [enum Protected].
+var protected_state: int = Protected.NONE
+
+## Clave de traducción del nombre del edificio protegido, o `""`.
+var protected_name_key: String = ""
+
+## Edificios que quedaron en pie al terminar.
+var buildings_standing: int = 0
+
+## Edificios que tenía el distrito al empezar (60 en la ronda 1).
+var buildings_total: int = 0
 
 ## Partes del enemigo rotas, con ids distintos.
 var parts_broken: int = 0
@@ -91,6 +115,20 @@ var is_time_record: bool = false
 ## Precisión de la partida, de 0.0 a 1.0. Sin disparos es 0.
 func accuracy() -> float:
 	return float(shots_hit) / float(maxi(shots_fired, 1)) if shots_fired > 0 else 0.0
+
+
+## Estado de [param building] como valor de [enum Protected]. `null` da
+## [constant Protected.NONE].
+static func state_of_building(building: Building) -> int:
+	if building == null or not is_instance_valid(building):
+		return Protected.NONE
+	match building.stage:
+		Building.Stage.RUBBLE:
+			return Protected.FALLEN
+		Building.Stage.DAMAGED:
+			return Protected.DAMAGED
+		_:
+			return Protected.STANDING
 
 
 ## Multiplicador que corresponde a [param death_count] muertes, con piso
@@ -137,6 +175,10 @@ func to_dictionary() -> Dictionary:
 		"victory": victory,
 		"time_seconds": time_seconds,
 		"city_integrity": city_integrity,
+		"protected_state": protected_state,
+		"protected_name_key": protected_name_key,
+		"buildings_standing": buildings_standing,
+		"buildings_total": buildings_total,
 		"parts_broken": parts_broken,
 		"shots_fired": shots_fired,
 		"shots_hit": shots_hit,
@@ -150,44 +192,68 @@ func to_dictionary() -> Dictionary:
 	}
 
 
-## Filas de la tarjeta de resultados, en el orden de `docs/11` §6.3.
+## Filas de la tarjeta de resultados.
 ##
-## Cada fila trae `label_key` (clave de traducción), `value_text` (ya formateado) y
-## `highlight` (el valor se dibuja en ámbar). La fila del multiplicador sólo aparece
-## cuando hubo castigo.
+## Cada fila trae `label_key` (clave de traducción), `value_text` (ya formateado),
+## `highlight` (el valor se dibuja en ámbar) y `header` (la fila es el encabezado de
+## un bloque y no lleva valor). La fila del multiplicador sólo aparece cuando hubo
+## castigo.
+##
+## ## Orden nuevo (WP-25b, `docs/narrativa` §8): primero qué quedó en pie
+##
+## `docs/11` §6.3 abría por el tiempo y cerraba con el puntaje. Ahora abre con el
+## bloque **«Qué quedó en pie»** —la escuela, los edificios en pie y la integridad— y
+## el puntaje con su medalla quedan al final, que los pone [ResultCard]. El motivo es
+## la tercera regla de coherencia de `docs/13` §1: la ciudad se muestra antes que el
+## puntaje. Ganar no es sacar un número; es que mañana haya algo en pie.
 func summary_rows() -> Array[Dictionary]:
 	var rows: Array[Dictionary] = [
 		{
-			"label_key": "RESULT_TIME",
-			"value_text": format_time(time_seconds),
-			"highlight": is_time_record,
-		},
-		{
-			"label_key": "RESULT_INTEGRITY",
-			"value_text": "%d %%" % int(roundf(clampf(city_integrity, 0.0, 1.0) * 100.0)),
+			"label_key": "RESULT_STANDING_HEADER",
+			"value_text": "",
 			"highlight": false,
-		},
-		{
-			"label_key": "RESULT_PARTS",
-			"value_text": str(parts_broken),
-			"highlight": false,
-		},
-		{
-			"label_key": "RESULT_ACCURACY",
-			"value_text": "%d %%" % int(roundf(accuracy() * 100.0)),
-			"highlight": false,
-		},
-		{
-			"label_key": "RESULT_DEATHS",
-			"value_text": str(deaths),
-			"highlight": false,
+			"header": true,
 		},
 	]
+	if protected_state != Protected.NONE:
+		rows.append({
+			"label_key": protected_name_key if not protected_name_key.is_empty()
+					else "RESULT_STANDING_HEADER",
+			# `TranslationServer` y no `tr()`: esto es un [RefCounted], no vive en el
+			# árbol y no tiene el `tr()` de [Node].
+			"value_text": TranslationServer.translate(PROTECTED_KEYS[protected_state]),
+			# El único resaltado del bloque es el que duele: la escuela caída.
+			"highlight": protected_state == Protected.FALLEN,
+			"header": false,
+		})
+	rows.append({
+		"label_key": "RESULT_STANDING_COUNT",
+		"value_text": "%d/%d" % [buildings_standing, buildings_total],
+		"highlight": false,
+		"header": false,
+	})
+	rows.append({
+		"label_key": "RESULT_INTEGRITY",
+		"value_text": "%d %%" % int(roundf(clampf(city_integrity, 0.0, 1.0) * 100.0)),
+		"highlight": false,
+		"header": false,
+	})
+	for row: Dictionary in [
+		{"label_key": "RESULT_TIME", "value_text": format_time(time_seconds),
+				"highlight": is_time_record},
+		{"label_key": "RESULT_PARTS", "value_text": str(parts_broken), "highlight": false},
+		{"label_key": "RESULT_ACCURACY",
+				"value_text": "%d %%" % int(roundf(accuracy() * 100.0)), "highlight": false},
+		{"label_key": "RESULT_DEATHS", "value_text": str(deaths), "highlight": false},
+	]:
+		row["header"] = false
+		rows.append(row)
 	if respawn_multiplier < 1.0:
 		rows.append({
 			"label_key": "RESULT_MULTIPLIER",
 			"value_text": "×%.2f" % respawn_multiplier,
 			"highlight": false,
+			"header": false,
 		})
 	return rows
 

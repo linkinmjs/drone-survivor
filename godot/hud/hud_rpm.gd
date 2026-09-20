@@ -13,8 +13,8 @@
 ## [constant MAX_RPM] (`docs/12` §2.2): el HUD no consume fracciones porque el
 ## `max_rpm` del motor es del dron, no suyo. Un régimen negativo —reversa de TURTLE,
 ## `docs/03` §3.2— se dibuja hacia abajo desde la línea de reposo y en
-## [constant UIPalette.HUD_REC], que es el único color de alarma que la paleta del
-## HUD trae.
+## [constant HUDDraw.ALERT], que es el único color de alarma que la paleta del HUD
+## trae.
 ##
 ## Es un componente **continuo** (`docs/12` §2.3): valor instantáneo, cada frame.
 class_name HUDRPM
@@ -87,13 +87,13 @@ func ratio_for(index: int) -> float:
 
 func _draw() -> void:
 	var centre := size * 0.5
-	var faint := Color(HUDDraw.WHITE, 0.45)
+	var faint := Color(HUDDraw.TEXT, 0.45)
 	# Los dos brazos del cuadro, para que las cuatro barras se lean como un dron y no
 	# como un ecualizador.
 	var arm := Vector2(SPREAD_X, SPREAD_Y) * 0.5
-	HUDDraw.line(self, centre - arm, centre + arm, 1.5, faint)
+	HUDDraw.line(self, centre - arm, centre + arm, 1.0, faint)
 	HUDDraw.line(self, centre + Vector2(-arm.x, arm.y), centre + Vector2(arm.x, -arm.y),
-			1.5, faint)
+			1.0, faint)
 
 	for index: int in _ratios.size():
 		_draw_bar(centre, index)
@@ -113,9 +113,9 @@ func _draw_bar(centre: Vector2, index: int) -> void:
 
 	# Carril: dice cuánto queda hasta el tope aunque el motor esté al ralentí.
 	var rail_tip := base + Vector2(0.0, direction * BAR_HEIGHT)
-	HUDDraw.line(self, base, rail_tip, 1.5, Color(HUDDraw.WHITE, 0.3))
+	HUDDraw.line(self, base, rail_tip, 1.0, HUDDraw.TRACK)
 
-	var colour := HUDDraw.WHITE if ratio >= 0.0 else UIPalette.HUD_REC
+	var colour := HUDDraw.TEXT if ratio >= 0.0 else HUDDraw.ALERT
 	if absf(ratio) > 0.001:
 		var top := minf(base.y, tip.y)
 		var bottom := maxf(base.y, tip.y)
@@ -126,7 +126,7 @@ func _draw_bar(centre: Vector2, index: int) -> void:
 
 	# Tope de la barra y marca de reposo.
 	HUDDraw.line(self, Vector2(base.x - half_width, base.y),
-			Vector2(base.x + half_width, base.y), 2.0, Color(HUDDraw.WHITE, 0.8))
+			Vector2(base.x + half_width, base.y), HUDDraw.STROKE, Color(HUDDraw.TEXT, 0.8))
 
 	# La etiqueta va del lado de afuera de su columna, a la altura de la línea de
 	# reposo: es el único hueco que no pisa ni la barra ni el brazo del cuadro.
@@ -136,5 +136,4 @@ func _draw_bar(centre: Vector2, index: int) -> void:
 		label_x -= LABEL_WIDTH
 	var alignment := HORIZONTAL_ALIGNMENT_RIGHT if outward < 0.0 else HORIZONTAL_ALIGNMENT_LEFT
 	HUDDraw.text(self, HUDDraw.font_mono(), Vector2(label_x, base.y + 5.0),
-			"%d" % [index + 1], LABEL_SIZE, alignment, LABEL_WIDTH,
-			Color(HUDDraw.WHITE, 0.75))
+			"%d" % [index + 1], LABEL_SIZE, alignment, LABEL_WIDTH, HUDDraw.DIM)

@@ -309,7 +309,7 @@ func _start_round(root: Node) -> BotPilot:
 	bot.setup(rig, enemies[0] as EnemyBase,
 			level.get_node_or_null(^"BatterySpawner") as BatterySpawner,
 			RoundCatalog.derive_seed("bot"))
-	manager.skip_intro()
+	manager.skip_to_battle()
 	bot.start()
 	return bot
 

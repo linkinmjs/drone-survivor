@@ -1,58 +1,44 @@
 ## Copyright (c) 2026 Drone Survivor. Todos los derechos reservados.
 ##
-## Colores del HUD de combate (`docs/13` § HUD y colores diegéticos).
+## Alias del `CombatHUD` sobre [UIPalette] (`docs/13` §2.2, WP-25).
 ##
-## `docs/13` cierra la regla que gobierna todo lo que dibuja el `CombatHUD`:
+## Hasta WP-25 esta clase **duplicaba** los valores de la paleta oscura porque
+## [UIPalette] todavía era la paleta clara del framework copiado (`docs/01` §2.3). Ya
+## no: la paleta oscura vive en [UIPalette] y acá no queda un solo color propio, solo
+## los nombres con los que el HUD de combate los llama.
 ##
-## - **Cian es diegético**: marca lo que pertenece al enemigo y lo que se puede
-##   romper —puntos débiles, cajas de objetivo, barra del jefe—. Nunca se usa para
-##   información del jugador.
-## - **Ámbar es lo propio**: energía, casco, calor, objetivos del piloto. Es el hue
-##   de mayor contraste sobre un fondo casi negro y arrastra la connotación de radio
-##   militar.
-##
-## ## Por qué esta clase existe y no se usa [UIPalette] directamente
-##
-## La paleta nueva completa —la oscura, militar y holográfica de `docs/13` §3— la
-## entrega **WP-25**, que reescribe [UIPalette] y regenera los temas. Hoy [UIPalette]
-## sigue siendo la paleta clara de menús que vino con el framework copiado
-## (`docs/01` §2.3): su `ACCENT` es un azul de botón (`#2F7CF6`), su `DANGER` es un
-## rojo oscuro pensado para fondo blanco (`#B3261E`) y no tiene `TARGET`. Ninguno de
-## los tres se lee sobre el video de la cámara, y el azul además competiría con el
-## cian diegético, que es justo lo que `docs/13` prohíbe.
-##
-## Los valores de acá son **los que `docs/13` §3 ya fijó** para esa paleta: cuando
-## WP-25 los mueva a [UIPalette], esta clase se reduce a alias y ningún componente
-## cambia. Lo que sí sale de [UIPalette] hoy —porque ya está en su valor final— se
-## referencia tal cual: [constant UIPalette.HUD_TEXT] y [constant UIPalette.HUD_SHADOW].
+## Se conserva la clase —en vez de reemplazar las referencias— porque los nombres de
+## combate dicen **para qué** sirve cada color sobre el video: `TRACK` es el carril
+## vacío de una barra, `BOX` el relleno de un marco, `TEXT_DIM` el rótulo de una
+## distancia. La regla de `docs/13` sigue intacta: ámbar es lo propio, cian es de ellos.
 class_name CombatHUDPalette
 extends RefCounted
 
-## Color **diegético** de `docs/13` §3: puntos débiles, cajas de objetivo, barra del
-## jefe y todo lo que pertenece al enemigo.
-const TARGET: Color = Color("#38E1FF")
+## Color **diegético**: puntos débiles, cajas de objetivo, barra del jefe y todo lo que
+## pertenece al enemigo.
+const TARGET: Color = UIPalette.TARGET
 
 ## Acento del jugador: energía, casco, calor, línea de objetivo. Ámbar.
-const ACCENT: Color = Color("#FFB020")
+const ACCENT: Color = UIPalette.ACCENT
 
 ## Peligro sobre video: energía crítica, casco roto, sobrecalentamiento, aviso de
-## telegrafía y marcadores de enemigo. Es el mismo rojo que [constant UIPalette.HUD_REC].
-const DANGER: Color = Color("#FF4D3D")
+## telegrafía y marcadores de enemigo.
+const DANGER: Color = UIPalette.DANGER
 
 ## Algo bueno para el piloto: pilas y progreso cumplido.
-const SUCCESS: Color = Color("#3FD18C")
+const SUCCESS: Color = UIPalette.SUCCESS
 
-## Texto del HUD sobre el video.
+## Texto del HUD sobre el video, en el mismo ámbar cálido que el HUD de vuelo.
 const TEXT: Color = UIPalette.HUD_TEXT
 
 ## Texto secundario: rótulos, unidades, distancias.
-const TEXT_DIM: Color = Color(0.91, 0.96, 0.97, 0.66)
+const TEXT_DIM: Color = UIPalette.HUD_DIM
 
 ## Carcasa de una barra vacía o de un segmento todavía no gastado.
-const TRACK: Color = Color(0.91, 0.96, 0.97, 0.22)
+const TRACK: Color = UIPalette.HUD_TRACK
 
 ## Relleno de las cajas y marcos semitransparentes del HUD.
-const BOX: Color = Color(0.02, 0.05, 0.07, 0.42)
+const BOX: Color = UIPalette.HUD_BOX
 
 ## Sombra de contorno, compartida con el HUD de vuelo.
 const SHADOW: Color = UIPalette.HUD_SHADOW
@@ -60,7 +46,7 @@ const SHADOW: Color = UIPalette.HUD_SHADOW
 
 ## [param color] con la opacidad [param alpha], sin tocar el original.
 static func with_alpha(color: Color, alpha: float) -> Color:
-	return Color(color.r, color.g, color.b, clampf(alpha, 0.0, 1.0))
+	return UIPalette.with_alpha(color, alpha)
 
 
 ## Interpola de [constant ACCENT] a [constant DANGER] según [param ratio], que es el

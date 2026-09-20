@@ -46,7 +46,8 @@ const STEP: float = 1.0 / 60.0
 ## Frames que se dejan pasar para que la escena dibuje antes de capturar.
 const SETTLE_FRAMES: int = 6
 
-## Títulos de las filas, en orden. Las dos últimas las agrega WP-24d.
+## Títulos de las filas, en orden. Las dos de WP-24d son la 16 y la 17; las dos que
+## agrega WP-25, la 18 y la 19; la de WP-25b, la 20.
 const ROW_TITLES: Array[String] = [
 	"componentes presentes y dibujando", "energía, casco y calor", "hitmarkers",
 	"barra del jefe por grupos", "franja de ciudad", "marcadores fuera de pantalla",
@@ -54,10 +55,15 @@ const ROW_TITLES: Array[String] = [
 	"cuenta de reconstrucción", "modo cinemático", "cronómetro y objetivo",
 	"claves de traducción", "prueba negativa", "sin conexiones colgadas",
 	"marcador del punto débil", "consejos contextuales",
+	"estática de la caída", "drones del taller", "alerta del taller",
 ]
 
-## Cuántos componentes tiene el `CombatHUD` tras WP-24d.
-const COMPONENT_COUNT: int = 17
+## Cuántos componentes tiene el `CombatHUD` tras WP-25b.
+const COMPONENT_COUNT: int = 18
+
+## Avenidas que tiene que dibujar el mapa de la alerta: una por eje
+## (`CityGrid.avenue_gap_col` y `avenue_gap_row`, `docs/10` §4.2).
+const AVENUE_COUNT: int = 2
 
 ## Grupos de la barra del jefe, como `[primera_barra, cuántas, clave del rótulo]`
 ## (`docs/07` §4: 4 rodillas, 1 visor, 3 núcleos).
@@ -104,6 +110,11 @@ const EMP_SECONDS: float = 3.0
 ## Tolerancia de la fila 9, en segundos.
 const EMP_TOLERANCE: float = 0.1
 
+## Tolerancia de la fila 18, en segundos. Más ajustada que la del EMP porque las dos
+## ráfagas son cortas: con la de 0.1 del glitch, un error de medio plazo en la de
+## 0.4 s pasaría inadvertido.
+const STATIC_TOLERANCE: float = 0.05
+
 ## Segundos de reconstrucción que pide `docs/09` §3.5.
 const RESPAWN_SECONDS: float = 12.0
 
@@ -142,8 +153,20 @@ func _run() -> void:
 		Global.debug_freeze_ai = false
 		return
 
+	# WP-25b metió `ALERT` —la alerta del monitor del taller— **antes** de `INTRO`, y
+	# `skip_intro()` salta un estado por vez: el nivel arranca en la alerta, la fila 20
+	# la mide ahí mismo y es ella la que la saltea. Recién entonces se mide la fila 11,
+	# que es la que describe `docs/12` §4.2, y después se va a `BATTLE` con
+	# `skip_to_battle()`, que existe justamente para los bancos y no se rompe si mañana
+	# aparece un estado previo más.
+	#
+	# El reloj manual arranca **acá** y no después de `skip_to_battle()`: la fila 20
+	# mide los 0,4 s de estática a caballo del cambio de estado, y con el reloj del
+	# motor esos 0,4 s duran lo que tarde el bucle principal.
+	_hud.set_manual_time(true)
+	await _check_alert()
 	await _check_cinematic()
-	_manager.skip_intro()
+	_manager.skip_to_battle()
 	await wait_frames(2)
 	_freeze_drone()
 	_hud.set_manual_time(true)
@@ -161,6 +184,8 @@ func _run() -> void:
 	_check_timer_and_objective()
 	await _check_weak_hint()
 	await _check_coach()
+	await _check_static()
+	await _check_workshop()
 	_check_translations()
 	_check_negative()
 	await _shoot_all()
@@ -170,11 +195,122 @@ func _run() -> void:
 	_print_rows()
 
 
+# --- Fila 20 (se mide primero de todas, en `ALERT`) -------------------------------------------
+
+## La alerta del monitor del taller: qué se ve, qué dice y cómo se corta
+## (`docs/narrativa` §5, `docs/11` §1).
+##
+## Es la primera fila que corre porque `ALERT` es el **primer estado real** de la
+## ronda y no se puede volver a él: las dos transiciones son irreversibles
+## (`docs/11` §4.1). Y es esta fila la que saltea la alerta, así que la 11 se mide
+## justo después, ya en `INTRO`.
+##
+## Las cuatro cosas que verifica son las cuatro que se podrían romper por separado:
+## que el monitor tape el resto del HUD, que el mapa sea **este** barrio y no una
+## decoración, que las dos voces lleguen traducidas —una clave cruda en pantalla dice
+## `ALERT_PROTECT` en vez de «Proteger: Escuela 12»— y que la estática de 0,4 s
+## sobreviva al cambio de estado, que es el único punto donde [method
+## CombatHUD.set_cinematic] podría cortarla sin que nadie se entere.
+func _check_alert() -> void:
+	var screen := _hud.component_node(CombatHUD.Component.ALERT_SCREEN) as HUDAlertScreen
+	var glitch := _hud.component_node(CombatHUD.Component.GLITCH) as HUDGlitchLayer
+	var burst := glitch.static_burst() if glitch != null else null
+	if screen == null or burst == null:
+		_row(20, false, "20 · al CombatHUD le falta el AlertScreen o el StaticBurst")
+		return
+	if _manager.get_state() != Global.RoundState.ALERT:
+		_row(20, false, "20 · la ronda no arrancó en ALERT (arrancó en %d)"
+				% _manager.get_state())
+		return
+
+	# 1. En `ALERT` sólo se ve el monitor. La franja de ciudad y el rótulo de la ronda
+	#    **no**: llegan en `INTRO`.
+	await _advance(0.25)
+	var shown := PackedStringArray()
+	var hidden := PackedStringArray()
+	for component: int in CombatHUD.Component.values():
+		var node := _hud.component_node(component as CombatHUD.Component)
+		if node == null:
+			continue
+		var label := String(CombatHUD.Component.keys()[component])
+		var wanted := CombatHUD.ALERT_COMPONENTS.has(component)
+		if node.visible and not wanted:
+			shown.append(label)
+		elif not node.visible and wanted:
+			hidden.append(label)
+	var drew := screen.draw_count > 0
+
+	# 2. El mapa es el barrio de verdad: las manzanas de la rejilla y sus dos avenidas.
+	var district := _manager.get_district()
+	var blocks := district.block_count() if district != null else -1
+	var map_ok := screen.has_map() and screen.block_count() == blocks \
+			and screen.avenue_count() == AVENUE_COUNT
+
+	# 3. Las dos voces, traducidas y con sus datos adentro.
+	var protect := screen.protected_text()
+	var enemy := screen.enemy_text()
+	var building := _manager.get_protected_building()
+	var building_name := building.display_name() if building != null else ""
+	var protect_ok := not protect.is_empty() and protect != HUDAlertScreen.PROTECT_KEY \
+			and not protect.contains("{0}") and not building_name.is_empty() \
+			and protect.contains(building_name)
+	var enemy_ok := enemy != HUDAlertScreen.ENEMY_KEY and not enemy.contains("{0}") \
+			and enemy.contains(tr(HUDAlertScreen.ENEMY_NAME_KEY).to_upper())
+	var counting := _manager.get_alert_remaining() > 0.0 \
+			and not screen.remaining_text().is_empty()
+	await _shoot("alert")
+
+	# 4. El corte. `skip_intro()` emite `alert_finished` y entra en `INTRO` en la misma
+	#    llamada, que es el caso peor: si la estática no sobreviviera al cambio de
+	#    modo, acá se apagaría.
+	var idle := not _hud.is_static_playing()
+	var before_draws := burst.draw_count
+	_manager.skip_intro()
+	await _advance(STEP)
+	var cut := _hud.is_static_playing() and burst.intensity() > 0.0 and burst.visible
+	var cut_drew := burst.draw_count > before_draws
+	await _advance(RoundManager.STATIC_SECONDS - STATIC_TOLERANCE - STEP)
+	var still := _hud.is_static_playing()
+	await _advance(STATIC_TOLERANCE * 2.0)
+	var done := not _hud.is_static_playing() and is_zero_approx(burst.intensity()) \
+			and not burst.visible
+
+	# 5. Ya en `INTRO`: el monitor se fue y vuelven la franja de ciudad y el rótulo.
+	var state := _manager.get_state()
+	var city := _hud.component_node(CombatHUD.Component.CITY)
+	var banner := _hud.component_node(CombatHUD.Component.INTRO)
+	var handover := state == Global.RoundState.INTRO and not screen.visible \
+			and city != null and city.visible and banner != null and banner.visible
+
+	print("  [20] %d manzanas y %d avenidas · «%s» · «%s» · corte %s → %s"
+			% [screen.block_count(), screen.avenue_count(), protect, enemy,
+			str(cut), str(done)])
+	_row(20, shown.is_empty() and hidden.is_empty() and drew,
+			"20 · en ALERT sobran [%s], faltan [%s], el monitor dibujó %s"
+			% [", ".join(shown), ", ".join(hidden), str(drew)])
+	_row(20, map_ok, "20 · el mapa dibuja %d manzanas (la rejilla tiene %d) y %d avenidas "
+			% [screen.block_count(), blocks, screen.avenue_count()]
+			+ "(esperadas %d), con barrio %s" % [AVENUE_COUNT, str(screen.has_map())])
+	_row(20, protect_ok and enemy_ok and counting,
+			"20 · rótulo del protegido «%s» (%s), línea del enemigo «%s» (%s), cuenta «%s»"
+			% [protect, str(protect_ok), enemy, str(enemy_ok), screen.remaining_text()])
+	_row(20, idle and cut and cut_drew and still and done,
+			"20 · reposo %s, el corte arranca %s y dibuja %s, sigue a %.2f s %s y "
+			% [str(idle), str(cut), str(cut_drew),
+			RoundManager.STATIC_SECONDS - STATIC_TOLERANCE, str(still)]
+			+ "termina apagado a %.2f s %s"
+			% [RoundManager.STATIC_SECONDS + STATIC_TOLERANCE, str(done)])
+	_row(20, handover, "20 · en INTRO el estado es %d, el monitor sigue %s y vuelven "
+			% [state, "visible" if screen.visible else "oculto"]
+			+ "CityBar %s / IntroBanner %s"
+			% [str(city != null and city.visible), str(banner != null and banner.visible)])
+
+
 # --- Fila 11 (se mide primero, en `INTRO`) ----------------------------------------------------
 
 ## Durante `INTRO` sólo se ven la franja de ciudad y el rótulo de la ronda
-## (`docs/12` §4.2). Se mide **antes** de saltear la cinemática porque es el estado
-## real en el que arranca el nivel, no uno forzado a mano.
+## (`docs/12` §4.2). Se mide **antes** de saltear la cinemática, en el estado al que
+## la fila 20 acaba de dejar la ronda, y no en uno forzado a mano.
 func _check_cinematic() -> void:
 	var state := _manager.get_state()
 	var cinematic := _hud.is_cinematic()
@@ -668,7 +804,10 @@ func _check_timer_and_objective() -> void:
 	var objective := sequencer.get_current() if sequencer != null else null
 	line.refresh_objective()
 	var title := line.title()
-	var matches := objective != null and title == tr(objective.title_key) \
+	# `get_title_text()` y no `tr(title_key)`: hay títulos con datos adentro —«PROTEGÉ:
+	# ESCUELA 12»— que la clave sola no resuelve, y comparar contra la clave cruda
+	# dejaba pasar justo el caso que agrega WP-25b (`docs/11` §1).
+	var matches := objective != null and title == objective.get_title_text() \
 			and not title.is_empty() and title != objective.title_key
 	print("  [12] cronómetro %.2f s del manager / %.2f s del HUD → «%s» · objetivo «%s»"
 			% [elapsed, shown, text, title])
@@ -808,6 +947,130 @@ func _check_coach() -> void:
 	coach.reset()
 
 
+# --- Fila 18 ----------------------------------------------------------------------------------
+
+## La estática dura lo pedido y **termina apagada** (`docs/13` §1, nota del checkpoint
+## 3b).
+##
+## Es la fila que defiende la decisión de no tener pantalla de muerte: si la ráfaga se
+## quedara encendida, el jugador se quedaría mirando ruido para siempre, que es
+## exactamente la pantalla de derrota que esta dirección no quiere. Por eso no alcanza
+## con que `is_playing()` devuelva `false`: se exige además `intensity == 0` y el
+## componente invisible, porque un material encendido bajo un nodo escondido vuelve a
+## pintar en cuanto alguien lo muestre.
+##
+## Los dos hechos llegan **por el bus**, igual que en el juego: `Events.drone_destroyed`
+## lo publica el [Hull] al llegar a cero, y `Events.drone_respawned` el
+## [RespawnController] al terminar los doce segundos.
+func _check_static() -> void:
+	var glitch := _hud.component_node(CombatHUD.Component.GLITCH) as HUDGlitchLayer
+	var burst := glitch.static_burst()
+	if burst == null:
+		_row(18, false, "18 · el GlitchLayer no trae el StaticBurst (docs/13 §1)")
+		return
+	var idle := not _hud.is_static_playing() and is_zero_approx(burst.intensity())
+	# La marca se toma **antes** de disparar: la ráfaga redibuja sólo cuando su reloj
+	# avanza, y con el tiempo manual del check el primer `_draw()` ya pasó cuando
+	# `_advance()` devuelve el control.
+	var before_draws := burst.draw_count
+
+	Events.drone_destroyed.emit(Vector3.ZERO)
+	await _advance(STEP)
+	var started := _hud.is_static_playing()
+	var lit := burst.intensity() > 0.0 and burst.visible
+	var drew := burst.draw_count > before_draws
+	await _shoot("static")
+	await _advance(HUDStaticBurst.DEATH_SECONDS - STATIC_TOLERANCE - STEP)
+	var still := _hud.is_static_playing()
+	# La otra mitad del efecto: al 94 % del recorrido la estática ya cayó a negro. Sin
+	# esta captura, el único tramo que se mira es el del ruido y la caída se podría
+	# romper sin que nadie se enterara.
+	await _shoot("static_black")
+	await _advance(STATIC_TOLERANCE * 2.0)
+	var done := not _hud.is_static_playing()
+	var off := is_zero_approx(burst.intensity()) and not burst.visible
+
+	# La media ráfaga del dron nuevo enganchando.
+	Events.drone_respawned.emit(1.0)
+	await _advance(STEP)
+	var rebuilt := _hud.is_static_playing()
+	await _advance(HUDStaticBurst.REBUILT_SECONDS - STATIC_TOLERANCE - STEP)
+	var short_still := _hud.is_static_playing()
+	await _advance(STATIC_TOLERANCE * 2.0)
+	var short_done := not _hud.is_static_playing() and is_zero_approx(burst.intensity())
+
+	# El `RoundManager` movió la cámara a la de reconstrucción y de vuelta; se deja
+	# donde el resto del check la espera.
+	var level := _level as LevelBase
+	var _focused := level.focus_camera(_rig.get_fpv_camera())
+	await _advance(0.05)
+	print("  [18] reposo %s · arranca %s (encendida %s, dibuja %s) · sigue a %.2f s %s · "
+			% [str(idle), str(started), str(lit), str(drew),
+			HUDStaticBurst.DEATH_SECONDS - STATIC_TOLERANCE, str(still)]
+			+ "termina %s apagada %s · media ráfaga %s → %s"
+			% [str(done), str(off), str(rebuilt), str(short_done)])
+	_row(18, idle and started and lit and drew and still and done and off,
+			"18 · reposo %s, arranca %s, encendida %s, dibuja %s, sigue a %.2f s %s, "
+			% [str(idle), str(started), str(lit), str(drew),
+			HUDStaticBurst.DEATH_SECONDS - STATIC_TOLERANCE, str(still)]
+			+ "termina a %.2f s %s, queda apagada %s"
+			% [HUDStaticBurst.DEATH_SECONDS + STATIC_TOLERANCE, str(done), str(off)])
+	_row(18, rebuilt and short_still and short_done,
+			"18 · la ráfaga de `drone_respawned` arranca %s, sigue a %.2f s %s y termina "
+			% [str(rebuilt), HUDStaticBurst.REBUILT_SECONDS - STATIC_TOLERANCE,
+			str(short_still)]
+			+ "apagada a %.2f s %s"
+			% [HUDStaticBurst.REBUILT_SECONDS + STATIC_TOLERANCE, str(short_done)])
+
+
+# --- Fila 19 ----------------------------------------------------------------------------------
+
+## El cartel de reconstrucción cuenta los drones que lleva gastados el taller.
+##
+## El número no es libre: [method RespawnController.get_death_count] cuenta
+## reconstrucciones **terminadas**, así que en la primera caída de la ronda el cartel
+## tiene que decir exactamente **2** —el que se rompió y el que están trayendo— y no 1
+## ni 3. Un contador que empieza en 1 diría que no pasó nada; uno que empieza en 3
+## regalaría un dron que el taller no gastó.
+func _check_workshop() -> void:
+	var overlay := _hud.component_node(CombatHUD.Component.RESPAWN) as HUDRespawnOverlay
+	var controller := _rig.get_respawn_controller()
+	if controller == null:
+		_row(19, false, "19 · el rig no expone el RespawnController")
+		return
+	controller.reset()
+	await _advance(0.1)
+	var flying := overlay.workshop_drone()
+
+	controller.force_respawn()
+	await _advance(0.05)
+	await wait_physics(2)
+	await _advance(0.05)
+	var deaths := controller.get_death_count()
+	var shown := overlay.workshop_drone()
+	var raw := tr(HUDRespawnOverlay.WORKSHOP_KEY)
+	var text := overlay.workshop_text()
+	var translated := raw != HUDRespawnOverlay.WORKSHOP_KEY
+	var formatted := text != raw and not text.contains("{0}") and text.contains("2")
+	await _shoot("workshop")
+
+	controller.reset()
+	_freeze_drone()
+	var level := _level as LevelBase
+	var _focused := level.focus_camera(_rig.get_fpv_camera())
+	await _advance(0.1)
+	var back := overlay.workshop_drone()
+	print("  [19] volando %d · reconstrucciones terminadas %d · cartel «%s» (n=%d) · "
+			% [flying, deaths, text, shown] + "tras cancelar %d" % back)
+	_row(19, flying == 1 and deaths == 0 and shown == 2 and back == 1,
+			"19 · volando %d (esperado 1), terminadas %d (esperado 0), en el cartel %d "
+			% [flying, deaths, shown] + "(esperado 2), tras cancelar %d (esperado 1)"
+			% back)
+	_row(19, translated and formatted,
+			"19 · la clave '%s' está traducida (%s) y formateada: «%s»"
+			% [HUDRespawnOverlay.WORKSHOP_KEY, str(translated), text])
+
+
 # --- Fila 13 ----------------------------------------------------------------------------------
 
 ## Ninguna clave nueva se queda sin texto en es ni en en. Es la red del riesgo 12 de
@@ -817,9 +1080,14 @@ func _check_translations() -> void:
 			HUDHullBar.LABEL_KEY, HUDHeatGauge.LABEL_KEY, HUDHeatGauge.LOCK_KEY,
 			HUDCityBar.LABEL_KEY, HUDReticle.LOCK_KEY, HUDBossBar.PHASE_KEY,
 			HUDBossBar.FALLBACK_NAME_KEY, HUDRespawnOverlay.TITLE_KEY,
-			HUDRespawnOverlay.MULTIPLIER_KEY, HUDIntroBanner.SKIP_KEY,
+			HUDRespawnOverlay.MULTIPLIER_KEY, HUDRespawnOverlay.WORKSHOP_KEY,
+			HUDIntroBanner.SKIP_KEY,
 			HUDObjectiveLine.STEP_KEY, HUDTelegraphWarning.GENERIC_KEY,
-			HUDIntroBanner.WEAK_HINT_KEY, HUDCoachTip.WEAK_KEY])
+			HUDIntroBanner.WEAK_HINT_KEY, HUDCoachTip.WEAK_KEY,
+			HUDAlertScreen.TITLE_KEY, HUDAlertScreen.PROTECT_KEY,
+			HUDAlertScreen.ENEMY_KEY, HUDAlertScreen.ENEMY_NAME_KEY,
+			HUDAlertScreen.CONTINUE_KEY, HUDAlertScreen.SCALE_KEY,
+			HUDAlertScreen.SELF_KEY])
 	for key: String in HUDOffscreenMarkers.KIND_KEYS.values():
 		keys.append(key)
 	for attack: String in ["stomp", "leg_sweep", "head_laser", "siege_beam", "emp_pulse",
@@ -960,8 +1228,9 @@ func _shoot_all() -> void:
 		var glitch := _hud.component_node(CombatHUD.Component.GLITCH) as HUDGlitchLayer
 		glitch.stop()
 	await _advance(0.1)
-	print("  [capturas] combat_hud.png, coach_hint.png, glitch.png, cinematic.png y "
-			+ "respawn.png en %s" % shots_dir)
+	print("  [capturas] combat_hud.png, coach_hint.png, glitch.png, alert.png, "
+			+ "cinematic.png, respawn.png, static.png, static_black.png y workshop.png "
+			+ "en %s" % shots_dir)
 
 
 func _shoot(label: String) -> void:

@@ -96,6 +96,8 @@ func draw_count() -> int:
 
 func _draw() -> void:
 	_draws += 1
+	# Fondo propio: el gráfico es un instrumento, no un hueco de la tarjeta.
+	draw_rect(Rect2(Vector2.ZERO, size), UIPalette.GRAPH_BG, true)
 	var inner := Rect2(Vector2(PADDING, PADDING), size - Vector2(PADDING, PADDING) * 2.0)
 	if inner.size.x < 8.0 or inner.size.y < 8.0:
 		return
@@ -120,9 +122,9 @@ func _draw_grid(inner: Rect2) -> void:
 		draw_line(Vector2(inner.position.x, y), Vector2(inner.end.x, y),
 				UIPalette.GRAPH_GRID, 1.0)
 	draw_line(Vector2(inner.position.x, center.y), Vector2(inner.end.x, center.y),
-			UIPalette.BORDER_STRONG, 1.0)
+			UIPalette.GRAPH_AXIS, 1.0)
 	draw_line(Vector2(center.x, inner.position.y), Vector2(center.x, inner.end.y),
-			UIPalette.BORDER_STRONG, 1.0)
+			UIPalette.GRAPH_AXIS, 1.0)
 
 
 ## Curva de un eje, escalada contra la tasa máxima de los tres.

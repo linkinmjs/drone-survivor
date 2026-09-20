@@ -50,6 +50,10 @@ const GROUP: StringName = &"buildings"
 ## quien arbitra es [CityIntegrity] (`docs/12` §4.1).
 const GROUP_UNDER_SIEGE: StringName = &"buildings_under_siege"
 
+## Grupo del edificio que la ronda pide proteger (`docs/11` §1, WP-25b). Tiene
+## **como mucho un miembro** y quien lo marca es `RoundManager._resolve_protected()`.
+const GROUP_PROTECTED: StringName = &"protected"
+
 ## Ruta del shader de la etapa `DAMAGED`.
 const DAMAGE_SHADER_PATH: String = "res://city/damage_overlay.gdshader"
 
@@ -74,6 +78,17 @@ static var _active_emitters: int = 0
 ## edificio: 60 duplicados romperían el agrupado de lotes.
 static var _damage_materials: Dictionary = {}
 
+## Copias con las ventanas apagadas, indexadas por el material original de la
+## pieza, igual que [member _damage_materials].
+##
+## Son **copias** —nunca se toca el `.tres` compartido, que sigue a
+## `emission_energy_multiplier = 1.0`— pero hay **una por familia** y no una por
+## edificio: el racionamiento de `docs/13` §1 apaga manzanas enteras, así que
+## sesenta duplicados idénticos sólo servirían para que el renderizador cambiase
+## de material sesenta veces en vez de dos. Los lotes de dibujo no cambian porque
+## cada edificio ya es su propia malla (`docs/10` §7).
+static var _dark_materials: Dictionary = {}
+
 ## Se emite en cada transición de etapa, nunca al repetir la misma.
 signal stage_changed(stage: Stage)
 
@@ -86,6 +101,23 @@ signal damage_taken(amount: float, point: Vector3)
 
 ## Números del tipo de edificio. Sin perfil el edificio no recibe daño.
 @export var profile: BuildingProfile = null
+
+## Clave de traducción del nombre propio del edificio, o `""` si es anónimo
+## (`docs/narrativa` §9: los centros protegidos llevan nombre propio).
+##
+## Sólo el edificio protegido de la ronda lo trae, y se lo pone
+## `RoundManager._resolve_protected()` con [method mark_protected]. Es un `@export`
+## para que una escena de prueba pueda nombrar un edificio a mano.
+@export var display_key: String = ""
+
+## Cuánto pesa este edificio frente a los demás cuando hay que elegir a cuál
+## atender: rótulo del HUD, marcador fuera de cuadro y, más adelante, blanco del
+## jefe. 1.0 es un edificio cualquiera; el protegido va a 3.0.
+##
+## **No** es el peso en la integridad: ese lo decide [CityIntegrity] con su propia
+## constante, porque la integridad es una cuenta de HP y esto es una cuenta de
+## atención.
+@export_range(0.0, 10.0, 0.1) var priority: float = 1.0
 
 ## AABB de la pieza sin variación de altura, en metros y en el espacio local de
 ## la raíz. Lo copia [CityGrid] del metadato `base_size` del import.
@@ -156,6 +188,10 @@ var _siege_age: float = 0.0
 var _under_siege: bool = false
 var _destroyed_emitted: bool = false
 var _pile_rest_scale: Vector3 = Vector3.ONE
+
+## Verdadero si este edificio tiene las ventanas encendidas ahora mismo. Lo
+## decide [method _apply_window_ration] y lo lee `city_check`.
+var _windows_lit: bool = true
 
 ## [CityGrid] al que pertenece este edificio. Se resuelve tarde y se cachea; el
 ## tipo es [Node3D] y el despacho por `has_method` para no cerrar el ciclo
@@ -332,6 +368,33 @@ func mark_under_siege(active: bool) -> void:
 		remove_from_group(GROUP_UNDER_SIEGE)
 
 
+## Verdadero si este es el edificio que la ronda pide proteger.
+func is_protected() -> bool:
+	return is_in_group(GROUP_PROTECTED)
+
+
+## Marca este edificio como el protegido de la ronda: le pone el nombre
+## [param key], la prioridad [param new_priority] y lo mete en el grupo
+## [constant GROUP_PROTECTED] (`docs/11` §1).
+##
+## Lo llama **sólo** `RoundManager._resolve_protected()`, que es quien lee el
+## catálogo. Va acá y no allá porque hay un efecto colateral que el llamador no
+## tiene por qué conocer: el protegido está siempre iluminado, así que hay que
+## rehacer el racionamiento de ventanas —que ya corrió en [method reset]— con la
+## marca puesta.
+func mark_protected(key: String, new_priority: float) -> void:
+	display_key = key
+	priority = new_priority
+	if not is_in_group(GROUP_PROTECTED):
+		add_to_group(GROUP_PROTECTED)
+	_apply_window_ration()
+
+
+## Nombre visible ya traducido, o `""` si el edificio es anónimo.
+func display_name() -> String:
+	return tr(display_key) if not display_key.is_empty() else ""
+
+
 # --------------------------------------------------------------------------
 # Variación y reinicio
 # --------------------------------------------------------------------------
@@ -403,6 +466,7 @@ func reset() -> void:
 		stage_intact.visible = true
 		_place_intact(height_scale, 0.0)
 		_set_damage_material(null)
+		_apply_window_ration()
 	if stage_rubble != null:
 		stage_rubble.visible = false
 	if rubble_pile != null:
@@ -584,6 +648,68 @@ func _set_damage_material(material: Material) -> void:
 		return
 	for node: Node in _mesh_instances():
 		(node as MeshInstance3D).material_override = material
+
+
+## Verdadero si este edificio tiene las ventanas encendidas en la etapa intacta.
+##
+## En `DAMAGED` y en `RUBBLE` la respuesta no significa nada: el shader de daño no
+## escribe `EMISSION` y la ruina no tiene ventanas (`docs/10` §3.2).
+func windows_lit() -> bool:
+	return _windows_lit
+
+
+## Apaga o enciende las ventanas de la etapa intacta según el racionamiento por
+## manzana de `docs/13` §1 (préstamo de la dirección B, checkpoint 3b).
+##
+## La ciudad de la última luz no puede tener las sesenta fachadas encendidas por
+## igual: un barrio en guerra raciona. El 30 % de las **manzanas** —no de los
+## edificios sueltos, o el apagón se vería como ruido salpicado— se queda a oscuras,
+## y quién se apaga lo decide [CityGrid] de forma determinista por semilla, así que
+## dos partidas con la misma [member Global.round_seed] apagan las mismas.
+##
+## El edificio protegido queda **siempre encendido**: es el único punto cálido que
+## el jugador tiene que poder encontrar desde el aire, y que se apagara justo la
+## escuela sería la peor lectura posible.
+##
+## Se usa `set_surface_override_material()` y no `material_override` porque este
+## último es el que ocupa el shader de daño: pisarlo dejaría un edificio dañado con
+## la fachada intacta. Con el override de superficie, `DAMAGED` sigue ganando.
+func _apply_window_ration() -> void:
+	var lit := true
+	if not is_protected():
+		var grid := _resolve_grid()
+		if grid != null and grid.has_method(&"is_building_dark"):
+			lit = not bool(grid.call(&"is_building_dark", self))
+	_windows_lit = lit
+	for node: Node in _mesh_instances():
+		var mesh_instance := node as MeshInstance3D
+		var mesh := mesh_instance.mesh
+		if mesh == null:
+			continue
+		for surface: int in mesh.get_surface_count():
+			var dark: Material = null
+			if not lit:
+				dark = _resolve_dark_material(mesh.surface_get_material(surface))
+				if dark == null:
+					continue
+			mesh_instance.set_surface_override_material(surface, dark)
+
+
+## Copia con las ventanas apagadas de [param source], construida una sola vez por
+## familia de material. Devuelve `null` si la fuente no es un
+## [StandardMaterial3D] con emisión (una pieza sin bake de ventanas no tiene nada
+## que apagar).
+func _resolve_dark_material(source: Material) -> StandardMaterial3D:
+	var standard := source as StandardMaterial3D
+	if standard == null or not standard.emission_enabled:
+		return null
+	if _dark_materials.has(standard):
+		return _dark_materials[standard] as StandardMaterial3D
+	var dark := standard.duplicate() as StandardMaterial3D
+	dark.resource_name = "%s_dark" % standard.resource_name
+	dark.emission_energy_multiplier = 0.0
+	_dark_materials[standard] = dark
+	return dark
 
 
 ## Material de daño de la familia de esta pieza, construido una sola vez y

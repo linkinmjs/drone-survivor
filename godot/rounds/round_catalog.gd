@@ -75,6 +75,28 @@ const ROUNDS: Array[Dictionary] = [
 		"score_silver": 800,
 		"score_bronze": 350,
 		"unlock_after": "",
+		# **Edificio protegido** (WP-25b, `docs/11` §1 y `docs/narrativa` §5 y §8).
+		#
+		# `building` es el **nombre de nodo** dentro del `Buildings` de
+		# `district_a.tscn`, que es estable porque el distrito está horneado con
+		# semilla 0 y no se regenera. Se eligió `Building_8_4` —bloque medio,
+		# `BuildingBlock_18`, 16,2 m— porque:
+		#
+		# 1. las cuatro celdas que tocan el cruce de avenidas (`Building_8_5`,
+		#    `_10_5`, `_8_7`, `_10_7`) son los hitos de 74–80 m, y `docs/11` §1
+		#    prohíbe usar uno;
+		# 2. es el edificio **no hito** más cercano al cruce sobre la recta que va
+		#    de `EnemySpawn0` (0, −176) —el marcador que usa la ronda 1— al centro:
+		#    en el mapa de la alerta el chevrón del enemigo y la escuela quedan en
+		#    la misma línea, que es lo que la pantalla tiene que contar;
+		# 3. con 3 500 HP de perfil torre y el peso ×3 de `CityIntegrity` la
+		#    escuela vale el 8,7 % del barrio, suficiente para que su caída se vea
+		#    en la barra EN PIE sin volverla una derrota encubierta.
+		"protected": {
+			"building": "Building_8_4",
+			"name_key": "BLD_SCHOOL_12",
+			"kind": &"school",
+		},
 	},
 ]
 
@@ -210,6 +232,18 @@ static func level_scene_for(_round_data: Dictionary) -> String:
 ## Etiquetas del MVP: `"personality"`, `"batteries"`, `"debris"`, `"camera"`, `"intro"`.
 static func derive_seed(tag: String) -> int:
 	return hash("%d:%s" % [Global.round_seed, tag])
+
+
+## Descripción del edificio protegido de [param round_data], o `{}` si esa ronda no
+## declara ninguno (`docs/11` §1).
+##
+## Campos: `building` (nombre de nodo dentro del distrito), `name_key` (clave de
+## traducción del nombre visible) y `kind` ([StringName] del tipo: `&"school"`,
+## `&"hospital"`…). Devolver siempre un [Dictionary] —vacío en vez de `null`— es lo
+## que deja a [RoundManager] preguntar sin encadenar comprobaciones de nulidad.
+static func protected_of(round_data: Dictionary) -> Dictionary:
+	var entry: Variant = round_data.get("protected", {})
+	return entry as Dictionary if entry is Dictionary else {}
 
 
 ## Verdadero mientras el catálogo no llegue a [constant FULL_ROSTER] rondas: el menú

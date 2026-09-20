@@ -155,12 +155,12 @@ text = "HUD_CFG_FLIGHT_MODE"
 alignment = 0
 metadata/hud_toggle = "flight_mode"
 
-[node name="ToggleRec" type="CheckButton" parent="Settings/Column/Toggles"]
+[node name="ToggleSignal" type="CheckButton" parent="Settings/Column/Toggles"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "HUD_CFG_REC"
+text = "HUD_CFG_SIGNAL"
 alignment = 0
-metadata/hud_toggle = "rec"
+metadata/hud_toggle = "signal"
 
 [node name="ToggleSticks" type="CheckButton" parent="Settings/Column/Toggles"]
 layout_mode = 2

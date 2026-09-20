@@ -166,7 +166,7 @@ func _shoot_variant(variant: Dictionary) -> void:
 	# 2. Vista FPV con el jefe y la ciudad.
 	if only != "intro":
 		if manager != null:
-			manager.skip_intro()
+			manager.skip_to_battle()
 			await wait_frames(4)
 			_park_drone(level, manager)
 		await wait_frames(_settle_frames)
@@ -206,7 +206,13 @@ func _apply_tweaks(level: BattleLevel) -> void:
 
 
 ## Deja correr la cinemática hasta [constant INTRO_SHOT_SECONDS].
+##
+## La alerta del taller que WP-25b puso antes de la cinemática se saltea de una:
+## estas capturas son del **entorno**, y esperar seis segundos de una pantalla que
+## ni siquiera mira a la ciudad sólo alarga la corrida.
 func _advance_intro(manager: RoundManager) -> void:
+	if manager.get_state() == Global.RoundState.ALERT:
+		manager.skip_intro()
 	var deadline := RoundManager.INTRO_SECONDS - INTRO_SHOT_SECONDS
 	while manager.get_intro_remaining() > deadline:
 		await get_tree().process_frame

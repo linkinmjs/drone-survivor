@@ -22,7 +22,10 @@
 ##         ├── EnergyBar · HullBar · HeatGauge · Reticle · HitMarker
 ##         ├── BossBar · CityBar · TelegraphWarning · RoundTimer · ObjectiveLine
 ##         ├── CoachTip · RespawnOverlay · IntroBanner
+##         ├── AlertScreen                                ← alerta del taller
+##         │   └── Scanlines
 ##         └── GlitchLayer
+##             └── StaticBurst                                  ← encima de todo
 ## [/codeblock]
 ##
 ## El `Frame` repite el truco del `FlightHUD`: los componentes están dibujados en
@@ -50,24 +53,40 @@ const LAYER: int = 20
 ## `FlightHUD` ([constant FlightHUD.MIN_LAYOUT_SIZE]), a propósito.
 const LAYOUT_SIZE: Vector2 = Vector2(1280.0, 720.0)
 
-## Los diecisiete componentes que [method show_component] sabe encender y apagar.
+## Los dieciocho componentes que [method show_component] sabe encender y apagar.
 ##
 ## [constant Component.WEAK_HINT] y [constant Component.COACH] son los dos que agrega
-## WP-24d y van **al final** a propósito: los quince anteriores conservan su valor, y
-## un `enum` de HUD que renumera es un `enum` que rompe cualquier estado guardado.
+## WP-24d, y [constant Component.ALERT_SCREEN] el que agrega WP-25b: todos van **al
+## final** a propósito, porque los anteriores conservan su valor y un `enum` de HUD
+## que renumera es un `enum` que rompe cualquier estado guardado.
 enum Component {ENERGY, HULL, HEAT, RETICLE, HIT_MARKER, BOSS, CITY, MARKERS,
 		DAMAGE, TELEGRAPH, TIMER, OBJECTIVE, RESPAWN, INTRO, GLITCH,
-		WEAK_HINT, COACH}
+		WEAK_HINT, COACH, ALERT_SCREEN}
 
 ## Lo único que se ve en modo cinemático (`docs/12` §4.2). Se guarda como
 ## `Array[int]` porque un `Array` tipado con un `enum` no es un tipo de contenedor
 ## válido en GDScript; los valores son los mismos.
-const CINEMATIC_COMPONENTS: Array[int] = [Component.CITY, Component.INTRO]
+##
+## [constant Component.GLITCH] no dibuja nada —le escribe desplazamientos a los
+## demás— pero **tiene que estar encendido**: de él cuelga el [HUDStaticBurst], y la
+## estática de 0,4 s que corta la alerta ocurre entera dentro del modo cinemático
+## (`docs/13` §1). Con la capa apagada, [method CombatHUD.advance] no la avanzaría y
+## el corte no se vería.
+const CINEMATIC_COMPONENTS: Array[int] = [Component.CITY, Component.INTRO,
+		Component.GLITCH]
+
+## Lo único que se ve durante `ALERT` (`docs/11` §1, `docs/narrativa` §5).
+##
+## La alerta del taller **no es** la cinemática: es un monitor que tapa la pantalla
+## entera, así que ni la franja de ciudad ni el rótulo de la ronda tienen sitio. Los
+## dos vuelven en `INTRO`, que sí es [constant CINEMATIC_COMPONENTS].
+const ALERT_COMPONENTS: Array[int] = [Component.ALERT_SCREEN, Component.GLITCH]
 
 ## Componentes que **sólo** existen en modo cinemático. El rótulo de la ronda es un
 ## cartel de apertura: en `BATTLE` taparía el aviso de telegrafía y el retículo, así
-## que su visibilidad no es negociable con [method show_component].
-const CINEMATIC_ONLY_COMPONENTS: Array[int] = [Component.INTRO]
+## que su visibilidad no es negociable con [method show_component]; y la pantalla de
+## la alerta, por el mismo motivo, sólo existe en `ALERT`.
+const CINEMATIC_ONLY_COMPONENTS: Array[int] = [Component.INTRO, Component.ALERT_SCREEN]
 
 ## Componentes que **sólo** tienen sentido con un dron vivo.
 ##
@@ -97,6 +116,7 @@ var _intro: HUDIntroBanner = null
 var _glitch: HUDGlitchLayer = null
 var _weak_hint: HUDWeakPointHint = null
 var _coach: HUDCoachTip = null
+var _alert: HUDAlertScreen = null
 
 ## Cámara impuesta con [method set_camera]; si es `null` manda la que dibuja la escena.
 var _camera: Camera3D = null
@@ -274,8 +294,14 @@ func bind_round(manager: RoundManager, sequencer: ObjectiveSequencer) -> void:
 		_timer.bind_round(_manager)
 	if _objective != null:
 		_objective.bind_sequencer(_sequencer)
+	if _alert != null:
+		_alert.bind_round(_manager)
 	if _manager != null:
 		var _discard := _manager.objective_text_changed.connect(_on_objective_text_changed)
+		# La única señal **local** de la ronda que el HUD escucha (`docs/11` §9.2): el
+		# estado ya viaja por el bus, pero el instante exacto en que la pantalla del
+		# taller deja de dibujarse sólo le interesa a quien dibuja el corte.
+		_discard = _manager.alert_finished.connect(_on_alert_finished)
 		_refresh_intro_keys()
 	if _sequencer != null:
 		var _discard := _sequencer.objective_started.connect(_on_objective_started)
@@ -325,6 +351,10 @@ func set_cinematic(enabled: bool) -> void:
 			_telegraph.clear_warning()
 		if _glitch != null:
 			_glitch.stop()
+			# La estática es un corte de video y una cinemática **es** otro video: si
+			# una ráfaga sobreviviera al cambio de modo, el rótulo de la ronda
+			# aparecería debajo de ruido que ya no significa nada.
+			_glitch.stop_static()
 		if _coach != null:
 			_coach.clear_tip()
 	_apply_visibility()
@@ -392,6 +422,8 @@ func component_node(component: Component) -> CombatHUDComponent:
 			return _weak_hint
 		Component.COACH:
 			return _coach
+		Component.ALERT_SCREEN:
+			return _alert
 		_:
 			return null
 
@@ -404,6 +436,11 @@ func is_glitching() -> bool:
 ## Intensidad del EMP, de 1 a 0. La lee `docs/13` para el `fpv_overlay.gdshader`.
 func emp_strength() -> float:
 	return _glitch.emp_strength if _glitch != null else 0.0
+
+
+## `true` mientras la estática de la caída esté tapando la pantalla (`docs/13` §1).
+func is_static_playing() -> bool:
+	return _glitch != null and _glitch.is_static_playing()
 
 
 # --- Bus (`docs/02` §5.1) ---------------------------------------------------------------------
@@ -424,9 +461,9 @@ func _disconnect_bus() -> void:
 			signal_ref.disconnect(callable)
 
 
-## Las quince señales del bus que el `CombatHUD` escucha, con su manejador. Una sola
-## tabla para conectar y desconectar: dos listas separadas se desincronizan y dejan
-## conexiones colgadas, que es justo lo que verifica la fila 11 de `docs/12` §9.2.
+## Las dieciséis señales del bus que el `CombatHUD` escucha, con su manejador. Una
+## sola tabla para conectar y desconectar: dos listas separadas se desincronizan y
+## dejan conexiones colgadas, que es justo lo que verifica la fila 11 de `docs/12` §9.2.
 func _bus_pairs() -> Array[Array]:
 	return [
 		[Events.energy_changed, _on_energy_changed],
@@ -434,6 +471,7 @@ func _bus_pairs() -> Array[Array]:
 		[Events.weapon_heat_changed, _on_weapon_heat_changed],
 		[Events.hit_confirmed, _on_hit_confirmed],
 		[Events.drone_damaged, _on_drone_damaged],
+		[Events.drone_destroyed, _on_drone_destroyed],
 		[Events.drone_respawned, _on_drone_respawned],
 		[Events.enemy_spawned, _on_enemy_spawned],
 		[Events.enemy_part_broken, _on_enemy_part_broken],
@@ -480,11 +518,25 @@ func _on_drone_damaged(amount: float, source_position: Vector3) -> void:
 		_damage.add_damage(amount, source_position)
 
 
+## El dron cayó. Aquí **no hay pantalla de muerte** (`docs/13` §1, nota del checkpoint
+## 3b): se corta el video ocho décimas y ya. El hecho llega por el bus y no por la
+## señal local del [Hull] porque el `CombatHUD` es del nivel y no del dron; es el mismo
+## hecho global que escucha el `RoundManager`.
+func _on_drone_destroyed(_position: Vector3) -> void:
+	if _glitch != null:
+		_glitch.trigger_static(HUDStaticBurst.DEATH_SECONDS)
+
+
 ## El dron volvió a volar: hay que volver a atar el arma, el [RespawnController] y la
 ## señal `emp_hit`, porque el respawn los reconstruye (`docs/12` §7). El HUD **no** se
 ## reinstancia; por eso vive en el nivel.
+##
+## Y media ráfaga de estática más: el enlace del dron nuevo enganchando. Es la otra
+## mitad del corte —el taller ya entregó— y por eso dura la mitad.
 func _on_drone_respawned(_score_multiplier: float) -> void:
 	bind_drone(_rig)
+	if _glitch != null:
+		_glitch.trigger_static(HUDStaticBurst.REBUILT_SECONDS)
 
 
 func _on_enemy_spawned(enemy: Node3D, _enemy_id: StringName) -> void:
@@ -538,12 +590,28 @@ func _on_city_integrity_changed(ratio: float) -> void:
 		_city_bar.set_integrity(ratio)
 
 
-## `INTRO` enciende el modo cinemático; `BATTLE` lo apaga. En los dos estados
-## terminales el HUD se queda en modo cinemático hasta que el nivel lo esconde al
-## mostrar la [ResultCard] (`docs/11` §6.3).
+## `ALERT` e `INTRO` encienden el modo cinemático; `BATTLE` lo apaga. En los dos
+## estados terminales el HUD se queda en modo cinemático hasta que el nivel lo esconde
+## al mostrar la [ResultCard] (`docs/11` §6.3).
+##
+## Los dos primeros estados son cinemáticos pero **no muestran lo mismo**: `ALERT` es
+## el monitor del taller a pantalla completa ([constant ALERT_COMPONENTS]) e `INTRO`
+## el rótulo de la ronda sobre el travelling ([constant CINEMATIC_COMPONENTS]). Por
+## eso [method _apply_visibility] se llama **siempre** al final y no se confía en
+## [method set_cinematic], que corta por lo sano cuando el modo no cambia: de `ALERT`
+## a `INTRO` el modo es el mismo y lo visible no.
+##
+## Y esa salida temprana es justo lo que hace falta: [method set_cinematic] apaga la
+## estática al **entrar** en modo cinemático, así que si se ejecutara en el paso de
+## `ALERT` a `INTRO` se llevaría por delante el corte de 0,4 s que acaba de arrancar
+## [method _on_alert_finished].
 func _on_round_state_changed(state: int) -> void:
 	_round_state = state
 	match state:
+		Global.RoundState.ALERT:
+			if _alert != null:
+				_alert.refresh()
+			set_cinematic(true)
 		Global.RoundState.INTRO:
 			_refresh_intro_keys()
 			# Ronda nueva, consejos nuevos: los de la partida anterior ya se dieron
@@ -555,6 +623,22 @@ func _on_round_state_changed(state: int) -> void:
 			set_cinematic(false)
 		_:
 			set_cinematic(true)
+	_apply_visibility()
+
+
+## `RoundManager.alert_finished`: el monitor del taller se corta y entra la estática.
+##
+## Es el corte de `docs/narrativa` §5 —«la imagen cae a estática un instante y aparece
+## la señal del dron»— y se dibuja con la **misma** ráfaga que la caída del dron
+## (`docs/13` §1): un solo efecto de señal perdida, tres motivos para dispararlo.
+##
+## La ráfaga tiene que sobrevivir al cambio de estado que viene detrás, porque el
+## corte es justamente el pase de una imagen a la otra. Lo consigue
+## [method _on_round_state_changed], que no vuelve a entrar en modo cinemático cuando
+## ya está en él.
+func _on_alert_finished() -> void:
+	if _glitch != null:
+		_glitch.trigger_static(RoundManager.STATIC_SECONDS)
 
 
 func _on_objective_text_changed(task_text: String, progress: float,
@@ -593,9 +677,11 @@ func _on_emp_hit(glitch_seconds: float) -> void:
 
 
 func _unbind_round() -> void:
-	if _manager != null and is_instance_valid(_manager) \
-			and _manager.objective_text_changed.is_connected(_on_objective_text_changed):
-		_manager.objective_text_changed.disconnect(_on_objective_text_changed)
+	if _manager != null and is_instance_valid(_manager):
+		if _manager.objective_text_changed.is_connected(_on_objective_text_changed):
+			_manager.objective_text_changed.disconnect(_on_objective_text_changed)
+		if _manager.alert_finished.is_connected(_on_alert_finished):
+			_manager.alert_finished.disconnect(_on_alert_finished)
 	if _sequencer != null and is_instance_valid(_sequencer):
 		if _sequencer.objective_started.is_connected(_on_objective_started):
 			_sequencer.objective_started.disconnect(_on_objective_started)
@@ -603,6 +689,8 @@ func _unbind_round() -> void:
 			_sequencer.all_finished.disconnect(_on_objectives_finished)
 	_manager = null
 	_sequencer = null
+	if _alert != null:
+		_alert.bind_round(null)
 
 
 ## Nombre y objetivo de la ronda en curso para el rótulo de la cinemática.
@@ -619,11 +707,11 @@ func _refresh_intro_keys() -> void:
 	_intro.set_round(String(data.get("name_key", "")), String(data.get("goal_key", "")))
 
 
-## Los dieciséis componentes que dibujan, sin el [HUDGlitchLayer], que los mueve.
+## Los diecisiete componentes que dibujan, sin el [HUDGlitchLayer], que los mueve.
 func _components() -> Array[CombatHUDComponent]:
 	return [_energy, _hull, _heat, _reticle, _hit_marker, _boss, _city_bar, _markers,
 			_damage, _telegraph, _timer, _objective, _respawn, _intro, _weak_hint,
-			_coach]
+			_coach, _alert]
 
 
 ## A quiénes sacude el EMP. El propio [HUDGlitchLayer] no está: moverse a sí mismo no
@@ -645,14 +733,21 @@ func _refresh_drone_presence() -> void:
 
 
 ## Deja visible lo que corresponde al modo vigente.
+##
+## El modo cinemático tiene **dos** listas y no una: `ALERT` es el monitor del taller
+## a pantalla completa y el resto de los estados cinemáticos son el rótulo de la ronda
+## sobre el nivel. Se resuelve cuál manda una sola vez, fuera del bucle.
 func _apply_visibility() -> void:
+	var allowed := CINEMATIC_COMPONENTS
+	if _round_state == Global.RoundState.ALERT:
+		allowed = ALERT_COMPONENTS
 	for component: int in Component.values():
 		var node := component_node(component as Component)
 		if node == null:
 			continue
 		var wanted := bool(_wanted.get(component, true))
 		if _cinematic:
-			wanted = wanted and CINEMATIC_COMPONENTS.has(component)
+			wanted = wanted and allowed.has(component)
 		elif CINEMATIC_ONLY_COMPONENTS.has(component):
 			wanted = false
 		elif _drone_absent and DRONE_ONLY_COMPONENTS.has(component):
@@ -716,6 +811,7 @@ func _collect_nodes() -> void:
 	_glitch = get_node_or_null(^"%GlitchLayer") as HUDGlitchLayer
 	_weak_hint = get_node_or_null(^"%WeakPointHint") as HUDWeakPointHint
 	_coach = get_node_or_null(^"%CoachTip") as HUDCoachTip
+	_alert = get_node_or_null(^"%AlertScreen") as HUDAlertScreen
 	var missing := PackedStringArray()
 	for pair: Array in [["Root", _root], ["Frame", _frame], ["EnergyBar", _energy],
 			["HullBar", _hull], ["HeatGauge", _heat], ["Reticle", _reticle],
@@ -724,7 +820,8 @@ func _collect_nodes() -> void:
 			["TelegraphWarning", _telegraph], ["RoundTimer", _timer],
 			["ObjectiveLine", _objective], ["RespawnOverlay", _respawn],
 			["IntroBanner", _intro], ["GlitchLayer", _glitch],
-			["WeakPointHint", _weak_hint], ["CoachTip", _coach]]:
+			["WeakPointHint", _weak_hint], ["CoachTip", _coach],
+			["AlertScreen", _alert]]:
 		if pair[1] == null:
 			missing.append(String(pair[0]))
 	if not missing.is_empty():

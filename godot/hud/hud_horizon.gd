@@ -1,23 +1,53 @@
 ## Copyright (c) 2026 Drone Survivor. Todos los derechos reservados.
+##
+## Línea de horizonte y escalera de cabeceo del HUD de vuelo (`docs/12` §2.1 y §2.4).
+##
+## Dos modos: `camera` dibuja el horizonte **real** visto por la lente FPV —con la
+## inclinación de la cámara y la deformación del ojo de pez incluidas—, y `attitude`
+## sigue la actitud del dron con una línea geométrica, más barata y siempre definida.
+##
+## ## Estilo de WP-25
+##
+## Peldaños **cortos** (la mitad que antes) y numerados solo cada
+## [constant LABEL_EVERY_DEG] grados: entre medio hay peldaños de 5° sin número, que
+## dan resolución sin llenar la pantalla de dígitos. Trazo fino de
+## [constant HUDDraw.STROKE] y el mismo ámbar que el resto del instrumental.
 class_name HUDHorizon
 extends Control
-## Dotted horizon line with a gap around the crosshair, plus an optional pitch ladder.
-## Two modes: "camera" draws the real horizon through the FPV lens (camera tilt and fisheye
-## included), "attitude" follows the drone attitude like the classic HUD.
 
-
+## Píxeles por grado de cabeceo en el modo `attitude`.
 const ATTITUDE_PX_PER_DEG := 12.0
-const HOLE_RADIUS := 70.0
-const LADDER_STEPS: Array[int] = [-30, -20, -10, 10, 20, 30]
-## Rungs further than this from the center are not drawn (they would cover the compass
-## and the stick display)
-const LADDER_MAX_OFFSET := 270.0
+
+## Radio libre alrededor del retículo, en píxeles.
+const HOLE_RADIUS := 66.0
+
+## Elevaciones con peldaño, en grados. Cada 5°, sin el cero (ese es el horizonte).
+const LADDER_STEPS: Array[int] = [-30, -25, -20, -15, -10, -5, 5, 10, 15, 20, 25, 30]
+
+## Solo los múltiplos de este valor llevan número.
+const LABEL_EVERY_DEG := 10
+
+## Los peldaños más lejos de esto respecto del centro no se dibujan: taparían la
+## brújula y las cajas de sticks.
+const LADDER_MAX_OFFSET := 250.0
+
+## Media apertura de un peldaño numerado, en grados de azimut (modo `camera`).
+const RUNG_HALF_DEG := 3.6
+
+## Media apertura de un peldaño sin número, en grados de azimut.
+const MINOR_RUNG_HALF_DEG := 2.0
+
+## Medio ancho de un peldaño numerado en el modo `attitude`, en píxeles.
+const RUNG_HALF_PX := 46.0
+
+## Medio ancho de un peldaño sin número en el modo `attitude`, en píxeles.
+const MINOR_RUNG_HALF_PX := 24.0
 
 var show_horizon := true
 var show_ladder := false
 var mode := "camera"
 var camera: FPVCamera = null
-## Attitude in radians (used by the attitude mode and when there is no camera)
+## Actitud en radianes (la usan el modo `attitude` y el caso sin cámara)
 var pitch := 0.0
 var roll := 0.0
 
@@ -46,7 +76,7 @@ func _draw_camera_horizon() -> void:
 	var forward := -basis.z
 	var flat := Vector3(forward.x, 0.0, forward.z)
 	if flat.length() < 0.08:
-		# Looking straight up or down: the horizon is not in front of the camera
+		# Mirando recto arriba o abajo: el horizonte no está delante de la cámara
 		return
 	flat = flat.normalized()
 	var center := _to_local(get_viewport().get_visible_rect().size / 2.0)
@@ -55,21 +85,25 @@ func _draw_camera_horizon() -> void:
 		for azimuth in range(-88, 89, 4):
 			var direction := flat.rotated(Vector3.UP, deg_to_rad(azimuth))
 			points.append(_to_local(camera.project_direction(direction)))
-		HUDDraw.dashed_polyline(self, points, 7.0, 11.0, 3.5, HUDDraw.WHITE, center, HOLE_RADIUS)
+		HUDDraw.dashed_polyline(self, points, 6.0, 10.0, HUDDraw.STROKE, HUDDraw.TEXT,
+				center, HOLE_RADIUS)
 	if show_ladder:
 		for elevation in LADDER_STEPS:
+			var labelled := elevation % LABEL_EVERY_DEG == 0
+			var half := RUNG_HALF_DEG if labelled else MINOR_RUNG_HALF_DEG
 			var e := deg_to_rad(elevation)
 			var mid := flat * cos(e) + Vector3.UP * sin(e)
-			var left := flat.rotated(Vector3.UP, deg_to_rad(6.0)) * cos(e) + Vector3.UP * sin(e)
-			var right := flat.rotated(Vector3.UP, deg_to_rad(-6.0)) * cos(e) + Vector3.UP * sin(e)
+			var left := flat.rotated(Vector3.UP, deg_to_rad(half)) * cos(e) + Vector3.UP * sin(e)
+			var right := flat.rotated(Vector3.UP, deg_to_rad(-half)) * cos(e) + Vector3.UP * sin(e)
 			var p_mid := _to_local(camera.project_direction(mid))
 			var p_left := _to_local(camera.project_direction(left))
 			var p_right := _to_local(camera.project_direction(right))
 			if not (p_mid.is_finite() and p_left.is_finite() and p_right.is_finite()):
 				continue
-			if absf(p_mid.y - center.y) > LADDER_MAX_OFFSET or absf(p_mid.x - center.x) > LADDER_MAX_OFFSET:
+			if absf(p_mid.y - center.y) > LADDER_MAX_OFFSET \
+					or absf(p_mid.x - center.x) > LADDER_MAX_OFFSET:
 				continue
-			_draw_rung(p_left, p_right, elevation)
+			_draw_rung(p_left, p_right, elevation, labelled)
 
 
 func _draw_attitude_horizon() -> void:
@@ -79,26 +113,33 @@ func _draw_attitude_horizon() -> void:
 	var origin := center + rad_to_deg(pitch) * ATTITUDE_PX_PER_DEG * normal
 	if show_horizon:
 		var points := PackedVector2Array([origin - along * 420.0, origin + along * 420.0])
-		HUDDraw.dashed_polyline(self, points, 7.0, 11.0, 3.5, HUDDraw.WHITE, center, HOLE_RADIUS)
+		HUDDraw.dashed_polyline(self, points, 6.0, 10.0, HUDDraw.STROKE, HUDDraw.TEXT,
+				center, HOLE_RADIUS)
 	if show_ladder:
 		for elevation in LADDER_STEPS:
+			var labelled := elevation % LABEL_EVERY_DEG == 0
+			var half := RUNG_HALF_PX if labelled else MINOR_RUNG_HALF_PX
 			var rung_center := origin - normal * elevation * ATTITUDE_PX_PER_DEG
 			if rung_center.distance_to(center) > LADDER_MAX_OFFSET:
 				continue
-			_draw_rung(rung_center - along * 70.0, rung_center + along * 70.0, elevation)
+			_draw_rung(rung_center - along * half, rung_center + along * half, elevation, labelled)
 
 
-func _draw_rung(a: Vector2, b: Vector2, elevation: int) -> void:
+## Un peldaño: dos trazos con un hueco al medio, dos marcas que apuntan al horizonte y,
+## si [param labelled], el número de grados del lado de afuera.
+func _draw_rung(a: Vector2, b: Vector2, elevation: int, labelled: bool) -> void:
 	var along := (b - a).normalized()
 	var normal := Vector2(-along.y, along.x)
-	# Ticks point toward the horizon, like an aircraft ladder
-	var tick := normal * (8.0 if elevation > 0 else -8.0)
+	# Las marcas apuntan hacia el horizonte, como en una escalera de avión
+	var tick := normal * (6.0 if elevation > 0 else -6.0)
 	var mid := (a + b) * 0.5
-	var gap := along * 18.0
-	HUDDraw.line(self, a, mid - gap, 2.0, Color(HUDDraw.WHITE, 0.8))
-	HUDDraw.line(self, mid + gap, b, 2.0, Color(HUDDraw.WHITE, 0.8))
-	HUDDraw.line(self, a, a + tick, 2.0, Color(HUDDraw.WHITE, 0.8))
-	HUDDraw.line(self, b, b + tick, 2.0, Color(HUDDraw.WHITE, 0.8))
-	var label := "%d" % [absi(elevation)]
-	HUDDraw.text(self, HUDDraw.font_mono(), b + along * 10.0 + Vector2(0, 7), label, 18,
-			HORIZONTAL_ALIGNMENT_LEFT, -1.0, Color(HUDDraw.WHITE, 0.8))
+	var gap := along * (14.0 if labelled else 8.0)
+	var color := Color(HUDDraw.TEXT, 0.85 if labelled else 0.6)
+	HUDDraw.line(self, a, mid - gap, HUDDraw.STROKE, color)
+	HUDDraw.line(self, mid + gap, b, HUDDraw.STROKE, color)
+	HUDDraw.line(self, a, a + tick, HUDDraw.STROKE, color)
+	HUDDraw.line(self, b, b + tick, HUDDraw.STROKE, color)
+	if not labelled:
+		return
+	HUDDraw.text(self, HUDDraw.font_mono(), b + along * 8.0 + Vector2(0, 6),
+			"%d" % [absi(elevation)], 16, HORIZONTAL_ALIGNMENT_LEFT, -1.0, color)

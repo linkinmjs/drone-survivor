@@ -23,6 +23,21 @@
 ## Hace polling y no escucha el bus porque `Events.drone_destroyed` no dice cuánto
 ## falta: el que lleva la cuenta es el [RespawnController], y duplicar su acumulador
 ## acá sería tener dos relojes que se separan en la primera pausa.
+##
+## ## El contador del taller (WP-25)
+##
+## Bajo el número va `HUD_TALLER_DRONE` —«DRON 2 DEL TALLER»—, que es la mitad
+## narrativa de la decisión de no tener pantalla de muerte (`docs/13` §1, nota del
+## checkpoint 3b): lo que se perdió es **una máquina**, y del otro lado hay un taller
+## que lleva la cuenta de cuántas van. Es lo que convierte la reconstrucción en un
+## favor de alguien y no en un castigo del sistema.
+##
+## El número sale del mismo sitio que los segundos —[RespawnController]— y no de un
+## acumulador propio, por el mismo motivo de arriba: dos cuentas se separan.
+## [method RespawnController.get_death_count] cuenta reconstrucciones **terminadas**,
+## así que los drones gastados son ésas más el que se está volando y, mientras el
+## cartel está en pantalla, más el que el taller está trayendo: de ahí el `+ 2` durante
+## la reconstrucción y el `+ 1` fuera de ella.
 class_name HUDRespawnOverlay
 extends CombatHUDComponent
 
@@ -31,6 +46,9 @@ const TITLE_KEY: String = "HUD_REBUILDING"
 
 ## Clave de la línea del multiplicador.
 const MULTIPLIER_KEY: String = "HUD_RESPAWN_MULTIPLIER"
+
+## Clave del contador de drones del taller.
+const WORKSHOP_KEY: String = "HUD_TALLER_DRONE"
 
 ## Clave del motivo cuando la reconstrucción la disparó la batería.
 const NO_BATTERY_KEY: String = "HUD_REBUILDING_NO_BATTERY"
@@ -49,6 +67,20 @@ const REASON_SHIFT_Y: float = 34.0
 ## Cuerpo de la línea del motivo, en píxeles.
 const REASON_FONT_SIZE: int = 22
 
+## Distancia del título a la línea del contador del taller, en píxeles.
+##
+## Va **pegada al número** y por encima del multiplicador porque está siempre, y una
+## línea que aparece y desaparece no puede quedar entre dos que no lo hacen: el bloque
+## saltaría según el multiplicador.
+const WORKSHOP_OFFSET_Y: float = 92.0
+
+## Distancia del título a la línea del multiplicador, en píxeles. Baja 28 px respecto
+## de WP-24e para hacerle sitio al contador del taller.
+const MULTIPLIER_OFFSET_Y: float = 120.0
+
+## Cuerpo de las dos líneas al pie del número, en píxeles.
+const FOOT_FONT_SIZE: int = 20
+
 ## Distancia del centro del lienzo a la línea base del título, en píxeles.
 ##
 ## El bloque queda **arriba** del centro exacto para no escribir el número encima del
@@ -65,6 +97,7 @@ var _showing: bool = false
 var _remaining: float = 0.0
 var _multiplier: float = 1.0
 var _reason: RespawnController.Reason = RespawnController.Reason.HULL
+var _workshop: int = 1
 
 
 ## Ata el overlay al dron. Con `null` se apaga.
@@ -73,6 +106,7 @@ func bind_respawn(respawn_controller: RespawnController) -> void:
 	_showing = false
 	_remaining = 0.0
 	_reason = RespawnController.Reason.HULL
+	_workshop = 1
 	queue_redraw()
 
 
@@ -81,22 +115,28 @@ func _tick(_delta: float) -> void:
 	var remaining := 0.0
 	var multiplier := 1.0
 	var reason := RespawnController.Reason.HULL
+	var workshop := 1
 	if controller != null and is_instance_valid(controller):
 		showing = controller.is_respawning()
 		remaining = controller.get_remaining_seconds()
 		multiplier = controller.get_score_multiplier()
 		reason = controller.get_reason()
+		# El que viene en camino todavía no está contado: `get_death_count()` sube
+		# recién cuando la reconstrucción **termina**.
+		workshop = controller.get_death_count() + (2 if showing else 1)
 	if not is_finite(remaining):
 		remaining = 0.0
 	# Igual que el cronómetro: un redibujo por segundo mostrado, no por cuadro.
 	if showing == _showing and int(ceil(remaining)) == int(ceil(_remaining)) \
-			and is_equal_approx(multiplier, _multiplier) and reason == _reason:
+			and is_equal_approx(multiplier, _multiplier) and reason == _reason \
+			and workshop == _workshop:
 		_remaining = remaining
 		return
 	_showing = showing
 	_remaining = remaining
 	_multiplier = multiplier
 	_reason = reason
+	_workshop = workshop
 	queue_redraw()
 
 
@@ -121,6 +161,18 @@ func shows_no_battery() -> bool:
 	return _showing and _reason == RespawnController.Reason.ENERGY
 
 
+## Cuántos drones lleva gastados el taller, contando el que está trayendo.
+func workshop_drone() -> int:
+	return _workshop
+
+
+## La línea del taller tal cual se dibuja: ya traducida y con el número puesto. Se
+## expone para que `combat_hud_check` compruebe el texto **que se ve** y no sólo el
+## número que lo alimenta.
+func workshop_text() -> String:
+	return tr(WORKSHOP_KEY).format([number_text("%d" % [maxi(_workshop, 1)])])
+
+
 func _draw() -> void:
 	if not begin_draw():
 		return
@@ -140,7 +192,14 @@ func _draw() -> void:
 	HUDDraw.text(self, mono, origin + Vector2(-300.0, TITLE_OFFSET_Y + 56.0 + shift),
 			number_text("%d" % [maxi(int(ceil(_remaining)), 0)]), 52,
 			HORIZONTAL_ALIGNMENT_CENTER, 600.0, CombatHUDPalette.TEXT)
+	# El taller siempre firma: es la línea que convierte la reconstrucción en un favor
+	# de alguien. Va en el ámbar apagado del HUD, que es la voz de fondo.
+	HUDDraw.text(self, font,
+			origin + Vector2(-300.0, TITLE_OFFSET_Y + WORKSHOP_OFFSET_Y + shift),
+			workshop_text(), FOOT_FONT_SIZE,
+			HORIZONTAL_ALIGNMENT_CENTER, 600.0, CombatHUDPalette.TEXT_DIM)
 	if _multiplier < 0.999:
-		HUDDraw.text(self, mono, origin + Vector2(-300.0, TITLE_OFFSET_Y + 92.0 + shift),
-				tr(MULTIPLIER_KEY).format([number_text("%.2f" % [_multiplier])]), 20,
-				HORIZONTAL_ALIGNMENT_CENTER, 600.0, CombatHUDPalette.DANGER)
+		HUDDraw.text(self, mono,
+				origin + Vector2(-300.0, TITLE_OFFSET_Y + MULTIPLIER_OFFSET_Y + shift),
+				tr(MULTIPLIER_KEY).format([number_text("%.2f" % [_multiplier])]),
+				FOOT_FONT_SIZE, HORIZONTAL_ALIGNMENT_CENTER, 600.0, CombatHUDPalette.DANGER)

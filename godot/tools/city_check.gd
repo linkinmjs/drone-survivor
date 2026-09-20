@@ -95,6 +95,28 @@ const ROCK_CONE_DEG: float = 30.0
 const DISH_MAX_SIZE: float = 2.5
 const SIGN_MAX_SIZE: float = 6.5
 
+## Ventana admitida del racionamiento de ventanas (`docs/13` §1): el 30 % de las
+## manzanas, con el margen que deja el redondeo sobre 15 manzanas (4 → 26,7 %,
+## 5 → 33,3 %).
+const WINDOWS_DARK_MIN: float = 0.25
+const WINDOWS_DARK_MAX: float = 0.35
+
+## Semilla con la que se comprueba que otro sorteo apaga otras manzanas.
+const WINDOWS_SEED_B: int = 987654
+
+## Materiales distintos admitidos en las fachadas: dos familias encendidas
+## (`buildings_001` y `buildings_002`) y sus dos copias apagadas. Más que eso
+## querría decir que el racionamiento duplicó material por edificio.
+const WINDOWS_MAX_MATERIALS: int = 4
+
+## Material compartido de la familia mayoritaria; el racionamiento no puede
+## tocarlo.
+const BUILDINGS_MATERIAL_PATH: String = "res://assets/city/materials/buildings_001.tres"
+
+## Tolerancia del cociente entre lo que cuesta el protegido y lo que cuesta un
+## bloque de su mismo HP.
+const PROTECTED_WEIGHT_TOLERANCE: float = 0.02
+
 ## Ventana admitida de [MultiMeshInstance3D] de la red viaria. `docs/10` §7 pide
 ## tres; WP-24b los sube a cinco —calzada este-oeste, calzada norte-sur, cruces,
 ## veredas y patios— porque una sola malla no puede llevar dos orientaciones de
@@ -162,6 +184,8 @@ func _run() -> void:
 	await _check_collapse_time()
 	await _check_occluders()
 	await _check_siege()
+	_check_windows()
+	await _check_protected()
 	await _check_debris_cap()
 	await _check_integrity_run()
 	_check_negative_threshold()
@@ -1083,6 +1107,160 @@ func _check_debris_cap() -> void:
 ## Arrasa la ciudad y verifica que la integridad es monótona no creciente, que
 ## el acumulador no deriva, que la derrota se publica una sola vez al cruzar
 ## 0.35 y que el valor final es 0.
+# --------------------------------------------------------------------------
+# Ventanas racionadas y edificio protegido (WP-25b)
+# --------------------------------------------------------------------------
+
+## Ventanas racionadas por manzana (`docs/13` §1).
+##
+## Verifica las cuatro cosas que el racionamiento promete: que apague entre el 25 %
+## y el 35 % de las **manzanas**, que sea determinista por semilla, que lo que se
+## apaga sea la emisión sobre una copia del material —nunca el `.tres` compartido— y
+## que no aparezcan materiales de más, que es lo único que podría subir los lotes de
+## dibujo (cada edificio ya es su propia malla, `docs/10` §7).
+func _check_windows() -> void:
+	_reset_city()
+	var blocks := _district.block_count()
+	var dark := _district.dark_blocks()
+	var ratio := float(dark.size()) / float(maxi(blocks, 1))
+	expect(ratio >= WINDOWS_DARK_MIN and ratio <= WINDOWS_DARK_MAX,
+			"manzanas a oscuras: %d de %d (%.1f %%), fuera de [%.0f, %.0f] %%"
+					% [dark.size(), blocks, ratio * 100.0, WINDOWS_DARK_MIN * 100.0,
+							WINDOWS_DARK_MAX * 100.0])
+
+	# Determinismo: la misma semilla reparte igual y otra reparte distinto.
+	var first := _dark_signature()
+	Global.round_seed = WINDOWS_SEED_B
+	var other := _dark_signature()
+	Global.round_seed = _seed_before
+	var again := _dark_signature()
+	expect(first == again, "el reparto de ventanas no es determinista por semilla")
+	expect(first != other, "cambiar la semilla no cambió qué manzanas se apagan")
+
+	# Lo que se apaga y lo que no, edificio por edificio.
+	var mismatched := 0
+	var unlit := 0
+	var materials: Dictionary[Material, bool] = {}
+	var meshes := 0
+	for building: Building in _district.get_buildings():
+		var cell: Vector2i = building.get_meta(&"cell", Vector2i(-1, -1))
+		var expected_dark := dark.has(_district.cell_block(cell))
+		if building.windows_lit() == expected_dark:
+			mismatched += 1
+		if not building.windows_lit():
+			unlit += 1
+		var mesh_instance := building.stage_intact as MeshInstance3D
+		if mesh_instance == null:
+			continue
+		meshes += 1
+		var material := mesh_instance.get_active_material(0)
+		if material != null:
+			materials[material] = true
+		var standard := material as StandardMaterial3D
+		if standard == null:
+			continue
+		var lit_energy := is_equal_approx(standard.emission_energy_multiplier, 0.0)
+		if lit_energy == building.windows_lit():
+			mismatched += 1
+	expect(mismatched == 0,
+			"%d edificios no coinciden con el reparto de manzanas o con su emisión" % mismatched)
+	expect(meshes == EXPECTED_BUILDINGS,
+			"los edificios no son una malla cada uno: %d mallas para %d edificios"
+					% [meshes, EXPECTED_BUILDINGS])
+	expect(materials.size() <= WINDOWS_MAX_MATERIALS,
+			"%d materiales distintos en las fachadas (tope %d): el racionamiento"
+					% [materials.size(), WINDOWS_MAX_MATERIALS]
+					+ " no puede multiplicar los lotes de dibujo")
+
+	# El `.tres` compartido sigue encendido: lo que se apaga es una copia.
+	var shared := ResourceLoader.load(BUILDINGS_MATERIAL_PATH, "StandardMaterial3D") \
+			as StandardMaterial3D
+	expect(shared != null and is_equal_approx(shared.emission_energy_multiplier, 1.0),
+			"el material compartido '%s' quedó apagado" % BUILDINGS_MATERIAL_PATH)
+	print("  ventanas: %d de %d manzanas apagadas (%.0f %%) → %d edificios a oscuras,"
+			% [dark.size(), blocks, ratio * 100.0, unlit]
+			+ " %d materiales de fachada" % materials.size())
+
+
+## Firma del reparto de manzanas a oscuras, para comparar dos semillas.
+func _dark_signature() -> String:
+	var parts := PackedStringArray()
+	for block: Vector2i in _district.dark_blocks():
+		parts.append("%d_%d" % [block.x, block.y])
+	parts.sort()
+	return ",".join(parts)
+
+
+## Edificio protegido: peso ×3 en la integridad, ventanas siempre encendidas y una
+## sola `protected_fallen` al caer (`docs/11` §1).
+func _check_protected() -> void:
+	_reset_city()
+	var school := _dark_building()
+	var twin := _twin_of(school)
+	if school == null or twin == null:
+		expect(false, "no hay edificios para probar el protegido")
+		return
+
+	var was_lit := school.windows_lit()
+	school.mark_protected("BLD_SCHOOL_12", 3.0)
+	_integrity.set_protected(school)
+	expect(school.is_in_group(Building.GROUP_PROTECTED), "el protegido no entró en su grupo")
+	expect(not was_lit and school.windows_lit(),
+			"el protegido tiene que quedar encendido aunque su manzana esté a oscuras")
+	expect(is_equal_approx(_integrity.get_ratio(), 1.0),
+			"el peso ×3 movió la integridad inicial a %.4f" % _integrity.get_ratio())
+
+	var fallen: Array[int] = [0]
+	var on_fallen := func(_building: Building) -> void: fallen[0] += 1
+	var _discard := _integrity.protected_fallen.connect(on_fallen)
+
+	var before_twin := _integrity.get_ratio()
+	var _applied := twin.take_damage(twin.get_max_hp(), twin.global_position)
+	var twin_cost := before_twin - _integrity.get_ratio()
+	var before_school := _integrity.get_ratio()
+	_applied = school.take_damage(school.get_max_hp(), school.global_position)
+	var school_cost := before_school - _integrity.get_ratio()
+	var factor := school_cost / maxf(twin_cost, 0.000001)
+	expect(absf(factor - _integrity.protected_weight) <= PROTECTED_WEIGHT_TOLERANCE,
+			"el protegido pesa ×%.3f y tendría que pesar ×%.1f"
+					% [factor, _integrity.protected_weight])
+	expect(fallen[0] == 1, "protected_fallen se emitió %d veces, no una" % fallen[0])
+	await _advance(0.2)
+	expect(fallen[0] == 1, "protected_fallen se repitió durante el derrumbe (%d)" % fallen[0])
+	print("  protegido: '%s' pesa ×%.2f (%.5f contra %.5f de un bloque de %.0f HP),"
+			% [school.name, factor, school_cost, twin_cost, twin.get_max_hp()]
+			+ " 1 protected_fallen")
+
+	# La ciudad vuelve a su estado neutro para los sub-checks que siguen.
+	_integrity.protected_fallen.disconnect(on_fallen)
+	school.remove_from_group(Building.GROUP_PROTECTED)
+	school.display_key = ""
+	school.priority = 1.0
+	_integrity.set_protected(null)
+	_reset_city()
+
+
+## Primer edificio intacto de una manzana a oscuras, o `null`.
+func _dark_building() -> Building:
+	for building: Building in _district.get_buildings():
+		if building.stage != Building.Stage.INTACT or building.windows_lit():
+			continue
+		return building
+	return null
+
+
+## Otro edificio intacto con el mismo HP nominal que [param building].
+func _twin_of(building: Building) -> Building:
+	if building == null:
+		return null
+	for other: Building in _district.get_buildings():
+		if other == building or other.stage != Building.Stage.INTACT:
+			continue
+		if is_equal_approx(other.get_max_hp(), building.get_max_hp()):
+			return other
+	return null
+
+
 func _check_integrity_run() -> void:
 	_integrity_samples = PackedFloat32Array()
 	_destroyed_events.clear()

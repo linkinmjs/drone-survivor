@@ -33,7 +33,7 @@ HEADLESS=(project_check loading_check settings_check city_import_check enemy_imp
 
 # Checks que necesitan framebuffer real (capturas, docs/15 seccion 3.1). Corren
 # bajo xvfb-run cuando no hay display.
-WINDOWED=(ui_smoke_test boot_check render_check)   # WP-02, WP-24a
+WINDOWED=(ui_smoke_test boot_check menu_shots_check render_check)   # WP-02, WP-25, WP-24a
 
 # Extendidos: lentos (minutos); corren solo con RUN_EXTENDED=1 o como unico check.
 EXTENDED=(balance_check)   # WP-23
@@ -59,6 +59,7 @@ EXTRA_ARGS[weapon_check]="--timeout=240"
 EXTRA_ARGS[ai_check]="--timeout=300"
 EXTRA_ARGS[balance_check]="--timeout=1500"
 EXTRA_ARGS[render_check]="--shots=tools/out/shots"
+EXTRA_ARGS[menu_shots_check]="--shots=tools/out/shots"
 
 # ---------------------------------------------------------------------------
 

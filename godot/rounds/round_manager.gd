@@ -3,9 +3,15 @@
 ## Máquina de estados de la ronda y contabilidad de la partida (`docs/11` §4).
 ##
 ## Instancia el distrito y los enemigos de la entrada de [RoundCatalog], lleva
-## `INTRO` → `BATTLE` → `VICTORY` / `DEFEAT`, arma el [ObjectiveContext] del
-## secuenciador, acumula el [RoundResult] con hechos del bus y termina mostrando la
-## [ResultCard].
+## `ALERT` → `INTRO` → `BATTLE` → `VICTORY` / `DEFEAT`, arma el [ObjectiveContext]
+## del secuenciador, acumula el [RoundResult] con hechos del bus y termina mostrando
+## la [ResultCard].
+##
+## `ALERT` es la alerta del monitor del taller de `docs/narrativa` §5 (WP-25b): seis
+## segundos de pantalla, un corte de estática de [constant STATIC_SECONDS] y recién
+## entonces la cinemática. Este nodo pone el **estado y los datos** —edificio
+## protegido, punto de entrada del jefe, rejilla del barrio— y no dibuja nada: la
+## pantalla es un componente del `CombatHUD`.
 ##
 ## **Reglas que no se negocian**
 ##
@@ -28,6 +34,45 @@ class_name RoundManager extends Node
 ## Texto de la tarea actual, su progreso de 0 a 1 —negativo si no hay barra— y su
 ## línea de progreso. Lo consume el `CombatHUD` de WP-22 (`docs/12` §4.1).
 signal objective_text_changed(task_text: String, progress: float, progress_text: String)
+
+## Se acabó la alerta del taller: la pantalla se corta y entra la estática
+## (`docs/11` §1, `docs/narrativa` §5).
+##
+## Es **local** y no del bus: `Events.round_state_changed` ya publica el estado, y
+## esto es el detalle de presentación de un estado —el instante exacto en que la
+## pantalla deja de dibujarse— que sólo le interesa a quien la dibuja. Se emite una
+## sola vez por ronda, tanto si la alerta se agotó como si el jugador la salteó.
+signal alert_finished
+
+## Duración de la alerta del taller, en segundos (`docs/11` §1).
+const ALERT_SECONDS: float = 6.0
+
+## Hueco de estática entre la alerta y la cinemática, en segundos.
+##
+## No lo dibuja este nodo: es el tiempo que la ronda le deja al `StaticBurst` del
+## HUD entre [signal alert_finished] y [method _enter_intro]. Si nadie lo dibuja,
+## el único efecto es que la `INTRO` empieza 0,4 s más tarde.
+const STATIC_SECONDS: float = 0.4
+
+## Segundos de la alerta durante los que **no** se acepta el «cualquier botón».
+##
+## Sin esta guarda la alerta se saltea sola en el primer cuadro: la ventana recién
+## creada entrega el evento de la tecla o del clic con el que se llegó hasta acá
+## —medido con una sonda, `ALERT` duraba 0,000 s con ventana y 6,000 s en
+## `--headless`—, y el jugador veía un parpadeo en vez de un aviso. Trescientos
+## cincuenta milisegundos es menos de lo que tarda nadie en decidir saltear algo que
+## todavía no leyó.
+const ALERT_INPUT_GRACE: float = 0.35
+
+## Paso máximo que se le admite a los relojes de la apertura, en segundos.
+##
+## **No es cosmético.** El cuadro siguiente a instanciar el distrito y al coloso
+## llega con un `delta` de varios segundos —el motor entrega el tiempo de pared que
+## costó construir la escena—, y sin recorte ese único cuadro se comía la alerta
+## entera: medido con Movie Maker, `ALERT` duraba 0,1 s en vez de 6 y la ronda
+## abría directamente en la cinemática. La misma guarda protege a la `INTRO` de un
+## tirón largo en medio del travelling.
+const MAX_STEP: float = 0.25
 
 ## Duración de la cinemática de apertura, en segundos (`docs/11` §10).
 const INTRO_SECONDS: float = 12.0
@@ -63,6 +108,10 @@ const FALLBACK_ROUND_ID: String = "first-contact"
 
 ## Nombre de los marcadores de aparición del distrito (`docs/10`, `docs/11` §4.2).
 const SPAWN_MARKER_PREFIX: String = "EnemySpawn"
+
+## Prioridad que recibe el edificio protegido (`docs/11` §1). Lo pone por encima
+## del jefe en los marcadores fuera de cuadro (`docs/12` §4.1).
+const PROTECTED_PRIORITY: float = 3.0
 
 ## Argumento de usuario que fuerza la victoria a los pocos segundos de empezar la
 ## batalla. Existe sólo para la captura de Movie Maker de WP-21; no hay forma de
@@ -112,11 +161,25 @@ const FORCE_VICTORY_SECONDS: float = 3.0
 var _level: LevelBase = null
 var _round_data: Dictionary = {}
 var _round_id: String = ""
-var _state: int = Global.RoundState.INTRO
+var _state: int = Global.RoundState.ALERT
 var _ctx: ObjectiveContext = null
 var _enemies: Array[EnemyBase] = []
 var _result_card: ResultCard = null
 var _result: RoundResult = null
+
+## Distrito instanciado por [method _spawn_district], o `null` si la ronda abortó.
+var _district: CityGrid = null
+
+## Edificio que la ronda pide proteger, o `null` si no declara ninguno.
+var _protected: Building = null
+
+## Marcador por el que entra el jefe. Lo usa la pantalla de la alerta para dibujar
+## el chevrón del enemigo.
+var _enemy_entry: Vector3 = Vector3.ZERO
+
+var _alert_elapsed: float = 0.0
+var _static_left: float = 0.0
+var _alert_finished_emitted: bool = false
 
 var _intro_elapsed: float = 0.0
 var _battle_elapsed: float = 0.0
@@ -180,13 +243,14 @@ func begin(level: LevelBase) -> void:
 	_spawn_district()
 	if _aborted:
 		return
+	_resolve_protected()
 	_spawn_enemies()
 	if _aborted:
 		return
 	_build_context()
 	_connect_bus()
 	_reset_batteries()
-	_enter_intro()
+	_enter_alert()
 
 
 # --- Interfaz pública (`docs/11` §9.2) --------------------------------------------------------
@@ -248,12 +312,75 @@ func get_intro_remaining() -> float:
 	return maxf(INTRO_SECONDS - _intro_elapsed, 0.0)
 
 
-## Salta la cinemática y pasa a `BATTLE`. Repetirla no hace nada: la transición es
-## irreversible (`docs/11` §4.1).
+# --- Datos de la alerta del taller (`docs/11` §1) ---------------------------------------------
+#
+# Los cinco métodos que siguen son **lo único** que la pantalla de la alerta
+# (`hud/combat/alert_screen.gd`) necesita de la ronda. Se devuelven datos ya
+# resueltos —el edificio, el punto de entrada, la rejilla— y no el catálogo crudo,
+# para que la pantalla no tenga que volver a buscar nada por nombre ni conocer el
+# formato de `RoundCatalog`.
+
+## Segundos que le quedan a la alerta del taller. Cero mientras corre el hueco de
+## estática y en cualquier estado posterior.
+func get_alert_remaining() -> float:
+	if _state != Global.RoundState.ALERT:
+		return 0.0
+	return maxf(ALERT_SECONDS - _alert_elapsed, 0.0)
+
+
+## Edificio que esta ronda pide proteger, o `null` si no declara ninguno.
+func get_protected_building() -> Building:
+	return _protected if is_instance_valid(_protected) else null
+
+
+## Tipo del edificio protegido (`&"school"`, `&"hospital"`…), o `&""` si la ronda
+## no declara ninguno. El nombre visible no sale de acá: lo trae el propio
+## [Building] en `display_key` (`docs/narrativa` §9, nombre propio antes que tipo).
+func get_protected_kind() -> StringName:
+	var entry := RoundCatalog.protected_of(_round_data)
+	return StringName(entry.get("kind", &""))
+
+
+## Punto por el que entra el jefe: la posición global del `EnemySpawn` que usó
+## [method _spawn_enemies]. Sin marcadores es el origen del contenedor de enemigos.
+func get_enemy_entry_position() -> Vector3:
+	return _enemy_entry
+
+
+## Rejilla del distrito en juego, o `null` si la ronda no llegó a instanciarlo. De
+## acá salen los carriles con los que la pantalla dibuja el mapa del barrio.
+func get_district() -> CityGrid:
+	return _district if is_instance_valid(_district) else null
+
+
+## Salta el estado previo que esté activo: de `ALERT` pasa a `INTRO` y de `INTRO` a
+## `BATTLE` (`docs/11` §1). En cualquier otro estado no hace nada: las dos
+## transiciones son irreversibles (`docs/11` §4.1).
+##
+## Saltear la alerta se lleva por delante el hueco de estática: el jugador que
+## apretó un botón quiere ver el vuelo, no 0,4 s más de ruido. [signal alert_finished]
+## se emite igual —y una sola vez—, así que la pantalla puede disparar su estática
+## sobre el arranque de la cinemática si quiere.
 func skip_intro() -> void:
-	if _state != Global.RoundState.INTRO:
-		return
-	_enter_battle()
+	match _state:
+		Global.RoundState.ALERT:
+			_finish_alert()
+			_enter_intro()
+		Global.RoundState.INTRO:
+			_enter_battle()
+
+
+## Saltea todo lo previo de un tirón y deja la ronda en `BATTLE`.
+##
+## Existe para los bancos de pruebas y las capturas, que no quieren ver ni la
+## alerta ni la cinemática: `balance_check`, `render_check`, `perf_report` y
+## `environment_shots`. El juego no la llama nunca; el jugador saltea de a un
+## estado por vez con [method skip_intro].
+func skip_to_battle() -> void:
+	for _attempt: int in 2:
+		if _state == Global.RoundState.BATTLE:
+			return
+		skip_intro()
 
 
 ## Pide la derrota por un motivo que no es la integridad de la ciudad. Hoy nadie la
@@ -277,6 +404,15 @@ func build_result() -> RoundResult:
 	result.shots_hit = _shots_hit
 	result.deaths = _deaths
 	result.respawn_multiplier = _respawn_multiplier
+	# Qué quedó en pie (`docs/narrativa` §8): es lo primero que lee la tarjeta y
+	# por eso se llena aunque la ronda no tenga protegido.
+	if city_integrity != null and is_instance_valid(city_integrity):
+		result.buildings_total = city_integrity.get_buildings().size()
+		result.buildings_standing = city_integrity.get_standing_count()
+	var protected_building := get_protected_building()
+	if protected_building != null:
+		result.protected_name_key = protected_building.display_key
+		result.protected_state = RoundResult.state_of_building(protected_building)
 	var _score := result.compute_score(get_time_par())
 	var _medal := result.resolve_medal(RoundCatalog.get_index(_round_id))
 	return result
@@ -305,6 +441,8 @@ func _process(delta: float) -> void:
 		_enter_terminal(Global.RoundState.VICTORY)
 
 	match _state:
+		Global.RoundState.ALERT:
+			_tick_alert(delta)
 		Global.RoundState.INTRO:
 			_tick_intro(delta)
 		Global.RoundState.BATTLE:
@@ -314,8 +452,22 @@ func _process(delta: float) -> void:
 	_publish_objective_text()
 
 
+## «Cualquier botón para continuar» durante la alerta (`docs/narrativa` §5) y el
+## `ui_accept` de siempre durante la cinemática (`docs/11` §10).
+##
+## La alerta acepta **cualquier** tecla, botón de mando o clic —es un aviso, no un
+## menú— y la cinemática sólo las dos acciones de confirmar, para que un roce del
+## stick no se lleve por delante el vuelo de salida.
 func _unhandled_input(event: InputEvent) -> void:
-	if _state != Global.RoundState.INTRO or UI.has_modal() or SceneTransition.is_busy():
+	if UI.has_modal() or SceneTransition.is_busy():
+		return
+	if _state == Global.RoundState.ALERT:
+		if _alert_elapsed < ALERT_INPUT_GRACE or not _is_any_button(event):
+			return
+		get_viewport().set_input_as_handled()
+		skip_intro()
+		return
+	if _state != Global.RoundState.INTRO:
 		return
 	if event.is_action_pressed(&"ui_accept", false, true) \
 			or event.is_action_pressed(&"objective_next", false, true):
@@ -323,12 +475,63 @@ func _unhandled_input(event: InputEvent) -> void:
 		skip_intro()
 
 
+## Verdadero si [param event] es «cualquier botón»: tecla, botón de mando o clic,
+## siempre en el flanco de bajada y sin repetición automática.
+func _is_any_button(event: InputEvent) -> bool:
+	var key := event as InputEventKey
+	if key != null:
+		return key.pressed and not key.echo
+	var pad := event as InputEventJoypadButton
+	if pad != null:
+		return pad.pressed
+	var click := event as InputEventMouseButton
+	return click != null and click.pressed
+
+
+## Alerta del taller y, después, el hueco de estática.
+##
+## El reloj no corre mientras `SceneTransition` mantiene el fundido, por el mismo
+## motivo que la cinemática: la alerta se mide desde que se ve.
+##
+## Los dos plazos están en el **mismo** estado a propósito. La estática es el corte
+## entre dos imágenes —el monitor del taller y la señal del dron—, no una pantalla
+## por derecho propio: darle un `RoundState` obligaría a todo el que hace `match`
+## sobre el estado a tratar 0,4 s de ruido como un estado de ronda.
+func _tick_alert(delta: float) -> void:
+	if SceneTransition.is_busy():
+		return
+	var step := minf(delta, MAX_STEP)
+	if not _alert_finished_emitted:
+		_alert_elapsed += step
+		if _alert_elapsed < ALERT_SECONDS:
+			return
+		_finish_alert()
+		return
+	_static_left -= step
+	if _static_left <= 0.0:
+		_enter_intro()
+
+
+## Cierra la parte visible de la alerta y abre el hueco de estática. Idempotente:
+## [signal alert_finished] sale una sola vez por ronda.
+func _finish_alert() -> void:
+	if _alert_finished_emitted:
+		return
+	_alert_finished_emitted = true
+	_alert_elapsed = ALERT_SECONDS
+	_static_left = STATIC_SECONDS
+	alert_finished.emit()
+
+
 ## Travelling de apertura. El reloj no corre mientras `SceneTransition` mantiene el
 ## fundido: la cinemática empieza cuando se ve, no cuando se carga.
 func _tick_intro(delta: float) -> void:
 	if SceneTransition.is_busy():
 		return
-	_intro_elapsed += delta
+	# Recortado por [constant MAX_STEP], igual que la alerta: un tirón de varios
+	# segundos en medio del travelling daría un salto de cámara en vez de un
+	# travelling.
+	_intro_elapsed += minf(delta, MAX_STEP)
 	_update_intro_camera()
 	if _intro_elapsed >= INTRO_SECONDS:
 		_enter_battle()
@@ -356,7 +559,24 @@ func _tick_outro(delta: float) -> void:
 
 # --- Estados ---------------------------------------------------------------------------------
 
+## Alerta del taller: el estado con el que abre toda ronda (`docs/11` §1).
+##
+## El dron queda congelado igual que en `INTRO` —quien mira la pantalla es el
+## piloto de turno, todavía en el taller— y la cámara se deja ya en la pose de
+## apertura, para que el corte de la estática entregue la cinemática empezada y no
+## un cuadro negro.
+func _enter_alert() -> void:
+	_set_state(Global.RoundState.ALERT)
+	_freeze_drone(true)
+	_prepare_intro_camera()
+	if _level != null:
+		var _focused := _level.focus_camera(intro_camera)
+	_update_intro_camera()
+
+
 func _enter_intro() -> void:
+	if _state != Global.RoundState.ALERT:
+		return
 	_set_state(Global.RoundState.INTRO)
 	_freeze_drone(true)
 	_prepare_intro_camera()
@@ -445,11 +665,44 @@ func _spawn_district() -> void:
 		return
 	var district := packed.instantiate() as Node3D
 	district_root.add_child(district)
+	_district = district as CityGrid
 	# El distrito ya trae su `CityGrid` horneado: acá sólo se le pasa a
 	# `CityIntegrity` para que dé de alta sus `Building` y reinicie la cuenta.
 	if city_integrity != null:
-		city_integrity.grid = district as CityGrid
+		city_integrity.grid = _district
 		city_integrity.rebuild()
+
+
+## Resuelve el edificio protegido de la ronda (`docs/11` §1).
+##
+## Va **después** de [method _spawn_district] y por lo tanto después de
+## `CityIntegrity.rebuild()`: el peso ×3 y el nombre propio se aplican sobre una
+## ciudad ya dada de alta y todavía intacta, así que la integridad no se mueve.
+##
+## Un nombre de nodo que no exista —porque alguien regeneró el distrito con otra
+## semilla— no aborta la ronda: se avisa con `push_warning` y se juega sin
+## protegido, que es exactamente lo que hace hoy cualquier ronda futura que no lo
+## declare. Perder la escuela es una historia; perder la ronda por un nombre mal
+## escrito, un bug.
+func _resolve_protected() -> void:
+	_protected = null
+	var entry := RoundCatalog.protected_of(_round_data)
+	if entry.is_empty() or _district == null:
+		return
+	var wanted := String(entry.get("building", ""))
+	if wanted.is_empty():
+		return
+	for building: Building in _district.get_buildings():
+		if building.name != wanted:
+			continue
+		_protected = building
+		building.mark_protected(String(entry.get("name_key", "")), PROTECTED_PRIORITY)
+		if city_integrity != null:
+			city_integrity.set_protected(building)
+			var _discard := city_integrity.protected_fallen.connect(_on_protected_fallen)
+		return
+	push_warning("RoundManager: la ronda '%s' pide proteger '%s' y el distrito no lo trae."
+			% [_round_id, wanted])
 
 
 func _spawn_enemies() -> void:
@@ -474,6 +727,13 @@ func _spawn_enemies() -> void:
 		if index < markers.size() and markers[index] != null:
 			enemy.transform = enemies_root.global_transform.affine_inverse() \
 					* markers[index].global_transform
+			if index == 0:
+				# Por dónde entra el jefe: es el chevrón cian del mapa de la alerta
+				# (`docs/narrativa` §5). Se anota acá, que es el único punto donde se
+				# sabe **qué** marcador se usó de verdad.
+				_enemy_entry = markers[index].global_position
+		elif index == 0 and enemies_root != null:
+			_enemy_entry = enemies_root.global_position
 		# Semilla de personalidad del jefe (`docs/11` §4.4). WP-18 la lee al armar
 		# su selector de utilidad; hoy queda anotada para que sea reproducible.
 		enemy.set_meta(&"personality_seed", derive_seed("personality"))
@@ -607,6 +867,26 @@ func _on_city_integrity_changed(ratio: float) -> void:
 	if ratio < DEFEAT_INTEGRITY:
 		_defeat_reason = "ROUND_DEFEAT"
 		_defeat_pending = true
+
+
+## Cayó el edificio protegido: el objetivo de defensa queda **fallido** y la cadena
+## sigue (`docs/11` §1).
+##
+## No hay derrota directa: la derrota se sigue decidiendo por integridad y sólo por
+## integridad (`docs/11` §4.1, §12 fila 4). Lo que cambia es la lectura —la línea
+## de objetivo se pone en rojo y el resultado abre con «Caída»—, que es lo que pide
+## `docs/narrativa` §6: la ciudad es un personaje y se la ve sufrir.
+##
+## El reenvío lo hace este nodo y no [CityIntegrity] porque el objetivo es de la
+## ronda: la integridad no conoce la cadena de objetivos, igual que no conoce la
+## máquina de estados.
+func _on_protected_fallen(_building: Building) -> void:
+	if sequencer == null:
+		return
+	for objective: Objective in sequencer.objectives:
+		var defend := objective as ObjectiveDefendCity
+		if defend != null:
+			defend.fail()
 
 
 func _on_drone_destroyed(_position: Vector3) -> void:

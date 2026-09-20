@@ -4,6 +4,8 @@
 
 ## 1. Objetivo y alcance
 
+> **Nota de WP-25 (2026-09-20)**: el dron pasa a paleta de «pieza suelta» en `tools/voxsplit/models/drone_quad.py` (chasis gris de tres tonos con rayones, brazo rojo y brazo negro en diagonal, cinta en el motor 2, batería con parche verde, LED ámbar, hélices de dos tonos, 11 vóxeles de detalle); mismas 16 partes, ids, pivotes, `collision`, bbox y masa; build reproducible byte a byte; `enemy_import_check` en verde.
+
 > **Nota de WP-12a/12b (2026-09-19)**: el sidecar ES el mismo `<enemy>.parts.json` (superconjunto idempotente con `metadata`); `source` admite `archivo.zip!miembro`; los criterios numéricos del jefe viven en el bloque `expect` del JSON, no en la herramienta. El Arachnodroid tiene 4 274 triángulos (no 4 282) y los 3 voxels cian que §2.3 atribuye a `neck` pertenecen a `carapace`. Import: preset con `meshes/ensure_tangents=false` (modelo sin normal maps), `nodes/root_type=Node3D` y `nodes/root_name` (`ArachnodroidRoot`/`DroneQuad`; Godot añade una raíz propia y el script funde la interior); `flags` se escribe como `PackedStringArray`; los scripts de import no declaran `class_name`; los metadatos van en la malla **y** en el `AnimatableBody3D`; en la pose de reposo las rodillas quedan a 8,625 m y los pies a 3,75 m (el 11,0/3,0 de §14.2 es la pose de marcha, WP-17) y el check compara contra `pivot_world` del sidecar; `get_lod_count()` no existe: se usa `RenderingServer.mesh_get_surface()["lods"]`. El dron tiene 16 partes (`led` incluido) y raíz `DroneQuad`.
 
 

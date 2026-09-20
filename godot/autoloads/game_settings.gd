@@ -50,11 +50,23 @@ const ERROR_KEY: String = "ERR_CONFIG_GAME"
 ## Idiomas del juego. El primero es el que se usa si el del sistema no está.
 const LANGUAGES: Array[String] = ["es", "en"]
 
+## Clave del indicador de señal (`docs/12` §2.4).
+##
+## Se nombra aparte porque tiene historia: hasta WP-25 el componente era el punto
+## «REC» y se persistía como [constant HUD_SIGNAL_LEGACY_KEY]. WP-25 cambió el
+## componente y el rótulo pero dejó la clave vieja en el `.cfg`, y WP-25b la termina
+## de renombrar con la migración de [method _read_hud_config].
+const HUD_SIGNAL_KEY: String = "signal"
+
+## Nombre con el que los `.cfg` anteriores a WP-25b guardaban
+## [constant HUD_SIGNAL_KEY]. Sólo se lee; nunca se vuelve a escribir.
+const HUD_SIGNAL_LEGACY_KEY: String = "rec"
+
 ## Los 11 interruptores de `[hud_config]`: uno por cada entrada del `enum Component`
 ## de `docs/12` §2.4 salvo `STATUS`, que siempre se ve.
 const HUD_TOGGLES: Array[String] = [
 	"crosshair", "horizon", "ladder", "heading", "speed", "altitude",
-	"side_tapes", "flight_mode", "rec", "sticks", "rpm",
+	"side_tapes", "flight_mode", HUD_SIGNAL_KEY, "sticks", "rpm",
 ]
 
 ## Frecuencia de refresco de los números del HUD, en Hz.
@@ -382,6 +394,22 @@ func _read_hud_config(config: ConfigFile) -> void:
 	hud_config["horizon_mode"] = mode if HUD_HORIZON_MODES.has(mode) else HUD_HORIZON_MODES[0]
 	for toggle: String in HUD_TOGGLES:
 		hud_config[toggle] = bool(config.get_value(HUD_SECTION, toggle, hud_config[toggle]))
+	_migrate_signal_toggle(config)
+
+
+## Recupera el interruptor del indicador de señal de un `.cfg` anterior a WP-25b.
+##
+## Sin esto, el jugador que ya lo había encendido lo vería apagado la próxima vez que
+## abriera el juego, y sin ningún aviso: el valor seguiría en el archivo, bajo un
+## nombre que nadie lee más. La clave nueva manda si están las dos, y el guardado
+## siguiente reescribe el archivo entero y se lleva la vieja.
+func _migrate_signal_toggle(config: ConfigFile) -> void:
+	if config.has_section_key(HUD_SECTION, HUD_SIGNAL_KEY):
+		return
+	if not config.has_section_key(HUD_SECTION, HUD_SIGNAL_LEGACY_KEY):
+		return
+	hud_config[HUD_SIGNAL_KEY] = bool(config.get_value(HUD_SECTION,
+			HUD_SIGNAL_LEGACY_KEY, hud_config[HUD_SIGNAL_KEY]))
 
 
 ## Escribe las 13 claves de `[hud_config]`.

@@ -39,13 +39,22 @@ const TIME_PAR: float = 540.0
 ## Tolerancia de huérfanos tras liberar el nivel (fila 14).
 const ORPHAN_TOLERANCE: int = 0
 
-## Filas de la tabla de `docs/11` §11, en orden. La 15 la agrega WP-24d.
+## Filas de la tabla de `docs/11` §11, en orden. La 15 la agrega WP-24d y la 16
+## WP-25b.
 const ROW_TITLES: Array[String] = [
 	"catálogo consistente", "respaldo de configuración", "instanciado", "estado inicial",
 	"salteo de la cinemática", "objetivos", "determinismo de semilla", "victoria",
 	"puntaje", "persistencia", "derrota", "prioridad", "restauración", "sin huérfanos",
-	"secuencia completa",
+	"secuencia completa", "edificio protegido",
 ]
+
+## Nombre de nodo y clave del edificio protegido de la ronda 1 (`docs/11` §1).
+const PROTECTED_NODE: String = "Building_8_4"
+const PROTECTED_KEY: String = "BLD_SCHOOL_12"
+
+## Tolerancia del cociente entre lo que cuesta la escuela y lo que cuesta un bloque
+## igual. Es una división de dos restas de coma flotante sobre 127 300 HP.
+const PROTECTED_WEIGHT_TOLERANCE: float = 0.02
 
 ## Las cuatro rodillas del Arachnodroid, en el orden del perfil (`docs/07` §4).
 const KNEE_IDS: Array[StringName] = [
@@ -80,6 +89,9 @@ var _states: Array[int] = []
 ## Índices publicados por `ObjectiveSequencer.objective_started`.
 var _objective_starts: Array[int] = []
 
+## Veces que la ronda en curso emitió `RoundManager.alert_finished`.
+var _alert_finished_count: int = 0
+
 ## Respaldo de la fila 2: `{clave: valor}` de `GameSettings.rounds` al empezar.
 var _rounds_backup: Dictionary = {}
 
@@ -104,6 +116,7 @@ func _run() -> void:
 		await _check_defeat_run()
 		await _check_priority_run()
 		await _check_sequence_run()
+		await _check_protected_run()
 	_restore_config()
 	Global.debug_freeze_ai = false
 	Events.round_state_changed.disconnect(_on_round_state_changed)
@@ -193,27 +206,49 @@ func _check_spawning(manager: RoundManager) -> void:
 			"3 · la ronda en curso es '%s' (es '%s')" % [ROUND_ID, manager.get_round_id()])
 
 
-## Fila 4: la ronda abre en la cinemática y lo publica.
+## Fila 4: la ronda abre en la **alerta del taller** y lo publica (WP-25b).
 func _check_initial_state(manager: RoundManager) -> void:
-	_row(4, manager.get_state() == Global.RoundState.INTRO,
-			"4 · la ronda arranca en INTRO (arranca en %d)" % manager.get_state())
-	_row(4, _states.has(Global.RoundState.INTRO),
-			"4 · se publicó round_state_changed(INTRO)")
+	_row(4, manager.get_state() == Global.RoundState.ALERT,
+			"4 · la ronda arranca en ALERT (arranca en %d)" % manager.get_state())
+	_row(4, _states.has(Global.RoundState.ALERT),
+			"4 · se publicó round_state_changed(ALERT)")
+	_row(4, not _states.has(Global.RoundState.INTRO),
+			"4 · la INTRO todavía no empezó: la alerta va primero")
+	_row(4, manager.get_alert_remaining() > 0.0
+					and manager.get_alert_remaining() <= RoundManager.ALERT_SECONDS,
+			"4 · quedan %.2f s de alerta (de %.1f)"
+					% [manager.get_alert_remaining(), RoundManager.ALERT_SECONDS])
 
 
-## Filas 5 y 6: el salteo es irreversible y los objetivos avanzan por el bus.
+## Filas 5 y 6: el salteo va de a un estado, es irreversible y los objetivos avanzan
+## por el bus.
 func _check_skip_and_objectives(manager: RoundManager, enemy: EnemyBase) -> void:
 	var sequencer := manager.sequencer
 	var _discard := sequencer.objective_started.connect(_on_objective_started)
+	_discard = manager.alert_finished.connect(_on_alert_finished)
 
 	manager.skip_intro()
+	_row(5, manager.get_state() == Global.RoundState.INTRO,
+			"5 · el primer skip_intro() saltea la alerta y pasa a INTRO (quedó en %d)"
+					% manager.get_state())
+	_row(5, _alert_finished_count == 1,
+			"5 · saltear la alerta emite alert_finished una sola vez (emitió %d)"
+					% _alert_finished_count)
+	_row(5, is_equal_approx(manager.get_alert_remaining(), 0.0),
+			"5 · fuera de ALERT no queda alerta pendiente (queda %.2f s)"
+					% manager.get_alert_remaining())
+	manager.skip_intro()
 	_row(5, manager.get_state() == Global.RoundState.BATTLE,
-			"5 · skip_intro() pasa a BATTLE en el mismo frame (quedó en %d)" % manager.get_state())
+			"5 · el segundo skip_intro() pasa a BATTLE en el mismo frame (quedó en %d)"
+					% manager.get_state())
 	var states_after_skip := _states.size()
 	manager.skip_intro()
 	_row(5, manager.get_state() == Global.RoundState.BATTLE
 					and _states.size() == states_after_skip,
-			"5 · un segundo skip_intro() no cambia nada")
+			"5 · un tercer skip_intro() no cambia nada")
+	_row(5, _alert_finished_count == 1,
+			"5 · alert_finished no se repite en el resto de la ronda (emitió %d)"
+					% _alert_finished_count)
 
 	_row(6, _objective_starts.has(0), "6 · se publicó objective_started(0)")
 	_row(6, sequencer.count() == CHAIN_LENGTH,
@@ -460,7 +495,7 @@ func _check_defeat_run() -> void:
 	if level == null:
 		return
 	var manager := level.get_round_manager()
-	manager.skip_intro()
+	manager.skip_to_battle()
 	Events.city_integrity_changed.emit(0.30)
 	var lost := await _wait_until(func() -> bool:
 			return manager.get_state() == Global.RoundState.DEFEAT)
@@ -513,7 +548,7 @@ func _check_priority_run() -> void:
 		return
 	var manager := level.get_round_manager()
 	var enemy := _first_enemy(manager)
-	manager.skip_intro()
+	manager.skip_to_battle()
 	Events.enemy_defeated.emit(enemy, ENEMY_ID)
 	Events.city_integrity_changed.emit(0.30)
 	var terminal := await _wait_until(_is_terminal.bind(manager))
@@ -555,7 +590,7 @@ func _check_sequence_run() -> void:
 		_row(15, false, "15 · la ronda no trae secuenciador o enemigo")
 		await _discard_level(level)
 		return
-	manager.skip_intro()
+	manager.skip_to_battle()
 	await wait_frames(1)
 
 	# 0 · CONTENÉ EL ASEDIO, con el contador de rodillas.
@@ -638,6 +673,133 @@ func _check_sequence_run() -> void:
 func _wait_for_index(sequencer: ObjectiveSequencer, index: int) -> bool:
 	return await _wait_until(func() -> bool:
 			return sequencer.current_index == index and sequencer.is_running())
+
+
+# --- Fila 16: edificio protegido (WP-25b) -----------------------------------------------------
+
+## El edificio con nombre de la ronda: que exista, que pese el triple y que su caída
+## se cuente en el objetivo y en el resultado (`docs/11` §1).
+##
+## La pasada es propia y no se cuelga de la de victoria porque hay que **romper la
+## escuela**, y hacerlo en cualquiera de las otras ensuciaría la integridad con la
+## que se miden el puntaje y la derrota.
+func _check_protected_run() -> void:
+	var before_orphans := int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT))
+	var level := await _enter_level(SEED_A)
+	if level == null:
+		return
+	var manager := level.get_round_manager()
+	var city := manager.city_integrity
+	var school := manager.get_protected_building()
+	_row(16, school != null, "16 · la ronda 1 resuelve su edificio protegido")
+	if school == null or city == null:
+		await _discard_level(level)
+		return
+
+	_row(16, school.name == PROTECTED_NODE,
+			"16 · el protegido es '%s' (es '%s')" % [PROTECTED_NODE, school.name])
+	_row(16, school.display_key == PROTECTED_KEY,
+			"16 · su display_key es '%s' (es '%s')" % [PROTECTED_KEY, school.display_key])
+	var name_text := school.display_name()
+	_row(16, not name_text.is_empty() and name_text != PROTECTED_KEY,
+			"16 · el nombre está traducido: '%s'" % name_text)
+	_row(16, is_equal_approx(school.priority, RoundManager.PROTECTED_PRIORITY),
+			"16 · su prioridad es %.1f (es %.1f)"
+					% [RoundManager.PROTECTED_PRIORITY, school.priority])
+	_row(16, school.is_in_group(Building.GROUP_PROTECTED),
+			"16 · está en el grupo '%s'" % Building.GROUP_PROTECTED)
+	_row(16, city.get_protected() == school, "16 · CityIntegrity lo tiene registrado")
+	_row(16, school.windows_lit(), "16 · el protegido nunca apaga sus ventanas")
+	_row(16, is_equal_approx(city.get_ratio(), 1.0),
+			"16 · el peso ×3 deja la ciudad intacta en 100 %% (está en %.4f)" % city.get_ratio())
+
+	# El título del objetivo pasa a nombrar el edificio.
+	var defend := _first_defend(manager)
+	_row(16, defend != null, "16 · la cadena trae un ObjectiveDefendCity")
+	if defend != null:
+		var title := defend.get_title_text()
+		_row(16, title.contains(name_text.to_upper()) and title != defend.title_key,
+				"16 · el título nombra al protegido: '%s'" % title)
+		_row(16, not defend.is_failed, "16 · el objetivo arranca sin fallar")
+
+	# **Peso ×3**: la escuela y un bloque de su mismo HP, medidos uno tras otro.
+	var twin := _twin_of(city, school)
+	_row(16, twin != null, "16 · hay otro edificio con el mismo HP para comparar")
+	if twin == null:
+		await _discard_level(level)
+		return
+	var before_twin := city.get_ratio()
+	var _applied := twin.take_damage(twin.get_max_hp(), twin.global_position)
+	var twin_cost := before_twin - city.get_ratio()
+	var before_school := city.get_ratio()
+	_applied = school.take_damage(school.get_max_hp(), school.global_position)
+	var school_cost := before_school - city.get_ratio()
+	var factor := school_cost / maxf(twin_cost, 0.000001)
+	print("  16 · un bloque de %.0f HP cuesta %.5f de integridad; la escuela, %.5f (×%.3f)"
+			% [twin.get_max_hp(), twin_cost, school_cost, factor])
+	_row(16, absf(factor - RoundManager.PROTECTED_PRIORITY) <= PROTECTED_WEIGHT_TOLERANCE,
+			"16 · la escuela pesa ×%.3f frente a un bloque igual (esperado ×%.1f ±%.2f)"
+					% [factor, RoundManager.PROTECTED_PRIORITY, PROTECTED_WEIGHT_TOLERANCE])
+
+	await wait_frames(1)
+	_row(16, defend != null and defend.is_failed,
+			"16 · la caída del protegido marca el objetivo como fallido")
+	if defend != null:
+		var failed_text := defend.get_failed_text()
+		_row(16, failed_text.contains(name_text.to_upper())
+						and failed_text != defend.protected_failed_key,
+				"16 · la línea de fallo dice '%s'" % failed_text)
+
+	# La tarjeta abre por el bloque EN PIE, con la escuela caída.
+	var result := manager.build_result()
+	var rows := result.summary_rows()
+	_row(16, result.protected_state == RoundResult.Protected.FALLEN,
+			"16 · el resultado marca el protegido como caído (marca %d)" % result.protected_state)
+	_row(16, result.buildings_total == 60 and result.buildings_standing == 58,
+			"16 · quedan %d de %d edificios en pie"
+					% [result.buildings_standing, result.buildings_total])
+	_row(16, rows.size() >= 4 and String(rows[0]["label_key"]) == "RESULT_STANDING_HEADER"
+					and bool(rows[0].get("header", false)),
+			"16 · summary_rows() abre con el encabezado 'Qué quedó en pie'")
+	_row(16, rows.size() >= 2 and String(rows[1]["label_key"]) == PROTECTED_KEY
+					and String(rows[1]["value_text"])
+							== TranslationServer.translate("RESULT_PROTECTED_FALLEN"),
+			"16 · la segunda fila es «%s · %s»"
+					% [name_text, String(rows[1]["value_text"]) if rows.size() >= 2 else ""])
+	_row(16, rows.size() >= 3 and String(rows[2]["label_key"]) == "RESULT_STANDING_COUNT"
+					and String(rows[2]["value_text"]) == "58/60",
+			"16 · la tercera fila cuenta los edificios en pie")
+	var order := PackedStringArray()
+	for row: Dictionary in rows:
+		order.append(String(row["label_key"]))
+	_row(16, order.find("RESULT_TIME") > order.find("RESULT_INTEGRITY"),
+			"16 · el tiempo va después de la integridad (orden %s)" % ", ".join(order))
+
+	await _discard_level(level)
+	var after_orphans := int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT))
+	_row(16, after_orphans - before_orphans <= ORPHAN_TOLERANCE,
+			"16 · la pasada del protegido no deja huérfanos (antes %d, después %d)"
+					% [before_orphans, after_orphans])
+
+
+## Primer [ObjectiveDefendCity] de la cadena, o `null`.
+func _first_defend(manager: RoundManager) -> ObjectiveDefendCity:
+	if manager.sequencer == null:
+		return null
+	for objective: Objective in manager.sequencer.objectives:
+		var defend := objective as ObjectiveDefendCity
+		if defend != null:
+			return defend
+	return null
+
+
+## Otro edificio con el mismo HP nominal que [param school], para comparar cuánto
+## cuesta cada uno en la integridad.
+func _twin_of(city: CityIntegrity, school: Building) -> Building:
+	for building: Building in city.get_buildings():
+		if building != school and is_equal_approx(building.get_max_hp(), school.get_max_hp()):
+			return building
+	return null
 
 
 # --- Fila 13: restauración --------------------------------------------------------------------
@@ -733,6 +895,10 @@ func _on_round_state_changed(state: int) -> void:
 
 func _on_objective_started(index: int) -> void:
 	_objective_starts.append(index)
+
+
+func _on_alert_finished() -> void:
+	_alert_finished_count += 1
 
 
 ## Espera a que [param condition] se cumpla; devuelve `false` si se agota el plazo. El

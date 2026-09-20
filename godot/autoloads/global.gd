@@ -7,12 +7,21 @@
 ## que encadena los cinco cargadores de configuración en el orden de `docs/04` §3.1.
 extends Node
 
-## Estados por los que pasa una ronda, en orden de guion (`docs/11`).
+## Estados por los que pasa una ronda (`docs/11`).
+##
+## [b]El orden del enum no es el orden del guion.[/b] [constant RoundState.ALERT] es
+## el estado [b]primero[/b] de la ronda —la pantalla del monitor del taller de
+## `docs/narrativa/narrativa.md` §5— pero va anexado al final porque estos valores
+## viajan por `Events.round_state_changed(state: int)` y se guardan en trazas y
+## capturas: renumerar `INTRO`…`DEFEAT` cambiaría el significado de cada `0`, `1`,
+## `2` y `3` ya escritos. El guion real es
+## `ALERT → INTRO → BATTLE → VICTORY / DEFEAT`.
 enum RoundState {
 	INTRO,   ## Presentación de la ronda; es saltable.
 	BATTLE,  ## Combate en curso.
 	VICTORY, ## Se cumplió el objetivo de la ronda.
 	DEFEAT,  ## La ciudad cayó por debajo del umbral de integridad.
+	ALERT,   ## Alerta del taller, previa a `INTRO`; es saltable (WP-25b).
 }
 
 ## Directorio de los `.cfg` del jugador. [method initialize] lo crea si falta.

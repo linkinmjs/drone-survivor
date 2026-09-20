@@ -22,6 +22,13 @@ class_name Objective extends Node
 ## El objetivo alcanzó su meta. Lo escucha el [ObjectiveSequencer].
 signal completed
 
+## El objetivo quedó fallido: ya no se puede cumplir del todo (`docs/11` §1).
+##
+## **No termina el objetivo ni la ronda.** Un objetivo fallido sigue corriendo, sigue
+## pudiendo cerrarse por su condición de siempre y la cadena continúa; lo único que
+## cambia es cómo se lo cuenta. Hoy lo dispara la caída del edificio protegido.
+signal objective_failed
+
 ## Producto escalar con [constant Vector3.UP] por debajo del cual el dron cuenta
 ## como volcado.
 const TIPPED_OVER_DOT: float = 0.5
@@ -65,6 +72,10 @@ var active: bool = false
 ## Aviso persistente del objetivo (clave de traducción); vacío si todo va bien.
 var warning_key: String = ""
 
+## Verdadero desde que algo hizo imposible cumplir el objetivo del todo. Sobrevive
+## a [method restart]: lo que se perdió no vuelve porque el dron reaparezca.
+var is_failed: bool = false
+
 var _tipped_time: float = 0.0
 
 
@@ -104,6 +115,18 @@ func finish() -> void:
 	active = false
 	warning_key = ""
 	completed.emit()
+
+
+## Marca el objetivo como fallido, una sola vez (`docs/11` §1).
+##
+## No llama a [method finish] ni a [method stop]: un objetivo fallido **sigue
+## corriendo**. Si el objetivo ya no estuviera activo la marca se guarda igual, para
+## que el resultado y la línea de objetivo puedan contarla después.
+func fail() -> void:
+	if is_failed:
+		return
+	is_failed = true
+	objective_failed.emit()
 
 
 func _physics_process(delta: float) -> void:
@@ -198,6 +221,21 @@ func _on_stop() -> void:
 
 func _tick(_delta: float) -> void:
 	pass
+
+
+## Título del objetivo, **ya traducido y ya formateado**.
+##
+## Existe porque hay títulos con datos adentro —«PROTEGÉ: ESCUELA 12»— que no se
+## pueden resolver con un `tr(title_key)` desde el HUD: quien conoce el nombre del
+## edificio es el objetivo, no la línea que lo dibuja.
+func get_title_text() -> String:
+	return tr(title_key) if not title_key.is_empty() else ""
+
+
+## Línea que reemplaza al título cuando el objetivo quedó fallido, ya traducida.
+## Vacía si la subclase no tiene nada que decir: entonces el HUD tacha el título.
+func get_failed_text() -> String:
+	return ""
 
 
 ## Instrucción de la fase actual (clave de traducción o texto ya traducido).

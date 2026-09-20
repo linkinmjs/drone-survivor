@@ -46,15 +46,23 @@ const TASK_LINE_HEIGHT: float = 21.0
 ## Clave del encabezado «Objetivo %d de %d», compartida con la tarjeta provisional.
 const STEP_KEY: String = "OBJ_STEP_OF"
 
+## Grosor de la tachadura del título de un objetivo fallido, en píxeles.
+const STRIKE_WIDTH: float = 2.0
+
 ## Secuenciador del que salen el título y el índice.
 var sequencer: ObjectiveSequencer = null
 
-var _title_key: String = ""
+var _title: String = ""
 var _task: String = ""
 var _progress: float = -1.0
 var _progress_text: String = ""
 var _index: int = -1
 var _total: int = 0
+
+## Objetivo fallido: el título va tachado y debajo aparece [member _failed_text]
+## en `DANGER` (`docs/11` §1).
+var _failed: bool = false
+var _failed_text: String = ""
 
 
 ## Ata la línea a la cadena de objetivos de la ronda.
@@ -83,29 +91,69 @@ func refresh_objective() -> void:
 		return
 	_index = sequencer.current_index
 	_total = sequencer.count()
-	_title_key = objective.title_key
+	_title = objective.get_title_text()
 	_task = tr(objective.get_task_text())
 	_progress = objective.get_progress()
 	_progress_text = objective.get_progress_text()
+	_failed = objective.is_failed
+	_failed_text = objective.get_failed_text() if _failed else ""
 	queue_redraw()
+
+
+## Rehace la línea entera al cambiar de idioma.
+##
+## Título, tarea y línea de progreso se guardan **ya traducidos** —el título además
+## ya formateado con el nombre del edificio, que el HUD no puede resolver solo—, así
+## que sin esto un cambio de idioma en pleno combate dejaría la línea en el idioma
+## anterior hasta el objetivo siguiente.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSLATION_CHANGED and is_node_ready():
+		refresh_objective()
+
+
+## Vigila el estado fallido del objetivo en curso.
+##
+## Es lo único que se consulta por sondeo y no por señal: fallar no es un cambio de
+## objetivo —el secuenciador no emite nada— y encadenar una señal más por objetivo
+## para un `bool` que se mira con una comparación por cuadro sería más cable del que
+## ahorra. Cuando cambia, se rehace la línea entera, que ya sabe leerlo.
+func _tick(_delta: float) -> void:
+	if sequencer == null or not is_instance_valid(sequencer):
+		return
+	var objective := sequencer.get_current()
+	if objective == null or objective.is_failed == _failed:
+		return
+	refresh_objective()
 
 
 ## Deja la línea vacía. La cadena terminada la llama con `all_finished`.
 func clear_objective() -> void:
-	if _title_key.is_empty() and _task.is_empty():
+	if _title.is_empty() and _task.is_empty():
 		return
-	_title_key = ""
+	_title = ""
 	_task = ""
 	_progress = -1.0
 	_progress_text = ""
 	_index = -1
 	_total = 0
+	_failed = false
+	_failed_text = ""
 	queue_redraw()
 
 
-## Título traducido del objetivo en curso, o `""`.
+## Título del objetivo en curso, ya traducido y formateado, o `""`.
 func title() -> String:
-	return tr(_title_key) if not _title_key.is_empty() else ""
+	return _title
+
+
+## `true` si el objetivo en curso quedó fallido (`docs/11` §1).
+func is_failed() -> bool:
+	return _failed
+
+
+## Línea de fallo ya traducida («ESCUELA 12: CAÍDA»), o `""`.
+func failed_text() -> String:
+	return _failed_text
 
 
 ## Tarea en curso, ya traducida.
@@ -120,7 +168,7 @@ func progress() -> float:
 
 ## `true` cuando hay un objetivo que mostrar.
 func has_objective() -> bool:
-	return not _title_key.is_empty() or not _task.is_empty()
+	return not _title.is_empty() or not _task.is_empty()
 
 
 func _draw() -> void:
@@ -137,10 +185,25 @@ func _draw() -> void:
 				15, HORIZONTAL_ALIGNMENT_LEFT, WIDTH, CombatHUDPalette.TEXT_DIM)
 		y += 22.0
 
-	if not _title_key.is_empty():
-		HUDDraw.text(self, font_bold, Vector2(ORIGIN.x, y), title(), 22,
-				HORIZONTAL_ALIGNMENT_LEFT, WIDTH, CombatHUDPalette.ACCENT)
+	if not _title.is_empty():
+		# Un objetivo fallido se tacha y se pinta en `DANGER`: la tachadura dice
+		# «esto ya no se puede cumplir» sin sacar el título de pantalla, que es lo
+		# que pide `docs/11` §1 (sigue mostrándose, en rojo, y la cadena continúa).
+		var colour := CombatHUDPalette.DANGER if _failed else CombatHUDPalette.ACCENT
+		HUDDraw.text(self, font_bold, Vector2(ORIGIN.x, y), _title, 22,
+				HORIZONTAL_ALIGNMENT_LEFT, WIDTH, colour)
+		if _failed:
+			var width := minf(font_bold.get_string_size(_title, HORIZONTAL_ALIGNMENT_LEFT,
+					-1.0, 22).x, WIDTH)
+			HUDDraw.line(self, Vector2(ORIGIN.x, y - 7.0),
+					Vector2(ORIGIN.x + width, y - 7.0), STRIKE_WIDTH,
+					CombatHUDPalette.DANGER)
 		y += 28.0
+
+	if _failed and not _failed_text.is_empty():
+		HUDDraw.text(self, font_bold, Vector2(ORIGIN.x, y), _failed_text, 18,
+				HORIZONTAL_ALIGNMENT_LEFT, WIDTH, CombatHUDPalette.DANGER)
+		y += 24.0
 
 	if not _task.is_empty():
 		# `HUDDraw.text` recorta al ancho en vez de partir la línea: una tarea de

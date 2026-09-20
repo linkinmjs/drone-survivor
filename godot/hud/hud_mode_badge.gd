@@ -1,8 +1,29 @@
 ## Copyright (c) 2026 Drone Survivor. Todos los derechos reservados.
+##
+## Insignia del modo de vuelo (`docs/12` §2.1, §2.4 y §2.6), abajo al centro.
+##
+## Parpadea cuando el modo lo impuso el sistema y no el piloto —`RECOVER`—, que es la
+## única forma de avisar «no elegiste esto» sin escribir una frase encima del vuelo.
+##
+## ## Estilo de WP-25
+##
+## Caja **rectangular de radio 2** con una línea de 1,6 px, como todas las cajas de la
+## identidad nueva. Antes era una pastilla de radio 16 con borde de 3 px, que es
+## exactamente la geometría que hacía que el HUD se viera «de otro juego».
 class_name HUDModeBadge
 extends Control
-## Rounded outline badge with the current flight mode, always visible (top left).
 
+## Alto de la caja, en píxeles.
+const BOX_HEIGHT := 40.0
+
+## Aire a cada lado del texto dentro de la caja, en píxeles.
+const PADDING_X := 16.0
+
+## Cuerpo del texto, en píxeles.
+const FONT_SIZE := 22
+
+## Opacidad del semiciclo apagado del parpadeo.
+const BLINK_DIM_ALPHA := 0.25
 
 var mode_key := "HUD_MODE_ACRO"
 var blinking := false
@@ -11,7 +32,7 @@ var _time := 0.0
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	custom_minimum_size = Vector2(220, 56)
+	custom_minimum_size = Vector2(220, BOX_HEIGHT + 4.0)
 
 
 func set_mode(key: String, blink := false) -> void:
@@ -29,20 +50,13 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	var alpha := 1.0
 	if blinking and fmod(_time, 0.8) > 0.5:
-		alpha = 0.25
-	var font := HUDDraw.font_bold()
-	var text := tr(mode_key)
-	var font_size := 28
-	var text_width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
-	var box := Rect2(Vector2(2, 2), Vector2(text_width + 36.0, 48.0))
-	var style := StyleBoxFlat.new()
-	style.draw_center = false
-	style.set_border_width_all(3)
-	style.set_corner_radius_all(16)
-	style.anti_aliasing = true
-	style.border_color = Color(HUDDraw.SHADOW, HUDDraw.SHADOW.a * alpha)
-	draw_style_box(style, box.grow(1.5))
-	style.border_color = Color(HUDDraw.WHITE, alpha)
-	draw_style_box(style, box)
-	HUDDraw.text(self, font, Vector2(box.position.x, box.position.y + 35), text, font_size,
-			HORIZONTAL_ALIGNMENT_CENTER, box.size.x, Color(HUDDraw.WHITE, alpha))
+		alpha = BLINK_DIM_ALPHA
+	var font := HUDDraw.font_display()
+	var label := tr(mode_key)
+	var text_width := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x
+	var box_width := text_width + PADDING_X * 2.0
+	var box := Rect2(Vector2((size.x - box_width) * 0.5, 2.0), Vector2(box_width, BOX_HEIGHT))
+	HUDDraw.box(self, box, HUDDraw.STROKE, Color(HUDDraw.TEXT, alpha),
+			Color(HUDDraw.BOX, HUDDraw.BOX.a * alpha))
+	HUDDraw.text(self, font, Vector2(box.position.x, box.position.y + 28.0), label, FONT_SIZE,
+			HORIZONTAL_ALIGNMENT_CENTER, box.size.x, Color(HUDDraw.TEXT, alpha))

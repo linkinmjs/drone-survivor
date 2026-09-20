@@ -219,7 +219,11 @@ func show_objective(index: int, total: int, objective: Objective) -> void:
 	_objective_index = index
 	_objective_total = total
 	_card.visible = true
-	_title.text = objective.title_key
+	# Ya resuelto y traducido: hay títulos con datos adentro —«PROTEGÉ: ESCUELA 12»—
+	# que el `auto_translate` del [Label] no puede formatear por su cuenta. Se apaga
+	# la traducción automática para que no vuelva a buscar una clave que ya no lo es.
+	_title.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_title.text = objective.get_title_text()
 	# La descripción y la línea de tarea son el mismo texto cuando el objetivo no
 	# tiene fases (los tres de la ronda 1): escribirlo dos veces sería ruido.
 	_objective.text = objective.objective_key

@@ -14,6 +14,25 @@ M3 trasero-derecho **CW**, M4 trasero-izquierdo **CCW**, con **−Z adelante**.
 Partes (16): `frame`, `motor_1..4`, `prop_1..4`, `prop_disk_1..4`, `camera`, `battery`
 y `led` (la luz trasera emisiva que pide WP-12a; `docs/05` §10 contaba 15 sin ella).
 
+**Armado a mano, no de fábrica** (WP-25, `docs/narrativa/narrativa.md` §2 «El taller»
+y §4 «El dron»). En el taller, cuando un dron cae sale otro, y el que sale es un poco
+peor que el anterior. La paleta lo dice sin una línea de texto:
+
+* el chasis es gris claro con **tres grises**: el de la pieza, el de las zonas
+  gastadas y el de los rayones y las quemaduras;
+* el brazo del motor 1 es **rojo** y el del motor 3 es **negro** —repuestos que no
+  combinan—; los otros dos siguen en el gris del chasis;
+* el motor 2 va sujeto con una vuelta de **cinta gris**;
+* la batería lleva un **parche verde** (una celda de otra tanda) y su propia cinta;
+* el LED trasero es **ámbar** `#FFB020`, la voz propia de `docs/13`: nada nuestro es
+  cian;
+* las hélices son de **dos tonos**: dos palas claras (1 y 3) y dos oscuras (2 y 4),
+  con sus discos de desenfoque al mismo tono.
+
+La silueta suma once voxels de detalle —antena de vídeo, cuatro tornillos salientes y
+una férula atornillada sobre el brazo negro—, todos **dentro** del bbox anterior: la
+altura total sigue siendo 0.08 m y la huella 0.30 × 0.30 m.
+
 Toda la geometría se expresa con **cajas inclusivas** en índices de voxel, igual que un
 `parts.json` escrito a mano: el disco de hélice y los brazos en X se describen como una
 unión de cajas por fila, así el sidecar sigue siendo legible y no hace falta ampliar el
@@ -44,28 +63,59 @@ MOTORS = {
     4: (6, 6, -1),     # trasero-izquierdo, CCW
 }
 
-# Índices de paleta (1-based).
-C_FRAME = 1        # carbono gris oscuro
-C_MOTOR = 2        # negro
-C_PROP = 3         # gris claro
-C_CAMERA = 4       # cuerpo de cámara
+# Índices de paleta (1-based). Los nueve primeros conservan su número de WP-12a para
+# que el diff del sidecar se lea de un vistazo, aunque tres de ellos cambiaron de
+# color (chasis, LED y el 7, que pasó de naranja de catálogo a brazo rojo suelto).
+C_FRAME = 1        # gris claro del chasis: placa y brazos de serie
+C_MOTOR = 2        # negro de las campanas de motor y de la antena
+C_PROP = 3         # pala clara (hélices 1 y 3)
+C_CAMERA = 4       # cuerpo de la cámara
 C_BATTERY = 5      # batería
-C_LED = 6          # LED trasero (emisivo)
-C_ACCENT = 7       # naranja de los brazos delanteros
-C_BLUR = 8         # gris del disco de hélice
+C_LED = 6          # LED trasero ámbar (emisivo)
+C_ARM_RED = 7      # brazo de repuesto rojo (motor 1)
+C_BLUR = 8         # disco de hélice claro (motores 1 y 3)
 C_LENS = 9         # lente de la cámara
+C_FRAME_WORN = 10  # gris medio: zonas gastadas del chasis y la férula del brazo negro
+C_SCUFF = 11       # gris oscuro: rayones y quemaduras
+C_ARM_BLACK = 12   # brazo de repuesto negro (motor 3)
+C_TAPE = 13        # cinta gris: vuelta del motor 2 y correa de la batería
+C_PATCH = 14       # parche de la batería: una celda de otra tanda
+C_PROP_DARK = 15   # pala oscura (hélices 2 y 4)
+C_BLUR_DARK = 16   # disco de hélice oscuro (motores 2 y 4)
+C_SCREW = 17       # tornillos y remaches de latón
 
 _COLORS = {
-    C_FRAME: (48, 50, 54, 255),
-    C_MOTOR: (20, 20, 22, 255),
-    C_PROP: (190, 195, 200, 255),
+    C_FRAME: (152, 156, 160, 255),
+    C_MOTOR: (26, 26, 30, 255),
+    C_PROP: (208, 212, 216, 255),
     C_CAMERA: (58, 60, 66, 255),
     C_BATTERY: (30, 64, 112, 255),
-    C_LED: (255, 48, 48, 255),
-    C_ACCENT: (232, 112, 32, 255),
-    C_BLUR: (150, 155, 162, 255),
+    C_LED: (255, 176, 32, 255),
+    C_ARM_RED: (170, 48, 40, 255),
+    C_BLUR: (168, 172, 178, 255),
     C_LENS: (18, 22, 34, 255),
+    C_FRAME_WORN: (112, 116, 120, 255),
+    C_SCUFF: (74, 76, 80, 255),
+    C_ARM_BLACK: (34, 34, 38, 255),
+    C_TAPE: (134, 132, 126, 255),
+    C_PATCH: (62, 104, 72, 255),
+    C_PROP_DARK: (62, 64, 70, 255),
+    C_BLUR_DARK: (96, 100, 106, 255),
+    C_SCREW: (198, 172, 104, 255),
 }
+
+#: Brazos de repuesto que no combinan: ``{motor_index: índice de paleta}``. Los motores
+#: que no figuran acá llevan el gris del chasis. Están en diagonal a propósito: no es
+#: una decoración simétrica, es lo que había en la caja.
+ARM_COLOURS = {1: C_ARM_RED, 3: C_ARM_BLACK}
+
+#: Al motor 2 le falta un tornillo y va sujeto con una vuelta de cinta.
+TAPED_MOTOR = 2
+
+#: Tono de cada hélice: dos palas claras y dos oscuras, porque el juego no repone de a
+#: cuatro. `prop_disk_N` copia el tono de su `prop_N` para que el desenfoque no mienta.
+PROP_COLOURS = {1: C_PROP, 2: C_PROP_DARK, 3: C_PROP, 4: C_PROP_DARK}
+DISK_COLOURS = {1: C_BLUR, 2: C_BLUR_DARK, 3: C_BLUR, 4: C_BLUR_DARK}
 
 #: Radio del disco de hélice, en voxels (13 voxels de diámetro ≈ una hélice de 5.1").
 DISK_RADIUS = 6
@@ -130,25 +180,50 @@ def _disk_boxes(cx: int, cy: int) -> list[Box]:
     return boxes
 
 
+def _arm_block(cx: int, cy: int, k: int) -> Box:
+    """Bloque `k` del brazo diagonal hacia `(cx, cy)`: 2×2 en planta, 2 de alto."""
+    x0 = 14 + (1 if cx > CENTRE else -1) * k
+    y0 = 14 + (1 if cy > CENTRE else -1) * k
+    return (min(x0, x0 + 1), min(y0, y0 + 1), 4,
+            max(x0, x0 + 1), max(y0, y0 + 1), 5)
+
+
 def _arm_boxes(cx: int, cy: int) -> list[Box]:
     """Brazo diagonal en X: bloques de 2×2 que van del centro de la placa al motor."""
-    step_x = 1 if cx > CENTRE else -1
-    step_y = 1 if cy > CENTRE else -1
-    boxes: list[Box] = []
-    for k in range(9):
-        x0 = 14 + step_x * k
-        y0 = 14 + step_y * k
-        boxes.append((min(x0, x0 + 1), min(y0, y0 + 1), 4,
-                      max(x0, x0 + 1), max(y0, y0 + 1), 5))
-    return boxes
+    return [_arm_block(cx, cy, k) for k in range(9)]
+
+
+#: Placa central del chasis.
+_PLATE_BOX: Box = (11, 11, 4, 18, 18, 5)
+
+#: Antena de vídeo: mástil de 3 voxels apoyado en el borde trasero de la placa. Es el
+#: primero de los detalles de silueta de WP-25 y no toca el techo del modelo (z = 9).
+_ANTENNA_BOXES: list[Box] = [(16, 11, 6, 16, 11, 8)]
+
+#: Tornillos que sobresalen: las cuatro esquinas de la placa más los dos remaches que
+#: sujetan la férula del brazo negro.
+_SCREW_BOXES: list[Box] = [
+    (11, 11, 6, 11, 11, 6),
+    (11, 18, 6, 11, 18, 6),
+    (18, 11, 6, 18, 11, 6),
+    (18, 18, 6, 18, 18, 6),
+    (20, 8, 6, 20, 8, 6),
+    (21, 9, 6, 21, 9, 6),
+]
+
+#: Férula: chapa de 2×2 atornillada sobre el brazo negro, donde se partió.
+_SPLINT_BOXES: list[Box] = [(20, 8, 6, 21, 9, 6)]
 
 
 def _frame_boxes() -> list[Box]:
-    """Placa central más los cuatro brazos."""
-    boxes: list[Box] = [(11, 11, 4, 18, 18, 5)]
+    """Placa central, los cuatro brazos y el detalle atornillado a mano."""
+    boxes: list[Box] = [_PLATE_BOX]
     for index in sorted(MOTORS):
         cx, cy, _spin = MOTORS[index]
         boxes.extend(_arm_boxes(cx, cy))
+    boxes.extend(_ANTENNA_BOXES)
+    boxes.extend(_SPLINT_BOXES)
+    boxes.extend(_SCREW_BOXES)
     return boxes
 
 
@@ -163,6 +238,29 @@ _CAMERA_BOXES: list[Box] = [
 _BATTERY_BOXES: list[Box] = [(12, 12, 2, 17, 18, 3)]
 _LED_BOXES: list[Box] = [(14, 10, 4, 15, 10, 5)]
 
+#: Parche de la batería: una celda de otra tanda, verde en vez de azul.
+_BATTERY_PATCH_BOXES: list[Box] = [(12, 12, 2, 13, 14, 3)]
+
+#: Correa de cinta que la sostiene contra la placa.
+_BATTERY_TAPE_BOXES: list[Box] = [(12, 16, 2, 17, 16, 3)]
+
+#: Zonas gastadas del chasis (gris medio). Se recortan contra las celdas reales del
+#: `frame`, así que escribirlas de más no ensucia otras partes.
+_FRAME_WORN_BOXES: list[Box] = [
+    (11, 15, 5, 13, 18, 5),    # esquina delantera-izquierda de la placa, lijada
+    (9, 9, 4, 11, 11, 5),      # arranque del brazo trasero-izquierdo, rozado
+    (16, 12, 4, 18, 13, 4),    # panza de la placa, apoyada mil veces en la mesa
+]
+
+#: Rayones y quemaduras del chasis (gris oscuro).
+_FRAME_SCUFF_BOXES: list[Box] = [
+    (12, 13, 5, 16, 13, 5),    # rayón recto sobre la placa
+    (14, 11, 5, 15, 12, 5),    # quemadura junto al LED
+    (17, 16, 5, 18, 18, 5),    # esquina trasera-derecha, raspada
+    (12, 12, 4, 12, 16, 4),    # rozadura larga en la panza
+    (8, 20, 5, 9, 21, 5),      # el brazo rojo tampoco vino nuevo
+]
+
 
 def _part(part_id: str, parent: str | None, boxes: list[Box], pivot: Sequence[float],
           **extra) -> dict:
@@ -176,19 +274,81 @@ def _part(part_id: str, parent: str | None, boxes: list[Box], pivot: Sequence[fl
     return entry
 
 
-def _accent_cells() -> set[tuple[int, int, int]]:
-    """Celdas de los brazos delanteros que se pintan de naranja (referencia de orientación)."""
-    out: set[tuple[int, int, int]] = set()
-    for index in (1, 2):
+def _arm_paint() -> dict[tuple[int, int, int], int]:
+    """Celdas de los dos brazos de repuesto, desde que salen de la placa hasta el motor.
+
+    Los bloques 0–3 quedan dentro de la placa central, así que se descartan: el color
+    del repuesto arranca justo en el borde, que es donde se ve la junta.
+    """
+    plate = _cells([_PLATE_BOX])
+    out: dict[tuple[int, int, int], int] = {}
+    for index, colour in ARM_COLOURS.items():
         cx, cy, _spin = MOTORS[index]
-        for k in range(6, 9):
-            step_x = 1 if cx > CENTRE else -1
-            step_y = 1 if cy > CENTRE else -1
-            x0 = 14 + step_x * k
-            y0 = 14 + step_y * k
-            out |= _cells([(min(x0, x0 + 1), min(y0, y0 + 1), 4,
-                            max(x0, x0 + 1), max(y0, y0 + 1), 5)])
+        for k in range(4, 9):
+            for cell in _cells([_arm_block(cx, cy, k)]):
+                if cell not in plate:
+                    out[cell] = colour
     return out
+
+
+def _frame_paint() -> dict[tuple[int, int, int], int]:
+    """Pintura del chasis: brazos sueltos, manchas, rayones y detalle atornillado.
+
+    El orden es deliberado: primero los repuestos, después el desgaste (que también cae
+    sobre el brazo rojo) y al final la antena, la férula y los tornillos, que son piezas
+    puestas encima y no se rayan.
+    """
+    frame = _cells(_frame_boxes())
+    paint: dict[tuple[int, int, int], int] = _arm_paint()
+    for boxes, colour in ((_FRAME_WORN_BOXES, C_FRAME_WORN),
+                          (_FRAME_SCUFF_BOXES, C_SCUFF)):
+        for cell in _cells(boxes):
+            if cell in frame:
+                paint[cell] = colour
+    for cell in _cells(_ANTENNA_BOXES):
+        paint[cell] = C_MOTOR
+    for cell in _cells(_SPLINT_BOXES):
+        paint[cell] = C_FRAME_WORN
+    for cell in _cells(_SCREW_BOXES):
+        paint[cell] = C_SCREW
+    return paint
+
+
+def _battery_paint() -> dict[tuple[int, int, int], int]:
+    """Parche de otra tanda y correa de cinta sobre la batería."""
+    paint: dict[tuple[int, int, int], int] = {}
+    for cell in _cells(_BATTERY_PATCH_BOXES):
+        paint[cell] = C_PATCH
+    for cell in _cells(_BATTERY_TAPE_BOXES):
+        paint[cell] = C_TAPE
+    return paint
+
+
+def _tape_paint(cx: int, cy: int) -> dict[tuple[int, int, int], int]:
+    """Vuelta de cinta alrededor de la campana del motor, con el extremo suelto arriba.
+
+    La vuelta es el perímetro del disco de 5×5 en la capa central (z = 6); el extremo
+    suelto son los tres voxels que cruzan la tapa (z = 7).
+    """
+    paint: dict[tuple[int, int, int], int] = {}
+    for x, y, z in _cells(_motor_boxes(cx, cy)):
+        if z == 6 and max(abs(x - cx), abs(y - cy)) == 2:
+            paint[(x, y, z)] = C_TAPE
+    for cell in _cells([(cx - 1, cy, 7, cx + 1, cy, 7)]):
+        paint[cell] = C_TAPE
+    return paint
+
+
+def _base_colour(part_id: str) -> int:
+    """Índice de paleta que lleva una parte cuando ninguna capa de pintura la tapa."""
+    if part_id.startswith("prop_disk_"):
+        return DISK_COLOURS[int(part_id.rsplit("_", 1)[1])]
+    if part_id.startswith("prop_"):
+        return PROP_COLOURS[int(part_id.rsplit("_", 1)[1])]
+    if part_id.startswith("motor_"):
+        return C_MOTOR
+    return {"led": C_LED, "camera": C_CAMERA,
+            "battery": C_BATTERY, "frame": C_FRAME}[part_id]
 
 
 def build() -> dict:
@@ -226,30 +386,25 @@ def build() -> dict:
     parts.append(_part("frame", None, _frame_boxes(), [14.5, 14.5, 4.5],
                        flags=["root"], function="core", collision="none"))
 
-    colour_of = {
-        "led": C_LED, "camera": C_CAMERA, "battery": C_BATTERY, "frame": C_FRAME,
+    # Una capa de pintura **por parte**: así una celda que el reparto le adjudica al
+    # motor (los brazos se meten bajo la campana) nunca se lleva el color del chasis.
+    taped_x, taped_y, _taped_spin = MOTORS[TAPED_MOTOR]
+    paint: dict[str, dict[tuple[int, int, int], int]] = {
+        "frame": _frame_paint(),
+        "battery": _battery_paint(),
+        "camera": {c: C_LENS for c in _cells(_CAMERA_BOXES) if c[1] == 21},
+        f"motor_{TAPED_MOTOR}": _tape_paint(taped_x, taped_y),
     }
-    accent = _accent_cells()
+
     voxels: dict[tuple[int, int, int], int] = {}
     for entry in parts:
         part_id = entry["id"]
-        if part_id.startswith("prop_disk_"):
-            index = C_BLUR
-        elif part_id.startswith("prop_"):
-            index = C_PROP
-        elif part_id.startswith("motor_"):
-            index = C_MOTOR
-        else:
-            index = colour_of[part_id]
+        base = _base_colour(part_id)
+        overrides = paint.get(part_id, {})
         for cell in sorted(_cells(entry["boxes"])):
             if cell in voxels:
                 continue           # la primera parte del orden se queda el voxel (§5.1)
-            value = index
-            if part_id == "frame" and cell in accent:
-                value = C_ACCENT
-            elif part_id == "camera" and cell[1] == 21:
-                value = C_LENS
-            voxels[cell] = value
+            voxels[cell] = overrides.get(cell, base)
 
     palette: list[tuple[int, int, int, int]] = [(0, 0, 0, 0)] * 256
     for index, colour in _COLORS.items():

@@ -56,6 +56,7 @@ $Headless = @(
 $Windowed = @(
     "ui_smoke_test",  # WP-02, ampliado en WP-09 y WP-11
     "boot_check",     # WP-02
+    "menu_shots_check",  # WP-25: capturas de los menús
     "render_check"    # WP-24a: 1920x1080 sin vsync, ver $WindowArgs
 )
 
@@ -87,6 +88,7 @@ $ExtraArgs = @{
     "ai_check"      = @("--timeout=300")
     "balance_check" = @("--timeout=1500")
     "render_check"  = @("--shots=tools/out/shots")
+    "menu_shots_check" = @("--shots=tools/out/shots")
 }
 
 # ---------------------------------------------------------------------------

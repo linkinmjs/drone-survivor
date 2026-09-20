@@ -1,12 +1,21 @@
-[gd_resource type="Theme" load_steps=2 format=3]
+[gd_resource type="Theme" format=3]
 
-[ext_resource type="FontFile" path="res://gui/theme/fonts/RecursiveMonoLnrSt-Regular.otf" id="1_hud_mono"]
+[ext_resource type="FontFile" path="res://gui/theme/fonts/jetbrainsmono/JetBrainsMono-VariableFont_wght.ttf" id="1_xnmyk"]
+
+[sub_resource type="FontVariation" id="FontVariation_0kl5b"]
+base_font = ExtResource("1_xnmyk")
+variation_opentype = {
+2003265652: 500
+}
 
 [resource]
-default_font = ExtResource("1_hud_mono")
+default_font = SubResource("FontVariation_0kl5b")
 default_font_size = 24
-Label/colors/font_color = Color(1, 1, 1, 1)
-Label/colors/font_outline_color = Color(0, 0, 0, 0.35)
-Label/constants/outline_size = 4
+Label/colors/font_color = Color(1, 0.8156863, 0.5411765, 1)
+Label/colors/font_outline_color = Color(0, 0, 0, 0.7)
+Label/colors/font_shadow_color = Color(1, 1, 1, 0)
+Label/constants/line_spacing = 2
+Label/constants/outline_size = 3
+Label/constants/shadow_outline_size = 0
 Label/font_sizes/font_size = 24
-Label/fonts/font = ExtResource("1_hud_mono")
+Label/fonts/font = SubResource("FontVariation_0kl5b")

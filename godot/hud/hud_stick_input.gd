@@ -27,8 +27,8 @@ const DOT_RADIUS: float = 5.0
 ## Largo de las marcas de centro que salen de cada lado del marco, en píxeles.
 const TICK_LENGTH: float = 9.0
 
-## Grosor del marco, en píxeles.
-const FRAME_WIDTH: float = 2.0
+## Grosor del marco, en píxeles: el mismo trazo fino que todo el HUD de WP-25.
+const FRAME_WIDTH: float = HUDDraw.STROKE
 
 ## Deflexión actual del stick, en `[−1, 1]` por eje.
 var value: Vector2 = Vector2.ZERO
@@ -51,18 +51,12 @@ func update_stick_input(stick: Vector2) -> void:
 func _draw() -> void:
 	var centre := size * 0.5
 	var half := BOX_SIDE * 0.5
-	var top_left := centre - Vector2(half, half)
-	var top_right := centre + Vector2(half, -half)
-	var bottom_right := centre + Vector2(half, half)
-	var bottom_left := centre + Vector2(-half, half)
 
-	HUDDraw.line(self, top_left, top_right, FRAME_WIDTH)
-	HUDDraw.line(self, top_right, bottom_right, FRAME_WIDTH)
-	HUDDraw.line(self, bottom_right, bottom_left, FRAME_WIDTH)
-	HUDDraw.line(self, bottom_left, top_left, FRAME_WIDTH)
+	HUDDraw.box(self, Rect2(centre - Vector2(half, half), Vector2(BOX_SIDE, BOX_SIDE)),
+			FRAME_WIDTH, HUDDraw.TEXT, HUDDraw.BOX)
 
 	# Marcas de centro: dicen dónde está el reposo sin tapar el punto.
-	var faint := Color(HUDDraw.WHITE, 0.55)
+	var faint := Color(HUDDraw.TEXT, 0.55)
 	HUDDraw.line(self, Vector2(centre.x, centre.y - half),
 			Vector2(centre.x, centre.y - half + TICK_LENGTH), FRAME_WIDTH, faint)
 	HUDDraw.line(self, Vector2(centre.x, centre.y + half),
@@ -75,4 +69,4 @@ func _draw() -> void:
 	# `+y` del stick es arriba; `+y` de pantalla es abajo.
 	var dot := centre + Vector2(value.x, -value.y) * half
 	draw_circle(dot, DOT_RADIUS + 1.5, HUDDraw.SHADOW, true, -1.0, true)
-	draw_circle(dot, DOT_RADIUS, HUDDraw.WHITE, true, -1.0, true)
+	draw_circle(dot, DOT_RADIUS, HUDDraw.TEXT, true, -1.0, true)

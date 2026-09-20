@@ -314,7 +314,7 @@ func _collect_used_keys() -> Array[String]:
 	for bus: StringName in AudioMenu.BUS_KEYS:
 		_append_key(keys, AudioMenu.BUS_KEYS[bus])
 	for toggle: String in GameSettings.HUD_TOGGLES:
-		_append_key(keys, "HUD_CFG_%s" % toggle.to_upper())
+		_append_key(keys, FlightHUD.config_label_key(toggle))
 	# Claves del HUD de vuelo (WP-08). No las escribe ningún menú, pero la vista previa
 	# de la pestaña de HUD las pone en pantalla y `docs/12` §10 (riesgo 12) pide que
 	# toda clave nueva exista en los dos idiomas.
@@ -326,7 +326,7 @@ func _collect_used_keys() -> Array[String]:
 		_append_key(keys, String(FlightHUD.ARM_FAILED_KEYS[reason_key]))
 	for bearing: int in HUDCompassTape.LETTERS:
 		_append_key(keys, String(HUDCompassTape.LETTERS[bearing]))
-	for readout_key: String in ["HUD_ALT", "HUD_SPD", "HUD_VS", "HUD_REC",
+	for readout_key: String in ["HUD_ALT", "HUD_SPD", "HUD_VS", HUDSignalIndicator.LABEL_KEY,
 			"HUD_UNIT_M", "HUD_UNIT_KMH", "HUD_UNIT_MPS"]:
 		_append_key(keys, readout_key)
 	for action_name: StringName in Controls.ACTION_LABELS:
@@ -845,39 +845,39 @@ func _check_hud_tab(screen: GameSettingsMenu) -> void:
 				"la vista previa se alimenta sola con el generador de docs/12 §2.5")
 		expect(FlightHUD.Component.size() == 12 and FlightHUD.CONFIG_KEYS.size() == 11,
 				"12 componentes y 11 interruptores: STATUS no es configurable (docs/12 §2.4)")
-	var toggle := screen.control_for(&"HUD_CFG_REC") as CheckButton
+	var toggle := screen.control_for(&"HUD_CFG_SIGNAL") as CheckButton
 	var preset := screen.control_for(&"HUD_PRESET") as OptionButton
 	if toggle == null or preset == null:
-		fail("la pestaña de HUD no expone el interruptor de grabación ni el preset")
+		fail("la pestaña de HUD no expone el interruptor de señal ni el preset")
 		return
-	expect(not toggle.button_pressed, "el indicador de grabación arranca apagado")
+	expect(not toggle.button_pressed, "el indicador de señal arranca apagado")
 	if preview != null:
-		expect(not preview.is_component_visible(FlightHUD.Component.REC),
-				"la vista previa arranca con el componente REC apagado")
+		expect(not preview.is_component_visible(FlightHUD.Component.SIGNAL),
+				"la vista previa arranca con el componente SIGNAL apagado")
 	toggle.grab_focus()
 	await wait_frames(2)
 	await _send_action(&"ui_right")
-	expect(bool(GameSettings.hud_config.get("rec", false)),
-			"encender el interruptor escribe hud_config['rec']")
+	expect(bool(GameSettings.hud_config.get("signal", false)),
+			"encender el interruptor escribe hud_config['signal']")
 	if preview != null:
-		expect(preview.is_component_visible(FlightHUD.Component.REC),
-				"encender el interruptor enciende el componente REC de la vista previa real")
+		expect(preview.is_component_visible(FlightHUD.Component.SIGNAL),
+				"encender el interruptor enciende el componente SIGNAL de la vista previa real")
 	expect(GameSettings.get_hud_preset_name() == GameSettings.CUSTOM_HUD_PRESET,
 			"un cambio manual deja el preset de HUD en Custom")
 	expect(preset.selected == HudConfigPanel.CUSTOM_INDEX,
 			"el selector de preset muestra Custom")
 	GameSettings.load_game_settings()
-	expect(bool(GameSettings.hud_config.get("rec", false)),
-			"el interruptor de grabación persiste tras guardar y recargar")
+	expect(bool(GameSettings.hud_config.get("signal", false)),
+			"el interruptor de señal persiste tras guardar y recargar")
 	await _settle()
 	await shot("options_hud")
 
 	await _send_action(&"ui_left")
-	expect(not bool(GameSettings.hud_config.get("rec", true)),
-			"apagar el interruptor vuelve a escribir hud_config['rec']")
+	expect(not bool(GameSettings.hud_config.get("signal", true)),
+			"apagar el interruptor vuelve a escribir hud_config['signal']")
 	if preview != null:
-		expect(not preview.is_component_visible(FlightHUD.Component.REC),
-				"apagar el interruptor apaga el componente REC de la vista previa real")
+		expect(not preview.is_component_visible(FlightHUD.Component.SIGNAL),
+				"apagar el interruptor apaga el componente SIGNAL de la vista previa real")
 		await _check_hud_presets(panel, preview)
 	screen.show_tab(0)
 	await wait_frames(2)

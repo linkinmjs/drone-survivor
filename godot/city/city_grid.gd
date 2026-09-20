@@ -89,6 +89,17 @@ const PIECE_SHAPE: StringName = &"IntactShape"
 const GROUND_LAYER: int = 1
 const GROUND_MASK: int = 294
 
+## Fracción de manzanas que se queda sin luz en las ventanas (`docs/13` §1,
+## préstamo de la dirección B del checkpoint 3b).
+##
+## Se raciona por **manzana** y no por edificio: un apagón salpicado edificio a
+## edificio se lee como ruido de textura, y lo que la ciudad tiene que contar es
+## que hay barrios enteros sin luz.
+const DARK_BLOCK_RATIO: float = 0.30
+
+## Etiqueta de la semilla derivada del racionamiento de ventanas.
+const DARK_SEED_TAG: String = "windows"
+
 ## Variación de altura por rol (`docs/10` §4.3 adaptada a las piezas reales).
 ##
 ## Los **hitos** (`Building_3`, 81 m nativos) ya no se aplastan a 0.40–0.55: con
@@ -252,6 +263,11 @@ var _widths: Array[PackedFloat32Array] = [PackedFloat32Array(), PackedFloat32Arr
 var _starts: Array[PackedFloat32Array] = [PackedFloat32Array(), PackedFloat32Array()]
 var _extent: Vector2 = Vector2.ZERO
 var _lane_signature: String = ""
+
+## Manzanas sin luz, resueltas una vez por semilla. La firma incluye la semilla
+## maestra porque el reparto cambia con ella.
+var _dark_blocks: Dictionary[Vector2i, bool] = {}
+var _dark_signature: String = ""
 
 
 # --------------------------------------------------------------------------
@@ -424,6 +440,69 @@ func cell_block(cell: Vector2i) -> Vector2i:
 func cell_in_block(cell: Vector2i) -> Vector2i:
 	var period := block_span + 1
 	return Vector2i((cell.x - 1) % period, (cell.y - 1) % period)
+
+
+## Cuántas manzanas tiene el distrito.
+func block_count() -> int:
+	return block_cols * block_rows
+
+
+## Manzanas cuyas ventanas están apagadas esta partida (`docs/13` §1).
+##
+## El reparto es determinista por [member Global.round_seed] y de **tamaño fijo**:
+## `round(manzanas · DARK_BLOCK_RATIO)`, que con 5 × 3 manzanas da 5 de 15 (33 %).
+## Sortear cada manzana por separado con probabilidad 0,30 daría el mismo promedio
+## pero una varianza enorme —con quince tiradas es normal salir con 2 o con 8—, y
+## lo que el jugador ve en una partida no es el promedio: es esa partida. Por eso
+## cada manzana recibe una **llave** de su propio generador sembrado con su celda y
+## la semilla maestra, y se apagan las `K` llaves más bajas. Sigue siendo «sembrado
+## por manzana» y además el recuento no se mueve.
+func dark_blocks() -> Dictionary[Vector2i, bool]:
+	var signature := "%d|%d|%d|%.3f" % [Global.round_seed, block_cols, block_rows,
+			DARK_BLOCK_RATIO]
+	if signature == _dark_signature:
+		return _dark_blocks
+	_dark_signature = signature
+	_dark_blocks = {}
+	var keyed: Array[Dictionary] = []
+	for block_z: int in block_rows:
+		for block_x: int in block_cols:
+			var rng := RandomNumberGenerator.new()
+			rng.seed = hash("%s:%d:%d" % [DARK_SEED_TAG, block_x, block_z]) ^ Global.round_seed
+			keyed.append({"block": Vector2i(block_x, block_z), "key": rng.randf()})
+	# Desempate por coordenada: dos llaves iguales no pueden depender del orden en
+	# que `sort_custom` las visite, o el reparto dejaría de ser reproducible.
+	keyed.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		if not is_equal_approx(float(a["key"]), float(b["key"])):
+			return float(a["key"]) < float(b["key"])
+		var left: Vector2i = a["block"]
+		var right: Vector2i = b["block"]
+		return left.y * 1000 + left.x < right.y * 1000 + right.x)
+	var wanted := clampi(roundi(float(keyed.size()) * DARK_BLOCK_RATIO), 0, keyed.size())
+	for index: int in wanted:
+		_dark_blocks[keyed[index]["block"] as Vector2i] = true
+	return _dark_blocks
+
+
+## Verdadero si la manzana [param block] tiene las ventanas apagadas.
+func is_block_dark(block: Vector2i) -> bool:
+	return dark_blocks().has(block)
+
+
+## Verdadero si [param building] tiene que apagar sus ventanas, es decir, si su
+## manzana está a oscuras. Un edificio sin metadato `cell` —una escena de prueba
+## con un edificio suelto— queda siempre encendido.
+##
+## Lo consulta [method Building._apply_window_ration] por `has_method`, sin
+## conocer esta clase: es el mismo despacho flojo que usa `occluder_for`, y por el
+## mismo motivo (no cerrar el ciclo `city_grid.gd` → `building.gd`).
+func is_building_dark(building: Node3D) -> bool:
+	if building == null:
+		return false
+	var cell: Vector2i = building.get_meta(&"cell", Vector2i(-1, -1))
+	if cell.x < 0 or cell.y < 0:
+		return false
+	return is_block_dark(cell_block(cell))
 
 
 ## Cruce de las dos avenidas, en el espacio local. Es el punto al que mira el

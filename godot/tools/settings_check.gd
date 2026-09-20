@@ -237,12 +237,53 @@ func _check_game_settings_round_trip() -> void:
 	GameSettings.apply_hud_preset("standard")
 	expect(GameSettings.get_hud_preset_name() == "standard",
 			"aplicar el preset Standard se reconoce al releerlo")
+	_check_signal_toggle_migration()
 	GameSettings.reset_round_progress()
 	expect(GameSettings.get_best_score("r01") == 0 and not GameSettings.has_completed("r01"),
 			"reset_round_progress() borra los récords")
 	GameSettings.set_language("es")
 	expect(TranslationServer.get_locale().begins_with("es"),
 			"set_language() aplica el locale en el acto")
+
+
+## Un `GameSettings.cfg` anterior a WP-25b guarda el indicador de señal como `rec`
+## (`docs/12` §2.4). Al leerlo, el valor tiene que aparecer bajo `signal`.
+##
+## Sin esta migración el jugador que lo tenía encendido lo vería apagado y sin aviso:
+## su valor seguiría en el archivo, bajo un nombre que ya no lee nadie. Se escribe el
+## `.cfg` a mano —no hay forma de que `save_game_settings()` produzca la clave vieja,
+## que es justamente lo que se quiere— y se comprueba además que el guardado
+## siguiente se la lleve.
+func _check_signal_toggle_migration() -> void:
+	var path := Global.config_path(GameSettings.CONFIG_FILE)
+	var legacy := ConfigFile.new()
+	expect(legacy.load(path) == OK, "el GameSettings.cfg de la prueba se relee para migrarlo")
+	legacy.erase_section_key(GameSettings.HUD_SECTION, GameSettings.HUD_SIGNAL_KEY)
+	legacy.set_value(GameSettings.HUD_SECTION, GameSettings.HUD_SIGNAL_LEGACY_KEY, true)
+	expect(legacy.save(path) == OK, "se pudo escribir un .cfg con la clave vieja 'rec'")
+
+	GameSettings.reset_to_defaults()
+	expect(GameSettings.load_game_settings().is_empty(),
+			"un .cfg con la clave vieja se lee sin error")
+	expect(bool(GameSettings.hud_config.get(GameSettings.HUD_SIGNAL_KEY, false)),
+			"hud_config['rec'] de un .cfg viejo se migra a hud_config['signal']")
+	expect(not GameSettings.hud_config.has(GameSettings.HUD_SIGNAL_LEGACY_KEY),
+			"la clave vieja no sobrevive en memoria")
+
+	# Y un `.cfg` nuevo tiene que seguir mandando sobre el viejo si estuvieran los dos.
+	legacy.set_value(GameSettings.HUD_SECTION, GameSettings.HUD_SIGNAL_KEY, false)
+	expect(legacy.save(path) == OK, "se pudo escribir un .cfg con las dos claves")
+	expect(GameSettings.load_game_settings().is_empty(),
+			"un .cfg con las dos claves se lee sin error")
+	expect(not bool(GameSettings.hud_config.get(GameSettings.HUD_SIGNAL_KEY, true)),
+			"con las dos claves manda la nueva")
+
+	GameSettings.save_hud_config()
+	var rewritten := ConfigFile.new()
+	expect(rewritten.load(path) == OK, "el .cfg reescrito se relee")
+	expect(not rewritten.has_section_key(GameSettings.HUD_SECTION,
+			GameSettings.HUD_SIGNAL_LEGACY_KEY),
+			"guardar se lleva la clave vieja del archivo")
 
 
 func _check_graphics_round_trip() -> void:

@@ -19,6 +19,14 @@
 ## [signal defeat_threshold_reached] **una sola vez** y quien decide la derrota
 ## es `RoundManager` (`docs/11` §4.1), escuchando `Events.city_integrity_changed`.
 ##
+## **Edificio protegido** (WP-25b, `docs/11` §1): la ronda puede señalar un
+## edificio con nombre propio —la escuela del barrio— con [method set_protected].
+## Su HP pasa a pesar [member protected_weight] veces en el numerador **y** en el
+## denominador, de modo que la ciudad intacta sigue valiendo 1.0 pero perderlo
+## cuesta el triple que perder al vecino. Al entrar en `RUBBLE` se publica
+## [signal protected_fallen], que es local: el bus ya cuenta que cayó un edificio
+## y no tiene por qué saber cuál era el importante de esta ronda.
+##
 ## **Edificio bajo asedio**: a [member siege_hz] hercios se revisa qué edificio
 ## acumuló más daño en su ventana deslizante; si supera
 ## [member siege_min_damage] se lo marca y se desmarca al anterior. El grupo
@@ -34,6 +42,15 @@ signal integrity_changed(ratio: float)
 
 ## Se emite una única vez, al cruzar [member defeat_threshold] hacia abajo.
 signal defeat_threshold_reached()
+
+## Cayó el edificio protegido de la ronda. Se emite **una sola vez**, en cuanto
+## entra en `RUBBLE` (`docs/11` §1).
+##
+## Es una señal **local** y no del bus: `Events.building_destroyed` ya publica el
+## hecho «cayó un edificio» y el bus no tiene por qué saber qué edificio era
+## especial en esta ronda (`docs/02` §5.1: el bus publica hechos, no contexto de
+## partida). Quien la escucha es [RoundManager], que sí conoce la ronda.
+signal protected_fallen(building: Building)
 
 ## Distrito del que salen los edificios en [method rebuild]. Puede quedar vacío:
 ## entonces se toma el grupo `buildings` entero.
@@ -57,6 +74,15 @@ signal defeat_threshold_reached()
 ## a [member emit_epsilon]. Garantiza que el último valor siempre sale.
 @export_range(0.0, 5.0, 0.01) var emit_max_delay: float = 0.25
 
+## Cuántas veces pesa el edificio protegido frente a uno cualquiera, en el
+## **numerador y en el denominador** de la integridad (`docs/11` §1).
+##
+## Pesarlo sólo en el numerador lo arrancaría por debajo del 100 %; pesarlo en los
+## dos deja la ciudad intacta en 1.0 y hace que perder la escuela cueste el triple
+## que perder el bloque de al lado. Es la traducción literal de `docs/narrativa`
+## §8: «perderlos pesa más que perder el dron».
+@export_range(1.0, 10.0, 0.5) var protected_weight: float = 3.0
+
 var _buildings: Array[Building] = []
 var _initial_hp: float = 0.0
 var _total_hp: float = 0.0
@@ -66,6 +92,8 @@ var _has_pending: bool = false
 var _defeat_emitted: bool = false
 var _under_siege: Building = null
 var _siege_accumulator: float = 0.0
+var _protected: Building = null
+var _protected_fallen_emitted: bool = false
 
 
 func _ready() -> void:
@@ -98,8 +126,16 @@ func _physics_process(delta: float) -> void:
 ## documentado de `reset()` + alta del grupo `buildings` (`docs/10` §9.3).
 func rebuild() -> void:
 	for building: Building in _buildings:
-		if is_instance_valid(building) and building.damage_taken.is_connected(_on_damage_taken):
+		if not is_instance_valid(building):
+			continue
+		if building.damage_taken.is_connected(_on_damage_taken):
 			building.damage_taken.disconnect(_on_damage_taken)
+		if building.damage_taken.is_connected(_on_protected_damage):
+			building.damage_taken.disconnect(_on_protected_damage)
+		if building.stage_changed.is_connected(_on_protected_stage):
+			building.stage_changed.disconnect(_on_protected_stage)
+	_protected = null
+	_protected_fallen_emitted = false
 	_buildings.clear()
 
 	var source: Array[Building] = []
@@ -124,8 +160,9 @@ func register(building: Building) -> void:
 	_buildings.append(building)
 	if not building.damage_taken.is_connected(_on_damage_taken):
 		var _discard := building.damage_taken.connect(_on_damage_taken)
-	_initial_hp += building.get_max_hp()
-	_total_hp += building.hp
+	var weight := _weight_for(building)
+	_initial_hp += weight * building.get_max_hp()
+	_total_hp += weight * building.hp
 
 
 ## Devuelve los edificios registrados a su estado intacto y recalcula
@@ -138,11 +175,13 @@ func reset() -> void:
 		if not is_instance_valid(building):
 			continue
 		building.reset()
-		_initial_hp += building.get_max_hp()
-		_total_hp += building.hp
+		var weight := _weight_for(building)
+		_initial_hp += weight * building.get_max_hp()
+		_total_hp += weight * building.hp
 	_under_siege = null
 	_siege_accumulator = 0.0
 	_defeat_emitted = false
+	_protected_fallen_emitted = false
 	_has_pending = false
 	_pending_delay = 0.0
 	_last_emitted = get_ratio()
@@ -176,9 +215,56 @@ func get_initial_hp() -> float:
 	return _initial_hp
 
 
+## Registra el edificio que la ronda pide proteger, o lo quita con `null`
+## (`docs/11` §1).
+##
+## A partir de acá su HP pesa [member protected_weight] veces en el numerador y en
+## el denominador de la integridad, y su caída publica [signal protected_fallen].
+## Lo llama `RoundManager._resolve_protected()` justo después de `rebuild()`, con
+## la ciudad todavía intacta, así que la integridad no se mueve: cambian los dos
+## términos del cociente en la misma proporción.
+##
+## Los totales se rehacen edificio por edificio en vez de corregirse con una
+## resta: es una pasada de 60 sumas, una sola vez por ronda, y evita que un
+## `set_protected()` a mitad de partida deje el acumulador desviado.
+func set_protected(building: Building) -> void:
+	if _protected == building:
+		return
+	if is_instance_valid(_protected):
+		if _protected.stage_changed.is_connected(_on_protected_stage):
+			_protected.stage_changed.disconnect(_on_protected_stage)
+		_bind_damage(_protected, false)
+	_protected = building
+	_protected_fallen_emitted = false
+	if building != null:
+		if not building.stage_changed.is_connected(_on_protected_stage):
+			var _discard := building.stage_changed.connect(_on_protected_stage)
+		_bind_damage(building, true)
+	_recompute_totals()
+	var current := get_ratio()
+	if not is_equal_approx(current, _last_emitted):
+		_publish(current)
+
+
+## Edificio protegido de la ronda, o `null` si esta ronda no declara ninguno.
+func get_protected() -> Building:
+	return _protected if is_instance_valid(_protected) else null
+
+
+## Verdadero si el edificio protegido ya cayó. Sin protegido es siempre `false`.
+func is_protected_fallen() -> bool:
+	var building := get_protected()
+	return building != null and building.is_destroyed()
+
+
 ## Edificio marcado como «bajo asedio», o `null` si no hay ninguno.
 func get_under_siege() -> Building:
 	return _under_siege if is_instance_valid(_under_siege) else null
+
+
+## Edificios registrados que siguen en pie, es decir, que no llegaron a `RUBBLE`.
+func get_standing_count() -> int:
+	return _buildings.size() - get_destroyed_count()
 
 
 ## Edificios que ya cruzaron el umbral de ruina.
@@ -195,14 +281,33 @@ func get_buildings() -> Array[Building]:
 	return _buildings.duplicate()
 
 
-## Suma de HP recalculada edificio por edificio. Existe para que `city_check`
-## pueda contrastarla con [method get_total_hp] y detectar deriva.
+## Suma de HP recalculada edificio por edificio, **con los pesos**. Existe para
+## que `city_check` pueda contrastarla con [method get_total_hp] y detectar
+## deriva.
 func recompute_total_hp() -> float:
 	var total := 0.0
 	for building: Building in _buildings:
 		if is_instance_valid(building):
-			total += building.hp
+			total += _weight_for(building) * building.hp
 	return total
+
+
+## Peso de [param building] en la integridad: [member protected_weight] para el
+## protegido y 1.0 para cualquier otro.
+func _weight_for(building: Building) -> float:
+	return protected_weight if building != null and building == _protected else 1.0
+
+
+## Rehace `Σ hp` y `Σ hp_inicial` con los pesos vigentes.
+func _recompute_totals() -> void:
+	_initial_hp = 0.0
+	_total_hp = 0.0
+	for building: Building in _buildings:
+		if not is_instance_valid(building):
+			continue
+		var weight := _weight_for(building)
+		_initial_hp += weight * building.get_max_hp()
+		_total_hp += weight * building.hp
 
 
 # --------------------------------------------------------------------------
@@ -211,13 +316,52 @@ func recompute_total_hp() -> float:
 
 ## Descuenta el daño aplicado del acumulador y decide si toca publicar.
 func _on_damage_taken(amount: float, _point: Vector3) -> void:
-	_total_hp = maxf(_total_hp - amount, 0.0)
+	_apply_damage(amount)
+
+
+## Lo mismo, pero para el edificio protegido: su daño cuenta
+## [member protected_weight] veces (`docs/11` §1).
+##
+## Es un manejador **aparte** y no un segundo oyente sumado al de siempre: el
+## protegido se desconecta de [method _on_damage_taken] al registrarse, así que por
+## cada golpe corre exactamente una resta. Con dos oyentes encadenados el primero
+## publicaría una integridad intermedia —la del peso 1— que nunca existió.
+func _on_protected_damage(amount: float, _point: Vector3) -> void:
+	_apply_damage(amount * protected_weight)
+
+
+## Resta [param weighted] del acumulador y decide si toca publicar.
+func _apply_damage(weighted: float) -> void:
+	_total_hp = maxf(_total_hp - weighted, 0.0)
 	var current := get_ratio()
 	if _last_emitted - current >= emit_epsilon:
 		_publish(current)
 		return
 	if not is_equal_approx(current, _last_emitted):
 		_has_pending = true
+
+
+## Conmuta a cuál de los dos manejadores de daño está atado [param building].
+func _bind_damage(building: Building, weighted: bool) -> void:
+	if building == null or not is_instance_valid(building):
+		return
+	var leaving := _on_protected_damage if not weighted else _on_damage_taken
+	var entering := _on_protected_damage if weighted else _on_damage_taken
+	if building.damage_taken.is_connected(leaving):
+		building.damage_taken.disconnect(leaving)
+	if not building.damage_taken.is_connected(entering):
+		var _discard := building.damage_taken.connect(entering)
+
+
+## El protegido cambió de etapa: si llegó a `RUBBLE`, se publica su caída una sola
+## vez. Se mira `stage_changed` y no `destroyed` porque `destroyed` llega al final
+## del derrumbe de 1,8 s y la línea de objetivo tiene que ponerse en rojo cuando el
+## edificio se parte, no cuando termina de asentarse el polvo.
+func _on_protected_stage(stage: Building.Stage) -> void:
+	if stage != Building.Stage.RUBBLE or _protected_fallen_emitted:
+		return
+	_protected_fallen_emitted = true
+	protected_fallen.emit(_protected)
 
 
 ## Publica [param value] en la señal propia y en el bus, y dispara la derrota la

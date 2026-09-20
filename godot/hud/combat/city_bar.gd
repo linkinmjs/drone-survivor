@@ -34,7 +34,13 @@ const DEFEAT_RATIO: float = 0.35
 const FLASH_SECONDS: float = 0.25
 
 ## Clave del rótulo permanente.
-const LABEL_KEY: String = "HUD_CITY"
+##
+## Desde WP-25b dice **EN PIE** y ya no «CIUDAD» (`docs/11` §1). La barra
+## siempre midió cuánto del barrio sigue entero, y con la escuela pesando ×3 en
+## la integridad (`docs/10` §5) el rótulo viejo nombraba el sujeto en vez del
+## dato: lo que el piloto necesita leer de un vistazo no es «acá hay una
+## ciudad», es cuánta queda en pie.
+const LABEL_KEY: String = "HUD_STANDING"
 
 ## Integridad publicada por el bus, de 0 a 1.
 var ratio: float = 1.0

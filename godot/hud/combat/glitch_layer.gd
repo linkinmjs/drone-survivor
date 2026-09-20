@@ -21,6 +21,16 @@
 ## no un [Node] suelto para que viva en el mismo árbol, se apague con el modo
 ## cinemático y comparta el reloj manual del `CombatHUD`, que es lo que le permite a
 ## `combat_hud_check` medir los 3.0 s con una tolerancia de 0.1.
+##
+## ## La estática cuelga de acá (WP-25)
+##
+## El [HUDStaticBurst] de `docs/13` §1 es hijo de esta capa y se dispara con
+## [method trigger_static]. No es un componente más del `CombatHUD` porque necesita
+## dibujarse **último** —tapa la pantalla entera— y el que ya estaba último era este;
+## de paso hereda gratis las dos cosas que la estática también necesita: apagarse con
+## el modo cinemático y recibir el delta del reloj único. Los dos efectos son
+## independientes entre sí: un EMP que termina no corta una ráfaga en curso, y al
+## revés.
 class_name HUDGlitchLayer
 extends CombatHUDComponent
 
@@ -51,11 +61,17 @@ var _blank_frames: int = 0
 var _offsets: Array[Vector2] = []
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
+## Ráfaga de estática, hijo de esta capa en `combat_hud.tscn`.
+var _static: HUDStaticBurst = null
+
 
 func _setup() -> void:
 	# Semilla derivada de la ronda: dos partidas con la misma `Global.round_seed`
 	# sacuden el HUD igual, que es lo que `docs/15` §1.1 pide de cualquier captura.
 	_rng.seed = hash("emp_glitch") ^ Global.round_seed
+	_static = get_node_or_null(^"StaticBurst") as HUDStaticBurst
+	if _static == null:
+		push_error("HUDGlitchLayer: falta el StaticBurst en %s (docs/13 §1)." % name)
 
 
 ## Da de alta los componentes que el EMP puede mover. [CombatHUD] la llama una vez.
@@ -103,7 +119,43 @@ func stop() -> void:
 			target.clear_glitch()
 
 
+# --- Estática (`docs/13` §1) ------------------------------------------------------------------
+
+## Corta el video [param seconds] segundos: ruido, barras y caída a negro.
+##
+## Es la única puerta de entrada a la estática desde el `CombatHUD`, que es quien
+## decide **cuándo** —`Events.drone_destroyed` y `Events.drone_respawned`— y **cuánto**
+## ([constant HUDStaticBurst.DEATH_SECONDS] y
+## [constant HUDStaticBurst.REBUILT_SECONDS]).
+func trigger_static(seconds: float) -> void:
+	if _static == null:
+		return
+	_static.play(seconds)
+
+
+## `true` mientras haya estática en pantalla.
+func is_static_playing() -> bool:
+	return _static != null and _static.is_playing()
+
+
+## Corta la estática y deja el componente apagado. Lo llama el `CombatHUD` al entrar en
+## modo cinemático; el fin natural del EMP **no** la toca.
+func stop_static() -> void:
+	if _static != null:
+		_static.stop()
+
+
+## La ráfaga de estática, para el check. Es `null` sólo en un HUD mal construido.
+func static_burst() -> HUDStaticBurst:
+	return _static
+
+
 func _tick(delta: float) -> void:
+	# La estática va **primero** y fuera del corte de abajo: su reloj no depende de que
+	# haya un EMP en curso, y un `return` temprano la dejaría congelada a mitad de
+	# ráfaga la próxima vez que alguien reordene este método.
+	if _static != null:
+		_static.tick(delta)
 	if _left <= 0.0:
 		return
 	_left = maxf(_left - delta, 0.0)

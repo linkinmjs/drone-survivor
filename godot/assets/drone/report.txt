@@ -1,5 +1,5 @@
 voxsplit 1.0.0 — reporte de «drone_quad»
-generado            : 2026-09-19T06:25:01Z
+generado            : 2026-09-20T19:12:21Z
 origen              : models.drone_quad
 voxel_size          : 0.01 m
 origin_voxel        : [15.0, 15.0, 5.0]
@@ -9,7 +9,7 @@ parte              padre              vox   tris  quads  emis  bbox local (m)
 ----------------------------------------------------------------------------------------------------------------------
 led                frame                4     12      6    sí  [ -0.010, -0.010, -0.005] [  0.010,  0.010,  0.005]
 camera             frame               32     34     17    no  [ -0.020, -0.015, -0.015] [  0.020,  0.025,  0.015]
-battery            frame               84     12      6    no  [ -0.030, -0.010, -0.035] [  0.030,  0.010,  0.035]
+battery            frame               84     40     20    no  [ -0.030, -0.010, -0.035] [  0.030,  0.010,  0.035]
 prop_1             motor_1             21     36     18    no  [ -0.065, -0.005, -0.015] [  0.065,  0.005,  0.015]
 prop_2             motor_2             21     36     18    no  [ -0.065, -0.005, -0.015] [  0.065,  0.005,  0.015]
 prop_3             motor_3             21     36     18    no  [ -0.065, -0.005, -0.015] [  0.065,  0.005,  0.015]
@@ -19,28 +19,28 @@ prop_disk_2        motor_2            113    108     54    no  [ -0.065, -0.005,
 prop_disk_3        motor_3            113    108     54    no  [ -0.065, -0.005, -0.065] [  0.065,  0.005,  0.065]
 prop_disk_4        motor_4            113    108     54    no  [ -0.065, -0.005, -0.065] [  0.065,  0.005,  0.065]
 motor_1            frame               63     36     18    no  [ -0.025, -0.015, -0.025] [  0.025,  0.015,  0.025]
-motor_2            frame               63     36     18    no  [ -0.025, -0.015, -0.025] [  0.025,  0.015,  0.025]
+motor_2            frame               63     88     44    no  [ -0.025, -0.015, -0.025] [  0.025,  0.015,  0.025]
 motor_3            frame               63     36     18    no  [ -0.025, -0.015, -0.025] [  0.025,  0.015,  0.025]
 motor_4            frame               63     36     18    no  [ -0.025, -0.015, -0.025] [  0.025,  0.015,  0.025]
-frame              -                  224    288    144    no  [ -0.090, -0.010, -0.090] [  0.090,  0.010,  0.090]
+frame              -                  235    432    216    no  [ -0.090, -0.010, -0.090] [  0.090,  0.040,  0.090]
 ----------------------------------------------------------------------------------------------------------------------
-TOTAL                                1132   1066    533
+TOTAL                                1143   1290    645
 
 partes              : 16 (16 estructurales + 0 puntos débiles)
-voxels del .vox     : 1132
-voxels asignados    : 1132
+voxels del .vox     : 1143
+voxels asignados    : 1143
 voxels sin asignar  : 0
-triángulos          : 1066
-quads (greedy)      : 533
+triángulos          : 1290
+quads (greedy)      : 645
 primitivas / mallas : 16 / 16
 nodos del GLB       : 17 (1 raíz 'DroneQuadRoot' + 16 nodos de parte)
 bbox del modelo (m) : min [-0.15, -0.03, -0.15]  max [0.15, 0.05, 0.15]
 altura total (m)    : 0.0800
 huella X × Z (m)    : 0.3000 × 0.3000
-GLB                 : 95940 bytes
+GLB                 : 112980 bytes
 
 índices emisivos:
-    6  RGB (255, 48, 48)  voxels    4  weight None  flux None  energy 1
+    6  RGB (255, 176, 32)  voxels    4  weight None  flux None  energy 1
   emissiveStrength del material voxel_emissive: 2
 
 jerarquía:

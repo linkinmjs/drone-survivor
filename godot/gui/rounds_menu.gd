@@ -22,10 +22,10 @@ const MEDAL_RADIUS: float = 9.0
 
 ## Color de cada medalla, indexado por [enum RoundCatalog.Medal].
 const MEDAL_COLORS: Array[Color] = [
-	Color("#C5CCD5"), # NONE: el mismo gris del borde fuerte de la paleta.
-	Color("#B0783C"), # BRONZE
-	Color("#9AA4B0"), # SILVER
-	Color("#D8A21A"), # GOLD
+	UIPalette.BORDER_STRONG, # NONE: el borde fuerte de la paleta oscura.
+	Color("#C08048"), # BRONZE
+	Color("#AEBAC6"), # SILVER
+	Color("#FFC94D"), # GOLD
 ]
 
 @onready var _subtitle: Label = %Subtitle

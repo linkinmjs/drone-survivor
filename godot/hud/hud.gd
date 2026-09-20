@@ -55,7 +55,7 @@ extends Control
 ## Los 12 componentes que [method show_component] sabe encender y apagar
 ## (`docs/12` §2.4). `STATUS` es el único sin bool en `hud_config`.
 enum Component {CROSSHAIR, STATUS, HEADING, SPEED, ALTITUDE, LADDER,
-		HORIZON, STICKS, RPM, FLIGHT_MODE, REC, SIDE_TAPES}
+		HORIZON, STICKS, RPM, FLIGHT_MODE, SIGNAL, SIDE_TAPES}
 
 ## Lienzo de referencia de los componentes procedurales, en píxeles. Por debajo de
 ## esto el marco se reduce; por encima no se agranda.
@@ -68,6 +68,12 @@ const MIN_LAYOUT_SIZE: Vector2 = Vector2(1280.0, 720.0)
 
 ## Clave de `hud_config` de cada componente configurable (`docs/12` §2.4). `STATUS` no
 ## está: no tiene interruptor.
+##
+## El componente `SIGNAL` —que en WP-25 reemplazó al punto «REC»— arrastraba la clave
+## persistida `"rec"` porque el `.cfg` del jugador vive en `autoloads/game_settings.gd`
+## y aquel paquete no podía tocarlo. WP-25b cierra la discrepancia: la clave es
+## `"signal"` y [method GameSettings._migrate_signal_toggle] recupera el valor de los
+## `.cfg` viejos.
 const CONFIG_KEYS: Dictionary[int, String] = {
 	Component.CROSSHAIR: "crosshair",
 	Component.HEADING: "heading",
@@ -78,7 +84,7 @@ const CONFIG_KEYS: Dictionary[int, String] = {
 	Component.STICKS: "sticks",
 	Component.RPM: "rpm",
 	Component.FLIGHT_MODE: "flight_mode",
-	Component.REC: "rec",
+	Component.SIGNAL: "signal",
 	Component.SIDE_TAPES: "side_tapes",
 }
 
@@ -107,15 +113,15 @@ const ARMED_KEY: String = "HUD_STATUS_ARMED"
 ## Texto persistente mientras el dron esté desarmado.
 const DISARMED_KEY: String = "HUD_STATUS_DISARMED"
 
-## Color del mensaje de armado (`SUCCESS` de la paleta, aclarado para que se lea sobre
-## el video de la cámara).
-const COLOR_ARMED: Color = Color(0.36, 0.86, 0.60, 1.0)
+## Color del mensaje de armado. Desde WP-25 sale de la paleta y no de un literal: el
+## verde de confirmación es el mismo en el menú y sobre el video.
+const COLOR_ARMED: Color = UIPalette.SUCCESS
 
-## Color del texto persistente de desarmado (`TEXT_DIM` sobre video).
-const COLOR_DISARMED: Color = Color(1.0, 1.0, 1.0, 0.75)
+## Color del texto persistente de desarmado: el ámbar apagado del HUD.
+const COLOR_DISARMED: Color = UIPalette.HUD_DIM
 
-## Color de un fallo de armado (`DANGER` de la paleta, aclarado igual que el verde).
-const COLOR_ARM_FAILED: Color = Color(0.98, 0.42, 0.36, 1.0)
+## Color de un fallo de armado: la única alarma de la paleta del HUD.
+const COLOR_ARM_FAILED: Color = UIPalette.HUD_REC
 
 ## Frecuencia de publicación de los numéricos cuando `hud_config` no trae `fps`
 ## (`docs/12` §2.3 y §8).
@@ -170,7 +176,7 @@ var _readouts: HUDReadouts = null
 var _crosshair: HUDCrosshair = null
 var _badge: HUDModeBadge = null
 var _status: HUDStatus = null
-var _rec: HUDRecIndicator = null
+var _signal: HUDSignalIndicator = null
 var _sticks: Control = null
 var _stick_left: HUDStickInput = null
 var _stick_right: HUDStickInput = null
@@ -271,6 +277,32 @@ func update_flight_mode(key: String, blink: bool) -> void:
 		_badge.set_mode(_mode_text_key(key), blink)
 
 
+## Clave de traducción del rótulo que el menú de HUD le pone al interruptor
+## [param config_key] (`docs/04` §4.2).
+##
+## Es `HUD_CFG_<CLAVE>` sin excepciones. Hasta WP-25b había una —`rec` devolvía
+## `HUD_CFG_SIGNAL`— porque la clave persistida no coincidía con el rótulo; con el
+## renombre a `signal` la regla volvió a ser una sola.
+static func config_label_key(config_key: String) -> String:
+	return "HUD_CFG_%s" % config_key.to_upper()
+
+
+## Calidad de la señal de video del dron, de 0 (sin imagen) a 1 (señal limpia), para
+## el [HUDSignalIndicator] (WP-25).
+##
+## Hoy nadie la mueve y el indicador vive en 1,0: el `CombatHUD` la va a publicar
+## cuando WP-28 ate la degradación por daño y por EMP al overlay FPV. El setter existe
+## desde ya para que ese paquete no tenga que abrir este archivo.
+func set_signal_quality(value: float) -> void:
+	if _signal != null:
+		_signal.set_quality(value)
+
+
+## Calidad de señal que muestra el indicador ahora mismo. La miran los checks.
+func signal_quality() -> float:
+	return _signal.quality if _signal != null else 1.0
+
+
 ## Enciende o apaga un componente (`docs/12` §2.2).
 ##
 ## `SPEED` y `ALTITUDE` gobiernan los números de [HUDReadouts]; `SIDE_TAPES`, las
@@ -308,10 +340,10 @@ func show_component(component: Component, component_visible: bool) -> void:
 			_set_visible(_rpm, component_visible)
 		Component.FLIGHT_MODE:
 			_set_visible(_badge, component_visible)
-		Component.REC:
-			if _rec != null:
-				_rec.recording = component_visible
-				_set_visible(_rec, component_visible)
+		Component.SIGNAL:
+			if _signal != null:
+				_signal.active = component_visible
+				_set_visible(_signal, component_visible)
 		Component.SIDE_TAPES:
 			_set_visible(_tapes, component_visible)
 
@@ -401,8 +433,8 @@ func component_node(component: Component) -> Control:
 			return _rpm
 		Component.FLIGHT_MODE:
 			return _badge
-		Component.REC:
-			return _rec
+		Component.SIGNAL:
+			return _signal
 		Component.SIDE_TAPES:
 			return _tapes
 		_:
@@ -594,7 +626,7 @@ func _collect_nodes() -> void:
 	_crosshair = get_node_or_null(^"%Crosshair") as HUDCrosshair
 	_badge = get_node_or_null(^"%HUDModeBadge") as HUDModeBadge
 	_status = get_node_or_null(^"%HUDStatus") as HUDStatus
-	_rec = get_node_or_null(^"%HUDRec") as HUDRecIndicator
+	_signal = get_node_or_null(^"%HUDSignal") as HUDSignalIndicator
 	_sticks = get_node_or_null(^"%HUDSticks") as Control
 	_rpm = get_node_or_null(^"%HUDRPM") as HUDRPM
 	_gate = get_node_or_null(^"%HUDGateMarker") as HUDGateMarker
@@ -605,7 +637,8 @@ func _collect_nodes() -> void:
 	for pair: Array in [["Frame", _frame], ["HUDHorizon", _horizon],
 			["HUDSideTapes", _tapes], ["HUDCompass", _compass], ["HUDReadouts", _readouts],
 			["Crosshair", _crosshair], ["HUDModeBadge", _badge], ["HUDStatus", _status],
-			["HUDRec", _rec], ["HUDSticks", _sticks], ["HUDSticks/StickLeft", _stick_left],
+			["HUDSignal", _signal], ["HUDSticks", _sticks],
+			["HUDSticks/StickLeft", _stick_left],
 			["HUDSticks/StickRight", _stick_right], ["HUDRPM", _rpm],
 			["HUDGateMarker", _gate]]:
 		if pair[1] == null:
@@ -674,8 +707,8 @@ func _apply_preview_state() -> void:
 			_status.set_persistent(ARMED_KEY, COLOR_ARMED, false)
 		else:
 			_status.clear()
-	if preview_mode and _rec != null:
-		_rec.recording = _rec.visible
+	if preview_mode and _signal != null:
+		_signal.active = _signal.visible
 	if preview_mode:
 		# Una muestra de un período de numéricos completo, para que los números estén
 		# publicados desde el primer cuadro en vez de quedar en cero hasta el primer

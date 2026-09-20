@@ -1,9 +1,21 @@
 ## Copyright (c) 2026 Drone Survivor. Todos los derechos reservados.
 extends CanvasLayer
-## Fades to the menu background color while changing scenes. When loading a level it also
-## shows a loading screen that stays up until the first frames are smooth: the level is
-## loaded, the camera looks around once so the shaders get compiled (this is what made the
-## web build stutter at the start) and only then the flight is revealed.
+##
+## Fundido entre escenas y pantalla de carga «del taller» (`docs/13` §2, WP-25).
+##
+## El fundido va al fondo de la identidad, [constant UIPalette.BG]. Cuando además hay
+## que cargar un nivel se monta la pantalla de carga, que se queda arriba hasta que los
+## primeros cuadros salen parejos: el nivel se carga, la cámara mira alrededor una vez
+## para que se compilen los shaders (eso era lo que hacía tartamudear al build web) y
+## recién ahí se revela el vuelo.
+##
+## ## La pantalla del taller
+##
+## Negro con [Scanlines] suaves, el texto en ámbar y Barlow —la voz propia— y una
+## **barra de puntos** en vez de un spinner giratorio ([LoadingSpinner]). Es la misma
+## pantalla vieja del taller que la narrativa pone antes de cada nivel
+## (`docs/narrativa/narrativa.md` §5): lo que el jugador mira mientras espera no es un
+## cargador genérico, es el monitor desde donde alguien lo mandó a volar.
 
 
 const DURATION := 0.25
@@ -21,6 +33,8 @@ var _root: Control = null
 var _loading_panel: Control = null
 var _progress: ProgressBar = null
 var _tip: Label = null
+## Rayado de monitor de la pantalla de carga; solo se ve con ella.
+var _scanlines: Control = null
 var _busy := false
 ## Se pone en `true` cuando el nivel avisa que ya precalentó la vista (`docs/11` §3.1).
 var _warmed_up := false
@@ -43,6 +57,12 @@ func _ready() -> void:
 	_root.add_child(background)
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
+	var scanlines := Scanlines.new()
+	scanlines.visible = false
+	_root.add_child(scanlines)
+	scanlines.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_scanlines = scanlines
+
 	var center := CenterContainer.new()
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(center)
@@ -61,7 +81,7 @@ func _ready() -> void:
 
 	var title := Label.new()
 	title.text = "UI_LOADING"
-	title.theme_type_variation = &"HeadingLabel"
+	title.theme_type_variation = &"LoadingLabel"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	panel.add_child(title)
 
@@ -73,7 +93,7 @@ func _ready() -> void:
 	panel.add_child(_progress)
 
 	_tip = Label.new()
-	_tip.theme_type_variation = &"CaptionLabel"
+	_tip.theme_type_variation = &"LoadingTipLabel"
 	_tip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_tip.custom_minimum_size = Vector2(560, 0)
@@ -93,6 +113,7 @@ func change_scene(path: String, show_loading := false) -> void:
 	_root.visible = true
 	_root.mouse_filter = Control.MOUSE_FILTER_STOP
 	_loading_panel.visible = show_loading
+	_scanlines.visible = show_loading
 	_progress.value = 0.0
 	_tip.text = TIPS.pick_random()
 	var tween := create_tween()
