@@ -1,0 +1,17 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://tools/city_check.gd" id="1_city_check"]
+[ext_resource type="Script" path="res://city/debris_pool.gd" id="2_debris_pool"]
+[ext_resource type="Script" path="res://city/rubble_field.gd" id="3_rubble_field"]
+
+[node name="CityCheck" type="Node"]
+script = ExtResource("1_city_check")
+check_name = "city_check"
+default_timeout = 180.0
+
+[node name="DebrisPool" type="Node3D" parent="." node_paths=PackedStringArray("rubble_field")]
+script = ExtResource("2_debris_pool")
+rubble_field = NodePath("RubbleField")
+
+[node name="RubbleField" type="Node3D" parent="DebrisPool"]
+script = ExtResource("3_rubble_field")

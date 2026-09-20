@@ -47,6 +47,10 @@ const RESUME_RELEASE_TIMEOUT: float = 0.35
 ## Punto de reaparición del dron. Lo consume el rig (`docs/03` §8).
 @export var respawn_point: Node3D
 
+## Cámara fija sobre la ciudad a la que se pasa mientras el dron se reconstruye
+## (`docs/09` §2.8). Si queda vacía, [method get_respawn_camera] la deduce.
+@export var respawn_camera: Camera3D
+
 ## Conjunto jugable del dron, si el nivel tiene uno.
 @export var drone_rig: Node3D
 
@@ -282,6 +286,31 @@ func change_camera() -> void:
 	_apply_camera()
 
 
+## Hace activa [param camera] y **sincroniza el índice del ciclo**, para que
+## `change_camera` siga desde ahí y para que [method _update_flight_hud] acierte.
+##
+## Lo necesita WP-21: `RoundManager` mueve la cámara por su cuenta al entrar en
+## `INTRO`, al empezar la batalla y al reaparecer el dron. Poner `current = true`
+## a mano funcionaría para la imagen, pero dejaría a [member _camera_index]
+## apuntando a otra cámara y el `FlightHUD` se dibujaría sobre una vista que no es
+## la del piloto. Devuelve `false` si la cámara no es una de las del nivel.
+func focus_camera(camera: Camera3D) -> bool:
+	if camera == null or not is_instance_valid(camera):
+		return false
+	var index := cameras.find(camera)
+	if index < 0:
+		return false
+	_camera_index = index
+	_apply_camera()
+	return true
+
+
+## La cámara FPV del rig, o `null` si el nivel no tiene dron. La memoriza
+## [method collect_cameras].
+func get_fpv_camera() -> Camera3D:
+	return _fpv_camera
+
+
 func _apply_camera() -> void:
 	var camera := active_camera()
 	if camera != null:
@@ -302,6 +331,27 @@ func _update_flight_hud() -> void:
 	if hud == null or not is_instance_valid(hud):
 		return
 	hud.visible = _fpv_camera != null and active_camera() == _fpv_camera
+
+
+## Gancho mínimo de WP-15 (`docs/09` §2.8): la cámara desde la que se mira la
+## ciudad mientras el dron está destruido.
+##
+## `RespawnController` lo busca hacia arriba por `has_method`, así que un nivel que
+## no lo herede —o que devuelva `null`— simplemente deja la cámara como estaba; no
+## hay nada obligatorio acá. El orden de preferencia es: [member respawn_camera] si
+## el nivel la cableó, después `Cameras/CameraFixed` por convención de escena, y en
+## última instancia la primera cámara del nivel que no sea la FPV, porque mirar la
+## reconstrucción desde la cabina de un dron destruido no tendría sentido.
+func get_respawn_camera() -> Camera3D:
+	if respawn_camera != null and is_instance_valid(respawn_camera):
+		return respawn_camera
+	var fixed := get_node_or_null(^"Cameras/CameraFixed") as Camera3D
+	if fixed != null:
+		return fixed
+	for camera: Camera3D in cameras:
+		if camera != null and camera != _fpv_camera:
+			return camera
+	return null
 
 
 func _find_fpv_camera() -> Camera3D:

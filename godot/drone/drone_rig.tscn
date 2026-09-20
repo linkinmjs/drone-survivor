@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://drone/drone_rig.gd" id="1_rig"]
 [ext_resource type="PackedScene" path="res://drone/drones/drone_quad.tscn" id="2_drone"]
@@ -7,6 +7,7 @@
 [ext_resource type="Script" path="res://drone/camera_rig.gd" id="5_camera_rig"]
 [ext_resource type="Script" path="res://drone/fpv_camera/fpv_camera.gd" id="6_fpv_camera"]
 [ext_resource type="PackedScene" path="res://hud/hud.tscn" id="7_flight_hud"]
+[ext_resource type="Script" path="res://drone/damage/respawn_controller.gd" id="8_respawn"]
 
 [node name="DroneRig" type="Node3D"]
 script = ExtResource("1_rig")
@@ -39,3 +40,13 @@ script = ExtResource("6_fpv_camera")
 [node name="RadioController" type="Node" parent="." node_paths=PackedStringArray("target")]
 script = ExtResource("4_radio")
 target = NodePath("../Drone")
+
+; `RespawnController` (WP-15, `docs/09` §2.8): hermano del `Drone` y **no** hijo
+; suyo, porque tiene que seguir contando mientras el dron está congelado e
+; invisible. Resuelve solo sus referencias (`Drone`, `Drone/Hull`,
+; `Drone/EnergySystem`, `Drone/WeaponMount`, `Drone/CameraRig/FPVCamera`) en su
+; `_ready()`: los cuatro últimos viven dentro de la instancia de `drone_quad.tscn`
+; y un `NodePath` del `.tscn` hacia adentro de una escena instanciada es frágil.
+
+[node name="RespawnController" type="Node" parent="."]
+script = ExtResource("8_respawn")

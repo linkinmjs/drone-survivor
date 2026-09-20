@@ -19,7 +19,7 @@ Define **cómo se demuestra que un paquete de trabajo está terminado**: el help
 2. **No destructivo.** Un check nunca deja el entorno del jugador peor que como lo encontró. Antes de tocar nada hace *snapshot* de los `.cfg` de `user://config/` y los restaura al salir, **también cuando falla o cuando expira el timeout**.
 3. **Código de salida ≠ 0 al fallar.** Es el único contrato con CI y con el orquestador. Sin excepciones.
 4. **Headless por defecto.** Solo los checks que sacan capturas corren con ventana, porque en `--headless` no hay rasterizado y `get_viewport().get_texture()` devuelve una imagen vacía.
-5. **Determinista.** Nada de `randf()` sin semilla, nada de esperar «un rato». El tiempo se avanza en ticks de física contados.
+5. **Determinista.** Nada de `randf()` sin semilla, nada de esperar «un rato». El tiempo se avanza en ticks de física contados. *Límite medido en WP-23:* con el solucionador multihilo de Jolt la misma semilla **no** reproduce una pelea completa entre corridas (la semilla 99 dio 432, 451, 515 y 548 s); la semilla fija personalidad, puestos de pila y decisiones del bot, no la física. Los checks largos aseveran sobre promedios de varias semillas y hechos cualitativos por partida.
 6. **Una línea final legible.** `CHECK <nombre>: OK` o `CHECK <nombre>: FAIL (n fallos)`, con una línea por fallo antes del resumen.
 
 Comando base:
@@ -128,6 +128,7 @@ Comando abreviado: `GODOT` = `"C:/Users/Mauri/Godot/Godot_4.7/Godot_v4.7-stable_
 | `city_check` | 20 | El distrito tiene **60 edificios**; la suma de HP es **120 000 ± 5 %**; cada edificio pasa por las 3 etapas (`INTACT → DAMAGED → RUBBLE`) en orden; `CityIntegrity` es **monótona decreciente**; bajo 0.35 se emite derrota | `GODOT P res://tools/city_check.tscn -- --timeout=120` |
 | `round_check` | 21 | La ronda 1 se juega sin pilotar: `INTRO → BATTLE → VICTORY` con victoria forzada, y `INTRO → BATTLE → DEFEAT` con integridad forzada a 0.30; el `INTRO` es saltable; las métricas (`best_score_<id>`, `best_time_<id>`) persisten; **la configuración del jugador queda restaurada** | `GODOT P res://tools/round_check.tscn -- --timeout=180` |
 | `combat_hud_check` | 22 | Capturas de los **10 componentes** del CombatHUD (energía, casco, calor, retículo, hitmarker, barra de jefe, integridad de ciudad, marcadores fuera de pantalla, dirección de daño, temporizador); ningún marcador con coordenada `NAN`; los marcadores de objetivos detrás de la cámara se clampean al borde | `GODOT PW res://tools/combat_hud_check.tscn -- --shots=tools/out/shots` |
+| `balance_check` | 23 | **Extendido** (`-Extended`): `BotPilot` juega la ronda 1 real con 3 semillas + control idle a `time_scale` 4; asevera duración, integridad, muertes, fuego, acierto y ventanas sobre la media (`docs/07` §14), derrota del control por integridad, sin NaN, física mediana bajo guarda, `time_scale` restaurado y prueba negativa; ~541 s | `GODOT P res://tools/balance_check.tscn -- --timeout=1500` |
 | `render_check` | 24 | Escena completa (jefe + 60 edificios + fisheye FAST, preset HIGH) a 1080p: **≥ 60 fps** de media en 300 frames; `RENDER_TOTAL_DRAW_CALLS_IN_FRAME` **< 900**; el `Environment` compartido carga con SDFGI, SSAO, niebla volumétrica y glow activos | `GODOT --windowed --resolution 1920x1080 --path godot res://tools/render_check.tscn -- --shots=tools/out/shots` |
 | `vfx_check` | 26 | Con todos los efectos disparados a la vez hay **≤ 12 emisores `GPUParticles3D`** activos; ninguno con `amount` por encima de su presupuesto; los `Decal` se reciclan y no crecen sin límite | `GODOT PW res://tools/vfx_check.tscn -- --shots=tools/out/shots` |
 | `shake_check` | 28 | El trauma de `CameraRig` decae a 0 en el tiempo declarado; la magnitud está acotada (nunca saca la cámara más de su límite); dos traumas simultáneos no se suman por encima de 1.0; el overlay FPV reacciona a daño y EMP sin dejar el glitch pegado | `GODOT PW res://tools/shake_check.tscn -- --shots=tools/out/shots` |
@@ -203,7 +204,7 @@ Ventana de **300 frames**, descartando los **60 primeros** (compilación de shad
 
 Se reportan **media, p95 y máximo** de cada uno. La media sola esconde los picos, que son lo que el jugador siente.
 
-Los FPS se derivan de `Performance.TIME_PROCESS + TIME_PHYSICS_PROCESS` medidos, no de `Engine.get_frames_per_second()`, que está limitado por vsync. `render_check` corre con `--disable-vsync` para que el techo no lo imponga el monitor.
+Los FPS se derivan de `Performance.TIME_PROCESS + TIME_PHYSICS_PROCESS` medidos, no de `Engine.get_frames_per_second()`, que está limitado por vsync. `render_check` corre con `--disable-vsync` para que el techo no lo imponga el monitor. *Corrección de WP-23:* `TIME_PROCESS` incluye la espera del hilo principal por la GPU, así que en una escena limitada por render la derivación miente (1,7 «fps» contra 66 reales); `tools/perf_report` reporta la media derivada, la **mediana** derivada y `Engine.get_frames_per_second()` con vsync apagado, y el veredicto se toma con esta última. `RENDER_VIDEO_MEM_USED` cuenta toda la memoria de vídeo (1,5 GB) y **no** es comparable con el techo de 90 MB de texturas de ciudad, que mide `city_import_check`.
 
 ### 5.2 Presupuestos
 
@@ -219,6 +220,8 @@ Los FPS se derivan de `Performance.TIME_PROCESS + TIME_PHYSICS_PROCESS` medidos,
 | Emisores de partículas | Conteo | **≤ 12** |
 
 A 100 Hz, 2.0 ms/tick son 200 ms de física por segundo de juego: el 20 % de un núcleo. Ese es el techo, no el objetivo.
+
+**Medido en WP-23** (`docs/perf/2026-09-19.json`, 1080p, vsync apagado, hardware del usuario): física media 1,31 / 1,61 / **2,98** ms/tick en `flight_only` / `boss` / `boss_and_city` (en combate real 2,1–3,8: proyectiles, escombros rodando y derrumbes); draw calls 173 / 87 / 453; FPS de motor 57 / 65 / **48**. Incumplen el presupuesto de física con ciudad y los 60 fps: trabajo de WP-24 (Environment/presets) y WP-29 (optimización).
 
 ### 5.3 `docs/perf/<fecha>.json`
 
@@ -288,6 +291,7 @@ Comportamiento obligatorio:
 1. Primero ejecuta `--headless --path godot --editor --quit` y **falla** si la salida contiene `ERROR:` o `SCRIPT ERROR:`.
 2. Luego cada check, capturando su salida en `tools/out/report.txt` con una línea de encabezado por check.
 3. `-Only <nombre>` corre uno solo.
+4. `-Extended` (PowerShell) o `RUN_EXTENDED=1` (bash) suma al final los **checks extendidos**: `balance_check` (WP-23, cuatro partidas simuladas a `time_scale` 4, ~9 min, `--timeout=1500`, timeout externo propio de 1 800 s). `-Only balance_check` también lo corre. `tools/perf_report.tscn` no es un check: se corre a mano con ventana (`--windowed --resolution 1920x1080 --disable-vsync`) y escribe `docs/perf/<fecha>.json`.
 4. Sale con **1** si algún check salió distinto de 0; con 0 si todos pasaron. `render_parity_check` no cuenta para el código de salida.
 5. `tools/out/` está en `.gitignore`.
 
@@ -340,7 +344,7 @@ Convenciones que todo check respeta: tipado estricto, `var _discard := señal.co
 | Timeout de los checks largos | 90–240 s, declarado con `--timeout=` |
 | Ventana de medición | 300 frames |
 | Frames descartados al inicio | 60 |
-| `Engine.time_scale` máximo permitido | 4.0 |
+| `Engine.time_scale` máximo permitido | 4.0 (`balance_check` lo respeta y por eso tarda 541 s; `arachnodroid_check` usa 8.0 sobre un mundo sintético sin dron físico) |
 | Resolución de capturas | 960×540 (1920×1080 en `render_check` y `perf_report`) |
 | Física, P0 | < 1.6 ms/tick |
 | Física, jefe + ciudad | < 2.0 ms/tick |

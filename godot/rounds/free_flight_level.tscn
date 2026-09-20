@@ -1,9 +1,14 @@
-[gd_scene load_steps=17 format=3]
+[gd_scene load_steps=24 format=3]
 
 [ext_resource type="Script" path="res://rounds/free_flight_level.gd" id="1_level"]
 [ext_resource type="Environment" path="res://world/environment_battle.tres" id="2_env"]
 [ext_resource type="PackedScene" path="res://drone/drone_rig.tscn" id="3_rig"]
 [ext_resource type="Script" path="res://rounds/cameras/follow_camera.gd" id="4_follow"]
+[ext_resource type="Script" path="res://drone/weapons/impact_fx_pool.gd" id="5_impact_pool"]
+[ext_resource type="Script" path="res://drone/weapons/projectile_pool.gd" id="6_projectile_pool"]
+[ext_resource type="Script" path="res://rounds/free_flight_target.gd" id="7_target"]
+[ext_resource type="Script" path="res://drone/energy/battery_spawner.gd" id="8_battery_spawner"]
+[ext_resource type="PackedScene" path="res://drone/energy/battery_pickup.tscn" id="9_battery_pickup"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ground"]
 albedo_color = Color(0.16, 0.17, 0.19, 1)
@@ -49,6 +54,12 @@ size = Vector3(16, 40, 16)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_tower"]
 size = Vector3(16, 40, 16)
+
+[sub_resource type="BoxMesh" id="BoxMesh_target"]
+size = Vector3(14, 14, 6)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_target"]
+size = Vector3(14, 14, 6)
 
 [sub_resource type="CameraAttributesPhysical" id="CameraAttributesPhysical_ff"]
 frustum_focus_distance = 5.0
@@ -162,6 +173,101 @@ mesh = SubResource("BoxMesh_tall")
 
 [node name="Collision" type="CollisionShape3D" parent="Pillars/PillarG"]
 shape = SubResource("BoxShape3D_tall")
+
+; Pools del arma (WP-14, `docs/08` §2.6 y §3.1). Viven en el **nivel**, no en el
+; dron: los proyectiles tienen que sobrevivir al respawn del dron y compartirse
+; entre todas sus fuentes de fuego. El `WeaponMount` los busca por grupo. El
+; `ImpactFXPool` va primero porque el `ProjectilePool` lo resuelve en su `_ready()`.
+
+[node name="ImpactFXPool" type="Node3D" parent="."]
+script = ExtResource("5_impact_pool")
+
+[node name="ProjectilePool" type="Node" parent="."]
+script = ExtResource("6_projectile_pool")
+
+; Tres bloques en la capa 8 (`city`) con `take_damage(amount, point)`, para poder
+; probar el arma a mano hasta que WP-20 traiga la ciudad de verdad. Están sobre el
+; eje de la cámara, que va 25° hacia arriba (`docs/03` §5): a 45 m eso son 19 m de
+; altura, así que el bloque central queda centrado en la vista FPV al aparecer.
+
+[node name="Targets" type="Node3D" parent="."]
+
+[node name="TargetCenter" type="StaticBody3D" parent="Targets"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 20.5, -40.8)
+collision_layer = 128
+collision_mask = 0
+script = ExtResource("7_target")
+
+[node name="Mesh" type="MeshInstance3D" parent="Targets/TargetCenter"]
+mesh = SubResource("BoxMesh_target")
+
+[node name="Collision" type="CollisionShape3D" parent="Targets/TargetCenter"]
+shape = SubResource("BoxShape3D_target")
+
+[node name="TargetLeft" type="StaticBody3D" parent="Targets"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -22, 15, -36)
+collision_layer = 128
+collision_mask = 0
+script = ExtResource("7_target")
+
+[node name="Mesh" type="MeshInstance3D" parent="Targets/TargetLeft"]
+mesh = SubResource("BoxMesh_target")
+
+[node name="Collision" type="CollisionShape3D" parent="Targets/TargetLeft"]
+shape = SubResource("BoxShape3D_target")
+
+[node name="TargetRight" type="StaticBody3D" parent="Targets"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21, 13, -33)
+collision_layer = 128
+collision_mask = 0
+script = ExtResource("7_target")
+
+[node name="Mesh" type="MeshInstance3D" parent="Targets/TargetRight"]
+mesh = SubResource("BoxMesh_target")
+
+[node name="Collision" type="CollisionShape3D" parent="Targets/TargetRight"]
+shape = SubResource("BoxShape3D_target")
+
+; Pilas de energía (WP-15, `docs/09` §2.5). Ocho marcadores repartidos entre 31 y
+; 124 m del punto de reaparición y a 2–6 m de altura, de los que el spawner mantiene
+; cinco activos. Ninguno cae dentro de un pilar: la máscara de despeje es `8|9`
+; (`city` y `debris`) y los pilares de este nivel están en la capa 1 (`world`), así
+; que la consulta no los vería y las posiciones tienen que ser correctas de entrada.
+; La batería del dron la encuentra el spawner solo, buscando el `EnergySystem` del
+; árbol: así el nodo sirve igual en el nivel de batalla de WP-21.
+
+[node name="BatterySpawner" type="Node3D" parent="."]
+script = ExtResource("8_battery_spawner")
+pickup_scene = ExtResource("9_battery_pickup")
+active_target = 5
+respawn_delay = 25.0
+clearance_radius = 2.5
+retry_interval = 1.0
+clearance_mask = 384
+
+[node name="Marker1" type="Marker3D" parent="BatterySpawner"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 4, -24)
+
+[node name="Marker2" type="Marker3D" parent="BatterySpawner"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -40, 4.5, 22)
+
+[node name="Marker3" type="Marker3D" parent="BatterySpawner"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 58, 2.5, 46)
+
+[node name="Marker4" type="Marker3D" parent="BatterySpawner"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 5.5, -68)
+
+[node name="Marker5" type="Marker3D" parent="BatterySpawner"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 88, 3.5, -52)
+
+[node name="Marker6" type="Marker3D" parent="BatterySpawner"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -74, 4, -60)
+
+[node name="Marker7" type="Marker3D" parent="BatterySpawner"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24, 6, 96)
+
+[node name="Marker8" type="Marker3D" parent="BatterySpawner"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -96, 2.5, 78)
 
 [node name="Respawn" type="Marker3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)

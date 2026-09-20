@@ -4,6 +4,12 @@
 
 ## 1. Objetivo y alcance
 
+> **Nota de WP-18 (2026-09-19)**: la fila `walk` de §7 la implementa la acción de locomoción `approach` (id estable `approach`, sin telegrafía; elige el edificio objetivo con el multiplicador de fase `city_bias`). `test_stomp` fue un ataque provisional de WP-18 que WP-19 elimina al incorporar los nueve reales. Gate de apoyo de `stomp`/`leg_sweep`/`pounce`: se evalúa al entrar en `ACTIVE` y no al decidir (ver `06` §10.2 y §5.4).
+
+> **Nota de WP-19 (2026-09-19)**: las 8 acciones (`climb`, `stomp`, `leg_sweep`, `head_laser`, `siege_beam`, `emp_pulse`, `pounce`, `shake_off`) viven en `enemies/arachnodroid/actions/` sobre `SweepAction` (tronco común del `intersect_shape`); `walk` = `approach`. `tools/build_arachnodroid_profile.gd` hornea también los `AttackProfile` y `TelegraphProfile` (`attacks/*.tres`, `attacks/telegraphs/*.tres`) desde tablas: no se editan a mano. `AudioRig` real con 19 WAV sintetizados (`tools/generate_enemy_sounds.gd`), precargados, ≤ 8 voces. Medido en `arachnodroid_check` (34 s): telegrafías exactas y con 3 canales (`climb` paga el piso de 0,80 s, no 0,6), 600 decisiones sin repeticiones tempranas, ceguera 20 s / bloqueo 30 s / respaldo 45 s, carcasa 70°, cono 55°, temporizador 45 s, física 0,65–1,36 ms/tick (mediana) caminando con 6 edificios. Ajustes respecto del texto: el decal del `stomp` mide 18 m de **diámetro** (= cilindro r 9 de la consulta); `shake_off` se centra en la cadera (14 m), no en el casco; `head_laser` gira el cuerpo durante la telegrafía (`06` §11.1); el aterrizaje del salto ya no cancela la propia acción (el bamboleo es local al rig, así existe la recuperación de 2,0 s); los multiplicadores de fase se acumulan a mano en cada fila porque `_enter_phase` reemplaza el diccionario; el pulso blanco de P5 solo encuentra 2 superficies emisivas (marcado del importador; revisar en WP-27). **Decisión de balance del orquestador (2026-09-19):** con «rodilla rota = pata entera desprendida», P2 es trípode (3 patas), P3 por rodillas es `DRAG` (2 patas, ×0,55), **P4 es un jefe postrado** (1 pata: no camina) con la carcasa abierta, y **P5 detona en el lugar** al expirar los 45 s (la marcha al centro a ×1,6 queda sin efecto). `pounce` exige 2 patas apoyadas al entrar en `ACTIVE` (embestida a rastras); `stomp`/`leg_sweep` exigen 2 además de la que actúa. Se mide en WP-23; alternativas en §15 #11.
+
+> **Nota de WP-23 (2026-09-19)**: balance medido con `tools/balance_check` (bot `BotPilot` sobre el `battle_level` real, 3 semillas + control, `time_scale` 4, 541 s). Tres bugs corregidos antes de balancear: nadie fijaba `Perception.target` (el jefe no veía al dron; ahora `RoundManager._aim_perception()`), los tres `wp_core_*` están geométricamente **dentro** del collider de `underbelly` y eran imposibles de disparar (parche `pierces_host`, §15 #12), y el gate de apoyo hacía abortar `stomp`/`leg_sweep` (`06` §10.2). Palancas movidas: rodillas 1 200 → **1 600 HP** (total de puntos débiles 12 000 → **13 600**), cilindro del `stomp` 9×6 → **9×12 m** (puntúa hasta 12 m de altura), cápsula del `head_laser` r 1.2 → **1.8 m** (con 1.2 no tocaba al dron; con 2.5 mataba 1–5 veces), `siege_beam` 700 → **1 100/s** (saturado: el reloj de la ciudad lo marca la caminata entre torres, no el daño), `cooldown` P3/P4/P5 ×0.74 → **×0.55**. Sin tocar: asistencia de puntería, calor, `crush_damage`, colliders, pilas. Resultados (media de 3 semillas): duración **401 s** (335–515), acierto sobre débiles 0,43, ciclo de trabajo 0,61–0,66, integridad al vencer 0,61–0,63, muertes 1–2, fuego neto 208 s, 1,9–2,3 ventanas/min, `pounce` 0–1 por partida (el bot orbita a 14 m/s y `still` lo anula; contra un humano quieto saldría más); control: derrota por integridad a los 431 s. **El bot es un piso de la duración humana** (dispara el 52–56 % de la pelea sin fallar por distracción); la pasada manual del usuario decide. Rendimiento: 1,9 ms/tick con el jefe caminando, 2,1–3,8 ms en plena pelea con la ciudad (`15` §5.2, WP-24/29).
+
 Ficha completa del **primer y único jefe del MVP**: anatomía, partes, puntos débiles, las 9 acciones con su coreografía, las 5 fases, los pesos de utilidad, la duración objetivo del combate y todos los parámetros de ajuste repartidos por `Resource`.
 
 **Incluye:** silueta y escala; tabla de partes con HP, blindaje, función y masa de escombro; puntos débiles con exposición; las 9 acciones (telegrafía, activo, recuperación, cooldown, objetivo, daño, VFX, audio, consulta de física y contramedida); 5 fases; tabla acción × fase; cálculo de la duración; `.tres` de configuración; banco de audio; `arachnodroid_check`; el protocolo de balance de WP-23.
@@ -64,7 +70,7 @@ ArachnodroidRoot
 
 ---
 
-## 4. Puntos débiles: 12 000 HP
+## 4. Puntos débiles: 13 600 HP (WP-23; el diseño original decía 12 000 con rodillas de 1 200)
 
 Los puntos débiles son `EnemyPart` propias con **`armor = 0.0`** (por eso el disparo hace 12 × 3.0 = **36**, contra 1.2 en el blindaje) y `structure_weight = 1.0`.
 
@@ -90,10 +96,10 @@ Total: 4 × 1 200 + 1 500 + 3 × 1 900 = **12 000**.
 |---|---|---|---|---|---|---|---|
 | `walk` | — | continuo | — | — | ciudad | 900 al edificio pisado | `intersect_ray` del pie (`1\|8`) |
 | `climb` | 0.6 s | 2–4 s | 0.5 s | 8 s | ciudad | 1 500 por apoyo | `intersect_ray` del pie (`1\|8`) |
-| `stomp` | **1.1 s** | 0.25 s | 0.8 s | 6 s | dron | 45 dron + 55 N·s, 2 500 edificio | `CylinderShape3D` r 9 h 6 |
+| `stomp` | **1.1 s** | 0.25 s | 0.8 s | 6 s | dron | 45 dron + 55 N·s, 2 500 edificio | `CylinderShape3D` r 9 h **12** (WP-23; era h 6) |
 | `leg_sweep` | 0.9 s | 0.5 s | 1.2 s | 7 s | dron | 60 + 40 N·s | `BoxShape3D` 14×4×3 barrido |
-| `head_laser` | 1.6 s | 2.0 s | 1.0 s | 9 s | dron | 8/s (120/s a edificios) | `CapsuleShape3D` r 1.2 |
-| `siege_beam` | 1.8 s | 4.0 s | 1.5 s | 10 s | edificio | 700/s | `intersect_ray` + `CapsuleShape3D` r 2.5 |
+| `head_laser` | 1.6 s | 2.0 s | 1.0 s | 9 s | dron | 8/s (120/s a edificios) | `CapsuleShape3D` r **1.8** (WP-23; era 1.2) |
+| `siege_beam` | 1.8 s | 4.0 s | 1.5 s | 10 s | edificio | **1 100/s** (WP-23; era 700) | `intersect_ray` + `CapsuleShape3D` r 2.5 |
 | `emp_pulse` | 2.2 s | 0.3 s | 1.5 s | 25 s | dron | −25 % energía, glitch 3 s, r 45 m | `SphereShape3D` r 45 |
 | `pounce` | 1.3 s | 1.2 s | **2.0 s** | 35 s | dron | 100 (letal), 2 500 edificios | `SphereShape3D` r 12 al aterrizar |
 | `shake_off` | 0.8 s | 1.0 s | 0.6 s | 20 s | dron | 25 + 80 N·s | `SphereShape3D` r 16 |
@@ -110,7 +116,7 @@ Sin telegrafía: es locomoción, no acción. Cada vez que el `ProceduralLegRig` 
 
 ### 5.4 `stomp` — castigo al dron bajo y cerca
 
-**Telegrafía 1.1 s, tres canales:** la pata delantera del lado del dron se levanta a 1.6 × `hip_height`; un **`Decal` rojo de 18 m** se proyecta en el punto previsto, siguiendo a `believed_position` y **congelándose los últimos 0.25 s**; el anillo de la rodilla vira cian → rojo; chirrido de servo ascendente. **Activo 0.25 s:** el pie baja; `intersect_shape` con `CylinderShape3D` r 9 m h 6 m. **Daño:** 45 al casco + impulso radial 55 N·s; 2 500 a los edificios tocados. **VFX:** anillo de polvo, `Decal` de cráter, `Events.camera_trauma(0.6, punto_de_impacto)`. **Contramedida:** salir del decal antes de que termine el windup; los 0.8 s de recuperación dejan la pata estirada y la rodilla quieta.
+**Telegrafía 1.1 s, tres canales:** la pata delantera del lado del dron se levanta a 1.6 × `hip_height`; un **`Decal` rojo de 18 m** se proyecta en el punto previsto, siguiendo a `believed_position` y **congelándose los últimos 0.25 s**; el anillo de la rodilla vira cian → rojo; chirrido de servo ascendente. **Activo 0.25 s:** el pie baja; `intersect_shape` con `CylinderShape3D` r 9 m h 6 m. **Daño:** 45 al casco + impulso radial 55 N·s; 2 500 a los edificios tocados. **VFX:** anillo de polvo, `Decal` de cráter, `Events.camera_trauma(0.6, punto_de_impacto)`. **Contramedida:** salir del decal antes de que termine el windup; los 0.8 s de recuperación dejan la pata estirada y la rodilla quieta. **Gate de apoyo (WP-19/23):** al decidir solo se exige no estar en `LEAP`/`STAGGER`/`DOWNED`; el conteo de patas apoyadas al entrar en `ACTIVE` quedó en 0 (`MIN_SUPPORT`), porque exigir dos además de la que pisa era insatisfacible en trote (`06` §10.2).
 
 ### 5.5 `leg_sweep` — limpiar la media distancia
 
@@ -144,7 +150,7 @@ Sólo puntúa si `time_near > 6.0 s` con el dron a < 12 m. **Telegrafía 0.8 s:*
 |---|---|---|
 | **P1 Asedio** | (base, sin condición) | ataques: `walk`, `climb`, `stomp`, `leg_sweep`, `siege_beam`. Sesgo 70 % ciudad / 30 % dron. Emisivo cian |
 | **P2 Alerta** | 1 rodilla rota (`parts_broken_from` = 4 rodillas, `count 1`) **o** `structure_below: 0.75` | `unlock_attacks: [head_laser, emp_pulse]`; `walk_speed ×1.10`; sesgo 50/50; emisivo cian claro |
-| **P3 Furia** | 2 rodillas rotas **o** `weak_points_broken: [wp_head_visor]` | `unlock_attacks: [pounce]`; `cooldown ×0.74` (cadencia ×1.35); `windup ×0.85` (mínimo absoluto 0.80 s); emisivos **rojos**; `music_stem: &"combat"`; sesgo 40/60 |
+| **P3 Furia** | 2 rodillas rotas **o** `weak_points_broken: [wp_head_visor]` | `unlock_attacks: [pounce]`; `cooldown ×0.55` (cadencia ×1.8; WP-23, era ×0.74); `windup ×0.85` (mínimo absoluto 0.80 s); emisivos **rojos**; `music_stem: &"combat"`; sesgo 40/60 |
 | **P4 Vientre** | 3 rodillas rotas | `lock_attacks: [climb]`; **la `carapace` se abre** (rotación de 70°, o desprendimiento si se adopta la variante partida); marcha `TRIPOD`; `wp_core_*` amplía el cono a `cone_half_angle 55°`; `pounce` reapunta a aterrizar **sobre** el dron con recuperación rodada; sesgo 30/70 |
 | **P5 Autodestrucción** | 2 de 3 núcleos rotos (`parts_broken_from` = `wp_core_*`, `count 2`) | temporizador de **45 s** hacia el centro de la ciudad; `walk_speed ×1.6`; todos los ataques bloqueados salvo `walk` y `shake_off`; emisivo **blanco pulsante** acelerando; `defeat: true` al expirar |
 
@@ -290,6 +296,7 @@ Sale **0** al pasar todo, **1** con `FAIL: <criterio> esperado=<x> medido=<y>`, 
 | 12 | P5 | temporizador 45.0 s ± 0.1; `detonate()` daña a ≤ 120 m y emite `enemy_defeated` |
 | 13 | Escombros | `DebrisPool.get_live_count() <= 24` con las 4 patas, la carcasa y las 2 antenas desprendidas |
 | 14 | Rendimiento | física < 2.0 ms/tick con el jefe caminando y 6 edificios |
+| 15 | **Haces visibles** (agregado al cerrar WP-19): `head_laser` y `siege_beam` muestran su haz placeholder (`SweepAction.configure_beam/update_beam/hide_beam`, `CylinderMesh` aditivo hasta el `contact_point`) en algún tick de `ACTIVE`, en ninguno de `TELEGRAPH`/`RECOVER`, y quedan apagados al cerrar el ciclo; las otras seis acciones no tienen nodo de haz | exacto |
 
 ---
 
@@ -311,6 +318,8 @@ Tres partidas manuales completas de 6–10 min con la radio del usuario, registr
 
 Se acepta WP-23 cuando las tres partidas caen dentro de los rangos y la partida de control (ignorar al jefe 5 min) termina en derrota por integridad < 35 %.
 
+**Resultado automático de WP-23 (`tools/balance_check`, 2026-09-19).** Rangos aseverados por el check sobre la media de las tres semillas (la física de Jolt no es reproducible entre corridas, `15` §1.1): duración 340–540 s (medido 401), integridad al vencer 0,45–0,70 (0,61–0,63), muertes 1–5 con media ≥ 1 (1, 1, 2), fuego neto 170–250 s (208), acierto 0,33–0,50 (0,43), ventanas ≥ 1,5/min (1,9–2,3: el objetivo de ≥ 3 es aritméticamente inalcanzable, §15 #13), control en derrota por integridad en 240–450 s (431), física mediana bajo la guarda de regresión, `time_scale` restaurado, y prueba negativa (bot sin esquiva y σ 25°: acierto 0,02, pierde). El ciclo de trabajo del arma real es 0,61–0,66 (no 0,55: `default_gun.tres` da 22 disparos en 2,75 s + 1,8 s de bloqueo). Las tres partidas manuales del usuario siguen siendo la aceptación final.
+
 ---
 
 ## 15. Riesgos y decisiones abiertas
@@ -327,6 +336,10 @@ Se acepta WP-23 cuando las tres partidas caen dentro de los rangos y la partida 
 | 8 | **Abierto:** daño de `head_laser` a la ciudad (120/s) | puede volverlo un segundo `siege_beam` sin querer; medir en WP-23 |
 | 9 | **Abierto:** `pounce` con cooldown 35 s podría no aparecer nunca en peleas cortas | si en 3 partidas sale < 2 veces, bajar a 28 s |
 | 10 | Coreografías dependientes del rig (`stomp`, `leg_sweep`, `pounce`) | WP-19 sólo empieza con `gait_check` en verde (WP-17) |
+| 11 | **Decidido (WP-19/23, 2026-09-19):** con la pérdida de la pata entera por rodilla, en P4 queda una sola pata (nada de trípode) y el jefe no camina; P5 detona en el lugar; `pounce` con ≥ 1 apoyo. WP-23 midió además que con la **cuarta** rodilla rota el jefe entraba en `DOWNED`, el cuerpo se hundía a y = −12,3, los núcleos no se exponían y **la ronda no terminaba nunca** → **estado final de DOWNED (WP-19b)**: el cuerpo descansa sobre el suelo (origen a suelo − 6 m, núcleos a ~6,5 m), los tres núcleos quedan expuestos permanentemente, y si P5 no había empezado arranca con un temporizador propio de **90 s**; la ronda siempre termina. Alternativas para P2/P3: muñón de fémur usable, marcha `CRAWL` | cerrado para el MVP |
+| 12 | **Abierto (WP-23):** las cajas de `wp_core_a/b/c` (y ∈ [12,5, 14,0], x ∈ ±1,5, z ⊂ ±2,25) están contenidas en las tres dimensiones dentro de `underbelly` (y ∈ [6,5, 14,0], x ±9,75, z ±6,0): ningún disparo llega. Parche vigente: `pierces_host` apaga la capa de la panza mientras un núcleo está expuesto. Arreglo real: sacar las cajas de los núcleos por debajo de la cara inferior de la panza en `arachnodroid.parts.json` (`05`) | P2 (WP-24 o WP-12 bis) |
+| 13 | **Cerrado (WP-23):** «≥ 3 ventanas de daño por minuto» de §14 es inalcanzable: con el enfriamiento de P3 en ×0,55 el ciclo mínimo del haz es 12,8 s (4,7/min) y el del salto 28,7 s (2,1/min), y solo si el jefe no hiciera nada más. Medido 1,9–2,3; el check exige ≥ 1,5 | aceptado |
+| 14 | **Cerrado (WP-23):** el control (ignorar al jefe) pierde a los 431 s y no a los 300: el daño está saturado (23 ráfagas de asedio reparten 101 000 contra los 78 000 necesarios, un tercio cae sobre ruinas); el reloj lo marca la caminata entre torres. Palancas si se quiere acelerar: `walk_speed` o menos HP de distrito | aceptado (240–450 s) |
 
 ---
 

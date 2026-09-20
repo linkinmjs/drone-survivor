@@ -1,0 +1,7 @@
+[gd_resource type="Resource" script_class="PerceptionProfile" format=3]
+
+[ext_resource type="Script" path="res://enemies/ai/perception_profile.gd" id="1_0lklb"]
+
+[resource]
+resource_name = "ArachnodroidPerception"
+script = ExtResource("1_0lklb")

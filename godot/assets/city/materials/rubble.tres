@@ -1,0 +1,20 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_25q66"]
+seed = -683783346
+frequency = 0.01171875
+fractal_octaves = 4
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_p413k"]
+noise = SubResource("FastNoiseLite_25q66")
+seamless = true
+bump_strength = 4.0
+
+[resource]
+resource_name = "city_rubble"
+albedo_color = Color(0.41, 0.4, 0.38, 1)
+albedo_texture = SubResource("NoiseTexture2D_p413k")
+metallic_specular = 0.2
+roughness = 0.95
+uv1_scale = Vector3(0.12, 0.12, 0.12)
+uv1_triplanar = true

@@ -67,7 +67,7 @@ Firmas que `RoundManager` y los objetivos esperan, **ya conciliadas** con lo que
 
 | # | id | name_key | distrito | enemigos | par | bronce | plata | oro | unlock_after |
 |---|---|---|---|---|---|---|---|---|---|
-| 0 | `first-contact` | `ROUND_FIRST_CONTACT_NAME` | `res://city/districts/district_a.tscn` | `["arachnodroid"]` | **540 s** | 600 | 1300 | 2000 | `""` |
+| 0 | `first-contact` | `ROUND_FIRST_CONTACT_NAME` | `res://city/districts/district_a.tscn` | `["arachnodroid"]` | **540 s** | 350 | 800 | 2000 | `""` |
 
 El menú muestra además una tarjeta inerte "próximamente" mientras `count() < 8`; no es una entrada del catálogo.
 
@@ -245,7 +245,7 @@ Métodos: `compute_score(time_par: float) -> int`, `to_dictionary() -> Dictionar
 ### 6.2 Fórmula
 
 ```
-base  = 1000 · city_integrity + 40 · parts_broken − 300 · deaths + max(0, (time_par − time_seconds) · 25)
+base  = 1000 · city_integrity + 40 · parts_broken − 300 · deaths + max(0, (time_par − time_seconds) · 8)
 score = round( max(0, base) · respawn_multiplier )     # respawn_multiplier = max(0.3, 0.6^deaths)
 ```
 
@@ -260,7 +260,7 @@ score = round( max(0, base) · respawn_multiplier )     # respawn_multiplier = m
 | Con un respawn | 0.75 | 9 | 1 | 440 s | 3310 | 0.60 | 1986 | plata |
 | Al límite | 0.40 | 8 | 2 | 560 s | 120 | 0.36 | 43 | ninguna |
 
-> Efecto colateral del `time_par` de 540 s: con 25 puntos por segundo el bono de tiempo domina la fórmula y los umbrales 600/1300/2000 quedan cortos (tres de los cuatro ejemplos sacan oro o plata). El `time_par` queda fijo; **recalibrar el bono o los umbrales es trabajo de WP-23** (ver §12, fila 3).
+> Efecto colateral del `time_par` de 540 s: con 25 puntos por segundo el bono de tiempo domina la fórmula y los umbrales 600/1300/2000 quedan cortos (tres de los cuatro ejemplos sacan oro o plata). El `time_par` queda fijo; **recalibrar el bono o los umbrales es trabajo de WP-23** (ver §12, fila 3). **Cerrado en WP-23 (2026-09-19)**: bono **8 pts/s** (`RoundResult.TIME_BONUS_PER_SECOND`; tope 4 320 con par 540) y umbrales **350 / 800 / 2000** (`RoundCatalog`). Medido con el bot: victoria limpia y rápida (0,70, 0 muertes, 400 s) = 2 220 → ORO; una muerte (0,61–0,63, 335–352 s) = 1 329–1 422 → PLATA; dos muertes y 515 s = 219 → nada. `round_check` fila 9: integridad 0,9, 8 partes, t = 400 s → base 2 340 sin muertes (ORO), 2 040 × 0,6 = 1 224 con una; fila 1 verifica `medal_for(350) == BRONCE` y `medal_for(800) == PLATA`. En **derrota** la medalla es NONE y el bono de tiempo 0 (WP-19b; el control de WP-23 había sacado «PLATA» perdiendo a los 431 s).
 
 ### 6.3 `result_card.tscn`
 
@@ -377,7 +377,7 @@ Toda conexión usa `var _discard := señal.connect(...)` por `return_value_disca
 | Umbral de derrota | integridad `< 0.35` | `RoundManager.DEFEAT_INTEGRITY` |
 | Pausa dramática terminal | 1.2 s a `time_scale 0.35` | `RoundManager.OUTRO_SECONDS` |
 | `time_par` ronda 1 | **540.0 s** | catálogo |
-| Umbrales ronda 1 | 600 / 1300 / 2000 | catálogo |
+| Umbrales ronda 1 | 350 / 800 / 2000 (WP-23; eran 600 / 1300 / 2000) | catálogo |
 | Peso de integridad | 1000 | fórmula |
 | Peso por parte rota | 40 | fórmula |
 | Castigo por muerte | −300 | fórmula |
@@ -435,9 +435,9 @@ Salida: una línea `OK`/`FAIL` por fila y `get_tree().quit(0)` solo si todas pas
 
 | # | Asunto | Estado |
 |---|---|---|
-| 1 | **Doble castigo por muerte** (−300 y ×0.6) | **Cerrado para el MVP (2026-09-19)**: se mantienen los dos. WP-23 mide y, si molesta, quita el término −300 |
+| 1 | **Doble castigo por muerte** (−300 y ×0.6) | **Cerrado para el MVP (2026-09-19)**: se mantienen los dos. WP-23 midió que con 8 pts/s y el umbral viejo de 1 300 una sola muerte hacía imposible la plata (918–1 422); se bajaron los umbrales (§6.2). Propuesta en reserva: quitar el −300 y dejar el castigo solo en el multiplicador (la semilla 1 pasaría de 1 329 a 1 509) |
 | 2 | Piso del multiplicador de respawn | **Cerrado (2026-09-19)**: piso **0.30**, no 0.2. `respawn_multiplier = maxf(0.3, pow(0.6, deaths))`, con `respawn_multiplier_floor` en el `HullProfile` de `docs/09` |
-| 3 | `time_par` de la ronda 1 | **Cerrado (2026-09-19)**: **540 s**, para que el bono de tiempo sea alcanzable con la duración esperada de 6.5–9 min (`docs/07` §8). **Queda abierto** el efecto colateral de §6.2: con 25 pts/s el bono domina el puntaje y los umbrales 600/1300/2000 se vuelven triviales. Palancas para WP-23: bajar el bono a ~8 pts/s o subir los umbrales a 2500/4000/5500 |
+| 3 | `time_par` de la ronda 1 | **Cerrado (2026-09-19)**: **540 s**, para que el bono de tiempo sea alcanzable con la duración esperada de 6.5–9 min (`docs/07` §8). **Queda abierto** el efecto colateral de §6.2: con 25 pts/s el bono domina el puntaje y los umbrales 600/1300/2000 se vuelven triviales. Palancas para WP-23: bajar el bono a ~8 pts/s o subir los umbrales a 2500/4000/5500. **Cerrado (WP-23, 2026-09-19)**: bono 8 pts/s y umbrales 350/800/2000, ver §6.2 |
 | 4 | Victoria y derrota se deciden **solo** por el bus. Si `docs/06` o `docs/10` no publican esos hechos, la ronda nunca termina; el check lo detecta | acordado, verificar en WP-19/20 |
 | 5 | `ObjectiveDefendCity` completa por fase del enemigo: si el jefe salta de `p1_siege` a `p3_fury`, el objetivo igual cierra (se compara el **índice** de la fase alcanzada contra el de `target_phase_id` dentro de `EnemyProfile.phases`, que son ordenadas y monótonas) | resuelto |
 | 6 | El `CombatHUD` vive en el nivel para sobrevivir al respawn; el `FlightHUD` muere con el dron y se reconstruye. Confirmar que no parpadea al reaparecer | verificar en WP-22 |

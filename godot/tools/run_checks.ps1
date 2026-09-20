@@ -7,6 +7,7 @@
 #   powershell -File godot/tools/run_checks.ps1
 #   powershell -File godot/tools/run_checks.ps1 -Only project_check
 #   powershell -File godot/tools/run_checks.ps1 -Godot "D:/Godot/godot.console.exe"
+#   powershell -File godot/tools/run_checks.ps1 -Extended     # suma balance_check (~9 min)
 
 [CmdletBinding()]
 param(
@@ -15,7 +16,9 @@ param(
     # Timeout externo por proceso (segundos). Protege contra checks que no llegan a
     # arrancar (por ejemplo, un error de parseo en el script raiz deja el proceso vivo
     # sin escena y el timeout interno de CheckRunner nunca corre).
-    [int]$ProcessTimeout = 420
+    [int]$ProcessTimeout = 420,
+    # Suma los checks extendidos (lentos) al final de la suite.
+    [switch]$Extended
 )
 
 $ErrorActionPreference = "Stop"
@@ -37,6 +40,15 @@ $Headless = @(
     "pause_check"  # WP-11
     "hud_projection_check"  # WP-06
     "audio_check"  # WP-07
+    "enemy_parts_check"  # WP-16
+    "weapon_check"  # WP-14
+    "energy_check"  # WP-15
+    "city_check"  # WP-20
+    "gait_check"  # WP-17
+    "round_check"  # WP-21
+    "ai_check"  # WP-18
+    "combat_hud_check"  # WP-22
+    "arachnodroid_check"  # WP-19
 )
 
 # Checks que necesitan un framebuffer real porque capturan imagen (docs/15 seccion 3.1).
@@ -46,14 +58,28 @@ $Windowed = @(
     "boot_check"      # WP-02
 )
 
+# Extendidos: lentos (minutos), corren solo con -Extended o con -Only <nombre>.
+# balance_check simula cuatro partidas completas a time_scale 4 (docs/07 seccion 14).
+$ExtendedChecks = @(
+    "balance_check"  # WP-23
+)
+
+# Timeout externo por proceso para los checks que superan el general.
+$ProcessTimeouts = @{
+    "balance_check" = 1800
+}
+
 # Informativos: reportan pero no cuentan para el codigo de salida (docs/15 seccion 8.5).
 $NonBlocking = @("render_parity_check")
 
 # Argumentos de usuario extra por check, despues de "--".
 $ExtraArgs = @{
+    "weapon_check"  = @("--timeout=240")
     "ui_smoke_test" = @("--shots=tools/out/shots")
     "boot_check"    = @("--shots=tools/out/shots")
     "loading_check" = @("--timeout=120")
+    "ai_check"      = @("--timeout=300")
+    "balance_check" = @("--timeout=1500")
 }
 
 # ---------------------------------------------------------------------------
@@ -75,7 +101,7 @@ $ProjectArg = $ProjectDir
 if ($ProjectArg -match '\s') { $ProjectArg = '"' + $ProjectArg + '"' }
 
 function Invoke-Godot {
-    param([string[]]$GodotArgs, [string]$LogName)
+    param([string[]]$GodotArgs, [string]$LogName, [int]$Timeout = $ProcessTimeout)
 
     $outFile = Join-Path $OutDir "$LogName.stdout.tmp"
     $errFile = Join-Path $OutDir "$LogName.stderr.tmp"
@@ -92,7 +118,7 @@ function Invoke-Godot {
     # no expone ExitCode al terminar (peculiaridad de PowerShell 5.1).
     $null = $proc.Handle
     $timedOut = $false
-    if (-not $proc.WaitForExit($ProcessTimeout * 1000)) {
+    if (-not $proc.WaitForExit($Timeout * 1000)) {
         $timedOut = $true
         # Matar el arbol completo: el wrapper de consola lanza al Godot real como hijo.
         & taskkill.exe /F /T /PID $proc.Id 2>$null | Out-Null
@@ -111,7 +137,7 @@ function Invoke-Godot {
     }
     $code = 1
     if ($timedOut) {
-        $text = $text + "`n  FAIL: timeout externo de $ProcessTimeout s (el proceso no termino; probablemente no llego a instanciar la escena del check)`n"
+        $text = $text + "`n  FAIL: timeout externo de $Timeout s (el proceso no termino; probablemente no llego a instanciar la escena del check)`n"
     }
     else {
         $proc.WaitForExit()
@@ -168,6 +194,9 @@ if ([string]::IsNullOrEmpty($Only) -or $Only -eq "editor") {
 $catalog = New-Object System.Collections.ArrayList
 foreach ($name in $Headless) { [void]$catalog.Add([pscustomobject]@{ Name = $name; Windowed = $false }) }
 foreach ($name in $Windowed) { [void]$catalog.Add([pscustomobject]@{ Name = $name; Windowed = $true }) }
+foreach ($name in $ExtendedChecks) {
+    if ($Extended -or $Only -eq $name) { [void]$catalog.Add([pscustomobject]@{ Name = $name; Windowed = $false }) }
+}
 
 foreach ($check in $catalog) {
     if (-not [string]::IsNullOrEmpty($Only) -and $check.Name -ne $Only) { continue }
@@ -193,7 +222,9 @@ foreach ($check in $catalog) {
     $extra = $ExtraArgs[$check.Name]
     if ($null -ne $extra -and $extra.Count -gt 0) { $godotArgs += @("--") + $extra }
 
-    $res = Invoke-Godot -LogName $check.Name -GodotArgs $godotArgs
+    $timeout = $ProcessTimeout
+    if ($ProcessTimeouts.ContainsKey($check.Name)) { $timeout = [int]$ProcessTimeouts[$check.Name] }
+    $res = Invoke-Godot -LogName $check.Name -GodotArgs $godotArgs -Timeout $timeout
     Add-Report $res.Output
     foreach ($line in ($res.Output -split "`r?`n")) {
         if ($line -match "^(\s+FAIL:|CHECK )") { Write-Host ("  " + $line.Trim()) }

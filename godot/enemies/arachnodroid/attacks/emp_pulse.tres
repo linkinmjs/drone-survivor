@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="AttackProfile" format=3]
+
+[ext_resource type="Script" path="res://enemies/attack_profile.gd" id="1_vjdjw"]
+[ext_resource type="Resource" path="res://enemies/arachnodroid/attacks/telegraphs/emp_pulse.tres" id="2_rlef1"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_rgwyt"]
+radius = 45.0
+
+[resource]
+resource_name = "emp_pulse"
+script = ExtResource("1_vjdjw")
+attack_id = &"emp_pulse"
+display_key = "ATK_EMP_PULSE"
+windup = 2.2
+active = 0.3
+recover = 1.5
+cooldown = 25.0
+max_range = 45.0
+requires_parts = PackedStringArray()
+disabled_if_broken = PackedStringArray()
+query_shape = SubResource("SphereShape3D_rgwyt")
+query_layers = 2
+telegraph = ExtResource("2_rlef1")
+audio_bank = &"charge_emp_pulse"

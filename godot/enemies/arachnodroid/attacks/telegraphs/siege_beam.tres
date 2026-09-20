@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="TelegraphProfile" format=3]
+
+[ext_resource type="Script" path="res://enemies/telegraph_profile.gd" id="1_s4vik"]
+
+[resource]
+resource_name = "telegraph_siege_beam"
+script = ExtResource("1_s4vik")
+light_color_to = Color(1, 0.72, 0.2, 1)
+audio_event = &"charge_siege_beam"
+spatial_kind = 3
+decal_radius = 2.5
+hud_warning_key = "HUD_TELEGRAPH_SIEGE_BEAM"

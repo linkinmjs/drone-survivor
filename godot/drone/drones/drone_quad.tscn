@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://drone/drone.gd" id="1_drone"]
 [ext_resource type="PackedScene" uid="uid://b5jd7qdrv4lyv" path="res://assets/drone/drone_quad.glb" id="2_model"]
@@ -6,6 +6,14 @@
 [ext_resource type="Script" path="res://drone/parts/propeller.gd" id="4_propeller"]
 [ext_resource type="Script" path="res://drone/mode_led.gd" id="5_mode_led"]
 [ext_resource type="Script" path="res://drone/motor_audio.gd" id="6_motor_audio"]
+[ext_resource type="Script" path="res://drone/weapons/weapon_mount.gd" id="7_weapon_mount"]
+[ext_resource type="Resource" path="res://drone/weapons/profiles/default_gun.tres" id="8_weapon_profile"]
+[ext_resource type="PackedScene" path="res://drone/weapons/muzzle_flash.tscn" id="9_muzzle_flash"]
+[ext_resource type="AudioStream" path="res://assets/audio/weapons/shot.wav" id="10_shot"]
+[ext_resource type="Script" path="res://drone/energy/energy_system.gd" id="11_energy_system"]
+[ext_resource type="Resource" path="res://drone/energy/profiles/default_energy.tres" id="12_energy_profile"]
+[ext_resource type="Script" path="res://drone/damage/hull.gd" id="13_hull"]
+[ext_resource type="Resource" path="res://drone/damage/profiles/default_hull.tres" id="14_hull_profile"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_body"]
 size = Vector3(0.22, 0.05, 0.22)
@@ -113,3 +121,46 @@ collision_mask = 129
 
 [node name="MotorAudio" type="Node" parent="."]
 script = ExtResource("6_motor_audio")
+
+; `WeaponMount` (WP-14, `docs/08` §3.1): hijo directo del `Drone`, igual que
+; `ModeLED` y `MotorAudio`, para que la ruta `Drone/WeaponMount` de `docs/03` §8
+; quede exacta y para que cualquier escena que use el dron suelto herede el arma.
+; `aim_source` se deja vacío a propósito: el `CameraRig` y la `FPVCamera` viven en
+; `drone_rig.tscn`, así que el arma los resuelve en `_ready()` por ruta. El nodo se
+; reorienta cada tick con la cámara, de modo que el `Muzzle` queda 0.35 m por
+; delante de ella en la dirección de puntería.
+
+[node name="WeaponMount" type="Node3D" parent="."]
+script = ExtResource("7_weapon_mount")
+profile = ExtResource("8_weapon_profile")
+
+[node name="Muzzle" type="Marker3D" parent="WeaponMount"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.35)
+
+[node name="MuzzleFlash" parent="WeaponMount/Muzzle" instance=ExtResource("9_muzzle_flash")]
+
+[node name="FireSound" type="AudioStreamPlayer3D" parent="WeaponMount"]
+stream = ExtResource("10_shot")
+unit_size = 12.0
+max_distance = 260.0
+bus = &"Weapons"
+
+; `EnergySystem` y `Hull` (WP-15, `docs/09` §3.1): hijos directos del `Drone`, con
+; las rutas exactas `Drone/EnergySystem` y `Drone/Hull` que el documento fija. Van
+; acá y no en `drone_rig.tscn` por la misma razón que el `WeaponMount`: cualquier
+; escena que use el dron suelto —`flight_bench.tscn`— hereda batería y casco sin
+; duplicar cableado, y el `WeaponMount` encuentra la batería por `Drone/EnergySystem`
+; en su `_ready()` sin que nadie tenga que inyectarla.
+;
+; El `RespawnController` **no** va acá: vive en el rig, porque tiene que seguir
+; corriendo mientras el dron está congelado (`docs/09` §2.8).
+
+[node name="EnergySystem" type="Node" parent="." node_paths=PackedStringArray("drone")]
+script = ExtResource("11_energy_system")
+profile = ExtResource("12_energy_profile")
+drone = NodePath("..")
+
+[node name="Hull" type="Node" parent="." node_paths=PackedStringArray("drone")]
+script = ExtResource("13_hull")
+profile = ExtResource("14_hull_profile")
+drone = NodePath("..")

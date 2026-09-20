@@ -131,6 +131,7 @@ func _run() -> void:
 	if _drone == null:
 		fail("no se encontró el nodo Drone en '%s'" % str(drone_path))
 		return
+	_stand_down_gameplay_systems()
 	await wait_physics(2)
 	_motors = _drone.get_motors()
 	_propellers = _drone.get_propellers()
@@ -437,7 +438,11 @@ func _attach_controller() -> void:
 	_controller.drone = _drone
 	_drone.add_child(_controller)
 	_drone.set_controller(_controller)
-	_controller.set_control_profile(QuadSettings.control_profile)
+	# Perfil de REFERENCIA de `docs/03` §3.6 (ACTUAL 7/67/54: 70 y 670 deg/s), no el
+	# persistido por `QuadSettings` (desde el checkpoint 2 es 5/30/25, con 300 deg/s de
+	# máximo, y el escalón de 360 deg/s de §11.4 era inalcanzable). El banco mide el
+	# controlador con la spec, no con la sensibilidad que elija el jugador.
+	_controller.set_control_profile(ControlProfile.new())
 	var _discard := _drone.arm_failed.connect(_on_arm_failed)
 	_discard = _drone.armed.connect(_on_armed)
 	var profile := _controller.get_control_profile()
@@ -720,3 +725,17 @@ func _measure_yaw(commands: Array[float]) -> float:
 
 func _on_respawned() -> void:
 	_respawn_count += 1
+
+
+## El banco mide el dron puro (`docs/03` §11): retira los sistemas de gameplay que
+## WP-15 cuelga del `Drone` en `drone_quad.tscn`. Sin esto, tras el minuto de vuelo
+## simulado la energía se agota, `set_thrust_scale(0.82)` recorta la autoridad y el
+## escalón de tasa de §11.4 no llega al 90 % (pico medido 318 deg/s de 360); y el casco
+## podría destruir el dron en las caídas del banco. Mismo criterio que `weapon_check`.
+func _stand_down_gameplay_systems() -> void:
+	for child_name: StringName in [&"EnergySystem", &"Hull"]:
+		var node := _drone.get_node_or_null(NodePath(child_name))
+		if node == null:
+			continue
+		_drone.remove_child(node)
+		node.queue_free()

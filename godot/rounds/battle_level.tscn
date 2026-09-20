@@ -1,0 +1,226 @@
+[gd_scene load_steps=20 format=3]
+
+[ext_resource type="Script" path="res://rounds/battle_level.gd" id="1_level"]
+[ext_resource type="Environment" path="res://world/environment_battle.tres" id="2_env"]
+[ext_resource type="Script" path="res://city/city_integrity.gd" id="3_integrity"]
+[ext_resource type="PackedScene" path="res://drone/drone_rig.tscn" id="4_rig"]
+[ext_resource type="Script" path="res://drone/weapons/impact_fx_pool.gd" id="5_impact_pool"]
+[ext_resource type="Script" path="res://drone/weapons/projectile_pool.gd" id="6_projectile_pool"]
+[ext_resource type="Script" path="res://city/debris_pool.gd" id="7_debris_pool"]
+[ext_resource type="Script" path="res://city/rubble_field.gd" id="8_rubble_field"]
+[ext_resource type="Script" path="res://drone/energy/battery_spawner.gd" id="9_battery_spawner"]
+[ext_resource type="PackedScene" path="res://drone/energy/battery_pickup.tscn" id="10_battery_pickup"]
+[ext_resource type="Script" path="res://rounds/objectives/objective_hud.gd" id="11_objective_hud"]
+[ext_resource type="Script" path="res://rounds/round_manager.gd" id="12_round_manager"]
+[ext_resource type="Script" path="res://rounds/objectives/objective_sequencer.gd" id="13_sequencer"]
+[ext_resource type="PackedScene" path="res://rounds/results/result_card.tscn" id="14_result_card"]
+[ext_resource type="Script" path="res://rounds/objectives/objective_defend_city.gd" id="15_defend_city"]
+[ext_resource type="Script" path="res://rounds/objectives/objective_break_parts.gd" id="16_break_parts"]
+[ext_resource type="Script" path="res://rounds/objectives/objective_defeat_enemy.gd" id="17_defeat_enemy"]
+[ext_resource type="PackedScene" path="res://hud/combat/combat_hud.tscn" id="18_combat_hud"]
+
+[sub_resource type="CameraAttributesPhysical" id="CameraAttributesPhysical_battle"]
+frustum_focus_distance = 5.0
+frustum_focal_length = 2.1
+exposure_aperture = 16.0
+exposure_shutter_speed = 100.0
+auto_exposure_enabled = false
+exposure_sensitivity = 100.0
+
+[node name="BattleLevel" type="Node3D" node_paths=PackedStringArray("respawn_point", "respawn_camera", "drone_rig", "round_manager", "combat_hud")]
+script = ExtResource("1_level")
+respawn_point = NodePath("Respawn")
+respawn_camera = NodePath("Cameras/CameraFixed")
+drone_rig = NodePath("DroneRig")
+round_manager = NodePath("RoundManager")
+combat_hud = NodePath("CombatHUDSlot/CombatHUD")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = ExtResource("2_env")
+camera_attributes = SubResource("CameraAttributesPhysical_battle")
+
+; Sol de atardecer sobre la ciudad entera: el distrito mide 480 × 288 m, así que la
+; sombra direccional necesita bastante más alcance que la del nivel de vuelo libre
+; (`docs/13`). Los mismos números que usa `tools/city_showcase.tscn`.
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.707107, -0.5, 0.5, 0, 0.707107, 0.707107, -0.707107, -0.5, 0.5, 0, 220, 0)
+light_energy = 1.45
+shadow_enabled = true
+directional_shadow_mode = 2
+directional_shadow_max_distance = 700.0
+
+; Integridad de la ciudad (`docs/10` §5). Arranca sin edificios: el distrito todavía
+; no existe. `RoundManager` le inyecta el `CityGrid` instanciado y llama a `rebuild()`.
+
+[node name="CityIntegrity" type="Node" parent="."]
+script = ExtResource("3_integrity")
+defeat_threshold = 0.35
+
+; Contenedores vacíos que puebla `RoundManager` (`docs/11` §4.2). El distrito trae su
+; propio `CityGrid` horneado y sus `EnemySpawn0..3`.
+
+[node name="District" type="Node3D" parent="."]
+
+[node name="Enemies" type="Node3D" parent="."]
+
+; Pools compartidos (`docs/08` §2.6, `docs/10` §7). Viven en el **nivel** y no en el
+; dron: los proyectiles y los escombros tienen que sobrevivir al respawn. El
+; `ImpactFXPool` va primero porque el `ProjectilePool` lo resuelve en su `_ready()`,
+; y los tres van antes que el `DroneRig` porque el `WeaponMount` los busca al armarse.
+
+[node name="Pools" type="Node3D" parent="."]
+
+[node name="ImpactFXPool" type="Node3D" parent="Pools"]
+script = ExtResource("5_impact_pool")
+
+[node name="ProjectilePool" type="Node" parent="Pools"]
+script = ExtResource("6_projectile_pool")
+
+[node name="DebrisPool" type="Node3D" parent="Pools" node_paths=PackedStringArray("rubble_field")]
+script = ExtResource("7_debris_pool")
+rubble_field = NodePath("RubbleField")
+
+[node name="RubbleField" type="Node3D" parent="Pools/DebrisPool"]
+script = ExtResource("8_rubble_field")
+
+; Puestos de pila (`docs/09` §2.5): ocho marcadores en cruces de calle del distrito,
+; entre 4 y 6 m de altura, de los que el spawner mantiene cinco activos. Los cruces
+; son los únicos puntos garantizados sin edificio: la rejilla tiene período 3 celdas
+; de 32 m, con calzada en x ∈ {−160, −64, 32, 128, 224} y z ∈ {−64, 32, 128}.
+
+[node name="BatterySpawner" type="Node3D" parent="."]
+script = ExtResource("9_battery_spawner")
+pickup_scene = ExtResource("10_battery_pickup")
+active_target = 5
+respawn_delay = 25.0
+clearance_radius = 2.5
+retry_interval = 1.0
+clearance_mask = 384
+
+[node name="Marker1" type="Marker3D" parent="BatterySpawner"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -160, 5, -64)
+
+[node name="Marker2" type="Marker3D" parent="BatterySpawner"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -64, 4, 32)
+
+[node name="Marker3" type="Marker3D" parent="BatterySpawner"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32, 6, 128)
+
+[node name="Marker4" type="Marker3D" parent="BatterySpawner"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 128, 4.5, -64)
+
+[node name="Marker5" type="Marker3D" parent="BatterySpawner"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 224, 5, 32)
+
+[node name="Marker6" type="Marker3D" parent="BatterySpawner"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -160, 4, 128)
+
+[node name="Marker7" type="Marker3D" parent="BatterySpawner"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32, 5.5, -64)
+
+[node name="Marker8" type="Marker3D" parent="BatterySpawner"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -64, 6, 128)
+
+; Reaparición: 40 m sobre el borde sureste del distrito (`docs/11` §3), mirando al
+; centro de la ciudad y, más allá, al acceso norte por donde entra el coloso. Queda
+; fuera del eje de `EnemySpawn1` a propósito, para que una ronda futura con dos
+; enemigos no haga aparecer uno encima del dron.
+
+[node name="Respawn" type="Marker3D" parent="."]
+transform = Transform3D(0.9546, 0, -0.2979, 0, 1, 0, 0.2979, 0, 0.9546, 120, 1.5, 200)
+
+[node name="DroneRig" parent="." node_paths=PackedStringArray("respawn_point") instance=ExtResource("4_rig")]
+transform = Transform3D(0.9546, 0, -0.2979, 0, 1, 0, 0.2979, 0, 0.9546, 120, 1.5, 200)
+respawn_point = NodePath("../Respawn")
+
+; Cámaras del nivel (`docs/11` §3 y §4.1). La de la cinemática arranca activa y
+; `RoundManager` la mueve por código; `CameraFixed` es la de reaparición que devuelve
+; `LevelBase.get_respawn_camera()` y la que encuadra la ciudad en la derrota.
+
+[node name="Cameras" type="Node3D" parent="."]
+
+[node name="IntroCamera" type="Camera3D" parent="Cameras"]
+transform = Transform3D(0.8503, 0, 0.5264, 0.0593, 0.9935, -0.0957, -0.5229, 0.1126, 0.8447, -130, 52, 26)
+current = true
+fov = 55.0
+far = 3000.0
+
+; La inclinación iba **al revés** (WP-23): con `basis.z.y` negativa la cámara
+; miraba 18° hacia arriba y desde (0, 120, 240) encuadraba un punto 200 m por
+; encima del centro de la ciudad, o sea el cielo vacío. Durante los 12 s de
+; reconstrucción el jugador veía el horizonte y nada más, y el paso 12 del smoke
+; test de `docs/15` §6 —«la cámara mirando la ciudad, que sigue sufriendo»— no se
+; podía cumplir. Ahora cabecea 26.6° hacia abajo, que es la línea de (0, 120, 240)
+; al centro del distrito.
+[node name="CameraFixed" type="Camera3D" parent="Cameras"]
+transform = Transform3D(1, 0, 0, 0, 0.8944, -0.4472, 0, 0.4472, 0.8944, 0, 120, 240)
+fov = 60.0
+far = 3000.0
+
+; Capas de canvas (`docs/12` §4): el `CombatHUD` de WP-22 se cuelga vacío acá, la
+; tarjeta de objetivo provisional vive una capa por debajo y el resultado va arriba
+; de todo, por encima del menú de pausa (40).
+
+[node name="CombatHUDSlot" type="CanvasLayer" parent="."]
+layer = 20
+
+[node name="CombatHUD" parent="CombatHUDSlot" instance=ExtResource("18_combat_hud")]
+
+; Tarjeta de objetivo **provisional** de WP-21 (`docs/11` §5.2). Con el
+; `CombatHUDSlot` ya ocupado por el `CombatHUD`, `_show_objective_hud()` devuelve
+; `false` y esta capa no se enciende nunca más: la línea de objetivo definitiva la
+; dibuja `HUDObjectiveLine` (`docs/12` §4.1). Se conserva en la escena porque sigue
+; siendo el respaldo si alguien abre el nivel con el slot vacío.
+
+[node name="ObjectiveHUD" type="CanvasLayer" parent="."]
+layer = 19
+visible = false
+script = ExtResource("11_objective_hud")
+
+[node name="ResultLayer" type="CanvasLayer" parent="."]
+layer = 45
+
+[node name="RoundManager" type="Node" parent="." node_paths=PackedStringArray("district_root", "enemies_root", "drone_rig", "city_integrity", "sequencer", "intro_camera", "respawn_camera", "battery_spawner", "result_layer", "combat_hud_slot", "objective_hud")]
+script = ExtResource("12_round_manager")
+district_root = NodePath("../District")
+enemies_root = NodePath("../Enemies")
+drone_rig = NodePath("../DroneRig")
+city_integrity = NodePath("../CityIntegrity")
+sequencer = NodePath("ObjectiveSequencer")
+intro_camera = NodePath("../Cameras/IntroCamera")
+respawn_camera = NodePath("../Cameras/CameraFixed")
+battery_spawner = NodePath("../BatterySpawner")
+result_card_scene = ExtResource("14_result_card")
+result_layer = NodePath("../ResultLayer")
+combat_hud_slot = NodePath("../CombatHUDSlot")
+objective_hud = NodePath("../ObjectiveHUD")
+
+; Cadena de objetivos de la ronda 1, en orden (`docs/11` §5). `ObjectiveSurviveTime`
+; existe y se verifica, pero **no** está acá: es para las rondas de intercepción.
+
+[node name="ObjectiveSequencer" type="Node" parent="RoundManager"]
+script = ExtResource("13_sequencer")
+
+[node name="DefendCity" type="Node" parent="RoundManager/ObjectiveSequencer"]
+script = ExtResource("15_defend_city")
+title_key = "OBJ_DEFEND_CITY_TITLE"
+objective_key = "OBJ_DEFEND_CITY_DESC"
+success_delay = 0.8
+target_phase_id = &"p2_alert"
+max_seconds = 90.0
+
+[node name="BreakParts" type="Node" parent="RoundManager/ObjectiveSequencer"]
+script = ExtResource("16_break_parts")
+title_key = "OBJ_BREAK_PARTS_TITLE"
+objective_key = "OBJ_BREAK_PARTS_DESC"
+success_delay = 0.8
+part_ids = PackedStringArray("wp_leg_fl_knee", "wp_leg_fr_knee", "wp_leg_bl_knee", "wp_leg_br_knee")
+required_count = 3
+
+[node name="DefeatEnemy" type="Node" parent="RoundManager/ObjectiveSequencer"]
+script = ExtResource("17_defeat_enemy")
+title_key = "OBJ_DEFEAT_ENEMY_TITLE"
+objective_key = "OBJ_DEFEAT_ENEMY_DESC"
+success_delay = 0.8
+enemy_ids = PackedStringArray("arachnodroid")

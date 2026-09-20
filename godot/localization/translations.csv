@@ -1,4 +1,13 @@
 keys,es,en
+ATK_CLIMB,TREPADA,CLIMB
+ATK_EMP_PULSE,PULSO EMP,EMP PULSE
+ATK_HEAD_LASER,LÁSER DE CABEZA,HEAD LASER
+ATK_LEG_SWEEP,BARRIDO DE PATA,LEG SWEEP
+ATK_POUNCE,EMBESTIDA,POUNCE
+ATK_SHAKE_OFF,SACUDIDA,SHAKE OFF
+ATK_SIEGE_BEAM,HAZ DE ASEDIO,SIEGE BEAM
+ATK_STOMP,PISOTÓN,STOMP
+ATK_WALK,MARCHA,WALK
 AUD_CITY,Ciudad,City
 AUD_ENEMIES,Enemigos,Enemies
 AUD_MASTER,Volumen general,Master volume
@@ -9,6 +18,11 @@ AUD_SUBTITLE,Volumen general y por grupo de sonidos,Overall and per group volume
 AUD_TITLE,Audio,Audio
 AUD_UI,Interfaz,Interface
 AUD_WEAPONS,Armas,Weapons
+BOSS_PHASE_1,ASEDIO,SIEGE
+BOSS_PHASE_2,ALERTA,ALERT
+BOSS_PHASE_3,FURIA,FURY
+BOSS_PHASE_4,VIENTRE,BELLY
+BOSS_PHASE_5,AUTODESTRUCCIÓN,SELF-DESTRUCT
 CAL_DONE,Calibración terminada,Calibration finished
 CAL_HINT,Sostené la posición hasta que el paso se confirme solo.,Hold the position until the step confirms itself.
 CAL_NEXT,Siguiente,Next
@@ -89,6 +103,7 @@ CTRL_SUBTITLE,"Elegí el mando, calibrá los sticks y asigná cada acción.","Pi
 CTRL_TITLE,Controles,Controls
 CTRL_UNBOUND,Sin asignar,Unbound
 CTRL_UNCALIBRATED,Sin calibrar,Not calibrated
+ENEMY_ARACHNODROID,Arachnodroid,Arachnodroid
 ERR_ARM_NO_ENERGY,Sin energía,No energy
 ERR_ARM_RECOVERING,Recuperando…,Recovering…
 ERR_ARM_THROTTLE_HIGH,Bajá el acelerador para armar,Lower the throttle to arm
@@ -101,6 +116,12 @@ ERR_CONFIG_INPUT,No se pudo leer la configuración de controles. Se cargan los v
 ERR_CONFIG_QUAD,No se pudo leer la configuración del dron. Se cargan los valores por defecto.,Could not read the drone settings. The default values will be loaded.
 ERR_CONTROLLER_NOT_FOUND,No se encontró el mando %s.\nRevisá que esté conectado o elegí otro en la pantalla de Controles.,"%s not found!\nPlease check it is properly plugged in, or head to the Controls settings to update your controller."
 ERR_CONTROLS_OPEN,No se pudo abrir la configuración de controles. Revisá la pantalla de Controles.,Could not open the controls configuration file. Please check the Controls settings.
+ERR_ENEMY_FUNCTION_UNKNOWN,Una parte del enemigo declara una función desconocida.,An enemy part declares an unknown function.
+ERR_ENEMY_LEG_INCOMPLETE,Una pata del enemigo está incompleta: le falta un segmento o el pie.,An enemy leg is incomplete: a segment or the foot is missing.
+ERR_ENEMY_NO_MODEL,El enemigo no trae el nodo Model con el modelo importado.,The enemy is missing the Model node with the imported model.
+ERR_ENEMY_NO_PROFILE,El enemigo no tiene ficha de configuración.,The enemy has no configuration profile.
+ERR_ENEMY_PART_NO_BODY,Una parte del enemigo llegó sin colisionador y no recibe daño.,An enemy part arrived without a collider and cannot take damage.
+ERR_ENEMY_WP_NO_PROFILE,Un punto débil del enemigo no tiene ficha y queda como carcasa blindada.,An enemy weak point has no profile and stays as plain armour.
 ERR_GRAPHICS_OPEN,No se pudo abrir la configuración gráfica. Se cargan los valores por defecto.,Could not open the graphics configuration file. The default settings will be loaded.
 ERR_GRAPHICS_PARSE,No se pudo leer la configuración gráfica. Se cargan los valores por defecto.,Failed to read the graphics configuration file. The default settings will be loaded.
 ERR_SETTINGS_OPEN,No se pudo abrir el archivo de ajustes. Se cargan los valores por defecto.,"Error loading the settings file, the default settings will be loaded."
@@ -187,6 +208,7 @@ HUD_ALTITUDE,Altura,Altitude
 HUD_ARM_FAILED_ENERGY,SIN ENERGÍA,NO POWER
 HUD_ARM_FAILED_RECOVER,RECUPERACIÓN ACTIVA,RECOVERY ACTIVE
 HUD_ARM_FAILED_THROTTLE,BAJÁ EL ACELERADOR,LOWER THROTTLE
+HUD_BOSS_PHASE,FASE {0},PHASE {0}
 HUD_CFG_ALTITUDE,Altura,Altitude
 HUD_CFG_CROSSHAIR,Mira,Crosshair
 HUD_CFG_FLIGHT_MODE,Modo de vuelo,Flight mode
@@ -198,6 +220,7 @@ HUD_CFG_RPM,RPM de motores,Motor RPM
 HUD_CFG_SIDE_TAPES,Cintas laterales,Side tapes
 HUD_CFG_SPEED,Velocidad,Speed
 HUD_CFG_STICKS,Visor de sticks,Stick display
+HUD_CITY,CIUDAD,CITY
 HUD_COMPASS,Brújula,Compass
 HUD_COMPASS_E,E,E
 HUD_COMPASS_N,N,N
@@ -209,14 +232,23 @@ HUD_COMPASS_SW,SO,SW
 HUD_COMPASS_W,O,W
 HUD_COMPONENTS,ELEMENTOS,ELEMENTS
 HUD_CROSSHAIR,Mira,Crosshair
+HUD_ENERGY,ENERGÍA,ENERGY
+HUD_ENERGY_LOW,ENERGÍA CRÍTICA,LOW POWER
 HUD_FLIGHT_MODE,Modo de vuelo,Flight mode
 HUD_GATE_MARKER,Marcador de la próxima puerta,Next gate marker
+HUD_HEAT,CALOR,HEAT
+HUD_HEAT_LOCK,SOBRECALENTADO,OVERHEATED
 HUD_HORIZON,Línea de horizonte,Horizon line
 HUD_HORIZON_ATTITUDE,Actitud del dron,Drone attitude
 HUD_HORIZON_CAMERA,Real (cámara),Real (camera)
 HUD_HORIZON_MODE,Horizonte,Horizon
+HUD_HULL,CASCO,HULL
 HUD_HZ,%d Hz,%d Hz
 HUD_LADDER,Escalera de cabeceo,Pitch ladder
+HUD_LOCK,FIJADO,LOCKED
+HUD_MARKER_BATTERY,PILA,BATTERY
+HUD_MARKER_ENEMY,HOSTIL,HOSTILE
+HUD_MARKER_SIEGE,ASEDIO,UNDER SIEGE
 HUD_MODE_ACRO,ACRO,ACRO
 HUD_MODE_HORIZON,HORIZON,HORIZON
 HUD_MODE_LAUNCH,LANZAMIENTO,LAUNCH
@@ -231,8 +263,10 @@ HUD_PRESET_FULL,Completo,Full
 HUD_PRESET_MINIMAL,Mínimo,Minimal
 HUD_PRESET_STANDARD,Estándar,Standard
 HUD_PREVIEW,Vista previa,Preview
+HUD_REBUILDING,RECONSTRUYENDO,REBUILDING
 HUD_REC,REC,REC
 HUD_REC_INDICATOR,Indicador de grabación,Recording indicator
+HUD_RESPAWN_MULTIPLIER,PUNTAJE ×{0},SCORE ×{0}
 HUD_RPM,RPM de motores,Motor RPM
 HUD_SIDE_TAPES,Cintas laterales,Side tapes
 HUD_SPD,VEL,SPD
@@ -245,10 +279,21 @@ HUD_STATUS_RECOVERY_MODE,MODO RECUPERACIÓN,CRASH RECOVERY MODE
 HUD_STATUS_THROTTLE_HIGH,ACELERADOR ALTO,THROTTLE HIGH
 HUD_STATUS_TURTLE,MODO TORTUGA,TURTLE MODE
 HUD_STICKS,Visor de sticks,Stick display
+HUD_TELEGRAPH_CLIMB,TREPADA,CLIMB
+HUD_TELEGRAPH_EMP_PULSE,PULSO EMP,EMP PULSE
+HUD_TELEGRAPH_GENERIC,ATAQUE,ATTACK
+HUD_TELEGRAPH_HEAD_LASER,LÁSER,HEAD LASER
+HUD_TELEGRAPH_LEG_SWEEP,BARRIDO,LEG SWEEP
+HUD_TELEGRAPH_POUNCE,EMBESTIDA,POUNCE
+HUD_TELEGRAPH_SHAKE_OFF,SACUDIDA,SHAKE OFF
+HUD_TELEGRAPH_SIEGE_BEAM,HAZ DE ASEDIO,SIEGE BEAM
+HUD_TELEGRAPH_STOMP,PISOTÓN,STOMP
 HUD_UNIT_KMH,km/h,km/h
 HUD_UNIT_M,m,m
 HUD_UNIT_MPS,m/s,m/s
 HUD_VS,VS,VS
+INTRO_INCOMING,SEÑAL HOSTIL SOBRE EL DISTRITO,HOSTILE SIGNAL OVER THE DISTRICT
+INTRO_SKIP_HINT,Pulsá cualquier botón para saltear,Press any button to skip
 MENU_CHALLENGES,Desafíos,Challenges
 MENU_FLY,Volar,Fly
 MENU_FREESTYLE,Freestyle,Freestyle
@@ -269,6 +314,31 @@ MENU_RETURN_TO_MAIN,Menú principal,Main menu
 MENU_SANDBOX,Sandbox (debug),Sandbox (debug)
 MENU_TAGLINE,Defendé la ciudad de los colosos,Defend the city from the colossi
 MENU_TUTORIAL,Instructor de vuelo,Flight instructor
+OBJ_BREAK_PARTS_DESC,Las rodillas sostienen al coloso.,The knees hold the colossus up.
+OBJ_BREAK_PARTS_DONE,Ya no se sostiene,It can no longer stand
+OBJ_BREAK_PARTS_TITLE,Romper 3 rodillas,Break 3 knees
+OBJ_DEFEAT_ENEMY_DESC,El núcleo queda expuesto cuando el coloso cae.,The core is exposed once the colossus is down.
+OBJ_DEFEAT_ENEMY_DONE,Coloso destruido,Colossus destroyed
+OBJ_DEFEAT_ENEMY_PROGRESS,Estructura {0} %,Structure {0}%
+OBJ_DEFEAT_ENEMY_TITLE,Destruir el núcleo,Destroy the core
+OBJ_DEFEND_CITY_DESC,No dejes que el coloso arrase el distrito.,Do not let the colossus flatten the district.
+OBJ_DEFEND_CITY_DONE,El coloso te vio,The colossus has seen you
+OBJ_DEFEND_CITY_PROGRESS,Integridad {0} %,Integrity {0}%
+OBJ_DEFEND_CITY_TITLE,Contener el asedio,Hold the siege
+OBJ_KEY_NEXT,Siguiente,Next
+OBJ_KEY_PAUSE,Pausa,Pause
+OBJ_KEY_RESTART,Reaparecer,Respawn
+OBJ_LAST_DONE,Último objetivo cumplido,Last objective complete
+OBJ_NEXT_SOON,Siguiente objetivo…,Next objective…
+OBJ_STEP_OF,Objetivo %d de %d,Objective %d of %d
+OBJ_STICK_LEFT,Izquierdo,Left
+OBJ_STICK_RIGHT,Derecho,Right
+OBJ_SURVIVE_TIME_DESC,Aguantá hasta que llegue el refuerzo.,Hold out until backup arrives.
+OBJ_SURVIVE_TIME_DONE,Aguantaste,You held out
+OBJ_SURVIVE_TIME_TITLE,Sobrevivir,Survive
+OBJ_WARN_NO_JOYPAD,Conectá un mando para volar,Connect a controller to fly
+OBJ_WARN_RECOVER,Recuperación activa: soltá los sticks,Recovery active: release the sticks
+OBJ_WARN_TIPPED,El dron está volcado,The drone is tipped over
 OPT_AUDIO,Audio,Audio
 OPT_CONTROLS,Controles,Controls
 OPT_GAME,Juego y HUD,Game and HUD
@@ -332,19 +402,34 @@ QUAD_TITLE,Ajustes del dron,Quad settings
 QUAD_UNIT_DEG,°,°
 QUAD_UNIT_KG," kg"," kg"
 QUAD_YAW,Yaw,Yaw
+RESULT_ACCURACY,Precisión,Accuracy
+RESULT_DEATHS,Reconstrucciones,Rebuilds
+RESULT_INTEGRITY,Integridad,Integrity
 RESULT_MEDAL_BRONZE,Bronce,Bronze
 RESULT_MEDAL_GOLD,Oro,Gold
 RESULT_MEDAL_NONE,Sin medalla,No medal
 RESULT_MEDAL_SILVER,Plata,Silver
+RESULT_MENU,Menú principal,Main menu
+RESULT_MULTIPLIER,Multiplicador,Multiplier
+RESULT_NEW_RECORD,¡Nuevo récord!,New record!
+RESULT_NEXT,Siguiente ronda,Next round
+RESULT_PARTS,Partes rotas,Parts broken
+RESULT_RETRY,Reintentar,Retry
+RESULT_ROUNDS,Elegir ronda,Choose round
+RESULT_SCORE,Puntaje,Score
+RESULT_TIME,Tiempo,Time
 ROUND_BEST_SCORE,Mejor puntaje,Best score
 ROUND_BEST_TIME,Mejor tiempo,Best time
 ROUND_COMING_SOON,Próximamente,Coming soon
+ROUND_DEFEAT,CIUDAD PERDIDA,CITY LOST
 ROUND_FIRST_CONTACT_GOAL,Defendé el distrito A del Arachnodroid.,Defend District A from the Arachnodroid.
 ROUND_FIRST_CONTACT_NAME,Primer contacto,First Contact
+ROUND_INTRO_SKIP,Saltear,Skip
 ROUND_LOCKED_HINT,Completá «{0}» para desbloquear,Complete “{0}” to unlock
 ROUND_MENU_SUBTITLE,%d de %d rondas completadas,%d of %d rounds completed
 ROUND_MENU_TITLE,Rondas,Rounds
 ROUND_NOT_PLAYED,Todavía no la jugaste,Not played yet
+ROUND_VICTORY,CIUDAD A SALVO,CITY SECURED
 TUT_ALTITUDE,Altura %.1f m,Altitude %.1f m
 TUT_END_SUBTITLE,Completaste el instructor. Seguí practicando en vuelo libre o probá las pistas con R.,You completed the instructor. Keep practicing in free flight or try the tracks with R.
 TUT_END_TITLE,¡Ya sabés volar!,You can fly!
@@ -455,3 +540,6 @@ UI_TIP_CITY,"Si la ciudad cae por debajo del 35 %, perdés.","If the city drops 
 UI_TIP_STICKS,Acro manda velocidad de giro; Horizonte manda ángulo.,Acro commands rate; Horizon commands angle.
 UI_TIP_TELEGRAPH,Todo ataque avisa antes de golpear.,Every attack telegraphs before it lands.
 UI_TIP_WEAK_POINTS,Lo que brilla en cian se puede romper.,Anything glowing cyan can be broken.
+WP_CORE,Núcleo,Core
+WP_KNEE,Rodilla,Knee
+WP_VISOR,Visor,Visor

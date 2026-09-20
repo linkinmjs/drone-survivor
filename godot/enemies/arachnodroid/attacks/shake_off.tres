@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="AttackProfile" format=3]
+
+[ext_resource type="Script" path="res://enemies/attack_profile.gd" id="1_3y12v"]
+[ext_resource type="Resource" path="res://enemies/arachnodroid/attacks/telegraphs/shake_off.tres" id="2_1rqyu"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_oug31"]
+radius = 16.0
+
+[resource]
+resource_name = "shake_off"
+script = ExtResource("1_3y12v")
+attack_id = &"shake_off"
+display_key = "ATK_SHAKE_OFF"
+windup = 0.8
+active = 1.0
+recover = 0.6
+cooldown = 20.0
+max_range = 16.0
+requires_parts = PackedStringArray()
+disabled_if_broken = PackedStringArray()
+damage_drone = 25.0
+impulse_drone = 80.0
+query_shape = SubResource("SphereShape3D_oug31")
+telegraph = ExtResource("2_1rqyu")
+audio_bank = &"charge_shake_off"

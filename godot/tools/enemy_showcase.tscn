@@ -1,0 +1,67 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://tools/enemy_showcase.gd" id="1_showcase"]
+[ext_resource type="Environment" path="res://world/environment_battle.tres" id="2_env"]
+[ext_resource type="PackedScene" path="res://enemies/arachnodroid/arachnodroid.tscn" id="3_arachnodroid"]
+[ext_resource type="Script" path="res://city/debris_pool.gd" id="4_debris_pool"]
+[ext_resource type="Script" path="res://city/rubble_field.gd" id="5_rubble_field"]
+
+[sub_resource type="CameraAttributesPhysical" id="CameraAttributesPhysical_showcase"]
+frustum_focus_distance = 5.0
+frustum_focal_length = 2.1
+exposure_aperture = 16.0
+exposure_shutter_speed = 100.0
+auto_exposure_enabled = false
+exposure_sensitivity = 100.0
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ground"]
+albedo_color = Color(0.16, 0.17, 0.19, 1)
+roughness = 0.95
+metallic_specular = 0.25
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
+material = SubResource("StandardMaterial3D_ground")
+size = Vector2(600, 600)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ground"]
+size = Vector3(600, 4, 600)
+
+[node name="EnemyShowcase" type="Node3D"]
+script = ExtResource("1_showcase")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = ExtResource("2_env")
+camera_attributes = SubResource("CameraAttributesPhysical_showcase")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.707107, -0.5, 0.5, 0, 0.707107, 0.707107, -0.707107, -0.5, 0.5, 0, 80, 0)
+light_energy = 2.4
+shadow_enabled = true
+directional_shadow_max_distance = 220.0
+
+[node name="Ground" type="StaticBody3D" parent="."]
+collision_layer = 1
+collision_mask = 0
+
+[node name="Mesh" type="MeshInstance3D" parent="Ground"]
+mesh = SubResource("PlaneMesh_ground")
+
+[node name="Shape" type="CollisionShape3D" parent="Ground"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -2, 0)
+shape = SubResource("BoxShape3D_ground")
+
+[node name="DebrisPool" type="Node3D" parent="." node_paths=PackedStringArray("rubble_field")]
+script = ExtResource("4_debris_pool")
+rubble_field = NodePath("RubbleField")
+
+[node name="RubbleField" type="Node3D" parent="DebrisPool"]
+script = ExtResource("5_rubble_field")
+
+[node name="Arachnodroid" parent="." node_paths=PackedStringArray("debris_pool", "rubble_field") instance=ExtResource("3_arachnodroid")]
+debris_pool = NodePath("../DebrisPool")
+rubble_field = NodePath("../DebrisPool/RubbleField")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -88, 34, -26)
+fov = 45.0
+far = 800.0

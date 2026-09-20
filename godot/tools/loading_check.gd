@@ -3,7 +3,7 @@
 ## Check de `SceneTransition` (`docs/15` §3).
 ##
 ## Ejercita la transición con pantalla de carga entre el menú principal y el nivel de
-## vuelo libre, cinco veces seguidas, y comprueba que:
+## batalla, cinco veces seguidas, y comprueba que:
 ##
 ## - cada ciclo termina (el fundido no se queda a medias) y deja la escena pedida;
 ## - una segunda solicitud mientras hay una en curso se ignora sin romper nada;
@@ -13,15 +13,18 @@
 ## - después del fundido no hay ningún cuadro por encima de 70 ms.
 ##
 ## WP-02 dejó la parte de `warm_up_view()` en SKIP porque todavía no existía un nivel que
-## implementara el contrato. WP-11 entrega `rounds/free_flight_level.tscn` y con él este
-## check queda completo: ya no hay ningún SKIP.
+## implementara el contrato. WP-11 lo completó con el nivel de vuelo libre y WP-21 lo
+## muda al nivel de batalla: ya no hay ningún SKIP.
 extends CheckRunner
 
 const MENU_SCENE: String = "res://gui/main_menu.tscn"
 
-## Nivel de WP-11: es la escena «pesada» que pide `docs/15` §3 (terreno, dron con su
-## física, luz direccional y `Environment` compartido).
-const LEVEL_SCENE: String = "res://rounds/free_flight_level.tscn"
+## Nivel de batalla de WP-21: la escena **más pesada** del juego, que es lo que pide
+## `docs/15` §3. Trae el distrito entero con sus sesenta edificios, el coloso con sus
+## treinta y una partes, el dron con su física, los pools y el `Environment` compartido,
+## y es la que de verdad compila shaders al aparecer. Medir la carga contra el nivel de
+## vuelo libre era medir el caso fácil.
+const LEVEL_SCENE: String = "res://rounds/battle_level.tscn"
 
 ## Ciclos de carga y descarga, como pide `docs/15` §3 para `loading_check`.
 const CYCLES: int = 5
@@ -51,8 +54,12 @@ func _run() -> void:
 	var _discard := get_tree().node_added.connect(_on_node_added)
 
 	if not ResourceLoader.exists(LEVEL_SCENE):
-		fail("falta el nivel de vuelo libre (%s)" % LEVEL_SCENE)
+		fail("falta el nivel de batalla (%s)" % LEVEL_SCENE)
 		return
+	# La ronda se elige por id, no por índice: sin esto `RoundManager` caería en su
+	# ronda de respaldo, que es la misma, pero conviene entrar por la puerta real.
+	Global.selected_round = "first-contact"
+	Global.round_seed = 20260919
 
 	# El primer ciclo solo sirve de referencia: pone las dos escenas en pie, y con ellas
 	# los nodos que cada una crea una vez. Medir antes contaría esa alta como fuga.
@@ -81,6 +88,10 @@ func _run() -> void:
 		return
 	await _measure_hitches()
 	_discard_scene()
+	# `queue_free()` libera al final del cuadro: se le ceden unos pocos para que el
+	# nivel de batalla —que es la escena más grande del juego— esté realmente fuera
+	# antes de que `CheckRunner` cierre el proceso.
+	await wait_frames(5)
 
 
 ## Un ciclo completo: entra al nivel y vuelve al menú, los dos con pantalla de carga.

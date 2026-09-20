@@ -1,0 +1,20 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_jf7mk"]
+seed = 713718326
+frequency = 0.009765625
+fractal_octaves = 4
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_qcdvs"]
+noise = SubResource("FastNoiseLite_jf7mk")
+seamless = true
+bump_strength = 4.0
+
+[resource]
+resource_name = "city_ground"
+albedo_color = Color(0.17, 0.17, 0.18, 1)
+albedo_texture = SubResource("NoiseTexture2D_qcdvs")
+metallic_specular = 0.18
+roughness = 0.97
+uv1_scale = Vector3(0.03, 0.03, 0.03)
+uv1_triplanar = true

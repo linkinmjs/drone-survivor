@@ -4,6 +4,9 @@
 
 ## 1. Objetivo y alcance
 
+> **Nota de WP-15 (2026-09-19)**: `idle_recharge_cap` es un techo absoluto (un dron desarmado al 50 % no recarga); el spawner tiene un solo acumulador que rellena hasta `active_target` al vencer; `Hull` escucha `Drone.body_entered` (no `crashed`) y muestrea la velocidad del tick anterior en `_physics_process`; el cooldown de 0.35 s solo se registra cuando el golpe hace daño; `RespawnController` escucha la señal local `Hull.destroyed` y usa `LevelBase.get_respawn_camera()` (export → `Cameras/CameraFixed` → primera no FPV); campos añadidos: `EnergyProfile.publish_epsilon` 0.005, `HullProfile.min_impact_damage` 1.0, `HullProfile.respawn_energy`; la pila es una caja emisiva con `OmniLight3D` hasta WP-26. Los bancos de física (`flight_bench`, `weapon_check`) retiran `EnergySystem` y `Hull` del dron antes de medir.
+
+
 Especifica la economía de energía del dron, las pilas y su spawner, la integridad del casco, la tabla de daños recibidos y el ciclo de muerte y respawn con penalización de puntaje. Es la única fuente de verdad para WP-15.
 
 **Incluye**: `EnergySystem`, `EnergyProfile`, `BatteryPickup`, `BatterySpawner`, `Hull`, `HullProfile`, `RespawnController`, la tabla de daño por fuente, la interacción con el `emp_pulse` del jefe, los eventos del bus y el check `energy_check`.

@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="AttackProfile" format=3]
+
+[ext_resource type="Script" path="res://enemies/attack_profile.gd" id="1_55pk7"]
+[ext_resource type="Resource" path="res://enemies/arachnodroid/attacks/telegraphs/head_laser.tres" id="2_a12sh"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_6htr4"]
+radius = 1.8
+height = 90.0
+
+[resource]
+resource_name = "head_laser"
+script = ExtResource("1_55pk7")
+attack_id = &"head_laser"
+display_key = "ATK_HEAD_LASER"
+windup = 1.6
+active = 2.0
+cooldown = 9.0
+min_range = 10.0
+max_range = 90.0
+requires_parts = PackedStringArray()
+disabled_if_broken = PackedStringArray()
+damage_drone = 8.0
+damage_building = 120.0
+damage_per_second = true
+query_shape = SubResource("CapsuleShape3D_6htr4")
+telegraph = ExtResource("2_a12sh")
+audio_bank = &"charge_head_laser"

@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="AttackProfile" format=3]
+
+[ext_resource type="Script" path="res://enemies/attack_profile.gd" id="1_5ucqx"]
+[ext_resource type="Resource" path="res://enemies/arachnodroid/attacks/telegraphs/stomp.tres" id="2_3mpqf"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_3lqvp"]
+height = 12.0
+radius = 9.0
+
+[resource]
+resource_name = "stomp"
+script = ExtResource("1_5ucqx")
+attack_id = &"stomp"
+display_key = "ATK_STOMP"
+windup = 1.1
+active = 0.25
+recover = 0.8
+cooldown = 6.0
+max_range = 30.0
+requires_parts = PackedStringArray()
+disabled_if_broken = PackedStringArray()
+damage_drone = 45.0
+damage_building = 2500.0
+impulse_drone = 55.0
+query_shape = SubResource("CylinderShape3D_3lqvp")
+telegraph = ExtResource("2_3mpqf")
+audio_bank = &"charge_stomp"

@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="AttackProfile" format=3]
+
+[ext_resource type="Script" path="res://enemies/attack_profile.gd" id="1_e8fxv"]
+
+[resource]
+resource_name = "approach"
+script = ExtResource("1_e8fxv")
+attack_id = &"approach"
+display_key = "ATK_WALK"
+windup = 0.0
+active = 0.6
+recover = 0.0
+cooldown = 0.0
+target_kind = 1
+max_range = 500.0
+lock_locomotion = false
+requires_parts = PackedStringArray()
+disabled_if_broken = PackedStringArray()
+score_input = &"city_distance"

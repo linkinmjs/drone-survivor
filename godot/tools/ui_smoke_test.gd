@@ -427,10 +427,16 @@ func _check_rounds() -> void:
 	expect(RoundCatalog.get_index("first-contact") == 0,
 			"first-contact es la ronda 0 del catálogo")
 	expect(RoundCatalog.is_unlocked(0), "la primera ronda está siempre desbloqueada")
+	# Umbrales recalibrados en WP-23 con los puntajes medidos por `balance_check`:
+	# bronce **350**, plata **800**, oro 2 000 (`docs/11` §12, fila 3). Con el bono
+	# de tiempo ya en 8 pts/s, una victoria con una sola reconstrucción rinde entre
+	# 918 y 1 329 puntos y con 1 300 se quedaba sin plata.
 	expect(RoundCatalog.medal_for(0, 2000) == RoundCatalog.Medal.GOLD
 			and RoundCatalog.medal_for(0, 1999) == RoundCatalog.Medal.SILVER
-			and RoundCatalog.medal_for(0, 599) == RoundCatalog.Medal.NONE,
-			"los umbrales de medalla son los de docs/11 §2.2")
+			and RoundCatalog.medal_for(0, 800) == RoundCatalog.Medal.SILVER
+			and RoundCatalog.medal_for(0, 350) == RoundCatalog.Medal.BRONZE
+			and RoundCatalog.medal_for(0, 349) == RoundCatalog.Medal.NONE,
+			"los umbrales de medalla son los de docs/11 §2.2 con la recalibración de WP-23")
 	var wanted_level := RoundCatalog.FREE_FLIGHT_LEVEL_SCENE
 	if ResourceLoader.exists(RoundCatalog.BATTLE_LEVEL_SCENE):
 		wanted_level = RoundCatalog.BATTLE_LEVEL_SCENE

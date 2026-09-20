@@ -4,6 +4,9 @@
 
 ## 1. Objetivo y alcance
 
+> **Nota de WP-14 (2026-09-19)**: la clase de asistencia se llama `WeaponAimAssist` (el nombre `AimAssist` colisiona con `GameSettings.AimAssist`, enum de `04` §3.3, y rompe el autoload); `aim_assist_max_range` admite 0–600 m (220 por defecto); campos añadidos al perfil: `aim_assist_strength_assisted` 0.60, `lock_break_angle` 35°, `lock_break_range` 250 m, `muzzle_offset` 0.35 m, `impact_sound`; el recurso del MVP es `drone/weapons/profiles/default_gun.tres` (id `mk1_repeater`); `hit_confirmed` no se emite en las capas `world` ni `debris`; los decals viven en un pool aparte (32) dentro de `ImpactFXPool`; la dirección de disparo es `−FPVCamera.global_basis.z` y el `Muzzle` se realinea cada tick; el `ProjectilePool` se crea perezosamente en el primer disparo si el nivel no trae uno en el grupo `projectile_pool`; `overheat_sound` queda sin definir hasta WP-27.
+
+
 Especifica el arma primaria del dron: ciclo de disparo, proyectiles, trazadores, asistencia de puntería, calor, retroceso, impactos y realimentación al HUD. Es la única fuente de verdad para WP-14.
 
 **Incluye**: `WeaponMount`, `WeaponProfile`, `ProjectilePool`, `Projectile`, `TracerRenderer`, `AimAssist`, `MuzzleFlash`, `ImpactFXPool`, la tabla de resolución de impacto por capa de física, los eventos del bus y el check `weapon_check`.

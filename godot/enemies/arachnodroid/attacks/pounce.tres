@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="AttackProfile" format=3]
+
+[ext_resource type="Script" path="res://enemies/attack_profile.gd" id="1_864hl"]
+[ext_resource type="Resource" path="res://enemies/arachnodroid/attacks/telegraphs/pounce.tres" id="2_qck2g"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_w6yj7"]
+radius = 12.0
+
+[resource]
+resource_name = "pounce"
+script = ExtResource("1_864hl")
+attack_id = &"pounce"
+display_key = "ATK_POUNCE"
+windup = 1.3
+active = 1.2
+recover = 2.0
+cooldown = 35.0
+min_range = 12.0
+max_range = 55.0
+requires_parts = PackedStringArray()
+disabled_if_broken = PackedStringArray()
+damage_drone = 100.0
+damage_building = 2500.0
+query_shape = SubResource("SphereShape3D_w6yj7")
+telegraph = ExtResource("2_qck2g")
+audio_bank = &"charge_pounce"

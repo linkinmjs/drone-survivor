@@ -45,6 +45,12 @@ var round_seed: int = 0
 ## Verdadero si el proceso arrancó con `--debug` entre los argumentos de usuario.
 var debug: bool = false
 
+## Bandera solo para checks (`docs/11` §11): con `true`, los enemigos que se instancian
+## no piensan ni se mueven (la IA y el rig quedan detenidos) para que `round_check` y
+## `combat_hud_check` inyecten hechos por el bus sin interferencias. Ningún menú la
+## expone y el juego real nunca la enciende.
+var debug_freeze_ai: bool = false
+
 ## Último valor de [member config_dir] para el que ya se creó la carpeta.
 var _initialized_dir: String = ""
 

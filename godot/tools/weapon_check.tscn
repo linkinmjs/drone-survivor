@@ -1,0 +1,51 @@
+[gd_scene load_steps=6 format=3]
+
+; Banco de `weapon_check` (`docs/08` §5). Es el `drone_rig` completo —dron, vuelo,
+; radio y cámara FPV— más los dos pools del nivel y un suelo de capa 1. Los cuerpos
+; de prueba (capas 3, 4, 8 y 1) y el doble de `EnergySystem` los crea el check en
+; código, porque tiene que moverlos delante del cañón antes de cada sub-check:
+; la dirección de puntería es la de la cámara, ya inclinada por el hangar, así que
+; no hay posición fija que valga.
+;
+; `ImpactFXPool` va **antes** que `ProjectilePool` a propósito: el pool de
+; proyectiles lo busca por grupo en su `_ready()`, y el orden de los hermanos es el
+; orden en que se propaga `NOTIFICATION_READY`.
+
+[ext_resource type="Script" path="res://tools/weapon_check.gd" id="1_weapon_check"]
+[ext_resource type="PackedScene" path="res://drone/drone_rig.tscn" id="2_rig"]
+[ext_resource type="Script" path="res://drone/weapons/impact_fx_pool.gd" id="3_impact_pool"]
+[ext_resource type="Script" path="res://drone/weapons/projectile_pool.gd" id="4_projectile_pool"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ground"]
+size = Vector3(800, 1, 800)
+
+[node name="WeaponCheck" type="Node"]
+script = ExtResource("1_weapon_check")
+check_name = "weapon_check"
+default_timeout = 240.0
+
+[node name="Ground" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+collision_layer = 1
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Ground"]
+shape = SubResource("BoxShape3D_ground")
+
+[node name="ImpactFXPool" type="Node3D" parent="."]
+script = ExtResource("3_impact_pool")
+
+[node name="ProjectilePool" type="Node" parent="."]
+script = ExtResource("4_projectile_pool")
+
+[node name="Targets" type="Node3D" parent="."]
+
+[node name="Respawn" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 400, 0)
+
+[node name="DroneRig" parent="." node_paths=PackedStringArray("respawn_point") instance=ExtResource("2_rig")]
+respawn_point = NodePath("../Respawn")
+hud_enabled = false
+
+[node name="Drone" parent="DroneRig" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 400, 0)

@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="BuildingProfile" format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/city/rubble/debris_concrete_large.res" id="1_ehg3n"]
+[ext_resource type="Shape3D" path="res://assets/city/rubble/debris_concrete_large_shape.tres" id="2_0hsvc"]
+[ext_resource type="ArrayMesh" path="res://assets/city/rubble/rubble_pile_low.res" id="3_u6qn7"]
+[ext_resource type="ArrayMesh" path="res://assets/city/rubble/rubble_pile_mid.res" id="4_d5oo0"]
+[ext_resource type="ArrayMesh" path="res://assets/city/rubble/rubble_pile_high.res" id="5_ppumm"]
+[ext_resource type="Script" path="res://city/building_profile.gd" id="6_yj8hx"]
+
+[resource]
+resource_name = "tower"
+script = ExtResource("6_yj8hx")
+id = &"tower"
+max_hp = 3500.0
+value = 300
+debris_mass = 2000.0
+debris_impulse = 4.5
+rubble_meshes = Array[Mesh]([ExtResource("3_u6qn7"), ExtResource("4_d5oo0"), ExtResource("5_ppumm")])
+debris_mesh = ExtResource("1_ehg3n")
+debris_shape = ExtResource("2_0hsvc")

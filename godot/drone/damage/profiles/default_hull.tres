@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="HullProfile" load_steps=2 format=3]
+
+; Casco y respawn del MVP con los valores cerrados del Anexo A/C (`docs/09` §4).
+; La curva de choque es `(v − 8) · 4`: 20 m/s son 48 de casco y 33 m/s destruyen el
+; dron de un golpe.
+
+[ext_resource type="Script" path="res://drone/damage/hull_profile.gd" id="1_hull_profile"]
+
+[resource]
+script = ExtResource("1_hull_profile")
+max_hp = 100.0
+impact_speed_threshold = 8.0
+impact_damage_per_ms = 4.0
+impact_cooldown = 0.35
+min_impact_damage = 1.0
+debris_damage_min = 15.0
+debris_damage_max = 35.0
+debris_mass_min = 150.0
+debris_mass_max = 3000.0
+respawn_seconds = 12.0
+respawn_energy = 60.0
+respawn_score_multiplier = 0.6
+respawn_multiplier_floor = 0.3
+destroy_trauma = 1.0

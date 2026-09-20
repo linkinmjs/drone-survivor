@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="TelegraphProfile" format=3]
+
+[ext_resource type="Script" path="res://enemies/telegraph_profile.gd" id="1_mgxji"]
+
+[resource]
+resource_name = "telegraph_leg_sweep"
+script = ExtResource("1_mgxji")
+light_color_to = Color(0.6, 0.95, 1, 1)
+audio_event = &"charge_leg_sweep"
+spatial_kind = 5
+decal_radius = 15.0
+hud_warning_key = "HUD_TELEGRAPH_LEG_SWEEP"

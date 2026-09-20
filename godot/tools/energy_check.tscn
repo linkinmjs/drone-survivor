@@ -1,0 +1,103 @@
+[gd_scene load_steps=7 format=3]
+
+; Banco de `energy_check` (`docs/09` §5). Es el `drone_rig.tscn` **completo** —dron,
+; vuelo, radio, cámara FPV, arma, batería y casco— más los dos pools del arma, un
+; `BatterySpawner` de ocho marcadores y un bloque de capa 8 que tapa uno de ellos.
+;
+; Por qué el rig real y no el `DroneStub` que dibuja `docs/09` §5: los sub-checks 4
+; (consumo por disparo), 9 (`arm()` falla con `ERR_ARM_NO_ENERGY`), 14 (`freeze`),
+; 16 (arma reiniciada) y 23 (ningún `Area3D` en el subárbol del dron) prueban
+; justamente el **cableado**, y un doble no tiene cableado que probar. Todo lo que
+; el documento quería contar con contadores del stub se observa igual desde fuera:
+; `force_disarm()` por la señal `disarmed`, `set_thrust_scale()` por
+; `Drone.get_thrust_scale()` y el armado fallido por `FlightController.arm_failed`.
+;
+; La radio va apagada: sin mando, `throttle_up`/`throttle_down` dejarían el
+; acelerador en 0.5 y ni el armado ni el drenaje medido serían los del documento.
+;
+; `ImpactFXPool` va antes que `ProjectilePool` porque el segundo busca al primero
+; por grupo en su `_ready()`, y el orden de los hermanos es el orden de la
+; notificación.
+
+[ext_resource type="Script" path="res://tools/energy_check.gd" id="1_energy_check"]
+[ext_resource type="PackedScene" path="res://drone/drone_rig.tscn" id="2_rig"]
+[ext_resource type="Script" path="res://drone/weapons/impact_fx_pool.gd" id="3_impact_pool"]
+[ext_resource type="Script" path="res://drone/weapons/projectile_pool.gd" id="4_projectile_pool"]
+[ext_resource type="Script" path="res://drone/energy/battery_spawner.gd" id="5_spawner"]
+[ext_resource type="PackedScene" path="res://drone/energy/battery_pickup.tscn" id="6_pickup"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_blocker"]
+size = Vector3(4, 4, 4)
+
+[node name="EnergyCheck" type="Node"]
+script = ExtResource("1_energy_check")
+check_name = "energy_check"
+default_timeout = 180.0
+
+[node name="CameraFixed" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 30, 60)
+fov = 60.0
+
+[node name="ImpactFXPool" type="Node3D" parent="."]
+script = ExtResource("3_impact_pool")
+
+[node name="ProjectilePool" type="Node" parent="."]
+script = ExtResource("4_projectile_pool")
+
+; Ocho marcadores alrededor del origen, a 30 m del dron (que vive a 400 m de
+; altura y no puede recogerlos por accidente). `Marker8` queda tapado por
+; `Blocker`, un `StaticBody3D` de capa 8 centrado en él: el sub-check 21 verifica
+; que el spawner nunca lo elige en 200 s de simulación.
+
+[node name="BatterySpawner" type="Node3D" parent="."]
+script = ExtResource("5_spawner")
+pickup_scene = ExtResource("6_pickup")
+active_target = 5
+respawn_delay = 25.0
+clearance_radius = 2.5
+retry_interval = 1.0
+clearance_mask = 384
+
+[node name="Marker1" type="Marker3D" parent="BatterySpawner"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 30, 1.5, 0)
+
+[node name="Marker2" type="Marker3D" parent="BatterySpawner"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30, 1.5, 0)
+
+[node name="Marker3" type="Marker3D" parent="BatterySpawner"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 30)
+
+[node name="Marker4" type="Marker3D" parent="BatterySpawner"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, -30)
+
+[node name="Marker5" type="Marker3D" parent="BatterySpawner"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22, 1.5, 22)
+
+[node name="Marker6" type="Marker3D" parent="BatterySpawner"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -22, 1.5, 22)
+
+[node name="Marker7" type="Marker3D" parent="BatterySpawner"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22, 1.5, -22)
+
+[node name="Marker8" type="Marker3D" parent="BatterySpawner"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -22, 1.5, -22)
+
+[node name="Blocker" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -22, 1.5, -22)
+collision_layer = 128
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Blocker"]
+shape = SubResource("BoxShape3D_blocker")
+
+[node name="Respawn" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 40, 400, 0)
+
+[node name="DroneRig" parent="." node_paths=PackedStringArray("respawn_point") instance=ExtResource("2_rig")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 400, 0)
+respawn_point = NodePath("../Respawn")
+radio_enabled = false
+hud_enabled = false
+
+[node name="Drone" parent="DroneRig" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 400, 0)

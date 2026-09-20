@@ -1,0 +1,219 @@
+[gd_scene load_steps=18 format=3]
+
+[ext_resource type="Script" path="res://hud/combat/combat_hud.gd" id="1_combat_hud"]
+[ext_resource type="Theme" path="res://hud/hud_theme.tres" id="2_hud_theme"]
+[ext_resource type="Script" path="res://hud/combat/offscreen_markers.gd" id="3_markers"]
+[ext_resource type="Script" path="res://hud/combat/damage_direction.gd" id="4_damage"]
+[ext_resource type="Script" path="res://hud/combat/energy_bar.gd" id="5_energy"]
+[ext_resource type="Script" path="res://hud/combat/hull_bar.gd" id="6_hull"]
+[ext_resource type="Script" path="res://hud/combat/heat_gauge.gd" id="7_heat"]
+[ext_resource type="Script" path="res://hud/combat/reticle.gd" id="8_reticle"]
+[ext_resource type="Script" path="res://hud/combat/hit_marker.gd" id="9_hit_marker"]
+[ext_resource type="Script" path="res://hud/combat/boss_bar.gd" id="10_boss"]
+[ext_resource type="Script" path="res://hud/combat/city_bar.gd" id="11_city"]
+[ext_resource type="Script" path="res://hud/combat/telegraph_warning.gd" id="12_telegraph"]
+[ext_resource type="Script" path="res://hud/combat/round_timer.gd" id="13_timer"]
+[ext_resource type="Script" path="res://hud/combat/objective_line.gd" id="14_objective"]
+[ext_resource type="Script" path="res://hud/combat/respawn_overlay.gd" id="15_respawn"]
+[ext_resource type="Script" path="res://hud/combat/intro_banner.gd" id="16_intro"]
+[ext_resource type="Script" path="res://hud/combat/glitch_layer.gd" id="17_glitch"]
+
+; HUD de combate del nivel (`docs/12` §4). Capa 20, propiedad del `BattleLevel`:
+; sobrevive al respawn porque el dron no es su dueño (`docs/12` §1.1).
+
+[node name="CombatHUD" type="CanvasLayer"]
+layer = 20
+script = ExtResource("1_combat_hud")
+
+[node name="Root" type="Control" parent="."]
+unique_name_in_owner = true
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme = ExtResource("2_hud_theme")
+
+; Espacio de **pantalla**: el margen de 56 px de los marcadores y el borde al que se
+; pega el arco de daño son magnitudes de pantalla, no del lienzo de diseño, así que
+; estos dos quedan fuera del `Frame` escalado.
+
+[node name="OffscreenMarkers" type="Control" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_markers")
+
+[node name="DamageDirection" type="Control" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("4_damage")
+
+; Lienzo de diseño de 1280 × 720, el mismo del `FlightHUD`: con el mismo factor de
+; escala los dos HUD nunca se pisan a ninguna resolución (`docs/12` §4).
+
+[node name="Frame" type="Control" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 1
+offset_right = 1280.0
+offset_bottom = 720.0
+mouse_filter = 2
+
+[node name="EnergyBar" type="Control" parent="Root/Frame"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("5_energy")
+
+[node name="HullBar" type="Control" parent="Root/Frame"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("6_hull")
+
+[node name="HeatGauge" type="Control" parent="Root/Frame"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("7_heat")
+
+[node name="Reticle" type="Control" parent="Root/Frame"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("8_reticle")
+
+[node name="HitMarker" type="Control" parent="Root/Frame"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("9_hit_marker")
+
+[node name="BossBar" type="Control" parent="Root/Frame"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("10_boss")
+
+[node name="CityBar" type="Control" parent="Root/Frame"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("11_city")
+
+[node name="TelegraphWarning" type="Control" parent="Root/Frame"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("12_telegraph")
+
+[node name="RoundTimer" type="Control" parent="Root/Frame"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("13_timer")
+
+[node name="ObjectiveLine" type="Control" parent="Root/Frame"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("14_objective")
+
+[node name="RespawnOverlay" type="Control" parent="Root/Frame"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("15_respawn")
+
+[node name="IntroBanner" type="Control" parent="Root/Frame"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("16_intro")
+
+; No dibuja: le escribe el desplazamiento del EMP a los catorce anteriores
+; (`docs/12` §4.3).
+
+[node name="GlitchLayer" type="Control" parent="Root/Frame"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("17_glitch")

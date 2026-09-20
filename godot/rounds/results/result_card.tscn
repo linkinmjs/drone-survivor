@@ -1,0 +1,12 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://rounds/results/result_card.gd" id="1_result_card"]
+
+; La tarjeta se construye entera en código (`docs/11` §6.3): las filas salen de
+; `RoundResult.summary_rows()` y el menú es una instancia de `ChoiceMenu`, que no
+; tiene escena propia. La escena existe para que `RoundManager` la reciba por
+; `@export var result_card_scene: PackedScene` y nadie cargue la clase por ruta.
+
+[node name="ResultCard" type="CanvasLayer"]
+layer = 45
+script = ExtResource("1_result_card")

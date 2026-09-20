@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AttackProfile" format=3]
+
+[ext_resource type="Script" path="res://enemies/attack_profile.gd" id="1_j4urw"]
+[ext_resource type="Resource" path="res://enemies/arachnodroid/attacks/telegraphs/climb.tres" id="2_v2gg0"]
+
+[resource]
+resource_name = "climb"
+script = ExtResource("1_j4urw")
+attack_id = &"climb"
+display_key = "ATK_CLIMB"
+windup = 0.6
+active = 3.0
+recover = 0.5
+target_kind = 1
+max_range = 120.0
+lock_locomotion = false
+requires_parts = PackedStringArray()
+disabled_if_broken = PackedStringArray()
+damage_building = 1500.0
+telegraph = ExtResource("2_v2gg0")
+score_input = &"city_distance"
+audio_bank = &"charge_climb"

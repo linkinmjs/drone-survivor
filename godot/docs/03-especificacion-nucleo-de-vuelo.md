@@ -3,6 +3,9 @@
 > Estado: borrador v1 · Fecha: 2026-09-19 · Gobierna: WP-04, WP-05, WP-06, WP-07 · Depende de: `02-configuracion-del-proyecto.md`, `04-especificacion-configuracion-y-menus.md` · Consumido por: `08`, `09`, `12`, `13`
 
 ## 1. Objetivo y alcance
+
+> Nota (2026-09-19): `flight_bench` fija el perfil de referencia con `ControlProfile.new()` (7/67/54) y retira `EnergySystem`/`Hull` del dron antes de medir; el banco usa `ControlProfile.new()` porque los defaults persistidos del jugador (5/30/25) no alcanzan los 360 deg/s de §11.4.
+
 > Nota del checkpoint 2 (2026-09-19): el perfil por defecto que recibe un jugador nuevo (persistido por `QuadSettings`) es ACTUAL 5/30/25 (50 y 300 deg/s, expo 0,25), más suave que el 7/67/54 de §3.6, que sigue siendo el default del recurso `ControlProfile` y del banco de pruebas.
 
 

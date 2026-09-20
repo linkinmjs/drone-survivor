@@ -1,0 +1,13 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tools/combat_hud_check.gd" id="1_combat_hud_check"]
+
+; El nivel de batalla lo instancia el propio check (`docs/12` §9.2): así puede fijar
+; `Global.selected_round`, `Global.round_seed` y `Global.debug_freeze_ai` **antes** de
+; que el `RoundManager` arranque, y liberarlo al final para comprobar que el
+; `CombatHUD` no deja conexiones colgadas en `Events`.
+
+[node name="CombatHudCheck" type="Node"]
+script = ExtResource("1_combat_hud_check")
+check_name = "combat_hud_check"
+default_timeout = 240.0

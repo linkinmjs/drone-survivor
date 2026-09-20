@@ -1,0 +1,40 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://tools/city_showcase.gd" id="1_showcase"]
+[ext_resource type="Environment" path="res://world/environment_battle.tres" id="2_env"]
+[ext_resource type="Script" path="res://city/debris_pool.gd" id="3_debris_pool"]
+[ext_resource type="Script" path="res://city/rubble_field.gd" id="4_rubble_field"]
+
+[sub_resource type="CameraAttributesPhysical" id="CameraAttributesPhysical_showcase"]
+frustum_focus_distance = 5.0
+frustum_focal_length = 2.1
+exposure_aperture = 16.0
+exposure_shutter_speed = 100.0
+auto_exposure_enabled = false
+exposure_sensitivity = 100.0
+
+[node name="CityShowcase" type="Node3D"]
+script = ExtResource("1_showcase")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = ExtResource("2_env")
+camera_attributes = SubResource("CameraAttributesPhysical_showcase")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.707107, -0.5, 0.5, 0, 0.707107, 0.707107, -0.707107, -0.5, 0.5, 0, 220, 0)
+light_energy = 1.45
+shadow_enabled = true
+directional_shadow_mode = 2
+directional_shadow_max_distance = 700.0
+
+[node name="DebrisPool" type="Node3D" parent="." node_paths=PackedStringArray("rubble_field")]
+script = ExtResource("3_debris_pool")
+rubble_field = NodePath("RubbleField")
+
+[node name="RubbleField" type="Node3D" parent="DebrisPool"]
+script = ExtResource("4_rubble_field")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -274, 128, -184)
+fov = 58.0
+far = 2000.0

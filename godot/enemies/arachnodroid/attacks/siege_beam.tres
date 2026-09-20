@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="AttackProfile" format=3]
+
+[ext_resource type="Script" path="res://enemies/attack_profile.gd" id="1_3b8x6"]
+[ext_resource type="Resource" path="res://enemies/arachnodroid/attacks/telegraphs/siege_beam.tres" id="2_b76of"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_qb3nt"]
+radius = 2.5
+height = 60.0
+
+[resource]
+resource_name = "siege_beam"
+script = ExtResource("1_3b8x6")
+attack_id = &"siege_beam"
+display_key = "ATK_SIEGE_BEAM"
+windup = 1.8
+active = 4.0
+recover = 1.5
+cooldown = 10.0
+target_kind = 1
+max_range = 140.0
+requires_parts = PackedStringArray()
+disabled_if_broken = PackedStringArray()
+damage_building = 1100.0
+damage_per_second = true
+query_shape = SubResource("CapsuleShape3D_qb3nt")
+telegraph = ExtResource("2_b76of")
+score_input = &"time_since_city_attack"
+audio_bank = &"charge_siege_beam"

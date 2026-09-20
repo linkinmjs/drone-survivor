@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="TelegraphProfile" format=3]
+
+[ext_resource type="Script" path="res://enemies/telegraph_profile.gd" id="1_lf5fc"]
+
+[resource]
+resource_name = "telegraph_pounce"
+script = ExtResource("1_lf5fc")
+audio_event = &"charge_pounce"
+spatial_kind = 4
+decal_radius = 12.0
+guide_width = 0.35
+hud_warning_key = "HUD_TELEGRAPH_POUNCE"

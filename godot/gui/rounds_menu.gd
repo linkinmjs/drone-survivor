@@ -14,6 +14,9 @@
 class_name RoundsMenu
 extends MenuScreen
 
+## Menú principal, destino de la vuelta cuando esta pantalla es la escena raíz.
+const MAIN_MENU_SCENE: String = "res://gui/main_menu.tscn"
+
 ## Radio del hexágono de medalla, en píxeles.
 const MEDAL_RADIUS: float = 9.0
 
@@ -42,7 +45,18 @@ var _busy: bool = false
 func _ready() -> void:
 	super()
 	bind_back_button(_button_back)
+	# A esta pantalla se llega normalmente con `open_submenu()` desde el menú
+	# principal, que es quien escucha `back`. La tarjeta de resultado (`docs/11` §6.3)
+	# también puede entrar **directo** con `change_scene()`, y ahí no hay nadie
+	# debajo: entonces la vuelta la resuelve la pantalla misma.
+	if get_tree().current_scene == self:
+		var _discard := back.connect(_on_back_to_main)
 	_build_list()
+
+
+## Vuelta al menú principal cuando esta pantalla es la escena raíz.
+func _on_back_to_main() -> void:
+	SceneTransition.change_scene(MAIN_MENU_SCENE)
 
 
 func _notification(what: int) -> void:

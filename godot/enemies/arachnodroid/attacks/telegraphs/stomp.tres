@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="TelegraphProfile" format=3]
+
+[ext_resource type="Script" path="res://enemies/telegraph_profile.gd" id="1_oi2di"]
+
+[resource]
+resource_name = "telegraph_stomp"
+script = ExtResource("1_oi2di")
+audio_event = &"charge_stomp"
+hud_warning_key = "HUD_TELEGRAPH_STOMP"

@@ -1,0 +1,93 @@
+[gd_scene load_steps=29 format=3]
+
+[ext_resource type="Script" path="res://enemies/arachnodroid/arachnodroid.gd" id="1_arachnodroid"]
+[ext_resource type="PackedScene" path="res://enemies/arachnodroid/arachnodroid.glb" id="2_model"]
+[ext_resource type="Resource" path="res://enemies/arachnodroid/profiles/arachnodroid_profile.tres" id="3_profile"]
+[ext_resource type="Script" path="res://enemies/locomotion/procedural_leg_rig.gd" id="4_locomotion"]
+[ext_resource type="Script" path="res://enemies/ai/perception.gd" id="5_perception"]
+[ext_resource type="Script" path="res://enemies/ai/enemy_fsm.gd" id="6_brain"]
+[ext_resource type="Script" path="res://enemies/ai/attack_library.gd" id="7_attacks"]
+[ext_resource type="Script" path="res://enemies/audio_rig.gd" id="8_audio"]
+[ext_resource type="Script" path="res://enemies/ai/telegraph.gd" id="9_telegraph"]
+[ext_resource type="Script" path="res://enemies/ai/actions/action_approach.gd" id="10_approach"]
+[ext_resource type="Resource" path="res://enemies/arachnodroid/attacks/approach.tres" id="11_approach_profile"]
+[ext_resource type="Script" path="res://enemies/arachnodroid/actions/action_climb.gd" id="12_climb"]
+[ext_resource type="Resource" path="res://enemies/arachnodroid/attacks/climb.tres" id="13_climb_profile"]
+[ext_resource type="Script" path="res://enemies/arachnodroid/actions/action_stomp.gd" id="14_stomp"]
+[ext_resource type="Resource" path="res://enemies/arachnodroid/attacks/stomp.tres" id="15_stomp_profile"]
+[ext_resource type="Script" path="res://enemies/arachnodroid/actions/action_leg_sweep.gd" id="16_leg_sweep"]
+[ext_resource type="Resource" path="res://enemies/arachnodroid/attacks/leg_sweep.tres" id="17_leg_sweep_profile"]
+[ext_resource type="Script" path="res://enemies/arachnodroid/actions/action_head_laser.gd" id="18_head_laser"]
+[ext_resource type="Resource" path="res://enemies/arachnodroid/attacks/head_laser.tres" id="19_head_laser_profile"]
+[ext_resource type="Script" path="res://enemies/arachnodroid/actions/action_siege_beam.gd" id="20_siege_beam"]
+[ext_resource type="Resource" path="res://enemies/arachnodroid/attacks/siege_beam.tres" id="21_siege_beam_profile"]
+[ext_resource type="Script" path="res://enemies/arachnodroid/actions/action_emp_pulse.gd" id="22_emp_pulse"]
+[ext_resource type="Resource" path="res://enemies/arachnodroid/attacks/emp_pulse.tres" id="23_emp_pulse_profile"]
+[ext_resource type="Script" path="res://enemies/arachnodroid/actions/action_pounce.gd" id="24_pounce"]
+[ext_resource type="Resource" path="res://enemies/arachnodroid/attacks/pounce.tres" id="25_pounce_profile"]
+[ext_resource type="Script" path="res://enemies/arachnodroid/actions/action_shake_off.gd" id="26_shake_off"]
+[ext_resource type="Resource" path="res://enemies/arachnodroid/attacks/shake_off.tres" id="27_shake_off_profile"]
+
+[node name="Arachnodroid" type="Node3D"]
+script = ExtResource("1_arachnodroid")
+profile = ExtResource("3_profile")
+
+[node name="Model" parent="." instance=ExtResource("2_model")]
+
+[node name="Parts" type="Node" parent="."]
+
+[node name="WeakPoints" type="Node" parent="."]
+
+[node name="Locomotion" type="Node3D" parent="."]
+script = ExtResource("4_locomotion")
+
+[node name="Perception" type="Node" parent="."]
+script = ExtResource("5_perception")
+
+[node name="Brain" type="Node" parent="."]
+script = ExtResource("6_brain")
+
+[node name="AttackLibrary" type="Node" parent="."]
+script = ExtResource("7_attacks")
+
+[node name="Approach" type="Node" parent="AttackLibrary"]
+script = ExtResource("10_approach")
+profile = ExtResource("11_approach_profile")
+
+[node name="Climb" type="Node" parent="AttackLibrary"]
+script = ExtResource("12_climb")
+profile = ExtResource("13_climb_profile")
+
+[node name="Stomp" type="Node" parent="AttackLibrary"]
+script = ExtResource("14_stomp")
+profile = ExtResource("15_stomp_profile")
+
+[node name="LegSweep" type="Node" parent="AttackLibrary"]
+script = ExtResource("16_leg_sweep")
+profile = ExtResource("17_leg_sweep_profile")
+
+[node name="HeadLaser" type="Node" parent="AttackLibrary"]
+script = ExtResource("18_head_laser")
+profile = ExtResource("19_head_laser_profile")
+
+[node name="SiegeBeam" type="Node" parent="AttackLibrary"]
+script = ExtResource("20_siege_beam")
+profile = ExtResource("21_siege_beam_profile")
+
+[node name="EmpPulse" type="Node" parent="AttackLibrary"]
+script = ExtResource("22_emp_pulse")
+profile = ExtResource("23_emp_pulse_profile")
+
+[node name="Pounce" type="Node" parent="AttackLibrary"]
+script = ExtResource("24_pounce")
+profile = ExtResource("25_pounce_profile")
+
+[node name="ShakeOff" type="Node" parent="AttackLibrary"]
+script = ExtResource("26_shake_off")
+profile = ExtResource("27_shake_off_profile")
+
+[node name="AudioRig" type="Node3D" parent="."]
+script = ExtResource("8_audio")
+
+[node name="Telegraph" type="Node3D" parent="."]
+script = ExtResource("9_telegraph")

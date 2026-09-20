@@ -1,0 +1,51 @@
+[gd_resource type="Resource" script_class="WeaponProfile" load_steps=6 format=3]
+
+; Arma primaria del MVP con los valores cerrados del Anexo C (`docs/08` §4).
+; Todo lo de acá lo ajusta WP-23 sin tocar una línea de código.
+
+[ext_resource type="Script" path="res://drone/weapons/weapon_profile.gd" id="1_profile"]
+[ext_resource type="PackedScene" path="res://drone/weapons/muzzle_flash.tscn" id="2_muzzle_flash"]
+[ext_resource type="PackedScene" path="res://drone/weapons/impact_fx.tscn" id="3_impact_fx"]
+[ext_resource type="AudioStream" path="res://assets/audio/weapons/shot.wav" id="4_shot"]
+[ext_resource type="AudioStream" path="res://assets/audio/weapons/impact.wav" id="5_impact"]
+
+[resource]
+script = ExtResource("1_profile")
+id = &"mk1_repeater"
+display_key = "WPN_MK1_REPEATER"
+fire_rate = 8.0
+damage = 12.0
+weak_point_multiplier = 3.0
+projectile_speed = 420.0
+max_range = 600.0
+spread_base_deg = 0.35
+spread_growth_deg = 0.9
+spread_max_deg = 2.2
+spread_decay_factor = 3.0
+heat_per_shot = 0.045
+heat_cooldown = 0.4
+heat_cooldown_bonus = 0.15
+heat_cooldown_bonus_threshold = 0.3
+overheat_lock = 1.8
+overheat_release = 0.35
+energy_per_shot = 0.45
+recoil_impulse = 0.9
+muzzle_offset = 0.35
+aim_assist_cone_deg = 3.5
+aim_assist_strength = 0.35
+aim_assist_strength_assisted = 0.6
+aim_assist_max_range = 220.0
+lock_cone_deg = 12.0
+lock_break_angle = 35.0
+lock_break_range = 250.0
+tracer_every = 3
+pool_size = 256
+city_friendly_fire_scale = 0.5
+debris_impulse = 0.6
+hit_mask = 397
+los_mask = 129
+muzzle_flash_scene = ExtResource("2_muzzle_flash")
+impact_fx_scene = ExtResource("3_impact_fx")
+fire_sound = ExtResource("4_shot")
+overheat_sound = null
+impact_sound = ExtResource("5_impact")

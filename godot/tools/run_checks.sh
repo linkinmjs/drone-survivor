@@ -9,6 +9,7 @@
 #   bash godot/tools/run_checks.sh
 #   bash godot/tools/run_checks.sh project_check
 #   GODOT=/ruta/a/godot bash godot/tools/run_checks.sh
+#   RUN_EXTENDED=1 bash godot/tools/run_checks.sh      # suma balance_check (~9 min)
 
 set -u
 
@@ -20,17 +21,26 @@ GODOT="${GODOT:-godot}"
 ONLY="${1:-}"
 # Timeout externo por proceso (segundos), ver run_checks.ps1.
 PROCESS_TIMEOUT="${PROCESS_TIMEOUT:-420}"
+# Suma los checks extendidos (lentos) al final: RUN_EXTENDED=1.
+RUN_EXTENDED="${RUN_EXTENDED:-0}"
 
 # ---------------------------------------------------------------------------
 # Catalogo de checks (docs/15 seccion 3). Cada WP agrega el suyo a estas listas.
 # ---------------------------------------------------------------------------
 
 # Checks headless puros: son los que CI corre sin discusion.
-HEADLESS=(project_check loading_check settings_check city_import_check enemy_import_check flight_bench flight_check controls_check pause_check hud_projection_check audio_check)   # WP-01, WP-02, WP-03, WP-13, WP-12b, WP-04, WP-05
+HEADLESS=(project_check loading_check settings_check city_import_check enemy_import_check flight_bench flight_check controls_check pause_check hud_projection_check audio_check enemy_parts_check weapon_check energy_check city_check gait_check round_check ai_check combat_hud_check arachnodroid_check)   # WP-01, WP-02, WP-03, WP-13, WP-12b, WP-04, WP-05
 
 # Checks que necesitan framebuffer real (capturas, docs/15 seccion 3.1). Corren
 # bajo xvfb-run cuando no hay display.
 WINDOWED=(ui_smoke_test boot_check)   # WP-02
+
+# Extendidos: lentos (minutos); corren solo con RUN_EXTENDED=1 o como unico check.
+EXTENDED=(balance_check)   # WP-23
+
+# Timeout externo por proceso para los checks que superan el general.
+declare -A PROCESS_TIMEOUTS=()
+PROCESS_TIMEOUTS[balance_check]=1800
 
 # Informativos: reportan pero no cuentan para el codigo de salida.
 NON_BLOCKING=(render_parity_check)
@@ -40,6 +50,9 @@ declare -A EXTRA_ARGS=()
 EXTRA_ARGS[ui_smoke_test]="--shots=tools/out/shots"
 EXTRA_ARGS[boot_check]="--shots=tools/out/shots"
 EXTRA_ARGS[loading_check]="--timeout=120"
+EXTRA_ARGS[weapon_check]="--timeout=240"
+EXTRA_ARGS[ai_check]="--timeout=300"
+EXTRA_ARGS[balance_check]="--timeout=1500"
 
 # ---------------------------------------------------------------------------
 
@@ -115,10 +128,11 @@ run_check() {
 		return 0
 	fi
 
-	local cmd=(timeout --kill-after=10 "$PROCESS_TIMEOUT" "$GODOT")
+	local proc_timeout="${PROCESS_TIMEOUTS[$name]:-$PROCESS_TIMEOUT}"
+	local cmd=(timeout --kill-after=10 "$proc_timeout" "$GODOT")
 	if [ "$windowed" = "1" ]; then
 		if [ -z "${DISPLAY:-}" ] && command -v xvfb-run > /dev/null 2>&1; then
-			cmd=(timeout --kill-after=10 "$PROCESS_TIMEOUT" xvfb-run -a "$GODOT")
+			cmd=(timeout --kill-after=10 "$proc_timeout" xvfb-run -a "$GODOT")
 		fi
 		cmd+=(--windowed --resolution 960x540)
 	else
@@ -138,7 +152,7 @@ run_check() {
 	set -e
 	if [ "$code" -eq 124 ] || [ "$code" -eq 137 ]; then
 		output="$output"$'
-'"  FAIL: timeout externo de $PROCESS_TIMEOUT s (el proceso no termino)"
+'"  FAIL: timeout externo de $proc_timeout s (el proceso no termino)"
 	fi
 	printf '%s\n' "$output" >> "$REPORT"
 	printf '%s\n' "$output" | grep -E '^(  FAIL:|CHECK )' | sed 's/^/  /' || true
@@ -158,6 +172,11 @@ for name in "${HEADLESS[@]:-}"; do
 done
 for name in "${WINDOWED[@]:-}"; do
 	[ -n "$name" ] && run_check "$name" 1
+done
+for name in "${EXTENDED[@]:-}"; do
+	if [ -n "$name" ] && { [ "$RUN_EXTENDED" = "1" ] || [ "$ONLY" = "$name" ]; }; then
+		run_check "$name" 0
+	fi
 done
 
 # --- 3) Resumen y codigo de salida ---

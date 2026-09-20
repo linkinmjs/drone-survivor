@@ -12,10 +12,23 @@
 ##   para refrescar el perfil de rates del controlador, la inclinación de la cámara
 ##   y su FOV. La masa la toma el propio dron de la misma señal.
 ##
-## Estado de WP-08 respecto del árbol de §8: están `Drone`, `FlightController`,
-## `RadioController`, `CameraRig`, `FPVCamera`, `ModeLED`, `MotorAudio` y `FlightHUD`.
-## **Faltan a propósito** `WeaponMount`, `EnergySystem` y `Hull` (WP-14 y WP-15). Cada
-## uno se agrega como hijo sin tocar lo que ya está cableado.
+## Estado de WP-15 respecto del árbol de §8: el rig está completo. `Drone`,
+## `FlightController`, `RadioController`, `CameraRig`, `FPVCamera`, `ModeLED`,
+## `MotorAudio`, `WeaponMount`, `EnergySystem` y `Hull` viven dentro de
+## `drone_quad.tscn`; `FlightHUD` y `RespawnController` son hermanos del `Drone`.
+##
+## **Energía, casco y respawn (WP-15, `docs/09`)**: la batería y el casco se cablean
+## solos —son hijos del `Drone` y encuentran a su dueño por ancestro—, así que lo
+## único que aporta el rig es reexponer [signal respawned]. Es la señal que
+## `docs/11` consume para aplicar el castigo de puntaje, y tiene que salir del rig
+## y no del bus porque el `RoundManager` necesita saber **de qué dron** habla.
+##
+## **El arma (WP-14, `docs/08`)**: vive en `drone_quad.tscn` como hija del `Drone`, por
+## la misma razón que el `ModeLED` y el `MotorAudio`. Lo único que aporta el rig es el
+## puente **radio → arma**: `fire_changed`, `fire_alt_changed`, `lock_pressed` y
+## `cycle_target_pressed`. El `WeaponMount` nunca lee el `InputMap`, así que sin este
+## cableado el arma existe pero no dispara, que es exactamente lo que se quiere en un
+## dron de adorno ([member radio_enabled] en `false`).
 ##
 ## **Dónde viven `ModeLED` y `MotorAudio` (WP-07)**: en `drone_quad.tscn`, no acá. El
 ## §8 los dibuja colgando del `Drone`, y el `Drone` de este rig **es** una instancia de
@@ -32,6 +45,11 @@
 ## menú de opciones y los checks— y de que las unidades de `docs/12` §2.2 tengan un
 ## único punto de conversión, que es [method _feed_hud].
 class_name DroneRig extends Node3D
+
+## El dron volvió a volar tras morir. [param score_multiplier] es el castigo
+## acumulado, con piso 0.30 (`docs/09` §2.8). La reexpone el rig desde
+## [signal RespawnController.respawned]; es la que consume `docs/11`.
+signal respawned(score_multiplier: float)
 
 ## Punto de reaparición. Lo cablea el nivel; el rig se lo pasa al dron y lo usa
 ## para atender `reset_requested` de la radio.
@@ -54,6 +72,10 @@ var _fpv_camera: FPVCamera = null
 var _mode_led: ModeLED = null
 var _motor_audio: MotorAudio = null
 var _hud: FlightHUD = null
+var _weapon: WeaponMount = null
+var _energy: EnergySystem = null
+var _hull: Hull = null
+var _respawn_controller: RespawnController = null
 
 
 func _ready() -> void:
@@ -67,6 +89,10 @@ func _ready() -> void:
 	_fpv_camera = _drone.get_node_or_null(^"CameraRig/FPVCamera") as FPVCamera
 	_mode_led = _drone.get_node_or_null(^"ModeLED") as ModeLED
 	_motor_audio = _drone.get_node_or_null(^"MotorAudio") as MotorAudio
+	_weapon = _drone.get_node_or_null(^"WeaponMount") as WeaponMount
+	_energy = _drone.get_node_or_null(^"EnergySystem") as EnergySystem
+	_hull = _drone.get_node_or_null(^"Hull") as Hull
+	_respawn_controller = get_node_or_null(^"RespawnController") as RespawnController
 	_hud = get_node_or_null(^"FlightHUD") as FlightHUD
 	if _controller == null:
 		push_error("DroneRig: falta 'Drone/FlightController' en %s." % name)
@@ -76,6 +102,14 @@ func _ready() -> void:
 		push_error("DroneRig: falta 'Drone/CameraRig/FPVCamera' en %s." % name)
 	if _mode_led == null:
 		push_error("DroneRig: falta 'Drone/ModeLED' en %s (docs/03 §7)." % name)
+	if _weapon == null:
+		push_error("DroneRig: falta 'Drone/WeaponMount' en %s (docs/08 §3.1)." % name)
+	if _energy == null:
+		push_error("DroneRig: falta 'Drone/EnergySystem' en %s (docs/09 §3.1)." % name)
+	if _hull == null:
+		push_error("DroneRig: falta 'Drone/Hull' en %s (docs/09 §3.1)." % name)
+	if _respawn_controller == null:
+		push_error("DroneRig: falta 'RespawnController' en %s (docs/09 §3.1)." % name)
 	_check_motor_audio()
 
 	if respawn_point != null:
@@ -86,6 +120,8 @@ func _ready() -> void:
 		if not _radio.reset_requested.is_connected(_on_reset_requested):
 			var _discard := _radio.reset_requested.connect(_on_reset_requested)
 
+	_wire_weapon()
+	_wire_respawn()
 	_wire_hud()
 
 	var _discard := QuadSettings.settings_updated.connect(_on_quad_settings_updated)
@@ -143,6 +179,72 @@ func get_motor_audio() -> MotorAudio:
 ## cuando la cámara activa no es la FPV.
 func get_flight_hud() -> FlightHUD:
 	return _hud
+
+
+## El arma primaria del dron (`docs/08` §3.2).
+func get_weapon_mount() -> WeaponMount:
+	return _weapon
+
+
+## La batería del dron (`docs/09` §3.2). Es a quien se conecta el `CombatHUD` para
+## el glitch de EMP, que viaja por señal local y no por el bus.
+func get_energy_system() -> EnergySystem:
+	return _energy
+
+
+## El casco del dron (`docs/09` §3.5).
+func get_hull() -> Hull:
+	return _hull
+
+
+## El controlador de muerte y reaparición del rig (`docs/09` §3.5).
+func get_respawn_controller() -> RespawnController:
+	return _respawn_controller
+
+
+## Multiplicador de puntaje vigente, 1.0 si el dron todavía no murió.
+func get_score_multiplier() -> float:
+	return _respawn_controller.get_score_multiplier() if _respawn_controller != null else 1.0
+
+
+# --- Arma (`docs/08` §2.2) ---------------------------------------------------------------------
+
+## Puente radio → arma. Son las cuatro señales de `docs/03` §4 que WP-14 estrena.
+##
+## `fire_changed` se traduce a [member WeaponMount.fire_pressed] y no a una llamada a
+## `fire()`: el gatillo es un **estado** y la cadencia la lleva el acumulador del arma,
+## que es lo único que le da los 8 disparos/s exactos de `docs/08` §2.12. Si la radio
+## disparara por evento, la cadencia sería la del `InputMap`.
+##
+## Con [member radio_enabled] en `false` no se conecta nada: un dron de adorno no
+## dispara, y además el `WeaponMount` queda libre para que un check le escriba
+## `fire_pressed` a mano sin pelearse con la radio.
+func _wire_weapon() -> void:
+	if _weapon == null or _radio == null or not radio_enabled:
+		return
+	var _discard := _radio.fire_changed.connect(_weapon.set_fire_pressed)
+	_discard = _radio.fire_alt_changed.connect(_weapon.set_fire_alt_pressed)
+	_discard = _radio.lock_pressed.connect(_weapon.lock_target)
+	_discard = _radio.cycle_target_pressed.connect(_weapon.cycle_target)
+	_discard = GameSettings.game_settings_updated.connect(_weapon.refresh_settings)
+
+
+# --- Energía, casco y respawn (`docs/09` §2.8) ------------------------------------------------
+
+## Reexpone [signal RespawnController.respawned] como [signal respawned].
+##
+## No es redundante con `Events.drone_respawned`: el bus publica **el hecho** para
+## quien no conoce al dron (el `CombatHUD`), y esta señal lo publica **desde este
+## rig** para quien sí necesita saber de cuál habla. `docs/11` consume ésta.
+func _wire_respawn() -> void:
+	if _respawn_controller == null:
+		return
+	if not _respawn_controller.respawned.is_connected(_on_respawned):
+		var _discard := _respawn_controller.respawned.connect(_on_respawned)
+
+
+func _on_respawned(score_multiplier: float) -> void:
+	respawned.emit(score_multiplier)
 
 
 # --- HUD de vuelo (`docs/12` §2) --------------------------------------------------------------

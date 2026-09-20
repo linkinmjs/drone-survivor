@@ -1,0 +1,30 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://tools/enemy_parts_check.gd" id="1_enemy_parts_check"]
+[ext_resource type="Script" path="res://city/debris_pool.gd" id="2_debris_pool"]
+[ext_resource type="Script" path="res://city/rubble_field.gd" id="3_rubble_field"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ground"]
+size = Vector3(600, 4, 600)
+
+[node name="EnemyPartsCheck" type="Node"]
+script = ExtResource("1_enemy_parts_check")
+check_name = "enemy_parts_check"
+
+[node name="Ground" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -2, 0)
+collision_layer = 1
+collision_mask = 0
+
+[node name="Shape" type="CollisionShape3D" parent="Ground"]
+shape = SubResource("BoxShape3D_ground")
+
+[node name="Muzzle" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 12, 60)
+
+[node name="DebrisPool" type="Node3D" parent="." node_paths=PackedStringArray("rubble_field")]
+script = ExtResource("2_debris_pool")
+rubble_field = NodePath("RubbleField")
+
+[node name="RubbleField" type="Node3D" parent="DebrisPool"]
+script = ExtResource("3_rubble_field")

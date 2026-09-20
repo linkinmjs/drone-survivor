@@ -1,0 +1,44 @@
+[gd_scene load_steps=5 format=3]
+
+; Pila de energía (`docs/09` §2.4 y §3.1). Capa 7 (`pickup`), máscara 2 (`drone`),
+; esfera de 3.5 m. Es el único `Area3D` del sistema de combate.
+;
+; La presentación es un placeholder deliberado: caja emisiva cian más un
+; `OmniLight3D` de 6 m. La malla voxel `battery_cell.glb`, el halo de partículas y
+; el sonido posicional que dibuja `docs/09` §3.1 son de WP-26 y necesitan assets
+; que WP-15 no puede crear (`assets/` está fuera de su alcance).
+
+[ext_resource type="Script" path="res://drone/energy/battery_pickup.gd" id="1_pickup"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_pickup"]
+radius = 3.5
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_cell"]
+albedo_color = Color(0.09, 0.55, 0.52, 1)
+roughness = 0.35
+metallic = 0.4
+metallic_specular = 0.6
+emission_enabled = true
+emission = Color(0.16, 1, 0.83, 1)
+emission_energy_multiplier = 6.0
+
+[sub_resource type="BoxMesh" id="BoxMesh_cell"]
+material = SubResource("StandardMaterial3D_cell")
+size = Vector3(0.55, 0.9, 0.55)
+
+[node name="BatteryPickup" type="Area3D"]
+collision_layer = 64
+collision_mask = 2
+monitorable = false
+script = ExtResource("1_pickup")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("SphereShape3D_pickup")
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_cell")
+
+[node name="Glow" type="OmniLight3D" parent="."]
+light_color = Color(0.16, 1, 0.83, 1)
+light_energy = 4.0
+omni_range = 6.0

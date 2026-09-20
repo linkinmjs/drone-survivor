@@ -27,6 +27,9 @@ const BATTLE_LEVEL_SCENE: String = "res://rounds/battle_level.tscn"
 ## provisional de cualquier ronda mientras `battle_level.tscn` no exista.
 const FREE_FLIGHT_LEVEL_SCENE: String = "res://rounds/free_flight_level.tscn"
 
+## Menú de rondas (`docs/11` §8). Lo usa la tarjeta de resultado para «Elegir ronda».
+const ROUNDS_MENU_SCENE: String = "res://gui/rounds_menu.tscn"
+
 ## Cantidad de rondas a partir de la cual el menú deja de mostrar la tarjeta inerte
 ## de «próximamente» (`docs/11` §2.2).
 const FULL_ROSTER: int = 8
@@ -50,9 +53,27 @@ const ROUNDS: Array[Dictionary] = [
 		"district": "res://city/districts/district_a.tscn",
 		"enemies": ["arachnodroid"],
 		"time_par": 540.0,
+		# **Umbrales recalibrados en WP-23** con los puntajes medidos por
+		# `balance_check` sobre tres partidas completas y el bono de tiempo ya
+		# bajado a 8 pts/s (`docs/11` §12, fila 3):
+		#
+		# | Partida medida | integr. | muertes | t | base | ×mult | puntaje |
+		# |---|---|---|---|---|---|---|
+		# | limpia y rápida (referencia) | 0.70 | 0 | 400 s | 2 220 | 1.00 | **2 220** |
+		# | semilla 99 | 0.69 | 1 | 448 s | 1 530 | 0.60 | **918** |
+		# | semilla 7 | 0.66 | 2 | 443 s | 1 238 | 0.36 | **446** |
+		# | semilla 1 | 0.65 | 2 | 463 s | 1 061 | 0.36 | **382** |
+		#
+		# Con 600/1300/2000 las tres victorias del bot quedaban **sin medalla**: el
+		# castigo por muerte —los −300 y el ×0.6 acumulativo, que `docs/11` §12
+		# fila 1 deja cerrados— hunde el puntaje por debajo del bronce con una sola
+		# reconstrucción. Bajar plata y bronce mapea la medalla a lo único que
+		# distingue de verdad una partida de otra: **cuántas veces te reconstruiste**.
+		# Oro queda en 2 000 a propósito, que sólo alcanza una victoria sin muertes
+		# y por debajo del par.
 		"score_gold": 2000,
-		"score_silver": 1300,
-		"score_bronze": 600,
+		"score_silver": 800,
+		"score_bronze": 350,
 		"unlock_after": "",
 	},
 ]
@@ -166,13 +187,29 @@ static func menu_entries(current_id: String) -> Array[Dictionary]:
 
 ## Escena de nivel que hay que cargar para jugar [param round].
 ##
-## Devuelve `battle_level.tscn` en cuanto WP-21 lo entregue; hasta entonces manda al
-## nivel de vuelo libre de WP-11, que es lo único jugable del checkpoint 2. El
-## parámetro se acepta para no cambiar la firma cuando cada ronda elija su nivel.
+## Desde WP-21 siempre es `battle_level.tscn`: hay **un solo** nivel de batalla y lo
+## que cambia por ronda es el distrito y los enemigos que instancia [RoundManager]
+## (`docs/11` §3). El respaldo al nivel de vuelo libre sólo sobrevive por si alguien
+## borra la escena; el parámetro se acepta para no cambiar la firma cuando cada ronda
+## elija su nivel.
 static func level_scene_for(_round_data: Dictionary) -> String:
 	if ResourceLoader.exists(BATTLE_LEVEL_SCENE):
 		return BATTLE_LEVEL_SCENE
 	return FREE_FLIGHT_LEVEL_SCENE
+
+
+## Semilla derivada y estable por subsistema (`docs/11` §4.4).
+##
+## [codeblock]
+## derive_seed(tag) == hash(str(Global.round_seed) + ":" + tag)
+## [/codeblock]
+##
+## Que cada subsistema reciba **su** semilla y no un tirón del generador común es lo
+## que hace que el orden de las llamadas no altere el resultado: dos ejecuciones con
+## la misma [member Global.round_seed] abren igual aunque el jugador no toque nada.
+## Etiquetas del MVP: `"personality"`, `"batteries"`, `"debris"`, `"camera"`, `"intro"`.
+static func derive_seed(tag: String) -> int:
+	return hash("%d:%s" % [Global.round_seed, tag])
 
 
 ## Verdadero mientras el catálogo no llegue a [constant FULL_ROSTER] rondas: el menú
