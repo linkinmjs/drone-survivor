@@ -76,6 +76,12 @@ const MUZZLE_FLASH_SCENE: String = "res://drone/weapons/muzzle_flash.tscn"
 ## Bus de audio del arma (`docs/04` §3.2).
 const BUS: StringName = &"Weapons"
 
+## Sacudida de cámara por disparo (`docs/13` §6). Es **acumulable**: el techo
+## efectivo de una ráfaga —cerca de 0.25— sale del decaimiento del [CameraRig] y no
+## de un recorte acá. A 8 disparos/s y 1.4 de caída por segundo, el gatillo sostenido
+## se estaciona en `0.03 · 8 / 1.4 ≈ 0.17` y los picos de la ráfaga no llegan a 0.25.
+const SHOT_TRAUMA: float = 0.03
+
 ## Claves de [method set_aim_assist_mode] (`docs/08` §3.2).
 const MODE_OFF: StringName = &"off"
 const MODE_SUBTLE: StringName = &"subtle"
@@ -209,6 +215,10 @@ func fire() -> bool:
 	_last_aim_direction = direction
 	fired.emit(origin, direction)
 	Events.shot_fired.emit(origin, direction)
+	# La posición es la boca del cañón y no el dron: está a 0.35 m de la cámara, así
+	# que la atenuación por distancia de `docs/13` §6 la deja entera igual, y si alguna
+	# vez el arma cuelga de otro lado el número sigue queriendo decir lo mismo.
+	Events.camera_trauma.emit(SHOT_TRAUMA, origin)
 	return true
 
 

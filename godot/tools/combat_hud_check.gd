@@ -431,9 +431,9 @@ func _check_bars() -> void:
 func _check_hit_markers() -> void:
 	var marker := _hud.component_node(CombatHUD.Component.HIT_MARKER) as HUDHitMarker
 	marker.clear_marks()
-	Events.hit_confirmed.emit(Vector3.ZERO, false, false)
-	Events.hit_confirmed.emit(Vector3.ZERO, true, false)
-	Events.hit_confirmed.emit(Vector3.ZERO, true, true)
+	Events.hit_confirmed.emit(Vector3.ZERO, false, false, &"armor")
+	Events.hit_confirmed.emit(Vector3.ZERO, true, false, &"weak")
+	Events.hit_confirmed.emit(Vector3.ZERO, true, true, &"weak")
 	var count := marker.active_count()
 	var colours := marker.active_colours()
 	var distinct := colours.size() == 3 and colours[0] != colours[1] \
@@ -856,7 +856,7 @@ func _check_weak_hint() -> void:
 	var on_a_knee := knee_ids.has(String(target_id)) and label_key == "WP_KNEE"
 
 	# Acertarle a un débil lo apaga: es el acuse de que el jugador entendió.
-	Events.hit_confirmed.emit(Vector3.ZERO, true, false)
+	Events.hit_confirmed.emit(Vector3.ZERO, true, false, &"weak")
 	await _advance(HUDWeakPointHint.FADE_SECONDS + 0.2)
 	var off := not hint.is_active() and not hint.is_showing()
 	print("  [16] cuenta %.2f s · antes %s · después %s · blanco '%s' (%s) a %.0f m · apagado %s"
@@ -1325,7 +1325,7 @@ func _feed_everything() -> void:
 	Events.energy_changed.emit(0.42, false)
 	Events.hull_changed.emit(0.62)
 	Events.weapon_heat_changed.emit(0.74, false)
-	Events.hit_confirmed.emit(Vector3.ZERO, true, false)
+	Events.hit_confirmed.emit(Vector3.ZERO, true, false, &"weak")
 	Events.city_integrity_changed.emit(0.78)
 	Events.enemy_phase_changed.emit(_enemy, &"p2_alert")
 	Events.enemy_weak_point_state.emit(_enemy, &"wp_head_visor", true)

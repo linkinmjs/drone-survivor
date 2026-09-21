@@ -42,8 +42,12 @@ jobs:
         with:
           name: godot-imported
           path: godot/.godot/
-      - name: Ejecutar todos los checks
-        run: bash godot/tools/run_checks.sh
+      # Solo los checks headless (docs/15 secciones 3.1 y 7.2, riesgo D-1). El
+      # contenedor de CI no trae Vulkan y el proyecto es Forward+: los checks con
+      # ventana (ui_smoke_test, boot_check, menu_shots_check, render_check) y los
+      # extendidos quedan como locales, y el runner los lista como tales al final.
+      - name: Ejecutar los checks headless
+        run: bash godot/tools/run_checks.sh --headless-only
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -63,6 +67,7 @@ jobs:
           name: godot-imported
           path: godot/.godot/
       - name: Exportar preset Windows Desktop
+        id: export
         uses: firebelley/godot-export@v6.0.0
         with:
           godot_executable_download_url: "https://github.com/godotengine/godot/releases/download/${{ env.GODOT_VERSION }}-${{ env.GODOT_STATUS }}/Godot_v${{ env.GODOT_VERSION }}-${{ env.GODOT_STATUS }}_linux.x86_64.zip"
@@ -74,7 +79,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: windows-desktop
-          path: "/home/runner/.local/share/godot/archives/Windows Desktop.zip"
+          path: "${{ steps.export.outputs.archive_directory }}/Windows Desktop.zip"
 
   deploy-itch:
     name: Publicar en itch.io (desactivado)

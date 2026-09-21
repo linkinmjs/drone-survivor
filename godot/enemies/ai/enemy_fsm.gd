@@ -103,6 +103,15 @@ var _elapsed: float = 0.0
 var _time_near: float = 0.0
 var _time_since_city_attack: float = 1.0e6
 var _last_ctx: Dictionary = {}
+
+## Edificio objetivo del último [method _scan_city], o `null`.
+var _city_target: Node3D = null
+
+## `value` de [member _city_target].
+var _city_value: int = 0
+
+## Edificios vivos en el cono frontal del último [method _scan_city].
+var _city_cone: int = 0
 var _ready_to_think: bool = false
 
 
@@ -127,6 +136,7 @@ func _physics_process(delta: float) -> void:
 		if not _ready_to_think:
 			return
 
+	PerfProbe.begin(&"fsm_state")
 	_sync_locomotion()
 	if _should_interrupt():
 		_interrupt()
@@ -136,6 +146,7 @@ func _physics_process(delta: float) -> void:
 		if _state.is_finished():
 			_advance()
 
+	PerfProbe.end(&"fsm_state")
 	if not autonomous:
 		return
 	var step := 1.0 / maxf(_decision_hz(), 0.5)
@@ -427,7 +438,9 @@ func _decide(step: float) -> void:
 	if _action_state != ACTION_NONE:
 		return
 
+	PerfProbe.begin(&"fsm_context")
 	var ctx := _build_context()
+	PerfProbe.end(&"fsm_context")
 	_last_ctx = ctx
 	_track_near(step, ctx)
 	if not bool(ctx.get(&"has_any_target", false)):
@@ -438,7 +451,9 @@ func _decide(step: float) -> void:
 
 	_decisions += 1
 	var top_n := enemy.profile.top_n if enemy.profile != null else UtilitySelector.DEFAULT_TOP_N
+	PerfProbe.begin(&"fsm_select")
 	var chosen := selector.select(library.get_actions(), ctx, personality, top_n)
+	PerfProbe.end(&"fsm_select")
 	if chosen == null:
 		return
 	_begin_action(chosen, ctx)
@@ -480,7 +495,8 @@ func _build_context() -> Dictionary:
 		has_los = perception.has_los
 
 	var flat := Vector3(believed.x - origin.x, 0.0, believed.z - origin.z)
-	var city := _pick_city_target(origin)
+	_scan_city(origin)
+	var city := _city_target
 	var city_position := city.global_position if city != null else origin
 	var city_flat := Vector3(city_position.x - origin.x, 0.0, city_position.z - origin.z)
 	var has_drone := perception != null and perception.get_target() != null \
@@ -512,7 +528,7 @@ func _build_context() -> Dictionary:
 		&"believed_velocity": believed_velocity,
 		&"time_near": _time_near,
 		&"time_since_city_attack": _time_since_city_attack,
-		&"buildings_in_cone": _buildings_in_cone(origin),
+		&"buildings_in_cone": _city_cone,
 		&"structure_ratio": enemy.total_structure_ratio(),
 		&"phase": enemy.current_phase(),
 		&"planted_legs": planted,
@@ -520,7 +536,7 @@ func _build_context() -> Dictionary:
 		&"city_target": city,
 		&"city_position": city_position,
 		&"city_distance": city_flat.length() if city != null else 1.0e6,
-		&"city_value": _value_of(city),
+		&"city_value": _city_value,
 		&"city_bias": enemy.phase_multiplier(&"city_bias"),
 		&"march_goal": march if has_march else origin,
 		&"has_march_goal": has_march,
@@ -534,34 +550,78 @@ func _build_context() -> Dictionary:
 	}
 
 
-## Edificio objetivo: el que esté bajo asedio si lo hay, y si no el de mayor
-## `value` dentro de [constant CITY_SEARCH_RADIUS], desempatando por cercanía.
-## Las ruinas no cuentan (`docs/10` §5).
-func _pick_city_target(origin: Vector3) -> Node3D:
+## Resuelve de una sola pasada las tres preguntas que `_build_context()` le hace a
+## la ciudad: cuál es el edificio objetivo, cuánto vale y cuántos hay en el cono.
+##
+## El objetivo es el que esté bajo asedio si lo hay, y si no el de mayor `value`
+## dentro de [constant CITY_SEARCH_RADIUS], desempatando por cercanía. Las ruinas no
+## cuentan (`docs/10` §5). El cono es el frontal de 60° a ≤ [constant CONE_RANGE] m
+## (`docs/06` §10.1).
+##
+## **Una sola pasada, y lo que eso ahorra** (WP-29): hasta acá eran dos funciones con
+## un recorrido cada una, o sea tres `get_nodes_in_group()` por decisión —dos de ellos
+## sobre los sesenta edificios, con su arreglo nuevo cada vez— y dos `_is_alive()` por
+## edificio, que es un `has_method` más un `call` dinámico. El resultado no cambia
+## —mismo orden de grupo, mismo desempate, mismo cono—, sólo se paga una vez.
+##
+## **Cuánto vale, medido**: poco. La sonda `fsm_context`, que envuelve
+## [method _build_context] entero —este barrido incluido—, da **0,001 ms/tick** en
+## `boss_and_city`, porque la capa de decisión corre a `decision_hz` (4 Hz) y no por
+## tick. Lo que cuesta de veras dentro del cerebro es `fsm_state`, con 0,174 ms/tick:
+## `_sync_locomotion()`, `_should_interrupt()` y el `_tick` del estado en curso, que
+## sí corren en **todos** los ticks. Queda escrito para que nadie vuelva a optimizar
+## este barrido creyendo que es el caro: no lo es.
+func _scan_city(origin: Vector3) -> void:
+	_city_target = null
+	_city_value = 0
+	_city_cone = 0
 	var tree := get_tree()
 	if tree == null:
-		return null
+		return
+
 	for node: Node in tree.get_nodes_in_group(&"buildings_under_siege"):
 		var besieged := node as Node3D
 		if besieged != null and _is_alive(besieged):
-			return besieged
+			_city_target = besieged
+			_city_value = _value_of(besieged)
+			break
 
-	var best: Node3D = null
+	var facing := -enemy.global_basis.z
+	facing.y = 0.0
+	var has_facing := not facing.is_zero_approx()
+	if has_facing:
+		facing = facing.normalized()
+	var limit := cos(deg_to_rad(CONE_HALF_ANGLE))
+	# Con un edificio bajo asedio el objetivo ya está decidido y el recorrido sólo
+	# tiene que contar el cono.
+	var want_target := _city_target == null
 	var best_value := -1
 	var best_distance := 0.0
+
 	for node: Node in tree.get_nodes_in_group(&"buildings"):
 		var building := node as Node3D
 		if building == null or not _is_alive(building):
 			continue
-		var distance := origin.distance_to(building.global_position)
-		if distance > CITY_SEARCH_RADIUS:
+		var at := building.global_position
+		if want_target:
+			var distance := origin.distance_to(at)
+			if distance <= CITY_SEARCH_RADIUS:
+				var value := _value_of(building)
+				if value > best_value or (value == best_value and distance < best_distance):
+					_city_target = building
+					best_value = value
+					best_distance = distance
+		if not has_facing:
 			continue
-		var value := _value_of(building)
-		if value > best_value or (value == best_value and distance < best_distance):
-			best = building
-			best_value = value
-			best_distance = distance
-	return best
+		var to_building := Vector3(at.x - origin.x, 0.0, at.z - origin.z)
+		var flat_distance := to_building.length()
+		if flat_distance > CONE_RANGE or flat_distance < 0.01:
+			continue
+		if facing.dot(to_building / flat_distance) >= limit:
+			_city_cone += 1
+
+	if want_target and _city_target != null:
+		_city_value = best_value
 
 
 ## `value` del edificio, o 0 si el nodo no lo declara.
@@ -579,32 +639,6 @@ func _is_alive(building: Node3D) -> bool:
 	if building.has_method(&"is_destroyed"):
 		return not bool(building.call(&"is_destroyed"))
 	return true
-
-
-## Edificios vivos en el cono frontal de 60° a ≤ 90 m (`docs/06` §10.1).
-func _buildings_in_cone(origin: Vector3) -> int:
-	var tree := get_tree()
-	if tree == null:
-		return 0
-	var facing := -enemy.global_basis.z
-	facing.y = 0.0
-	if facing.is_zero_approx():
-		return 0
-	facing = facing.normalized()
-	var limit := cos(deg_to_rad(CONE_HALF_ANGLE))
-	var count := 0
-	for node: Node in tree.get_nodes_in_group(&"buildings"):
-		var building := node as Node3D
-		if building == null or not _is_alive(building):
-			continue
-		var to_building := building.global_position - origin
-		to_building.y = 0.0
-		var distance := to_building.length()
-		if distance > CONE_RANGE or distance < 0.01:
-			continue
-		if facing.dot(to_building / distance) >= limit:
-			count += 1
-	return count
 
 
 ## Altura de [param point] sobre el suelo que tiene debajo, en metros.

@@ -1,0 +1,49 @@
+[gd_scene load_steps=5 format=3]
+
+; Columna de luz de la telegrafía del asedio (`docs/13` §4, `docs/07` §5.7): el
+; mismo haz del asedio puesto de pie sobre el edificio marcado, 120 m de alto y
+; radio 2.5 m (el del haz real, para que el aviso no mienta).
+;
+; **Cero emisores de partículas y pool dedicado** (`docs/13` §11 #12): es
+; telegrafía obligatoria y el presupuesto no puede descartarla. Por eso esta
+; escena no tiene el nodo `ContactSparks` que sí tiene `siege_beam.tscn`.
+;
+; Ámbar-naranja por la misma razón que el haz: la columna marca **nuestra** manzana
+; ardiendo, no al enemigo.
+
+[ext_resource type="Script" path="res://vfx/vfx_beam.gd" id="1_beam"]
+[ext_resource type="Shader" path="res://vfx/beam.gdshader" id="2_shader"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_column"]
+render_priority = 1
+shader = ExtResource("2_shader")
+shader_parameter/beam_color = Color(1, 0.55, 0.14, 0.75)
+shader_parameter/core_color = Color(1, 0.88, 0.6, 1)
+shader_parameter/scroll_speed = 0.6
+shader_parameter/fresnel_power = 1.4
+shader_parameter/pulse_hz = 2.2
+shader_parameter/intensity = 2.4
+shader_parameter/bands = 6.0
+shader_parameter/cap_fade = 0.22
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_column"]
+material = SubResource("ShaderMaterial_column")
+top_radius = 2.5
+bottom_radius = 2.5
+height = 1.0
+radial_segments = 16
+rings = 1
+cap_top = false
+cap_bottom = false
+
+[node name="SiegeColumn" type="Node3D"]
+script = ExtResource("1_beam")
+life_seconds = 0.0
+light_fade_seconds = 0.0
+decal_seconds = 0.0
+
+[node name="Beam" type="MeshInstance3D" parent="."]
+top_level = true
+cast_shadow = 0
+gi_mode = 0
+mesh = SubResource("CylinderMesh_column")

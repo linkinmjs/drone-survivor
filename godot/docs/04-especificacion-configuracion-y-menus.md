@@ -4,6 +4,14 @@
 
 ## 1. Objetivo y alcance
 
+> **Nota del cierre de WP-28 parte B (2026-09-20)**: el preset de HUD **Standard incluye `signal`** (`GameSettings.HUD_PRESETS["standard"]`): sin eso el jugador no veía la degradación de la señal, que es parte de la identidad elegida. Gobierna el primer arranque y el botón de preset; un `.cfg` ya guardado trae `signal=false` explícito y conserva la elección del jugador hasta que elija un preset o restablezca (sin migración forzada, a propósito). La clave persistida es `signal` (no `rec`) desde WP-25b. `ui_smoke_test` recorre ahora encendido → apagado → recarga → encendido; la captura de Opciones → HUD de `menu_shots_check` se toma con la señal puesta. §3.4 y la tabla de claves quedan corregidas.
+
+> **Nota del cierre de WP-27 (2026-09-20)**: `settings_check` asevera la composición base + deslizador en dos buses (`Music` −8 dB y `Master` 0 dB).
+
+> **Nota de WP-28 parte A (2026-09-20)**: `Graphics.fpv_overlay_full() -> bool` (false en LOW: el overlay cambia a un material «solo viñeta» sin lectura de pantalla; true en MEDIUM/HIGH/ULTRA), aplicado al arrancar y en el cambio de preset; §3.5 queda ampliado por esta nota.
+
+> **Nota de WP-27 (2026-09-20)**: los volúmenes persistidos (lineales por bus) ya no se escriben como `linear_to_db(v)` a secas: `Audio` los **suma** a la mezcla base del layout (`Audio.BASE_VOLUMES_DB`, `bus_volume_db()`, `base_volume_db()`), acotados a −80 dB; con el 0,8 por defecto `Motors` queda en −5,94 dB. §3.3 queda corregido por esta nota. La pausa enciende el pasa-bajos del bus `Music` (`Audio.set_music_lowpass()`) en `_ready()` y lo apaga en `_exit_tree()`.
+
 > **Nota de WP-25 (2026-09-20)**: los menús heredan el tema oscuro (`MenuScreen` y la pausa ya leían `BG_TOP/BG_BOTTOM/SCRIM`); `rounds_menu` con medallas en la paleta nueva; `rate_graph` con fondo `GRAPH_BG` propio; `SceneTransition` con fundido a `BG` y pantalla de carga del taller; el sexto interruptor de Opciones → HUD se llama «Indicador de señal» (`HUD_CFG_SIGNAL`); la clave persistida pasó de `rec` a **`signal`** (`GameSettings.HUD_SIGNAL_KEY`/`HUD_SIGNAL_LEGACY_KEY`, migración `_migrate_signal_toggle()` en `_read_hud_config`: la nueva manda si están las dos y el guardado siguiente borra la vieja; `settings_check` lo asevera).
 
 > **Nota de WP-24c (2026-09-20)**: `Graphics.FisheyeMode` pasa a `{OFF, FULL, FAST, FAST_WIDE}` (`_read_enum` acota, los `.cfg` viejos siguen válidos); presets de ojo de pez `[FAST 480p, FAST 720p, FAST_WIDE 1080p, FAST_WIDE 1080p]` con `fisheye_side_height/_msaa_level/_mesh_lod()` por preset; el menú de gráficos suma `GFX_FISHEYE_FAST_WIDE` («Rápido amplio» / «Fast wide»); FULL sigue disponible en el menú. `settings_check._check_fisheye_presets()` lo verifica.
@@ -72,13 +80,13 @@ Reglas: el `InputMap` conserva siempre las acciones de vuelo mapeadas al disposi
 | | `telegraph_hints` | bool (avisos de ataque en HUD) | true |
 | `[hud_config]` | `fps` | 5–60 | 10 |
 | | `horizon_mode` | `"camera"` \| `"attitude"` | `"camera"` |
-| | `crosshair, horizon, ladder, heading, speed, altitude, side_tapes, flight_mode, rec, sticks, rpm` | bool | preset Standard |
+| | `crosshair, horizon, ladder, heading, speed, altitude, side_tapes, flight_mode, signal, sticks, rpm` | bool | preset Standard |
 | `[objectives]` | `completed`, `last` | int (máscara), int | 0, 0 |
 | `[rounds]` | `best_score_<id>`, `best_time_<id>` | int, float | ausentes |
 
 `hud_config` tiene **13 claves**: `fps`, `horizon_mode` y los **11 bools** de la sección. Se corresponden una a una con 11 de las 12 entradas del `enum Component` de `12` §2.4; la entrada restante, `STATUS`, **no tiene bool** porque los mensajes de armado son siempre visibles. Por eso el menú de HUD muestra 11 `CheckButton`, no 12.
 
-Presets de HUD: **Minimal** (crosshair, horizon, flight_mode), **Standard** (+ heading, speed, altitude, side_tapes, sticks), **Full** (todo), **Custom** (cualquier cambio manual).
+Presets de HUD: **Minimal** (crosshair, horizon, flight_mode), **Standard** (+ heading, speed, altitude, side_tapes, sticks, signal), **Full** (todo), **Custom** (cualquier cambio manual).
 
 API: `load_game_settings() -> String`, `save_game_settings()`, `set_language(lang)` (aplica `TranslationServer.set_locale` y guarda), `get_nav_scheme()/set_nav_scheme()`, `load_hud_config()`, `save_hud_config()`, `apply_hud_preset(name: String)`, `get_hud_preset_name() -> String`, `record_score(id, score) -> bool` (true si es récord), `get_best_score(id) -> int`, `record_time(id, seconds) -> bool`, `get_best_time(id) -> float`, `is_round_unlocked(index) -> bool` (derivado del catálogo), `reset_round_progress()`, `mark_objective_completed(i)`, `is_objective_completed(i)`. Señales: `game_settings_updated`, `hud_config_updated`, `round_progress_updated`.
 

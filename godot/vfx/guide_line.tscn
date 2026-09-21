@@ -1,0 +1,36 @@
+[gd_scene load_steps=3 format=3]
+
+; Línea guía del `head_laser` (`docs/13` §4, `docs/07` §5.6): una cinta fina
+; blanca-cian de la cabeza al punto al que apunta el visor, 0.25 m de ancho.
+;
+; **Fina a propósito**: el aviso tiene que decir «va a disparar ahí» sin tapar la
+; ciudad que hay detrás, que es por donde el jugador se va a esconder. Blanca-cian
+; y no cian pura porque el visor carga de cian a blanco durante el windup
+; (`docs/07` §5.6) y la línea acompaña ese viraje.
+;
+; Cero emisores: es telegrafía.
+
+[ext_resource type="Script" path="res://vfx/vfx_guide.gd" id="1_guide"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_guide"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+cull_mode = 2
+vertex_color_use_as_albedo = false
+albedo_color = Color(1.4, 2.4, 2.8, 0.7)
+disable_receive_shadows = true
+no_depth_test = false
+
+[node name="GuideLine" type="Node3D"]
+script = ExtResource("1_guide")
+life_seconds = 0.0
+light_fade_seconds = 0.0
+decal_seconds = 0.0
+mode = 0
+
+[node name="Line" type="MeshInstance3D" parent="."]
+top_level = true
+cast_shadow = 0
+gi_mode = 0
+material_override = SubResource("StandardMaterial3D_guide")

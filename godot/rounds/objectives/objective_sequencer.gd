@@ -23,6 +23,10 @@ signal objective_skipped(index: int)
 ## Se terminó la cadena entera. No implica victoria (`docs/11` §9.3).
 signal all_finished
 
+## Sacudida de cámara del acuse táctil al completar un objetivo (`docs/11` §5.2 y
+## `docs/13` §6).
+const SUCCESS_TRAUMA: float = 0.08
+
 ## Estado del secuenciador.
 enum State {
 	IDLE,     ## Detenido: nadie corre.
@@ -68,9 +72,11 @@ func setup(context: ObjectiveContext) -> void:
 func _process(delta: float) -> void:
 	if state != State.SUCCESS:
 		return
+	PerfProbe.begin(&"objective_sequencer")
 	_success_delay_left -= delta
 	if _success_delay_left <= 0.0:
 		advance()
+	PerfProbe.end(&"objective_sequencer")
 
 
 ## El objetivo en curso, o `null` si no hay ninguno.
@@ -158,5 +164,10 @@ func _on_objective_completed(objective: Objective) -> void:
 	if objective != get_current() or state != State.RUNNING:
 		return
 	state = State.SUCCESS
+	# Acuse táctil del objetivo cumplido (`docs/11` §5.2): va junto con el texto de
+	# éxito y no cuando el secuenciador avanza, para que el golpecito llegue con el
+	# cartel y no 0.8 s después. `Vector3.INF` significa «esto no pasa en ningún
+	# lado»: el [CameraRig] no lo atenúa por distancia (`docs/13` §6).
+	Events.camera_trauma.emit(SUCCESS_TRAUMA, Vector3.INF)
 	_success_delay_left = maxf(objective.success_delay, 0.05)
 	objective_succeeded.emit(current_index)

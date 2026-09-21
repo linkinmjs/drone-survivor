@@ -49,6 +49,22 @@ var _damage_dealt: float = 0.0
 var _fallback_shape: Shape3D = null
 var _beam: MeshInstance3D = null
 var _beam_mesh: CylinderMesh = null
+var _beam_effect: VFXBeam = null
+var _beam_pool: VFXPool = null
+
+## Cada cuánto se reintenta pedir la voz del haz cuando el pool la denegó, en
+## milisegundos.
+const BEAM_AUDIO_RETRY_MSEC: int = 500
+
+## Bucle sostenido del haz (WP-27b). Vive en el [AudioPool] y no acá: así cuenta
+## en el tope de 6 de la categoría `enemies` junto con los servos y la telegrafía,
+## y `arachnodroid_check` —que mide el presupuesto propio del [AudioRig]— no
+## cambia. Lo enciende [method update_beam], lo mueve al punto de contacto en cada
+## tick y lo apaga [method hide_beam].
+var _beam_voice: AudioStreamPlayer3D = null
+var _beam_sound: StringName = &""
+var _beam_audio_pool: AudioPool = null
+var _beam_audio_retry_msec: int = 0
 
 
 # --------------------------------------------------------------------------
@@ -382,22 +398,32 @@ func shape_radius() -> float:
 # Haz visible (opcional: sólo lo usan `head_laser` y `siege_beam`)
 # --------------------------------------------------------------------------
 
-## Deja listo el cilindro del haz: [param radius] metros de radio y
-## [param color] aditivo.
+## Deja listo el haz: [param radius] metros de radio y [param color] aditivo.
 ##
-## El aviso tiene sus tres canales, pero la [b]ventana activa[/b] de un haz
-## continuo no tenía ninguno: el daño ocurría sin nada en pantalla. Esto es el
-## mínimo legible —un cilindro sin sombreado y aditivo, sin sombras— hasta que
-## WP-26 y WP-27 traigan el haz de verdad con sus partículas.
+## [b]WP-26[/b]: el haz lo sirve ahora el [VFXPool] —cilindro con
+## `vfx/beam.gdshader`, luz en el punto de impacto y doce chispas de contacto—,
+## en `laser_beam` (cian) o `siege_beam` (ámbar-naranja) según el nombre que pida
+## la acción. Los colores los trae la escena y no [param color]: la identidad de
+## cada haz está en su `.tscn` (`docs/13` §1), y el parámetro sólo sigue mandando
+## en el respaldo.
 ##
-## El nodo cuelga del enemigo con `top_level`, no de la acción: una acción es un
-## [Node] pelado y un [MeshInstance3D] necesita un padre 3D con transformada
-## propia para no heredar la pose del coloso.
+## El [b]respaldo[/b] es el cilindro aditivo de WP-19, y se usa cuando no hay pool
+## en el árbol —los bancos sintéticos de `ai_check`— o cuando el presupuesto lo
+## deniega. Así la ventana activa nunca queda sin nada en pantalla.
+##
+## La instancia del pool se retiene hasta que la acción sale del árbol:
+## [method hide_beam] sólo la apaga. Es lo que hace que [method beam_node] siga
+## devolviendo el mismo [MeshInstance3D] después del ciclo, que es lo que mide el
+## criterio 15 de `arachnodroid_check`. Apagado no cuesta presupuesto, porque el
+## pool cuenta los emisores que están emitiendo de verdad.
 func configure_beam(node_name: StringName, radius: float, color: Color) -> void:
+	_beam_sound = &"siege_loop" if node_name == &"SiegeBeam" else &"laser_loop"
 	if _beam != null and is_instance_valid(_beam):
 		return
 	var host := owner_enemy()
 	if host == null:
+		return
+	if _configure_pooled_beam(node_name, radius, host):
 		return
 	_beam_mesh = CylinderMesh.new()
 	_beam_mesh.top_radius = radius
@@ -427,6 +453,10 @@ func configure_beam(node_name: StringName, radius: float, color: Color) -> void:
 ## [CylinderMesh] es `Y`, así que la base lleva `Y` sobre la dirección y el
 ## centro queda a media longitud.
 func update_beam(from: Vector3, to: Vector3) -> void:
+	_beam_audio(to)
+	if _beam_effect != null and is_instance_valid(_beam_effect):
+		_beam_effect.set_endpoints(from, to)
+		return
 	if _beam == null or not is_instance_valid(_beam):
 		return
 	var delta := to - from
@@ -446,8 +476,56 @@ func update_beam(from: Vector3, to: Vector3) -> void:
 ## Apaga el haz. Es idempotente: lo llaman el fin, la interrupción y la salida
 ## del árbol.
 func hide_beam() -> void:
+	_beam_audio_stop()
+	if _beam_effect != null and is_instance_valid(_beam_effect):
+		_beam_effect.set_lit(false)
+		return
 	if _beam != null and is_instance_valid(_beam):
 		_beam.visible = false
+
+
+## Enciende el bucle del haz la primera vez y lo lleva al punto de contacto en las
+## siguientes. Como [method update_beam] se llama en cada tick de la ventana
+## activa con el punto de impacto vigente, el zumbido queda pegado a donde el haz
+## está quemando de verdad, no al jefe.
+##
+## El ancla es el enemigo: si lo liberan con el haz encendido, el [AudioPool]
+## corta la voz sin que nadie tenga que acordarse.
+func _beam_audio(at: Vector3) -> void:
+	if _beam_voice != null and is_instance_valid(_beam_voice):
+		if _beam_audio_pool != null and is_instance_valid(_beam_audio_pool):
+			_beam_audio_pool.move_loop(_beam_voice, at)
+		return
+	if _beam_sound.is_empty():
+		return
+	# Sin voz hay dos motivos posibles y los dos se reintentan **espaciados**: o no
+	# hay pool —una escena de prueba, un banco de `ai_check`— o el pool denegó la
+	# voz porque la categoría `enemies` está llena. Reintentar en cada tick sería
+	# un barrido del árbol y un pedido denegado cien veces por segundo durante toda
+	# la ventana activa; con medio segundo, si una pisada libera una voz el haz
+	# entra igual y el gasto es de dos intentos por segundo.
+	var now := Time.get_ticks_msec()
+	if now < _beam_audio_retry_msec:
+		return
+	_beam_audio_retry_msec = now + BEAM_AUDIO_RETRY_MSEC
+	# El pool se guarda una vez: hace falta tenerlo igual al salir del árbol,
+	# cuando `resolve()` ya no sirve porque el nodo no está adentro.
+	if _beam_audio_pool == null or not is_instance_valid(_beam_audio_pool):
+		_beam_audio_pool = AudioPool.resolve(self)
+	if _beam_audio_pool == null:
+		return
+	_beam_voice = _beam_audio_pool.play_loop(_beam_sound, at, owner_enemy())
+
+
+## Corta el bucle del haz. Idempotente, como [method hide_beam], y válido desde
+## `NOTIFICATION_EXIT_TREE`, que es donde la acción ya no puede mirar el árbol.
+func _beam_audio_stop() -> void:
+	if _beam_voice != null and is_instance_valid(_beam_voice) \
+			and _beam_audio_pool != null and is_instance_valid(_beam_audio_pool):
+		_beam_audio_pool.stop_loop(_beam_voice)
+	_beam_voice = null
+	# La ventana siguiente arranca sin deuda: el primer tick vuelve a intentar.
+	_beam_audio_retry_msec = 0
 
 
 ## Nodo del haz, o `null` si la acción no usa ninguno. Lo lee
@@ -455,6 +533,40 @@ func hide_beam() -> void:
 ## fuera.
 func beam_node() -> MeshInstance3D:
 	return _beam
+
+
+## Pide el haz al [VFXPool]. Devuelve `false` si no hay pool o si el pedido se
+## deniega, y entonces [method configure_beam] arma el cilindro de respaldo.
+func _configure_pooled_beam(node_name: StringName, radius: float,
+		host: Node3D) -> bool:
+	_beam_pool = VFXPool.resolve(self)
+	if _beam_pool == null:
+		return false
+	var id: StringName = &"siege_beam" if node_name == &"SiegeBeam" else &"laser_beam"
+	var node := _beam_pool.request(id,
+			Transform3D(Basis.IDENTITY, host.global_position))
+	_beam_effect = node as VFXBeam
+	if _beam_effect == null:
+		if node != null:
+			_beam_pool.release(node)
+		return false
+	_beam_effect.set_radius(radius)
+	_beam_effect.set_lit(false)
+	_beam = _beam_effect.beam_mesh()
+	return true
+
+
+## Devuelve el haz al pool. Va por `_notification` y no por `_exit_tree` porque
+## las ocho acciones concretas sobrescriben `_exit_tree` sin llamar al `super`, y
+## Godot sí despacha `_notification` a toda la cadena de herencia.
+func _notification(what: int) -> void:
+	if what != NOTIFICATION_EXIT_TREE:
+		return
+	_beam_audio_stop()
+	if _beam_pool != null and _beam_effect != null and is_instance_valid(_beam_effect):
+		_beam_pool.release(_beam_effect)
+	_beam_effect = null
+	_beam_pool = null
 
 
 ## `true` si la locomoción deja empezar un ataque: ni saltando, ni tambaleando,

@@ -6,7 +6,7 @@
 [node name="AudioCheck" type="Node"]
 script = ExtResource("1_audio_check")
 check_name = "audio_check"
-default_timeout = 120.0
+default_timeout = 180.0
 
 [node name="Respawn" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 60, 0)

@@ -1,0 +1,109 @@
+[gd_scene load_steps=10 format=3]
+
+; Polvo de pisada (`docs/13` §4 y §1, `docs/07` §5.1): 40 partículas planas y una
+; caja de `FogVolume` de 9 × 2,2 × 9 m, 1.4 s. Una por pata, pool de 4.
+;
+; La caja es **más ancha y más chata** que los 6 m cúbicos que pide §4: a 6³ y con
+; la densidad original la niebla se leía como una losa gris rectangular detrás de
+; la pata (fotogramas 125 y 197 del showcase del jefe). Aplastada y extendida hace
+; de bruma a ras de calle, que es lo que el documento quiere decir.
+;
+; **Es lo más grande que hay en pantalla** (nota de identidad de `docs/13` §1).
+; Por eso el quad mide 3.5 m y el anillo sale en horizontal: el jugador tiene que
+; ver la onda expandirse por la calle desde 80 m, no una nubecita bajo el pie. La
+; caja de niebla es lo que le da volumen cuando la niebla volumétrica está
+; encendida (HIGH y ULTRA); en LOW y MEDIUM el efecto queda en las 40 planas, que
+; siguen leyéndose.
+;
+; `VFXPool` escala `amount_ratio` con la velocidad de apoyo que trae
+; `ProceduralLegRig.foot_planted`: un tranco suave levanta un cuarto y un pisotón
+; la levanta entera.
+
+[ext_resource type="Script" path="res://vfx/vfx_effect.gd" id="1_effect"]
+
+[sub_resource type="Curve" id="Curve_out"]
+_data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.12, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="CurveTexture_out"]
+curve = SubResource("Curve_out")
+
+[sub_resource type="Curve" id="Curve_grow"]
+_data = [Vector2(0, 0.3), 0.0, 0.0, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_grow"]
+curve = SubResource("Curve_grow")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_foot"]
+lifetime_randomness = 0.35
+emission_shape = 1
+emission_sphere_radius = 2.2
+direction = Vector3(0, 0.22, 0)
+spread = 88.0
+flatness = 0.85
+initial_velocity_min = 5.0
+initial_velocity_max = 16.0
+gravity = Vector3(0, -1.1, 0)
+damping_min = 3.0
+damping_max = 7.0
+angle_min = -180.0
+angle_max = 180.0
+angular_velocity_min = -35.0
+angular_velocity_max = 35.0
+scale_min = 1.0
+scale_max = 2.6
+scale_curve = SubResource("CurveTexture_grow")
+color = Color(0.7, 0.66, 0.6, 0.78)
+alpha_curve = SubResource("CurveTexture_out")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_foot"]
+transparency = 1
+cull_mode = 2
+vertex_color_use_as_albedo = true
+albedo_color = Color(0.68, 0.64, 0.58, 1)
+disable_receive_shadows = true
+billboard_mode = 3
+billboard_keep_scale = true
+
+[sub_resource type="QuadMesh" id="QuadMesh_foot"]
+material = SubResource("StandardMaterial3D_foot")
+size = Vector2(3.5, 3.5)
+
+; Densidad baja y borde muy difuso: con 0.32 y `edge_fade` 0.35 la caja se veía
+; como una losa gris rectangular detrás de la pata (fotogramas 125 y 197 del
+; showcase). La niebla tiene que ser el **volumen** del polvo, no su silueta.
+
+[sub_resource type="FogMaterial" id="FogMaterial_foot"]
+density = 0.045
+albedo = Color(0.72, 0.68, 0.62, 1)
+edge_fade = 0.75
+
+[node name="FootDust" type="Node3D"]
+script = ExtResource("1_effect")
+life_seconds = 1.4
+light_fade_seconds = 0.0
+decal_seconds = 0.0
+
+[node name="Dust" type="GPUParticles3D" parent="."]
+cast_shadow = 0
+gi_mode = 0
+emitting = false
+amount = 40
+lifetime = 1.4
+one_shot = true
+explosiveness = 1.0
+fixed_fps = 30
+interpolate = true
+draw_order = 3
+local_coords = false
+visibility_range_end = 600.0
+visibility_range_fade_mode = 1
+process_material = SubResource("ParticleProcessMaterial_foot")
+draw_pass_1 = SubResource("QuadMesh_foot")
+metadata/vfx_texture = "dust"
+
+[node name="Volume" type="FogVolume" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, 0)
+size = Vector3(9, 2.2, 9)
+material = SubResource("FogMaterial_foot")

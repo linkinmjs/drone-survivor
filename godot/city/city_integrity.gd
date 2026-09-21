@@ -105,6 +105,14 @@ func _ready() -> void:
 
 ## Acumuladores de publicación y de asedio. Nunca un [Timer].
 func _physics_process(delta: float) -> void:
+	PerfProbe.begin(&"city_integrity")
+	_tick_accumulators(delta)
+	PerfProbe.end(&"city_integrity")
+
+
+## El cuerpo de [method _physics_process], en una función aparte para que el
+## `return` temprano del asedio no se saltee el cierre de la sonda.
+func _tick_accumulators(delta: float) -> void:
 	if _has_pending:
 		_pending_delay += delta
 		if _pending_delay >= emit_max_delay:

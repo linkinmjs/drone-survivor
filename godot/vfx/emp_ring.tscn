@@ -1,0 +1,58 @@
+[gd_scene load_steps=6 format=3]
+
+; Anillo del EMP (`docs/13` §4 y §11 #12, `docs/07` §5.8): un toro que crece de 0
+; a 45 m con un `Tween` durante los 2.2 s de telegrafía, más el destello de 0.3 s
+; del pulso.
+;
+; **Cero emisores y pool dedicado**: el pulso vacía un cuarto de la batería en un
+; radio de 45 m, y un aviso descartable sería una muerte por sorpresa. El radio se
+; lo pasa `ActionEmpPulse` desde `shape_radius()`, o sea desde la esfera real de
+; la consulta.
+;
+; Cian: es energía del enemigo, y nada enemigo es cálido (`docs/13` §1).
+
+[ext_resource type="Script" path="res://vfx/vfx_ring.gd" id="1_ring"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ring"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+cull_mode = 2
+albedo_color = Color(0.45, 2.4, 3, 0.85)
+disable_receive_shadows = true
+
+[sub_resource type="TorusMesh" id="TorusMesh_ring"]
+material = SubResource("StandardMaterial3D_ring")
+inner_radius = 0.2
+outer_radius = 0.4
+rings = 48
+ring_segments = 6
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_flash"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+cull_mode = 2
+albedo_color = Color(0.35, 1.9, 2.6, 1)
+disable_receive_shadows = true
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_flash"]
+material = SubResource("StandardMaterial3D_flash")
+size = Vector2(2, 2)
+
+[node name="EmpRing" type="Node3D"]
+script = ExtResource("1_ring")
+life_seconds = 0.0
+light_fade_seconds = 0.0
+decal_seconds = 0.0
+
+[node name="Ring" type="MeshInstance3D" parent="."]
+cast_shadow = 0
+gi_mode = 0
+mesh = SubResource("TorusMesh_ring")
+
+[node name="Flash" type="MeshInstance3D" parent="."]
+cast_shadow = 0
+gi_mode = 0
+mesh = SubResource("PlaneMesh_flash")
+metadata/vfx_texture = "halo"

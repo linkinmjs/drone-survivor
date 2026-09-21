@@ -132,8 +132,10 @@ func fail() -> void:
 func _physics_process(delta: float) -> void:
 	if not active:
 		return
+	PerfProbe.begin(&"round_objectives")
 	_check_crash(delta)
 	_tick(delta)
+	PerfProbe.end(&"round_objectives")
 
 
 ## Posición de [param phase_id] en las fases del [EnemyProfile] de [param enemy], o

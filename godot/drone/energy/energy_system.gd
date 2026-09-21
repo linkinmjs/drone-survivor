@@ -62,6 +62,9 @@ signal critical_exited()
 ## se libera, así que la conexión que hace el nivel al arrancar vale toda la ronda.
 signal emp_hit(glitch_seconds: float)
 
+## Sacudida de cámara de un pulso EMP (`docs/13` §6).
+const EMP_TRAUMA: float = 0.6
+
 ## Números de la economía (`docs/09` §3.3). Sin perfil el nodo no drena ni cobra
 ## nada y lo avisa en [method _ready].
 @export var profile: EnergyProfile
@@ -114,6 +117,14 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if delta <= 0.0 or profile == null:
 		return
+	PerfProbe.begin(&"drone_energy")
+	_tick_energy(delta)
+	PerfProbe.end(&"drone_energy")
+
+
+## El cuerpo de [method _physics_process], aparte para que sus dos `return`
+## tempranos no se salteen el cierre de la sonda ([PerfProbe]).
+func _tick_energy(delta: float) -> void:
 	if _is_armed():
 		var throttle := clampf(_throttle(), 0.0, 1.0)
 		var rate := profile.base_drain + profile.throttle_drain * throttle
@@ -165,6 +176,12 @@ func drain(amount: float) -> void:
 func apply_emp(amount: float, glitch_seconds: float) -> void:
 	drain(amount)
 	emp_hit.emit(glitch_seconds)
+	# El pulso lo recibe el dron, así que la sacudida se pide desde su posición y
+	# entra sin atenuar (`docs/13` §6). Es la más fuerte de las propias: el EMP es lo
+	# único que apaga la imagen, y el golpe de cámara es su aviso.
+	var hit_drone := get_drone()
+	if hit_drone != null:
+		Events.camera_trauma.emit(EMP_TRAUMA, hit_drone.global_position)
 
 
 ## Energía normalizada, de 0.0 a 1.0. Es lo que viaja por el bus.

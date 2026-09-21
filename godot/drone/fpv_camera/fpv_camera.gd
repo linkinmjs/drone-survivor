@@ -262,16 +262,17 @@ func _exit_tree() -> void:
 
 
 func _process(_delta: float) -> void:
+	PerfProbe.begin(&"fpv_camera")
 	_update_composite_state()
-	if _sub_cameras.is_empty():
-		return
-	_refresh_side_environment()
-	var facing := global_basis.orthonormalized()
-	var origin := global_position
-	for index: int in _sub_cameras.size():
-		var camera := _sub_cameras[index]
-		if is_instance_valid(camera):
-			camera.global_transform = Transform3D(facing * _face_bases[index], origin)
+	if not _sub_cameras.is_empty():
+		_refresh_side_environment()
+		var facing := global_basis.orthonormalized()
+		var origin := global_position
+		for index: int in _sub_cameras.size():
+			var camera := _sub_cameras[index]
+			if is_instance_valid(camera):
+				camera.global_transform = Transform3D(facing * _face_bases[index], origin)
+	PerfProbe.end(&"fpv_camera")
 
 
 # --- Interfaz pública (`docs/03` §9) ---------------------------------------------------------

@@ -48,7 +48,9 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	PerfProbe.begin(&"drone_misc")
 	_place(clampf(smoothing * delta, 0.0, 1.0))
+	PerfProbe.end(&"drone_misc")
 
 
 ## Mueve la cámara [param weight] del camino hacia su posición deseada y mira al

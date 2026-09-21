@@ -77,10 +77,22 @@ const HUD_HORIZON_MODES: Array[String] = ["camera", "attitude"]
 
 ## Presets de HUD (`docs/04` §3.4). `custom` no está acá: es lo que queda cuando la
 ## configuración no coincide con ninguno.
+##
+## **`standard` incluye [constant HUD_SIGNAL_KEY] desde WP-28** (`docs/04` §3.4 queda
+## corregido). La degradación de la señal es parte de la identidad que eligió el
+## usuario —«Última luz» con el préstamo de B: la señal se degrada con el daño—, y un
+## indicador que hay que ir a buscar a Opciones no cuenta nada: el piloto tiene que
+## enterarse de que la imagen se le está yendo **antes** de que se ponga fea.
+##
+## Esto gobierna el **primer arranque** y el botón de preset, no a quien ya jugó: un
+## `.cfg` existente trae las once claves escritas una a una ([method _write_hud_config])
+## y [method _read_hud_config] las respeta. Quien ya tenía el indicador apagado lo sigue
+## teniendo apagado hasta que elija un preset, que es el mismo trato que recibe
+## cualquier otro interruptor y el único que no le pisa la configuración.
 const HUD_PRESETS: Dictionary = {
 	"minimal": ["crosshair", "horizon", "flight_mode"],
 	"standard": ["crosshair", "horizon", "flight_mode",
-			"heading", "speed", "altitude", "side_tapes", "sticks"],
+			"heading", "speed", "altitude", "side_tapes", "sticks", HUD_SIGNAL_KEY],
 	"full": HUD_TOGGLES,
 }
 

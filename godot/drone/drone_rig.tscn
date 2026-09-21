@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://drone/drone_rig.gd" id="1_rig"]
 [ext_resource type="PackedScene" path="res://drone/drones/drone_quad.tscn" id="2_drone"]
@@ -8,6 +8,7 @@
 [ext_resource type="Script" path="res://drone/fpv_camera/fpv_camera.gd" id="6_fpv_camera"]
 [ext_resource type="PackedScene" path="res://hud/hud.tscn" id="7_flight_hud"]
 [ext_resource type="Script" path="res://drone/damage/respawn_controller.gd" id="8_respawn"]
+[ext_resource type="Script" path="res://drone/fpv_camera/fpv_overlay.gd" id="9_overlay"]
 
 [node name="DroneRig" type="Node3D"]
 script = ExtResource("1_rig")
@@ -29,6 +30,23 @@ cull_mask = 524287
 far = 2000.0
 near = 0.02
 script = ExtResource("6_fpv_camera")
+
+; `Overlay` (WP-28, `docs/13` §7): la señal de video del dron —viñeta, grano,
+; scanlines, aberración, daño y EMP— en la capa de canvas **−1**. Va entre el compuesto
+; del ojo de pez (capa −2, lo arma la `FPVCamera` en código) y el `FlightHUD` (capa 0),
+; así que procesa la imagen y deja el instrumental nítido encima. Es hermano del `Drone`
+; y **no** hijo suyo por la misma razón que el HUD: un `CanvasLayer` dibuja en la
+; viewport, no en el espacio del nodo, y colgarlo del cuerpo solo escondería esa
+; verdad. Se alimenta solo (`Events.hull_changed` y `EnergySystem.emp_hit`); el rig lo
+; reexpone con `get_overlay()`.
+;
+; Va **después** del `Drone` a propósito: `battle_level`, `audio_check`, `energy_check`,
+; `flight_check`, `flight_sandbox` y `weapon_check` sobrescriben al `Drone` por
+; `index="0"`, y un nodo nuevo delante les correría el índice.
+
+[node name="Overlay" type="CanvasLayer" parent="."]
+layer = -1
+script = ExtResource("9_overlay")
 
 ; `FlightHUD` (WP-08, `docs/12` §2): hermano del `Drone`, como manda `docs/03` §8. Es
 ; un `Control` bajo un `Node3D`, así que se dibuja en la capa 0 del canvas de la

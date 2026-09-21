@@ -1,34 +1,46 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=7 format=3]
 
-; Destello de boca (`docs/08` §2.10): un `GPUParticles3D` one-shot y una luz
-; pulsada de 40 ms. Va colgado del `Muzzle` del `WeaponMount`, o sea 0.35 m por
-; delante de la cámara en la dirección de puntería.
+; Destello de boca (`docs/08` §2.10, `docs/13` §4). Va colgado del `Muzzle` del
+; `WeaponMount`, o sea 0.35 m por delante de la cámara en la dirección de
+; puntería, y es el único emisor **fijo** del juego: `docs/13` §4 lo declara «1
+; emisor permanente» y por eso no gasta presupuesto del `VFXPool`.
+;
+; WP-26 lo mejoró **en su sitio** en vez de crear `vfx/muzzle_flash.tscn`: el
+; `WeaponMount` lo carga por ruta (`MUZZLE_FLASH_SCENE`) y ese archivo es de sólo
+; lectura para este paquete de trabajo, así que un segundo destello en `vfx/`
+; habría sido un archivo que nadie instancia. `VFXPool` lo registra con esta misma
+; ruta para que un showcase pueda pedirlo.
+;
+; Lo que trae de `docs/13` §4 frente al placeholder de WP-14: la luz llega a
+; **energía 4** con alcance **3 m** y se apaga en **0.06 s** (no 0.04), las
+; chispas son **8** con 0.18 s de vida (no 10 con 0.05) y se suma el **quad
+; emisivo** de la llamarada, que es lo que da la forma de estrella delante del
+; cañón. El quad y las chispas son aditivos y con el albedo por encima de 1 para
+; cruzar el umbral de glow de 1.4 (WP-24).
 
 [ext_resource type="Script" path="res://drone/weapons/muzzle_flash.gd" id="1_muzzle_flash"]
 
 [sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_flash"]
-lifetime_randomness = 0.2
+lifetime_randomness = 0.3
 emission_shape = 1
 emission_sphere_radius = 0.008
 direction = Vector3(0, 0, -1)
-spread = 30.0
-initial_velocity_min = 0.25
-initial_velocity_max = 0.85
-gravity = Vector3(0, 0, 0)
+spread = 26.0
+initial_velocity_min = 0.6
+initial_velocity_max = 2.4
+gravity = Vector3(0, -1.5, 0)
 damping_min = 6.0
 damping_max = 12.0
-scale_min = 0.5
+scale_min = 0.4
 scale_max = 1.0
 color = Color(1, 0.82, 0.45, 1)
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_flash"]
 transparency = 1
+blend_mode = 1
 shading_mode = 0
 vertex_color_use_as_albedo = true
-albedo_color = Color(1, 0.86, 0.55, 1)
-emission_enabled = true
-emission = Color(1, 0.72, 0.32, 1)
-emission_energy_multiplier = 4.0
+albedo_color = Color(2.8, 1.9, 0.9, 1)
 billboard_mode = 3
 billboard_keep_scale = true
 disable_receive_shadows = true
@@ -37,6 +49,19 @@ disable_receive_shadows = true
 material = SubResource("StandardMaterial3D_flash")
 size = Vector2(0.022, 0.022)
 
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_bloom"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+albedo_color = Color(3.4, 2.3, 1.05, 1)
+billboard_mode = 1
+billboard_keep_scale = true
+disable_receive_shadows = true
+
+[sub_resource type="QuadMesh" id="QuadMesh_bloom"]
+material = SubResource("StandardMaterial3D_bloom")
+size = Vector2(0.16, 0.16)
+
 [node name="MuzzleFlash" type="Node3D"]
 script = ExtResource("1_muzzle_flash")
 
@@ -44,17 +69,27 @@ script = ExtResource("1_muzzle_flash")
 cast_shadow = 0
 gi_mode = 0
 emitting = false
-amount = 10
-lifetime = 0.05
+amount = 8
+lifetime = 0.18
 one_shot = true
 explosiveness = 1.0
+fixed_fps = 30
+interpolate = true
+draw_order = 3
 local_coords = true
 process_material = SubResource("ParticleProcessMaterial_flash")
 draw_pass_1 = SubResource("QuadMesh_flash")
+
+[node name="Bloom" type="MeshInstance3D" parent="."]
+visible = false
+cast_shadow = 0
+gi_mode = 0
+mesh = SubResource("QuadMesh_bloom")
 
 [node name="FlashLight" type="OmniLight3D" parent="."]
 visible = false
 light_color = Color(1, 0.78, 0.42, 1)
 light_energy = 0.0
+light_intensity_lumens = 6000.0
 shadow_enabled = false
-omni_range = 6.0
+omni_range = 3.0

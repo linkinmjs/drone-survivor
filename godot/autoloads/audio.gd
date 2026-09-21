@@ -36,6 +36,40 @@ const DEFAULT_VOLUMES: Dictionary[StringName, float] = {
 	&"Music": 0.8,
 }
 
+## dB **base** de cada bus, o sea la mezcla que fija `docs/13` §5.1 y que escribe
+## `tools/build_bus_layout.gd` en `default_bus_layout.tres` (WP-27).
+##
+## [b]Cómo se componen los dos volúmenes[/b]. Hay dos cosas distintas y acá se
+## suman, que es lo único que tiene sentido en decibeles:
+##
+## - La **mezcla** —esta tabla— dice cuánto vale cada familia de sonido respecto de
+##   las demás: los motores van 4 dB por debajo del general porque suenan siempre,
+##   la música 8 porque es fondo. No la toca el jugador.
+## - El **volumen del jugador** —[member volumes], lineal de 0 a 1 y persistido en
+##   `Audio.cfg`— es un multiplicador sobre eso.
+##
+## Multiplicar dos ganancias lineales es sumar sus decibeles, así que el bus
+## termina en `base + linear_to_db(lineal)` ([method bus_volume_db]). Con el 0.8
+## lineal por defecto son −1.94 dB encima de la base: `Motors` queda en −5.94 dB.
+##
+## Antes de WP-27 esto no se componía porque la tabla no existía: el layout estaba
+## entero a 0 dB y [method update_volumes] escribía directamente la conversión del
+## deslizador. Si alguien vuelve a tocar `default_bus_layout.tres`, esta tabla
+## tiene que seguirlo; `audio_check` compara las dos.
+const BASE_VOLUMES_DB: Dictionary[StringName, float] = {
+	&"Master": 0.0,
+	&"Motors": -4.0,
+	&"Weapons": -3.0,
+	&"Enemies": -2.0,
+	&"City": -5.0,
+	&"UI": -6.0,
+	&"Music": -8.0,
+}
+
+## Ranura del pasa-bajos dentro del bus `Music` (`docs/13` §5.1). Es el único
+## efecto del bus, así que es la 0.
+const MUSIC_LOWPASS_SLOT: int = 0
+
 ## dB que recibe un bus con volumen 0. Se usa en vez del `-inf` que devolvería
 ## `linear_to_db(0.0)`, que el `AudioServer` no acepta como volumen válido.
 const SILENT_DB: float = -80.0
@@ -101,7 +135,7 @@ func update_volumes() -> void:
 		var index := AudioServer.get_bus_index(bus)
 		if index < 0:
 			continue
-		AudioServer.set_bus_volume_db(index, linear_to_volume_db(get_volume(bus)))
+		AudioServer.set_bus_volume_db(index, bus_volume_db(bus))
 	var master := AudioServer.get_bus_index(&"Master")
 	if master >= 0:
 		AudioServer.set_bus_mute(master, muted)
@@ -148,3 +182,43 @@ func linear_to_volume_db(linear: float) -> float:
 	if linear <= 0.0:
 		return SILENT_DB
 	return maxf(linear_to_db(linear), SILENT_DB)
+
+
+## dB que le corresponde a un bus: su mezcla base más el volumen del jugador
+## (ver [constant BASE_VOLUMES_DB]). Con el deslizador en 0 el bus se va a
+## [constant SILENT_DB] sin sumarle nada, porque «apagado» no tiene grados.
+func bus_volume_db(bus: StringName) -> float:
+	var linear := get_volume(bus)
+	if linear <= 0.0:
+		return SILENT_DB
+	return maxf(base_volume_db(bus) + linear_to_db(linear), SILENT_DB)
+
+
+## dB base de un bus (`docs/13` §5.1); 0 si el bus no está en la tabla.
+func base_volume_db(bus: StringName) -> float:
+	return float(BASE_VOLUMES_DB.get(bus, 0.0))
+
+
+## Enciende o apaga el pasa-bajos del bus `Music` (`docs/13` §5.1).
+##
+## Es lo que hace que la música se enturbie al pausar: 600 Hz de corte con
+## resonancia 0.5 dejan los graves y se llevan todo el detalle, que es el gesto
+## clásico de «el juego se fue a otra habitación». No es un fundido: la música
+## sigue en su sitio y al reanudar vuelve entera sin saltar de fase.
+##
+## No falla si el bus o el efecto no existen —un check puede correr con un layout
+## mínimo—: devuelve `false` y no toca nada.
+func set_music_lowpass(enabled: bool) -> bool:
+	var index := AudioServer.get_bus_index(&"Music")
+	if index < 0 or AudioServer.get_bus_effect_count(index) <= MUSIC_LOWPASS_SLOT:
+		return false
+	AudioServer.set_bus_effect_enabled(index, MUSIC_LOWPASS_SLOT, enabled)
+	return true
+
+
+## `true` si el pasa-bajos de `Music` está encendido ahora mismo.
+func is_music_lowpass_enabled() -> bool:
+	var index := AudioServer.get_bus_index(&"Music")
+	if index < 0 or AudioServer.get_bus_effect_count(index) <= MUSIC_LOWPASS_SLOT:
+		return false
+	return AudioServer.is_bus_effect_enabled(index, MUSIC_LOWPASS_SLOT)

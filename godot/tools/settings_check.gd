@@ -178,10 +178,27 @@ func _check_audio_round_trip() -> void:
 		expect_near(Audio.get_volume(bus), wanted[bus], 0.0001,
 				"el volumen de %s sobrevive al guardado" % bus)
 	expect(Audio.muted, "el silencio general sobrevive al guardado")
-	# El valor aplicado sobre el servidor coincide con el guardado.
-	var index := AudioServer.get_bus_index(&"Music")
-	expect_near(AudioServer.get_bus_volume_db(index), Audio.linear_to_volume_db(0.08), 0.01,
-			"update_volumes() vuelca el volumen de Music sobre el AudioServer")
+	# El valor aplicado sobre el servidor coincide con el guardado **compuesto sobre
+	# la mezcla base** del layout (`docs/13` §5.1, WP-27): el deslizador del jugador
+	# no es el volumen del bus, es un multiplicador sobre la mezcla, y multiplicar
+	# ganancias lineales es sumar decibeles. `Music` nace en −8 dB, así que con el
+	# deslizador en 0.08 el bus queda en −29.94 y no en −21.94.
+	#
+	# Se comprueban dos buses a propósito: `Music`, con la base más grave de la
+	# tabla, y `Master`, que es el único con base 0 dB. Si alguien vuelve a escribir
+	# `linear_to_db(v)` a secas, el primero falla; si alguien rompe la composición
+	# en el sentido contrario —sumando dos veces, por ejemplo—, falla el segundo.
+	for bus: StringName in [&"Music", &"Master"]:
+		var index := AudioServer.get_bus_index(bus)
+		expect(index >= 0, "falta el bus '%s' en el layout" % String(bus))
+		if index < 0:
+			continue
+		var applied := AudioServer.get_bus_volume_db(index)
+		expect_near(applied, Audio.bus_volume_db(bus), 0.01,
+				"update_volumes() vuelca el volumen de %s sobre el AudioServer" % String(bus))
+		expect_near(applied, Audio.base_volume_db(bus) + linear_to_db(float(wanted[bus])), 0.01,
+				"el volumen de %s es la mezcla base (%.1f dB) más el deslizador"
+				% [String(bus), Audio.base_volume_db(bus)])
 
 
 func _check_game_settings_round_trip() -> void:

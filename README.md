@@ -74,17 +74,41 @@ El equivalente para Linux y para el contenedor de CI es `godot/tools/run_checks.
 Ambos dejan el detalle en `godot/tools/out/report.txt` (no versionado) y devuelven 0
 solo si todo pasó.
 
+En CI corren **solo los checks headless**: el contenedor no trae Vulkan y el proyecto
+es Forward+, así que los que capturan imagen (`ui_smoke_test`, `boot_check`,
+`menu_shots_check`, `render_check`) y los extendidos quedan como **locales**. El mismo
+modo se reproduce a mano con `--headless-only` (bash) o `-HeadlessOnly` (PowerShell);
+el resumen final lista los que quedaron sin correr.
+
 Un check suelto, a mano:
 
 ```
 "C:/Users/Mauri/Godot/Godot_4.7/Godot_v4.7-stable_win64_console.exe" --headless --path godot res://tools/project_check.tscn
 ```
 
+## Cómo exportar la build de Windows
+
+El preset `Windows Desktop` de `godot/export_presets.cfg` escribe en `builds/windows/`
+(no versionado). Hacen falta las plantillas de export 4.7 instaladas en
+`%APPDATA%\Godot\export_templates\4.7.stable\`:
+
+```
+"C:/Users/Mauri/Godot/Godot_4.7/Godot_v4.7-stable_win64_console.exe" --headless --path godot --export-release "Windows Desktop"
+```
+
+Salen `drone-survivor.exe` y `drone-survivor.pck` uno al lado del otro
+(`binary_format/embed_pck=false`). El `.pck` no lleva `tools/`, `docs/` ni
+`assets/_raw/`, y los scripts viajan como tokens binarios (`script_export_mode=2`).
+El wrapper de consola solo se genera en export de **depuración**
+(`debug/export_console_wrapper=1`), así que la build de release no trae
+`drone-survivor.console.exe`.
+
 ## Integración continua
 
-`.github/workflows/deploy-to-itch.yml` encadena cuatro jobs: `import` → `checks` →
-`export` (preset **Windows Desktop**, publicado como artefacto) → `deploy-itch`, este
-último desactivado con `if: false` hasta que el juego se publique.
+`.github/workflows/deploy-to-itch.yml` encadena cuatro jobs: `import` → `checks`
+(solo los headless) → `export` (preset **Windows Desktop**, publicado como artefacto
+`windows-desktop`) → `deploy-itch`, este último desactivado con `if: false` hasta que
+el juego se publique. Los cuatro usan **Godot 4.7 stable**.
 
 ## Estructura del repositorio
 

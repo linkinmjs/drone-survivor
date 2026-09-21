@@ -1,0 +1,26 @@
+[gd_scene load_steps=3 format=3]
+
+; Banco de `vfx_check` (`docs/13` §10.2). Es el `VFXPool` **real** —con sus
+; diecisiete escenas preasignadas— y nada más: el check le pide efectos a mano y
+; mide el presupuesto, el reciclado y las fugas.
+;
+; El bus va **apagado** (`listen_to_events = false`) y el seguimiento de enemigos
+; también: el sub-check 1 cuenta exactamente 200 pedidos, y un `Events` encendido
+; metería los que emita cualquier otro sistema durante el arranque.
+;
+; No hay cámara ni entorno a propósito. El check corre en `--headless`, donde no
+; hay rasterizado: lo que se verifica es la contabilidad del pool, no la imagen.
+; La imagen se revisa con las capturas del Movie Maker.
+
+[ext_resource type="Script" path="res://tools/vfx_check.gd" id="1_vfx_check"]
+[ext_resource type="Script" path="res://vfx/vfx_pool.gd" id="2_vfx_pool"]
+
+[node name="VFXCheck" type="Node"]
+script = ExtResource("1_vfx_check")
+check_name = "vfx_check"
+default_timeout = 120.0
+
+[node name="VFXPool" type="Node" parent="."]
+script = ExtResource("2_vfx_pool")
+listen_to_events = false
+track_enemies = false

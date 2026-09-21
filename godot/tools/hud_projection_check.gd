@@ -873,6 +873,12 @@ func _restore_hud_config() -> void:
 ## - Se esconde el HUD antes de capturar. Si no, la propia línea de horizonte y el
 ##   retículo son píxeles blancos justo en la columna que se está midiendo: el check
 ##   estaría leyendo su propia respuesta.
+## - Se esconde también el `ColorRect` del overlay FPV (`docs/13` §7), por la misma
+##   razón. Su viñeta atenúa el gradiente cielo/suelo justo en la periferia, y el
+##   detector toma el máximo de la columna: con el overlay puesto, la columna de
+##   0.94·w en FULL con 25° de cabeceo y 12° de alabeo daba **5.82, 6.00 y 253 px**
+##   en tres corridas donde sin overlay daba 1.92. Lo que se mide es dónde está el
+##   horizonte, no cuánto lo tapa el efecto de señal.
 ## - Se mide en cinco columnas ([constant HORIZON_COLUMNS]) y no sólo en la central.
 ##   Medir el centro nada más era la razón por la que el churretón de los costados
 ##   pasaba desapercibido: ahí el compuesto siempre coincidió. En las columnas de los
@@ -908,6 +914,8 @@ func _check_horizon_match() -> void:
 	var plane := _add_horizon_plane()
 	var rig_rotation := _camera_rig.rotation
 	var hud_was_visible := _hud.visible
+	var overlay_rect := _overlay_rect()
+	var overlay_was_visible := overlay_rect != null and overlay_rect.visible
 
 	GameSettings.hud_config["horizon_mode"] = "camera"
 	_hud.apply_hud_config()
@@ -936,9 +944,11 @@ func _check_horizon_match() -> void:
 				drawn.append(y)
 				covered.append(_column_is_measurable(column, y))
 			_hud.visible = false
+			_set_overlay_visible(false)
 			await wait_frames(2)
 			var image := await _capture_image()
 			_hud.visible = hud_was_visible
+			_set_overlay_visible(overlay_was_visible)
 			if image == null:
 				fail("en %s no se pudo leer la imagen de la viewport" % label)
 				continue
@@ -990,6 +1000,7 @@ func _check_horizon_match() -> void:
 
 	_camera_rig.rotation = rig_rotation
 	_hud.visible = hud_was_visible
+	_set_overlay_visible(overlay_was_visible)
 	for instance: VisualInstance3D in hidden:
 		if is_instance_valid(instance):
 			instance.visible = true
@@ -1275,9 +1286,11 @@ func _check_same_pose(poses: Array[Transform3D]) -> void:
 ## Deja la escena en condiciones de medir y devuelve lo que hay que restaurar.
 func _begin_smear_scene() -> Dictionary:
 	var environment := _level_environment()
+	var overlay_rect := _overlay_rect()
 	var restore: Dictionary = {
 		"rig_rotation": _camera_rig.rotation,
 		"hud_visible": _hud.visible if _hud != null else true,
+		"overlay_visible": overlay_rect != null and overlay_rect.visible,
 		"environment": environment,
 		"visuals": _collect_visuals(_drone),
 		"frozen": _drone.freeze,
@@ -1297,6 +1310,9 @@ func _begin_smear_scene() -> Dictionary:
 		instance.visible = false
 	if _hud != null:
 		_hud.visible = false
+	# La viñeta del overlay oscurece la periferia justo donde se mide la costura: con
+	# ella puesta, el churretón y el desvanecido del borde son el mismo píxel.
+	_set_overlay_visible(false)
 	_park_drone()
 	return restore
 
@@ -1314,8 +1330,26 @@ func _end_smear_scene(restore: Dictionary) -> void:
 			instance.visible = true
 	if _hud != null:
 		_hud.visible = bool(restore["hud_visible"])
+	_set_overlay_visible(bool(restore["overlay_visible"]))
 	_camera_rig.rotation = restore["rig_rotation"]
 	_drone.freeze = bool(restore["frozen"])
+
+
+## El `ColorRect` del overlay de señal FPV del rig, o `null` si no hay overlay
+## (`docs/13` §7).
+func _overlay_rect() -> ColorRect:
+	if _rig == null:
+		return null
+	var overlay := _rig.get_overlay()
+	return overlay.rect() if overlay != null else null
+
+
+## Esconde o muestra el overlay de señal. Se usa junto con el del HUD en las dos filas
+## que **miden la imagen**: la viñeta es parte de la respuesta, no del enunciado.
+func _set_overlay_visible(value: bool) -> void:
+	var rect := _overlay_rect()
+	if rect != null:
+		rect.visible = value
 
 
 ## Las mallas visibles que cuelgan de [param root]. Devuelve vacío si es `null`, así

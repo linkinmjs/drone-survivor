@@ -1,0 +1,152 @@
+[gd_scene load_steps=13 format=3]
+
+; Derrumbe de edificio (`docs/13` §4, `docs/10` §3): 120 partículas en dos
+; emisores —80 de polvo que sale disparado y 40 de humo que sube— más un
+; `FogVolume` de 18 m, 3.0 s. Pool de 2 para **toda** la ciudad.
+;
+; Por qué dos emisores y no uno: el polvo del colapso sale rápido y hacia afuera,
+; a ras de calle, y el humo sube lento durante los tres segundos. Un solo sistema
+; con esos dos comportamientos necesitaría curvas que se pelean entre sí, y el
+; documento ya presupuesta **2 emisores** para esta fila.
+;
+; Este efecto es el que reemplaza a la columna de humo por edificio de
+; `city/building.gd`: dos instancias para sesenta edificios en vez de sesenta
+; columnas compitiendo por el presupuesto (ver el informe de WP-26).
+
+[ext_resource type="Script" path="res://vfx/vfx_effect.gd" id="1_effect"]
+
+[sub_resource type="Curve" id="Curve_out"]
+_data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.1, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="CurveTexture_out"]
+curve = SubResource("Curve_out")
+
+[sub_resource type="Curve" id="Curve_grow"]
+_data = [Vector2(0, 0.28), 0.0, 0.0, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_grow"]
+curve = SubResource("Curve_grow")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_dust"]
+lifetime_randomness = 0.4
+emission_shape = 1
+emission_sphere_radius = 7.0
+direction = Vector3(0, 0.3, 0)
+spread = 85.0
+flatness = 0.6
+initial_velocity_min = 6.0
+initial_velocity_max = 20.0
+gravity = Vector3(0, -1.8, 0)
+damping_min = 2.0
+damping_max = 4.5
+angle_min = -180.0
+angle_max = 180.0
+scale_min = 1.6
+scale_max = 4.0
+scale_curve = SubResource("CurveTexture_grow")
+color = Color(0.68, 0.64, 0.58, 0.85)
+alpha_curve = SubResource("CurveTexture_out")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_dust"]
+transparency = 1
+cull_mode = 2
+vertex_color_use_as_albedo = true
+albedo_color = Color(0.64, 0.6, 0.55, 1)
+disable_receive_shadows = true
+billboard_mode = 3
+billboard_keep_scale = true
+
+[sub_resource type="QuadMesh" id="QuadMesh_dust"]
+material = SubResource("StandardMaterial3D_dust")
+size = Vector2(7, 7)
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_smoke"]
+lifetime_randomness = 0.35
+emission_shape = 1
+emission_sphere_radius = 4.0
+direction = Vector3(0, 1, 0)
+spread = 28.0
+initial_velocity_min = 2.5
+initial_velocity_max = 7.0
+gravity = Vector3(0, 1.4, 0)
+damping_min = 0.5
+damping_max = 1.5
+angle_min = -180.0
+angle_max = 180.0
+angular_velocity_min = -18.0
+angular_velocity_max = 18.0
+scale_min = 2.4
+scale_max = 5.5
+scale_curve = SubResource("CurveTexture_grow")
+color = Color(0.36, 0.35, 0.34, 0.7)
+alpha_curve = SubResource("CurveTexture_out")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_smoke"]
+transparency = 1
+cull_mode = 2
+vertex_color_use_as_albedo = true
+albedo_color = Color(0.34, 0.33, 0.32, 1)
+disable_receive_shadows = true
+billboard_mode = 3
+billboard_keep_scale = true
+
+[sub_resource type="QuadMesh" id="QuadMesh_smoke"]
+material = SubResource("StandardMaterial3D_smoke")
+size = Vector2(9, 9)
+
+[sub_resource type="FogMaterial" id="FogMaterial_collapse"]
+density = 0.05
+albedo = Color(0.68, 0.64, 0.58, 1)
+edge_fade = 0.7
+
+[node name="Collapse" type="Node3D"]
+script = ExtResource("1_effect")
+life_seconds = 3.0
+light_fade_seconds = 0.0
+decal_seconds = 0.0
+
+[node name="Dust" type="GPUParticles3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+cast_shadow = 0
+gi_mode = 0
+emitting = false
+amount = 80
+lifetime = 3.0
+one_shot = true
+explosiveness = 1.0
+fixed_fps = 30
+interpolate = true
+draw_order = 3
+local_coords = false
+visibility_range_end = 700.0
+visibility_range_fade_mode = 1
+process_material = SubResource("ParticleProcessMaterial_dust")
+draw_pass_1 = SubResource("QuadMesh_dust")
+metadata/vfx_texture = "dust"
+
+[node name="Smoke" type="GPUParticles3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 0)
+cast_shadow = 0
+gi_mode = 0
+emitting = false
+amount = 40
+lifetime = 3.0
+one_shot = true
+explosiveness = 0.35
+fixed_fps = 30
+interpolate = true
+draw_order = 3
+local_coords = false
+visibility_range_end = 700.0
+visibility_range_fade_mode = 1
+process_material = SubResource("ParticleProcessMaterial_smoke")
+draw_pass_1 = SubResource("QuadMesh_smoke")
+metadata/vfx_texture = "smoke"
+metadata/vfx_continuous = true
+
+[node name="Volume" type="FogVolume" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 7, 0)
+size = Vector3(18, 14, 18)
+material = SubResource("FogMaterial_collapse")

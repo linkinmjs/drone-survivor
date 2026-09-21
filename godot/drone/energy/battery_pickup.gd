@@ -22,12 +22,15 @@
 ## Pertenece al grupo **`pickups`**, que `OffscreenMarkers` (`docs/12`) recorre
 ## para dibujar las balizas fuera de pantalla.
 ##
-## **Discrepancia registrada con `docs/09` §3.1**: el árbol del documento incluye
-## un `PickupSound` ([AudioStreamPlayer3D]) y un halo de [GPUParticles3D], y §2.4
-## pide la malla voxel `assets/drone/battery_cell.glb`. Nada de eso existe todavía
-## —el arte y el audio de la pila son WP-26— y `assets/` está fuera del alcance de
-## WP-15, así que la presentación es una caja emisiva cian con un [OmniLight3D].
-## El sonido se agrega cuando haya un `.wav` que reproducir.
+## **Presentación (WP-26)**: la caja emisiva cian de WP-15 ya no está; lo que se
+## ve es `vfx/battery_cell.tscn` —celda con casquillo, bandas emisivas `SUCCESS`,
+## halo de seis motas y luz suave—, instanciado como hijo `Mesh`. La colisión, la
+## capa, la máscara y esta API no cambiaron.
+##
+## **Discrepancias que quedan con `docs/09` §3.1**: el documento dibuja un
+## `PickupSound` ([AudioStreamPlayer3D]) que sigue sin existir, y §2.4 pide la
+## malla voxel `assets/drone/battery_cell.glb`, que tampoco: el prop es procedural
+## para no traer un asset que haya que licenciar (sala limpia, `docs/01`).
 class_name BatteryPickup extends Area3D
 
 ## La recogió el dron. [param pickup] es esta misma pila; lo consume
@@ -72,10 +75,12 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if not _active:
 		return
+	PerfProbe.begin(&"drone_energy")
 	_phase = fmod(_phase + delta, 1.0 / maxf(bob_frequency, 0.0001))
 	rotate_y(deg_to_rad(spin_degrees) * delta)
 	var offset := sin(_phase * TAU * bob_frequency) * bob_amplitude
 	global_position = _anchor + Vector3(0.0, offset, 0.0)
+	PerfProbe.end(&"drone_energy")
 
 
 # --- Interfaz pública (`docs/09` §3.4) --------------------------------------------------------

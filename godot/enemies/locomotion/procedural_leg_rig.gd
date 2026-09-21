@@ -335,6 +335,7 @@ func rig_tick(delta: float, body_velocity: Vector3) -> void:
 	if not _ready_to_walk or delta <= 0.0:
 		return
 	var started := Time.get_ticks_usec()
+	PerfProbe.begin(&"rig_tick")
 
 	var flat := Vector3(body_velocity.x, 0.0, body_velocity.z)
 	_speed = flat.length()
@@ -357,6 +358,7 @@ func rig_tick(delta: float, body_velocity: Vector3) -> void:
 	_update_state()
 	_last_position = _body.global_position
 
+	PerfProbe.end(&"rig_tick")
 	_last_tick_usec = Time.get_ticks_usec() - started
 	_tick_usec += _last_tick_usec
 	_tick_count += 1

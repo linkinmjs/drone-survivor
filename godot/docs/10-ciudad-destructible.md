@@ -4,6 +4,10 @@
 
 ## 1. Objetivo y alcance
 
+> **Nota del cierre de la revisión (2026-09-20)**: `Building` lleva `_pool_reserved` (plazas reservadas de verdad en el `VFXPool`) aparte de `_active_emitters`; el camino sin pool no reserva ni devuelve; los estáticos se resetean cuando sale del árbol el último edificio del grupo y el pool cacheado se descarta si murió o salió del árbol.
+
+> **Nota de WP-26 (2026-09-20)**: el presupuesto de emisores se unifica: `Building.MAX_EMITTERS` (12) queda como respaldo sin pool y el `DustBurst` por edificio pide su plaza con `VFXPool.reserve_emitters()`; la columna `Smoke` por edificio se apaga cuando hay pool y la reemplaza `collapse` (120 partículas + `FogVolume` de 18 m con densidad 0,05; 2 emisores, pool 2) disparado por `building_destroyed`. El crujido al pasar a DAMAGED (`damage_crack`, WP-27) suena por `stage_changed`.
+
 > **Nota de WP-25b (2026-09-20)**: la integridad pasa a `ratio = Σ wᵢ·hpᵢ / Σ wᵢ·hp_inicialᵢ` con `w = protected_weight` (3,0) para el edificio protegido (`CityIntegrity.set_protected()`, señal `protected_fallen` una sola vez). **Ventanas racionadas**: `CityGrid.dark_blocks()` sortea con `Global.round_seed` un conjunto de **tamaño fijo** `round(manzanas × 0,30)` = 5 de 15 (una Bernoulli por manzana sacaba el recuento fuera de 25–35 % una de cada tres partidas); `Building` apaga la emisión de sus ventanas con una copia de material **por familia** (`buildings_001/002`), nunca el `.tres` compartido, sin lotes de dibujo extra; el protegido siempre encendido. `city_check` suma los sub-checks `ventanas` y `protegido`.
 
 > **Nota de WP-24e (2026-09-20)**: los 15 `OccluderInstance3D` por manzana (§7) nunca se retiraban al derrumbe y, con la oclusión encendida en las `SubViewport` del ojo de pez, dejaban losas fantasma de hasta 75 m que culeaban el cuadro entero cuando el dron entraba en la huella de un edificio caído o tapaban al coloso (el «mapa y enemigo que aparecen y desaparecen» del usuario). Ahora `CityGrid.occluder_for(building)` (solo para el edificio más alto de la manzana, resuelto por nombre y metadato `cell`, sin regenerar `district_a.tscn`) y `Building._finish_collapse()` lo oculta (`reset()` lo devuelve); `city_check` 8b lo verifica. Además la oclusión queda **apagada** en el proyecto y en todos los presets (`docs/13` §3.4).
@@ -211,7 +215,7 @@ Todo `Building` pertenece además al grupo **`buildings`**, que es como `RoundMa
 
 `RubbleField` es un conjunto de `MultiMeshInstance3D`, **uno por malla distinta registrada**, con tope de **4 mallas** (≤ 4 draw calls): la ciudad registra dos (`debris_concrete_small/large`) y los enemigos hasta dos más. `instance_count = 512` por campo, `use_custom_data = true` (tinte por instancia), `gi_mode = DISABLED`.
 
-`Events.camera_trauma(amount, position)` se emite una vez por derrumbe con `amount = profile.trauma`. **El emisor no atenúa por distancia**: publica el hecho («hubo un derrumbe de intensidad A en P») y el `CameraRig` aplica `trauma += amount * clamp(1 − distancia / trauma_radius, 0, 1)` con `trauma_radius` ≈ 120 m (`docs/13`). Así el bus sigue publicando hechos, como exige el Contrato de Events (`docs/02` §5.1). El sonido es un `AudioStreamPlayer3D` del propio `Building` (bus `City`, `unit_size` 60 m, `max_distance` 400 m).
+`Events.camera_trauma(amount, position)` se emite una vez por derrumbe con `amount = profile.trauma`. **El emisor no atenúa por distancia**: publica el hecho («hubo un derrumbe de intensidad A en P») y el `CameraRig` aplica `trauma += amount * clampf(1 − distancia / 80, 0.15, 1)` (radio de 80 m con piso 0,15, `docs/13` §6; WP-28 corrigió acá los «120 m sin piso»). Así el bus sigue publicando hechos, como exige el Contrato de Events (`docs/02` §5.1). El sonido es un `AudioStreamPlayer3D` del propio `Building` (bus `City`, `unit_size` 60 m, `max_distance` 400 m).
 
 ---
 

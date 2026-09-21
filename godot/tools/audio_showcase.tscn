@@ -1,0 +1,20 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tools/audio_showcase.gd" id="1_audio_showcase"]
+
+; Escaparate de audio de WP-27 (`docs/13` §5). No es un check: reproduce 20 s de la
+; mezcla y vuelca los picos por bus, que es lo único revisable sin tarjeta de sonido.
+; No va en `run_checks`.
+
+[node name="AudioShowcase" type="Node"]
+script = ExtResource("1_audio_showcase")
+check_name = "audio_showcase"
+default_timeout = 90.0
+
+; Sin cámara activa no hay **oyente**, y un `AudioStreamPlayer3D` sin oyente no
+; entrega una sola muestra: los buses posicionales medirían −inf y la tabla no
+; diría nada. Va donde estaría el dron, a 6 m del suelo.
+
+[node name="Listener" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 0)
+current = true

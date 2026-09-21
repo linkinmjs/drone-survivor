@@ -23,6 +23,20 @@
 ##    `PARABOLA` es el arco del salto; `POSTURE` no dibuja nada —la pone la
 ##    acción— pero cuenta como canal.
 ##
+## [b]WP-26[/b]: la señal espacial la dibuja ahora el [VFXPool] —el decal rojo de
+## 18 m del pisotón, el anillo cian del EMP, la línea guía, la columna ámbar del
+## asedio y la parábola punteada del salto—, que las sirve desde pools dedicados
+## con [b]cero emisores de partículas[/b] (`docs/13` §11 #12): el presupuesto no
+## puede descartar un aviso. Las mallas de WP-19 se conservan como [b]respaldo[/b]
+## y se encienden solas cuando no hay pool en el árbol, que es lo que pasa en los
+## bancos sintéticos de `ai_check` y `enemy_parts_check`.
+##
+## El `DECAL_ZONE` se reparte en dos efectos según el ataque: el pisotón pide
+## `stomp_decal` (rojo, parpadeo a 4 Hz, se congela) y todo lo demás —el EMP— pide
+## `emp_ring` (cian, crece con un `Tween`). Los distingue
+## [member TelegraphProfile.decal_grow_from]: el anillo que nace en 0 es una onda
+## que se expande, y el que nace en 0.25 es una zona que hay que abandonar.
+##
 ## Al empezar publica `Events.enemy_attack_telegraphed(enemy, attack_id,
 ## duration)`, que es lo que consume el aviso del `CombatHUD` (`docs/12`) y lo
 ## que mide `ai_check` para comprobar que el aviso precede al daño.
@@ -52,10 +66,31 @@ const LIGHT_ENERGY: float = 24.0
 ##
 ## El proyecto corre con `use_physical_light_units` (`docs/02` §2), y en ese modo
 ## las luces omni se miden en lúmenes: fijar sólo `light_energy` no se vería.
-const LIGHT_LUMENS: float = 90000.0
+##
+## **90 000 → 30 000 (WP-26, #7).** Medido en los fotogramas de la batalla con el
+## bot: a 30 m del pisotón la luz de carga teñía de rojo media imagen y **ahogaba
+## el decal**, que es el canal que lleva el «dónde va a caer el pie». El canal 1
+## de `docs/06` §11.2 sigue cumpliéndose —el emisivo de la cabeza vira igual y
+## pasa el umbral de glow—, pero deja de competir con el canal 3. El cambio es
+## para **todos** los avisos: ver la nota de [constant LIGHT_RANGE].
+const LIGHT_LUMENS: float = 30000.0
 
 ## Alcance de la luz de carga, en metros.
-const LIGHT_RANGE: float = 60.0
+##
+## **60 → 40 (WP-26, #7).** Acompaña a [constant LIGHT_LUMENS]: con 60 m la luz
+## llegaba a edificios que no tenían nada que ver con el ataque y los pintaba del
+## color del aviso.
+##
+## Se baja para todos los ataques y no sólo para `stomp` y `pounce` porque
+## [TelegraphProfile] no tiene con qué distinguirlos: lo único que expone es
+## [member TelegraphProfile.light_energy_to], que es la **forma** de la rampa de 0
+## a 1 y no un brillo absoluto, y los ocho `.tres` los hornea
+## `tools/build_arachnodroid_profile.gd` desde una tabla y no se editan a mano
+## (WP-19). Bajar sólo dos ataques obligaría a tocar el generador y a re-hornear
+## los ocho perfiles de aviso más los de ataque, que es mucha remoción en archivos
+## de WP-19 para un ajuste de luz. Si más adelante hace falta el control por
+## ataque, lo natural es un campo nuevo `light_lumens` en [TelegraphProfile].
+const LIGHT_RANGE: float = 40.0
 
 ## Distancia de referencia del audio de carga, en metros (`docs/06` §11.2: se
 ## tiene que oír a 80 m).
@@ -81,6 +116,17 @@ const COLUMN_RADIUS: float = 2.5
 ## Segmentos con los que se dibuja la parábola guía del salto.
 const PARABOLA_SEGMENTS: int = 18
 
+## Ids de [VFXPool] de cada tipo de señal espacial (`docs/13` §4).
+const VFX_STOMP: StringName = &"stomp_decal"
+const VFX_RING: StringName = &"emp_ring"
+const VFX_GUIDE: StringName = &"guide_line"
+const VFX_COLUMN: StringName = &"siege_column"
+const VFX_PARABOLA: StringName = &"parabola"
+
+## Rojo de peligro de `UIPalette.DANGER` (`docs/13` §2.2). Es el del decal del
+## pisotón y el de la parábola del salto: los dos anuncian daño al dron.
+const DANGER_COLOR: Color = Color(1.0, 0.302, 0.302)
+
 ## Enemigo dueño del aviso. Si queda vacío se toma el padre.
 @export var enemy: Node3D = null
 
@@ -102,6 +148,10 @@ var _audio: AudioStreamPlayer3D = null
 var _head: Node3D = null
 var _tinted: Array[Dictionary] = []
 var _streams: Dictionary[StringName, AudioStream] = {}
+
+var _pool: VFXPool = null
+var _vfx: Node3D = null
+var _vfx_id: StringName = &""
 
 var _profile: TelegraphProfile = null
 var _attack_id: StringName = &""
@@ -131,6 +181,7 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if _running or _fade_left <= 0.0 or delta <= 0.0:
 		return
+	PerfProbe.begin(&"telegraph")
 	_fade_left = maxf(0.0, _fade_left - delta)
 	var ratio := _fade_left / FADE_SECONDS
 	if _light != null:
@@ -144,6 +195,7 @@ func _physics_process(delta: float) -> void:
 		_column_material.albedo_color.a = ratio * 0.45
 	if _fade_left <= 0.0:
 		_shutdown()
+	PerfProbe.end(&"telegraph")
 
 
 # --------------------------------------------------------------------------
@@ -314,6 +366,10 @@ func _begin_spatial() -> bool:
 		return true
 	if not visuals_enabled:
 		return false
+	# El efecto del pool es el aviso de verdad; la malla de WP-19 es el respaldo
+	# de los bancos sin `VFXPool`. Nunca se encienden los dos a la vez.
+	if _begin_vfx():
+		return true
 	match _kind:
 		TelegraphProfile.SpatialKind.DECAL_ZONE:
 			if _ring == null:
@@ -337,6 +393,9 @@ func _begin_spatial() -> bool:
 
 ## Avanza la señal espacial con el progreso [param t] del windup.
 func _tick_spatial(t: float) -> void:
+	if _vfx != null:
+		_tick_vfx(t)
+		return
 	if _ring != null and _ring.visible:
 		_update_ring(t)
 	if _guide != null and _guide.visible:
@@ -391,6 +450,175 @@ func _update_column(t: float) -> void:
 	_column_mesh.top_radius = COLUMN_RADIUS
 	_column_mesh.bottom_radius = COLUMN_RADIUS * lerpf(0.4, 1.0, t)
 	_column_material.albedo_color = Color(_color.r, _color.g, _color.b, 0.20 + 0.30 * t)
+
+
+# --------------------------------------------------------------------------
+# Señal espacial servida por `VFXPool` (WP-26, `docs/13` §4 y §11 #12)
+# --------------------------------------------------------------------------
+
+## Pide al pool el efecto que le toca a [member _kind]. Devuelve `false` si no
+## hay pool o si el efecto no se pudo servir, y entonces [method _begin_spatial]
+## cae en la malla de respaldo de WP-19.
+func _begin_vfx() -> bool:
+	_release_vfx()
+	_pool = VFXPool.resolve(self)
+	if _pool == null:
+		return false
+	_vfx_id = _vfx_id_for_kind()
+	if _vfx_id == &"":
+		return false
+	var centre := _spatial_centre()
+	_vfx = _pool.request(_vfx_id, Transform3D(Basis.IDENTITY, centre))
+	if _vfx == null:
+		# Las telegrafías tienen pool dedicado y cero emisores (`docs/13` §11 #12),
+		# así que un `null` acá no puede ser falta de presupuesto: sólo puede ser
+		# que otro enemigo tenga ese mismo aviso en marcha. En ese caso se cae en
+		# la malla de WP-19, que es fea pero existe; quedarse sin señal espacial no
+		# es una opción.
+		_vfx_id = &""
+		return false
+	_setup_vfx(centre)
+	_tick_vfx(0.0)
+	return true
+
+
+## Id de [VFXPool] del tipo de señal en curso.
+func _vfx_id_for_kind() -> StringName:
+	match _kind:
+		TelegraphProfile.SpatialKind.DECAL_ZONE:
+			# La zona que nace en el centro es una onda que se expande (el EMP);
+			# la que nace ya legible es una zona de la que hay que salir (el
+			# pisotón). Lo dice `decal_grow_from` (`docs/07` §5.4 y §5.8).
+			var grows_from_zero := _profile != null and _profile.decal_grow_from <= 0.001
+			return VFX_RING if grows_from_zero else VFX_STOMP
+		TelegraphProfile.SpatialKind.GUIDE_LINE:
+			return VFX_GUIDE
+		TelegraphProfile.SpatialKind.PARABOLA:
+			return VFX_PARABOLA
+		TelegraphProfile.SpatialKind.COLUMN:
+			return VFX_COLUMN
+	return &""
+
+
+## Deja el efecto recién servido con su radio, su color y su reloj.
+func _setup_vfx(centre: Vector3) -> void:
+	var zone := _vfx as VFXDecalZone
+	if zone != null:
+		zone.set_radius(_radius)
+		zone.set_ground_point(centre)
+		return
+	var ring := _vfx as VFXRing
+	if ring != null:
+		ring.set_radius(_radius)
+		ring.set_ground_point(centre)
+		# El crecimiento del anillo es suyo, no del tick del aviso: tiene que
+		# llegar a los 45 m exactamente cuando sale el pulso, aunque el jefe
+		# pierda el objetivo a mitad del windup (`docs/13` §4).
+		ring.grow(_duration)
+		return
+	var beam := _vfx as VFXBeam
+	if beam != null:
+		beam.set_endpoints(centre, centre + Vector3.UP * COLUMN_HEIGHT)
+		return
+	var guide := _vfx as VFXGuide
+	if guide != null and _profile != null:
+		guide.set_width(_profile.guide_width)
+
+
+## Avanza el efecto con el progreso [param t] del windup.
+func _tick_vfx(t: float) -> void:
+	if _vfx == null or not is_instance_valid(_vfx):
+		return
+	var centre := _spatial_centre()
+	var zone := _vfx as VFXDecalZone
+	if zone != null:
+		zone.set_ground_point(centre)
+		return
+	var ring := _vfx as VFXRing
+	if ring != null:
+		ring.set_ground_point(centre)
+		return
+	var beam := _vfx as VFXBeam
+	if beam != null:
+		beam.set_endpoints(centre, centre + Vector3.UP * COLUMN_HEIGHT)
+		return
+	var guide := _vfx as VFXGuide
+	if guide != null:
+		var from := _head.global_position if _head != null else global_position
+		guide.set_endpoints(from, _guide_target if _has_guide_target else _ground_point)
+		guide.set_progress(t)
+
+
+## Devuelve el efecto al pool. Es idempotente.
+func _release_vfx() -> void:
+	if _pool != null and _vfx != null and is_instance_valid(_vfx):
+		_pool.release(_vfx)
+	_vfx = null
+	_vfx_id = &""
+
+
+## Devuelve la señal espacial al pool si el aviso sale del árbol antes de
+## terminar el fundido.
+##
+## [method _shutdown] sólo corre al final de los [constant FADE_SECONDS], y un
+## enemigo que muere —o un nivel que se descarga— en pleno windup no llega ahí:
+## el decal del pisotón o el anillo del EMP se quedaban con su ranura hasta la red
+## del pool. Va por `_notification` y no por `_exit_tree` por la misma razón que en
+## [SweepAction]: así sigue funcionando si alguna subclase futura sobrescribe
+## `_exit_tree` sin llamar al `super`.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_EXIT_TREE:
+		_release_vfx()
+
+
+## Efecto de la señal espacial en curso, o `null`. Lo leen los checks y
+## `ActionStomp` para congelar la zona.
+func spatial_effect() -> Node3D:
+	return _vfx if _vfx != null and is_instance_valid(_vfx) else null
+
+
+## Congela la zona del pisotón en su sitio y, con [param strike], la cambia por la
+## marca de cráter. Sin efecto del pool no hace nada: la malla de respaldo no
+## tiene marca que dejar.
+func freeze_zone(strike: bool = false) -> void:
+	var zone := _vfx as VFXDecalZone
+	if zone == null:
+		return
+	zone.freeze()
+	if not strike:
+		return
+	zone.strike()
+	# El cráter dura cuatro segundos más que el aviso, así que el efecto deja de
+	# ser del aviso y pasa a ser del pool: entregarlo acá es lo que hace que la
+	# marca sobreviva al `_shutdown` de los tres canales sin quedarse con la
+	# ranura para siempre.
+	if _pool != null:
+		_pool.release_when_done(_vfx)
+	_vfx = null
+	_vfx_id = &""
+
+
+## Dispara el destello del anillo del EMP cuando el pulso sale de verdad.
+func flash_ring() -> void:
+	var ring := _vfx as VFXRing
+	if ring == null:
+		return
+	ring.flash()
+	# El destello dura 0.3 s y el apagado de los canales llega a los 0.15: el
+	# anillo pasa a ser del pool para que no se lo corte a la mitad.
+	if _pool != null:
+		_pool.release_when_done(_vfx)
+	_vfx = null
+	_vfx_id = &""
+
+
+## Centro de la señal espacial: el punto de suelo fijado, o el enemigo.
+func _spatial_centre() -> Vector3:
+	if _kind == TelegraphProfile.SpatialKind.COLUMN and _has_guide_target:
+		return _guide_target
+	if _has_ground_point:
+		return _ground_point
+	return enemy.global_position if enemy != null else global_position
 
 
 # --------------------------------------------------------------------------
@@ -558,6 +786,7 @@ func _tint_head(color: Color) -> void:
 
 ## Apaga los canales y devuelve los emisivos a su color original.
 func _shutdown() -> void:
+	_release_vfx()
 	if _light != null:
 		_light.visible = false
 		_light.light_energy = 0.0

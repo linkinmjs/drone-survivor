@@ -176,6 +176,11 @@ func take_damage(amount: float, hit: Dictionary) -> float:
 	var effective := amount * (1.0 - armor)
 	hp = maxf(0.0, hp - effective)
 	damaged.emit(part_id, effective, hp)
+	# Chispas de parte dañada (WP-27b): el mismo umbral que las del [VFXPool]. El
+	# bucle se ancla a la malla, así que sigue a la parte y se corta solo si el
+	# enemigo desaparece.
+	AudioPool.toggle_loop(self, &"sparks_loop", mesh,
+			not _broken and structure_ratio() <= AudioPool.SPARKS_RATIO)
 	if hp <= 0.0:
 		_break(hit)
 	return effective
@@ -232,6 +237,7 @@ func detach(impulse: Vector3) -> void:
 	for descendant: EnemyPart in descendants():
 		descendant._mark_detached()
 
+	_spawn_detach_fx(world.origin, chunk)
 	_publish_break(world.origin)
 	detached.emit(part_id)
 
@@ -255,6 +261,9 @@ func descendants() -> Array[EnemyPart]:
 func _break(hit: Dictionary) -> void:
 	_broken = true
 	hp = 0.0
+	# Una parte rota deja de chisporrotear: ya no hay dónde anclar las chispas, y
+	# lo que suena a continuación es la fractura y la caída.
+	AudioPool.toggle_loop(self, &"sparks_loop", mesh, false)
 	var origin := world_position()
 	# Una parte que se desprende publica desde `detach()`, con la transformada ya
 	# congelada: así nunca hay dos `enemy_part_broken` con el mismo id.
@@ -263,6 +272,26 @@ func _break(hit: Dictionary) -> void:
 	broken.emit(part_id)
 	if detachable and not _detached:
 		detach(_impulse_from(hit))
+
+
+## Pide al [VFXPool] las chispas y el humo del desprendimiento, [b]pegados al
+## [DebrisChunk][/b] (`docs/13` §4: «1.2 s siguiendo al `DebrisChunk`»).
+##
+## Se pide desde acá y no desde el bus porque el bus sólo lleva el punto de
+## rotura, y una pata de 42 t recorre veinte metros en ese segundo largo: las
+## chispas tienen que ir con el trozo. [method VFXPool.claim_part_fx] le dice al
+## pool que el efecto de este fotograma ya está servido, para que el
+## `enemy_part_broken` que viene a continuación no encienda un segundo.
+func _spawn_detach_fx(origin: Vector3, chunk: Node3D) -> void:
+	var pool := VFXPool.resolve(self)
+	if pool == null:
+		return
+	# Primero se pide y **después** se marca el fotograma: si el pool deniega, el
+	# `enemy_part_broken` que viene enseguida tiene que poder servir el efecto sin
+	# seguimiento en vez de quedarse sin nada.
+	var served := pool.request(&"part_detach", Transform3D(Basis.IDENTITY, origin), chunk)
+	if served != null:
+		pool.claim_part_fx()
 
 
 ## Emite el par de hechos de rotura del bus (`docs/02` §5.1).

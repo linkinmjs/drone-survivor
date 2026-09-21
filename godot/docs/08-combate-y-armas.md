@@ -4,6 +4,12 @@
 
 ## 1. Objetivo y alcance
 
+> **Nota de WP-28 parte B (2026-09-20)**: `WeaponMount.fire()` emite `Events.camera_trauma(0.03, origin)` por disparo (`docs/13` §6; el techo efectivo en ráfaga lo da el decaimiento). `weapon_check` mueve la cámara al centro del casco mientras dispara: durante ~0,2 s el `CameraRig` recompone `base + offset` sobre la base que capturó; el estado final es correcto y `clear_trauma()` existe para checks que necesiten ser dueños de la transformada.
+
+> **Nota del cierre de WP-26 (2026-09-20)**: `hit_confirmed(position, weak, lethal, surface)` (`docs/02` §5.1); la tabla de §2.7 no cambia: `world` no se emite porque el suelo y el escombro no confirman. `vfx/impact_armor.tscn` queda sin `Decal` (una marca que sigue al enemigo por posición se despega de una rodilla que camina); los 32 decals de bala de `ImpactFXPool` siguen siendo la única marca sobre ciudad y mundo. `weapon_check` asevera `surface` en impactos reales de capa 3 (`armor`), 4 (`weak`) y 8 (`city`) más las seis filas de `surface_for`.
+
+> **Nota de WP-26 (2026-09-20)**: `muzzle_flash.tscn` mejorado en su sitio (luz de 3 m, energía 4→0 en 0,06 s, 8 chispas de 0,18 s, quad emisivo; §2.10 queda en 60 ms); `ImpactFXPool` (16 `ImpactFX` + 32 decals de 8 s) se conserva como capa por bala y `VFXPool` suma la capa del impacto que cuenta (`impact_armor` cálido / `impact_weak` cian / `impact_city` polvo por `hit_confirmed`); `ImpactFX` variante `WEAK` pasa de ámbar a cian (nada enemigo es cálido). Cierre corto en curso: `Events.hit_confirmed` gana `surface: StringName` (`weak`/`armor`/`city`/`world`) deducida del collider por el emisor.
+
 > **Nota de WP-14 (2026-09-19)**: la clase de asistencia se llama `WeaponAimAssist` (el nombre `AimAssist` colisiona con `GameSettings.AimAssist`, enum de `04` §3.3, y rompe el autoload); `aim_assist_max_range` admite 0–600 m (220 por defecto); campos añadidos al perfil: `aim_assist_strength_assisted` 0.60, `lock_break_angle` 35°, `lock_break_range` 250 m, `muzzle_offset` 0.35 m, `impact_sound`; el recurso del MVP es `drone/weapons/profiles/default_gun.tres` (id `mk1_repeater`); `hit_confirmed` no se emite en las capas `world` ni `debris`; los decals viven en un pool aparte (32) dentro de `ImpactFXPool`; la dirección de disparo es `−FPVCamera.global_basis.z` y el `Muzzle` se realinea cada tick; el `ProjectilePool` se crea perezosamente en el primer disparo si el nivel no trae uno en el grupo `projectile_pool`; `overheat_sound` queda sin definir hasta WP-27.
 
 
@@ -164,7 +170,7 @@ Acciones de entrada: `lock_target` y `cycle_target`, definidas en WP-01 (`docs/0
 |---|---|---|---|
 | `shot_fired` | `(origin: Vector3, direction: Vector3)` | `WeaponMount` | precisión del resultado (`docs/11`), audio |
 | `weapon_heat_changed` | `(ratio: float, overheated: bool)` | `WeaponMount` | `HeatGauge` (`docs/12`) |
-| `hit_confirmed` | `(position: Vector3, weak: bool, lethal: bool)` | `ProjectilePool` | `HitMarker` (`docs/12`) |
+| `hit_confirmed` | `(position: Vector3, weak: bool, lethal: bool, surface: StringName)` | `ProjectilePool` | `HitMarker` (`docs/12`), `VFXPool`, `AudioPool` |
 
 `lethal` se obtiene llamando a `part.is_broken()` justo después de `take_damage()`.
 

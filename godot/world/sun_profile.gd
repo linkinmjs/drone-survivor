@@ -24,6 +24,17 @@
 ## [method color_from_temperature] y [method apply_to] deja `light_temperature` en
 ## [constant NEUTRAL_TEMPERATURE_K], donde el factor de cuerpo negro es
 ## prácticamente blanco.
+##
+## ## Por qué es `@tool`
+##
+## [SunLight] sí lo es, y llama [method apply_to] desde el `setter` de su perfil y
+## desde `_ready()`. Un recurso con script **sin** `@tool` se carga en el editor como
+## *placeholder* —sin métodos—, así que esa llamada imprimía
+## `Attempt to call a method on a placeholder instance` cada vez que el editor
+## empaquetaba una escena con sol (dos `SCRIPT ERROR` por export, medidos en WP-30).
+## Con `@tool` el recurso es real en las dos bandas y el volcado funciona igual en el
+## editor que en el juego, que es justo lo que [SunLight] promete en su cabecera.
+@tool
 class_name SunProfile
 extends Resource
 

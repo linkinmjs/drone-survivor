@@ -1,0 +1,111 @@
+[gd_scene load_steps=9 format=3]
+
+; Prop de la pila de energía (`docs/09` §2.4 y §3.1, `docs/13` §4). Reemplaza al
+; `BoxMesh` placeholder de `drone/energy/battery_pickup.tscn`.
+;
+; **Tres draw calls y no trece.** La primera versión de WP-26 tenía once
+; `MeshInstance3D` —cuerpo, casquillo, borne, dos bandas y seis motas de halo— y
+; medida en `render_check` costaba **+77 draw calls** con las cinco pilas activas
+; del `BatterySpawner`: 828 → 905, o sea por encima del presupuesto de 900 de
+; `docs/13` §9. Ahora las tres piezas son `MultiMeshInstance3D`:
+;
+; - `Shell` — tres instancias del mismo cilindro (cuerpo, casquillo, borne) con
+;   color por instancia, así el casquillo se lee metálico sin un material aparte.
+; - `Bands` — dos anillos emisivos `SUCCESS`.
+; - `Halo` — las seis motas, que orbitan moviendo transformadas de instancia en
+;   vez de seis nodos.
+;
+; Las transformadas de instancia las escribe `vfx/battery_cell.gd` en `_ready()`:
+; un `buffer` de `MultiMesh` a mano en el `.tscn` sería ilegible y no se podría
+; revisar en una diferencia.
+;
+; El color es `SUCCESS` #4ADE80 y **no cian**: el cian es diegético del enemigo
+; (`docs/13` §2.1) y la pila es lo mejor que le puede pasar al jugador. El
+; placeholder de WP-15 era cian y por eso se leía como «algo del jefe».
+
+[ext_resource type="Script" path="res://vfx/battery_cell.gd" id="1_cell"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_shell"]
+vertex_color_use_as_albedo = true
+albedo_color = Color(0.46, 0.47, 0.45, 1)
+metallic = 0.85
+metallic_specular = 0.65
+roughness = 0.34
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_shell"]
+material = SubResource("StandardMaterial3D_shell")
+top_radius = 0.24
+bottom_radius = 0.24
+height = 0.82
+radial_segments = 12
+rings = 1
+
+[sub_resource type="MultiMesh" id="MultiMesh_shell"]
+transform_format = 1
+use_colors = true
+instance_count = 3
+mesh = SubResource("CylinderMesh_shell")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_band"]
+albedo_color = Color(0.18, 0.5, 0.3, 1)
+roughness = 0.35
+emission_enabled = true
+emission = Color(0.29, 0.87, 0.5, 1)
+emission_energy_multiplier = 9.0
+
+[sub_resource type="TorusMesh" id="TorusMesh_band"]
+material = SubResource("StandardMaterial3D_band")
+inner_radius = 0.238
+outer_radius = 0.275
+rings = 16
+ring_segments = 6
+
+[sub_resource type="MultiMesh" id="MultiMesh_bands"]
+transform_format = 1
+instance_count = 2
+mesh = SubResource("TorusMesh_band")
+
+; Las motas van sin sombreado y aditivas, con albedo por encima de 1 para cruzar
+; el umbral de glow de 1.4 de `world/environment_battle.tres` (WP-24): a esa
+; escala lo único que se ve de una mota es su halo.
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_mote"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+albedo_color = Color(0.9, 2.7, 1.5, 1)
+disable_receive_shadows = true
+billboard_mode = 1
+billboard_keep_scale = true
+
+[sub_resource type="QuadMesh" id="QuadMesh_mote"]
+material = SubResource("StandardMaterial3D_mote")
+size = Vector2(0.09, 0.09)
+
+[sub_resource type="MultiMesh" id="MultiMesh_halo"]
+transform_format = 1
+instance_count = 6
+mesh = SubResource("QuadMesh_mote")
+
+[node name="BatteryCell" type="Node3D"]
+script = ExtResource("1_cell")
+
+[node name="Shell" type="MultiMeshInstance3D" parent="."]
+gi_mode = 0
+multimesh = SubResource("MultiMesh_shell")
+
+[node name="Bands" type="MultiMeshInstance3D" parent="."]
+gi_mode = 0
+multimesh = SubResource("MultiMesh_bands")
+
+[node name="Halo" type="MultiMeshInstance3D" parent="."]
+cast_shadow = 0
+gi_mode = 0
+multimesh = SubResource("MultiMesh_halo")
+
+[node name="Glow" type="OmniLight3D" parent="."]
+light_color = Color(0.29, 0.87, 0.5, 1)
+light_energy = 2.2
+light_intensity_lumens = 3200.0
+shadow_enabled = false
+omni_range = 6.0

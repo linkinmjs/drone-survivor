@@ -121,10 +121,11 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if not _respawning or delta <= 0.0:
 		return
+	PerfProbe.begin(&"drone_damage")
 	_elapsed += delta
-	if _elapsed < _seconds():
-		return
-	_finish()
+	if _elapsed >= _seconds():
+		_finish()
+	PerfProbe.end(&"drone_damage")
 
 
 # --- Interfaz pública (`docs/09` §3.5) --------------------------------------------------------

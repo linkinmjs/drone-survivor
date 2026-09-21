@@ -1,0 +1,130 @@
+[gd_scene load_steps=12 format=3]
+
+; Impacto en ciudad (`docs/13` §4): 20 partículas de polvo y 6 esquirlas, 0.80 s.
+;
+; El polvo va **sombreado** —sin `shading_mode = 0`— como el de `city_grid`: es
+; materia real al anochecer y tiene que recibir el sol rasante de 2400 lux, no
+; brillar por su cuenta. Las esquirlas van más claras para que se lean contra la
+; fachada.
+
+[ext_resource type="Script" path="res://vfx/vfx_effect.gd" id="1_effect"]
+
+[sub_resource type="Curve" id="Curve_out"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(0.65, 0.8), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="CurveTexture_out"]
+curve = SubResource("Curve_out")
+
+[sub_resource type="Curve" id="Curve_grow"]
+_data = [Vector2(0, 0.35), 0.0, 0.0, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_grow"]
+curve = SubResource("Curve_grow")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_dust"]
+lifetime_randomness = 0.3
+emission_shape = 1
+emission_sphere_radius = 0.35
+direction = Vector3(0, 1, 0)
+spread = 70.0
+initial_velocity_min = 1.2
+initial_velocity_max = 4.5
+gravity = Vector3(0, -1.4, 0)
+damping_min = 1.5
+damping_max = 3.0
+angle_min = -180.0
+angle_max = 180.0
+scale_min = 0.5
+scale_max = 1.4
+scale_curve = SubResource("CurveTexture_grow")
+color = Color(0.72, 0.69, 0.64, 0.8)
+alpha_curve = SubResource("CurveTexture_out")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_dust"]
+transparency = 1
+cull_mode = 2
+vertex_color_use_as_albedo = true
+albedo_color = Color(0.66, 0.63, 0.58, 1)
+disable_receive_shadows = true
+billboard_mode = 3
+billboard_keep_scale = true
+
+[sub_resource type="QuadMesh" id="QuadMesh_dust"]
+material = SubResource("StandardMaterial3D_dust")
+size = Vector2(0.9, 0.9)
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_shard"]
+lifetime_randomness = 0.4
+emission_shape = 1
+emission_sphere_radius = 0.2
+direction = Vector3(0, 1, 0)
+spread = 55.0
+initial_velocity_min = 4.0
+initial_velocity_max = 11.0
+gravity = Vector3(0, -18, 0)
+angular_velocity_min = -540.0
+angular_velocity_max = 540.0
+scale_min = 0.5
+scale_max = 1.2
+color = Color(0.78, 0.75, 0.7, 1)
+
+; Material propio y no el del polvo: los dos sistemas piden una textura
+; procedural distinta por metadato, y compartir el material haría que la segunda
+; pisara a la primera.
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_shard"]
+transparency = 1
+cull_mode = 2
+vertex_color_use_as_albedo = true
+albedo_color = Color(0.82, 0.79, 0.74, 1)
+disable_receive_shadows = true
+billboard_mode = 3
+billboard_keep_scale = true
+
+[sub_resource type="QuadMesh" id="QuadMesh_shard"]
+material = SubResource("StandardMaterial3D_shard")
+size = Vector2(0.22, 0.22)
+
+[node name="ImpactCity" type="Node3D"]
+script = ExtResource("1_effect")
+life_seconds = 0.8
+light_fade_seconds = 0.0
+decal_seconds = 0.0
+
+[node name="Dust" type="GPUParticles3D" parent="."]
+cast_shadow = 0
+gi_mode = 0
+emitting = false
+amount = 20
+lifetime = 0.8
+one_shot = true
+explosiveness = 1.0
+fixed_fps = 30
+interpolate = true
+draw_order = 3
+local_coords = false
+visibility_range_end = 400.0
+visibility_range_fade_mode = 1
+process_material = SubResource("ParticleProcessMaterial_dust")
+draw_pass_1 = SubResource("QuadMesh_dust")
+metadata/vfx_texture = "dust"
+
+[node name="Shards" type="GPUParticles3D" parent="."]
+cast_shadow = 0
+gi_mode = 0
+emitting = false
+amount = 6
+lifetime = 0.7
+one_shot = true
+explosiveness = 1.0
+fixed_fps = 30
+interpolate = true
+draw_order = 3
+local_coords = false
+visibility_range_end = 260.0
+visibility_range_fade_mode = 1
+process_material = SubResource("ParticleProcessMaterial_shard")
+draw_pass_1 = SubResource("QuadMesh_shard")
+metadata/vfx_texture = "shard"

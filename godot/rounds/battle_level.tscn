@@ -1,4 +1,4 @@
-[gd_scene load_steps=24 format=3]
+[gd_scene load_steps=27 format=3]
 
 [ext_resource type="Script" path="res://rounds/battle_level.gd" id="1_level"]
 [ext_resource type="Environment" path="res://world/environment_battle.tres" id="2_env"]
@@ -23,6 +23,9 @@
 [ext_resource type="Script" path="res://rounds/objectives/objective_break_cores.gd" id="22_break_cores"]
 [ext_resource type="Script" path="res://rounds/objectives/objective_selfdestruct.gd" id="23_selfdestruct"]
 [ext_resource type="PackedScene" path="res://hud/combat/combat_hud.tscn" id="18_combat_hud"]
+[ext_resource type="Script" path="res://audio/audio_pool.gd" id="24_audio_pool"]
+[ext_resource type="Script" path="res://audio/music_director.gd" id="25_music_director"]
+[ext_resource type="Script" path="res://vfx/vfx_pool.gd" id="26_vfx_pool"]
 
 [node name="BattleLevel" type="Node3D" node_paths=PackedStringArray("respawn_point", "respawn_camera", "drone_rig", "round_manager", "combat_hud")]
 script = ExtResource("1_level")
@@ -85,6 +88,40 @@ rubble_field = NodePath("RubbleField")
 
 [node name="RubbleField" type="Node3D" parent="Pools/DebrisPool"]
 script = ExtResource("8_rubble_field")
+
+; VFX del nivel (`docs/13` §4 y §8, WP-26). Preasigna las diecisiete escenas de
+; `vfx/` y es el único dueño de las partículas del juego: escucha el bus y
+; traduce disparos, impactos, roturas, derrumbes y pilas en efectos, con un tope
+; duro de emisores que comparte con la ciudad (`Graphics.max_emitters()`: 6 / 8 /
+; 12 / 12). Las telegrafías —decal del pisotón, anillo del EMP, línea guía,
+; columna del asedio y parábola— salen de pools dedicados con cero emisores, para
+; que el presupuesto no pueda descartar un aviso (`docs/13` §11 #12).
+;
+; Va bajo `Pools` por la misma razón que los demás: tiene que sobrevivir al
+; respawn del dron, y las chispas de una parte dañada o la marca de un cráter no
+; se borran porque el jugador muera. Se engancha a los enemigos por
+; `Events.enemy_spawned`, así que no hace falta cablearlo desde `BattleLevel`.
+
+[node name="VFXPool" type="Node" parent="Pools"]
+script = ExtResource("26_vfx_pool")
+
+; Audio del nivel (`docs/13` §5, WP-27). El `AudioPool` reparte las 24 voces con
+; tope por categoría y traduce las señales del bus en sonido; el `MusicDirector`
+; lleva los tres stems sincronizados y los dos stings. Los dos escuchan `Events`,
+; así que no hace falta cablearlos desde `BattleLevel`: se enteran solos del
+; estado de ronda, de la fase del jefe y de la muerte y vuelta del dron.
+;
+; Van bajo `Pools` por la misma razón que los otros: tienen que sobrevivir al
+; respawn del dron. El `AudioPool` descubre sus fuentes externas —el `MotorAudio`
+; del dron y el `AudioRig` del jefe— por grupo y de forma diferida, porque el
+; distrito y los enemigos los instancia `RoundManager.begin()` después de este
+; `_ready()`.
+
+[node name="AudioPool" type="Node" parent="Pools"]
+script = ExtResource("24_audio_pool")
+
+[node name="MusicDirector" type="AudioStreamPlayer" parent="Pools"]
+script = ExtResource("25_music_director")
 
 ; Puestos de pila (`docs/09` §2.5): ocho marcadores del distrito, de los que el spawner
 ; mantiene cinco activos. Seis van sobre cruces de calle interiores, entre 4 y 6 m de

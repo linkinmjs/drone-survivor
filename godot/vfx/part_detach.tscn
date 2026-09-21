@@ -1,0 +1,132 @@
+[gd_scene load_steps=12 format=3]
+
+; Desprendimiento de parte (`docs/13` §4, `docs/06` §4.1): 30 chispas y 20 de
+; humo, 1.2 s **siguiendo al `DebrisChunk`**.
+;
+; Sigue al trozo y no se queda en el punto de rotura porque una pata de 42 t
+; recorre veinte metros en ese segundo largo: las chispas tienen que ir con ella,
+; que es lo que vende el peso.
+;
+; Chispas cálidas: es metal arrancado, no luz del enemigo (`docs/13` §1).
+
+[ext_resource type="Script" path="res://vfx/vfx_effect.gd" id="1_effect"]
+
+[sub_resource type="Curve" id="Curve_out"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_out"]
+curve = SubResource("Curve_out")
+
+[sub_resource type="Curve" id="Curve_grow"]
+_data = [Vector2(0, 0.3), 0.0, 0.0, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_grow"]
+curve = SubResource("Curve_grow")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_sparks"]
+lifetime_randomness = 0.45
+emission_shape = 1
+emission_sphere_radius = 1.6
+direction = Vector3(0, 1, 0)
+spread = 90.0
+initial_velocity_min = 4.0
+initial_velocity_max = 16.0
+gravity = Vector3(0, -16, 0)
+damping_min = 1.0
+damping_max = 4.0
+scale_min = 0.5
+scale_max = 1.3
+color = Color(1, 0.78, 0.45, 1)
+alpha_curve = SubResource("CurveTexture_out")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_spark"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_color = Color(2.8, 1.6, 0.6, 1)
+disable_receive_shadows = true
+billboard_mode = 3
+billboard_keep_scale = true
+
+[sub_resource type="QuadMesh" id="QuadMesh_spark"]
+material = SubResource("StandardMaterial3D_spark")
+size = Vector2(0.4, 0.4)
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_smoke"]
+lifetime_randomness = 0.3
+emission_shape = 1
+emission_sphere_radius = 1.2
+direction = Vector3(0, 1, 0)
+spread = 45.0
+initial_velocity_min = 1.0
+initial_velocity_max = 4.0
+gravity = Vector3(0, 0.8, 0)
+damping_min = 0.8
+damping_max = 2.0
+angle_min = -180.0
+angle_max = 180.0
+scale_min = 1.2
+scale_max = 3.0
+scale_curve = SubResource("CurveTexture_grow")
+color = Color(0.22, 0.21, 0.2, 0.75)
+alpha_curve = SubResource("CurveTexture_out")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_smoke"]
+transparency = 1
+cull_mode = 2
+vertex_color_use_as_albedo = true
+albedo_color = Color(0.24, 0.23, 0.22, 1)
+disable_receive_shadows = true
+billboard_mode = 3
+billboard_keep_scale = true
+
+[sub_resource type="QuadMesh" id="QuadMesh_smoke"]
+material = SubResource("StandardMaterial3D_smoke")
+size = Vector2(2.6, 2.6)
+
+[node name="PartDetach" type="Node3D"]
+script = ExtResource("1_effect")
+life_seconds = 1.2
+light_fade_seconds = 0.0
+decal_seconds = 0.0
+
+[node name="Sparks" type="GPUParticles3D" parent="."]
+cast_shadow = 0
+gi_mode = 0
+emitting = false
+amount = 30
+lifetime = 1.2
+one_shot = true
+explosiveness = 0.55
+fixed_fps = 30
+interpolate = true
+draw_order = 3
+local_coords = false
+visibility_range_end = 500.0
+visibility_range_fade_mode = 1
+process_material = SubResource("ParticleProcessMaterial_sparks")
+draw_pass_1 = SubResource("QuadMesh_spark")
+metadata/vfx_texture = "spark"
+metadata/vfx_continuous = true
+
+[node name="Smoke" type="GPUParticles3D" parent="."]
+cast_shadow = 0
+gi_mode = 0
+emitting = false
+amount = 20
+lifetime = 1.4
+one_shot = true
+explosiveness = 0.3
+fixed_fps = 30
+interpolate = true
+draw_order = 3
+local_coords = false
+visibility_range_end = 500.0
+visibility_range_fade_mode = 1
+process_material = SubResource("ParticleProcessMaterial_smoke")
+draw_pass_1 = SubResource("QuadMesh_smoke")
+metadata/vfx_texture = "smoke"
+metadata/vfx_continuous = true

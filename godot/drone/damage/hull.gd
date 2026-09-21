@@ -48,6 +48,14 @@ signal damaged(amount: float, source_position: Vector3)
 ## El casco llegó a 0. Se emite **una sola vez**; [RespawnController] la escucha.
 signal destroyed()
 
+## Sacudida de cámara por impacto recibido (`docs/13` §6).
+##
+## Se emite en [method apply_damage] y no en `_on_body_entered` porque la tabla dice
+## «impacto recibido en el casco», no «choque»: el barrido de una pata y el escombro
+## de un derrumbe tienen que sacudir igual que la cornisa. El cooldown por cuerpo de
+## `docs/09` §2.6 ya evita que un roce continuo la dispare sesenta veces por segundo.
+const IMPACT_TRAUMA: float = 0.25
+
 ## Números del casco y del respawn (`docs/09` §3.5).
 @export var profile: HullProfile
 
@@ -87,9 +95,11 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if delta <= 0.0:
 		return
+	PerfProbe.begin(&"drone_damage")
 	if drone != null:
 		_previous_velocity = drone.linear_velocity
 	if _cooldowns.is_empty():
+		PerfProbe.end(&"drone_damage")
 		return
 	var expired: Array[int] = []
 	for id: int in _cooldowns:
@@ -100,6 +110,7 @@ func _physics_process(delta: float) -> void:
 			_cooldowns[id] = left
 	for id: int in expired:
 		var _erased := _cooldowns.erase(id)
+	PerfProbe.end(&"drone_damage")
 
 
 # --- Interfaz pública (`docs/09` §3.5) --------------------------------------------------------
@@ -110,13 +121,17 @@ func apply_damage(amount: float, source_position: Vector3) -> void:
 	if _destroyed or amount <= 0.0:
 		return
 	hp = maxf(hp - amount, 0.0)
+	var at_position := drone.global_position if drone != null else source_position
 	damaged.emit(amount, source_position)
 	Events.drone_damaged.emit(amount, source_position)
 	Events.hull_changed.emit(get_ratio())
+	# La sacudida se pide desde el **dron** y no desde `source_position`: el golpe lo
+	# recibe la cámara, así que la atenuación por distancia de `docs/13` §6 tiene que
+	# dar 1.0. Con el origen del disparo, un láser lejano casi no se sentiría.
+	Events.camera_trauma.emit(IMPACT_TRAUMA, at_position)
 	if hp > 0.0:
 		return
 	_destroyed = true
-	var at_position := drone.global_position if drone != null else source_position
 	destroyed.emit()
 	Events.drone_destroyed.emit(at_position)
 	if profile != null and profile.destroy_trauma > 0.0:

@@ -1,0 +1,107 @@
+[gd_scene load_steps=8 format=3]
+
+; Haz del `siege_beam` (`docs/13` §4, `docs/07` §5.7): el mismo shader que el
+; láser de cabeza pero **grueso** (radio 1.5 m), lento y **ámbar-naranja**.
+;
+; Es la **única excepción cálida** a la regla de identidad de `docs/13` §1 («nada
+; enemigo es cálido»), y es deliberada: el asedio no es el enemigo, es su luz
+; cayendo sobre nuestra ciudad, y el ámbar es el color de lo que arde. Si fuera
+; cian el jugador leería «el jefe está haciendo algo» en vez de «se está comiendo
+; una manzana».
+;
+; Las chispas de contacto son de hormigón caliente, no de metal: van más
+; anaranjadas y duran más que las del láser.
+
+[ext_resource type="Script" path="res://vfx/vfx_beam.gd" id="1_beam"]
+[ext_resource type="Shader" path="res://vfx/beam.gdshader" id="2_shader"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_siege"]
+render_priority = 1
+shader = ExtResource("2_shader")
+shader_parameter/beam_color = Color(1, 0.48, 0.1, 1)
+shader_parameter/core_color = Color(1, 0.92, 0.72, 1)
+shader_parameter/scroll_speed = 1.4
+shader_parameter/fresnel_power = 1.7
+shader_parameter/pulse_hz = 6.0
+shader_parameter/intensity = 3.6
+shader_parameter/bands = 2.5
+shader_parameter/cap_fade = 0.08
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_siege"]
+material = SubResource("ShaderMaterial_siege")
+top_radius = 1.5
+bottom_radius = 1.5
+height = 1.0
+radial_segments = 14
+rings = 1
+cap_top = false
+cap_bottom = false
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_contact"]
+lifetime_randomness = 0.45
+emission_shape = 1
+emission_sphere_radius = 1.6
+direction = Vector3(0, 0, 1)
+spread = 70.0
+initial_velocity_min = 4.0
+initial_velocity_max = 14.0
+gravity = Vector3(0, -14, 0)
+damping_min = 1.5
+damping_max = 5.0
+scale_min = 0.6
+scale_max = 1.6
+color = Color(1, 0.72, 0.36, 1)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_contact"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_color = Color(3, 1.65, 0.6, 1)
+disable_receive_shadows = true
+billboard_mode = 3
+billboard_keep_scale = true
+
+[sub_resource type="QuadMesh" id="QuadMesh_contact"]
+material = SubResource("StandardMaterial3D_contact")
+size = Vector2(0.8, 0.8)
+
+[node name="SiegeBeam" type="Node3D"]
+script = ExtResource("1_beam")
+life_seconds = 0.0
+light_fade_seconds = 0.0
+decal_seconds = 0.0
+
+[node name="Beam" type="MeshInstance3D" parent="."]
+top_level = true
+cast_shadow = 0
+gi_mode = 0
+mesh = SubResource("CylinderMesh_siege")
+
+[node name="ImpactLight" type="OmniLight3D" parent="."]
+top_level = true
+light_color = Color(1, 0.55, 0.18, 1)
+light_energy = 3.5
+light_intensity_lumens = 120000.0
+shadow_enabled = false
+omni_range = 34.0
+
+[node name="ContactSparks" type="GPUParticles3D" parent="."]
+top_level = true
+cast_shadow = 0
+gi_mode = 0
+emitting = false
+amount = 12
+lifetime = 0.9
+one_shot = false
+explosiveness = 0.1
+fixed_fps = 30
+interpolate = true
+draw_order = 3
+local_coords = false
+visibility_range_end = 700.0
+visibility_range_fade_mode = 1
+process_material = SubResource("ParticleProcessMaterial_contact")
+draw_pass_1 = SubResource("QuadMesh_contact")
+metadata/vfx_texture = "spark"
+metadata/vfx_continuous = true

@@ -87,15 +87,16 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if delta <= 0.0:
 		return
+	PerfProbe.begin(&"drone_energy")
 	if _active_count >= active_target:
 		_accumulator = 0.0
-		return
-	_accumulator += delta
-	if _accumulator < _next_delay:
-		return
-	_accumulator = 0.0
-	_fill()
-	_next_delay = respawn_delay if _active_count >= active_target else retry_interval
+	else:
+		_accumulator += delta
+		if _accumulator >= _next_delay:
+			_accumulator = 0.0
+			_fill()
+			_next_delay = respawn_delay if _active_count >= active_target else retry_interval
+	PerfProbe.end(&"drone_energy")
 
 
 # --- Interfaz pública (`docs/09` §3.4) --------------------------------------------------------

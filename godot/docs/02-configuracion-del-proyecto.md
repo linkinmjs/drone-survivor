@@ -3,6 +3,12 @@
 > Estado: borrador v1 · Fecha: 2026-09-19 · Gobierna: WP-01 · Depende de: `docs/00-plan-maestro.md`, `docs/01-sala-limpia-y-reutilizacion.md`
 
 ## 1. Objetivo y alcance
+
+> **Nota de WP-29 (2026-09-20)**: `world/sun_profile.gd` es `@tool` (con el porqué en su cabecera: `SunLight` es `@tool` y llama `profile.apply_to(self)` desde el setter y desde `_ready()`; sin `@tool` el recurso se carga como placeholder en el editor). El export headless sale con 0 `SCRIPT ERROR` en dos corridas; WP-29 no pudo reproducir los dos errores que vio WP-30 (probablemente dependen de las escenas abiertas que restaura `editor_layout.cfg`), pero el arreglo es correcto por construcción.
+
+> **Nota de WP-30 (2026-09-20)**: export Windows verificado localmente: `--headless --export-release "Windows Desktop"` sale con 0 (`drone-survivor.exe` 104 MiB + `.pck` 30,7 MiB, 818 archivos leídos con un lector propio del formato pck **versión 4** de Godot 4.7: índice al final y rutas sin `res://`); 0 archivos de `tools/`, `docs/`, `_raw`, 0 `.gd`/`.tscn` en crudo (`script_export_mode=2`), y presentes el layout de buses, las 8 fuentes, los 55 WAV, las 18 escenas de `vfx/` y los 4 `.tres` de `world/`; sin referencias a `res://tools/` desde código de juego. El `.exe` llega al menú principal con `--quit-after 900` sin `ERROR`/`SCRIPT ERROR` y no toca `user://config`. Hallazgos: (1) el export imprime dos `SCRIPT ERROR` inofensivos porque `world/sun_light.gd` es `@tool` y llama a `SunProfile.apply_to()` sobre un placeholder: `sun_profile.gd` no es `@tool` (lo corrige WP-29); (2) `debug/export_console_wrapper=1` significa «solo en debug»: en release **no** se genera `drone-survivor.console.exe` (si se quiere, es `2`). §9 queda corregido abajo: `checks` corre `--headless-only` y el artefacto del export usa `steps.export.outputs.archive_directory`.
+
+> **Nota del cierre de WP-26 (2026-09-20)**: `hit_confirmed` gana un cuarto argumento, `surface: StringName` ∈ {`&"weak"`, `&"armor"`, `&"city"`, `&"world"`}, deducido del collider por `ProjectilePool._resolve()` (`static func surface_for(layer, weak, has_part)`): sin él, `VFXPool` adivinaba «blindaje» por cercanía al jefe y `AudioPool` metía el golpe metálico en cada tiro a una fachada. `world` existe en el dominio pero hoy no viaja (el suelo y el escombro no tienen `HitKind` en `docs/08` §2.7 y no confirman). Receptores adaptados: `VFXPool`, `AudioPool`, `CombatHUD`, `RoundManager`, `BotPilot`, checks y la tabla de aridades de `project_check`. §5.1 queda corregido abajo.
 > Nota del checkpoint 2 (2026-09-19): defaults de gamepad corregidos tras la prueba del usuario: **L1 (botón 9) = `toggle_arm`**; `arm` (mantener) queda **sin botón por defecto** (es para un switch de radio, asignable en Opciones → Controles); L3 deja de usarse. La tabla de §4.3 queda superada en esas dos filas. Quien tenga un `InputMap.cfg` anterior debe usar «Restablecer» en Controles para tomar los defaults nuevos.
 
 > Nota de WP-12b (2026-09-19): los GLB voxel se importan con `meshes/ensure_tangents=false` y `nodes/root_type`/`nodes/root_name` explícitos (ver `05` §1); el §7.1 de este doc queda superado en ese punto.
@@ -313,7 +319,7 @@ signal energy_changed(ratio: float, critical: bool)
 signal hull_changed(ratio: float)
 signal weapon_heat_changed(ratio: float, overheated: bool)
 signal shot_fired(origin: Vector3, direction: Vector3)
-signal hit_confirmed(position: Vector3, weak: bool, lethal: bool)
+signal hit_confirmed(position: Vector3, weak: bool, lethal: bool, surface: StringName)  # surface: weak | armor | city | world (cierre de WP-26)
 signal battery_collected(amount: float, position: Vector3)
 # Enemigos (dueño: 06)
 signal enemy_spawned(enemy: Node3D, enemy_id: StringName)
@@ -531,7 +537,7 @@ jobs:
           name: godot-imported
           path: godot/.godot/
       - name: Ejecutar todos los checks
-        run: bash godot/tools/run_checks.sh
+        run: bash godot/tools/run_checks.sh --headless-only
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -551,6 +557,7 @@ jobs:
           name: godot-imported
           path: godot/.godot/
       - name: Exportar preset Windows Desktop
+        id: export
         uses: firebelley/godot-export@v6.0.0
         with:
           godot_executable_download_url: "https://github.com/godotengine/godot/releases/download/${{ env.GODOT_VERSION }}-${{ env.GODOT_STATUS }}/Godot_v${{ env.GODOT_VERSION }}-${{ env.GODOT_STATUS }}_linux.x86_64.zip"
@@ -562,7 +569,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: windows-desktop
-          path: "/home/runner/.local/share/godot/archives/Windows Desktop.zip"
+          path: "${{ steps.export.outputs.archive_directory }}/Windows Desktop.zip"
 
   deploy-itch:
     name: Publicar en itch.io (desactivado)

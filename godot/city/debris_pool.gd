@@ -83,6 +83,7 @@ func _ready() -> void:
 ## Envejece los trozos vivos y retira los que agotaron su vida o llevan
 ## demasiado dormidos. Acumulador, nunca un [Timer] (convención de `docs/00` §6).
 func _physics_process(delta: float) -> void:
+	PerfProbe.begin(&"debris_pool")
 	var index := _live.size() - 1
 	while index >= 0:
 		var chunk := _live[index]
@@ -95,6 +96,7 @@ func _physics_process(delta: float) -> void:
 		if chunk.age >= chunk.lifetime or chunk.sleep_time >= SLEEP_RETIRE_SECONDS:
 			_retire_at(index)
 		index -= 1
+	PerfProbe.end(&"debris_pool")
 
 
 ## Construye un trozo nuevo con [param mesh] y [param shape] en [param xform].

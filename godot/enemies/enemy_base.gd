@@ -97,6 +97,10 @@ var perception: Node = null
 var brain: Node = null
 
 var _parts: Dictionary[StringName, EnemyPart] = {}
+
+## Las mismas partes de [member _parts] en orden de construcción, para que
+## [method get_parts] no arme un arreglo por llamada (WP-29).
+var _parts_list: Array[EnemyPart] = []
 var _weak_points: Dictionary[StringName, WeakPoint] = {}
 var _legs: Array[Dictionary] = []
 var _phase_index: int = -1
@@ -147,6 +151,7 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if not _built:
 		return
+	PerfProbe.begin(&"enemy_base")
 	_elapsed += delta
 	if _stagger_left > 0.0:
 		_stagger_left = maxf(0.0, _stagger_left - delta)
@@ -165,6 +170,7 @@ func _physics_process(delta: float) -> void:
 	while _phase_accumulator >= phase_step:
 		_phase_accumulator -= phase_step
 		_evaluate_phases()
+	PerfProbe.end(&"enemy_base")
 
 
 # --------------------------------------------------------------------------
@@ -182,11 +188,17 @@ func get_weak_point(weak_point_id: StringName) -> WeakPoint:
 
 
 ## Todas las partes del grafo, en orden de construcción.
+##
+## Devuelve la lista **cacheada**, no una copia: el grafo se arma una vez en
+## `_ready()` y ninguna parte se da de baja del diccionario —desprender marca la
+## parte, no la borra—, así que el arreglo es estable toda la partida. Quien la
+## reciba no debe modificarla.
+##
+## Antes armaba un `Array[EnemyPart]` de 31 elementos en **cada** llamada, y la
+## llaman [method _refresh_weak_points] a 10 Hz, [method _evaluate_phases] a 4 Hz y
+## [method total_structure_ratio] dentro de cada una (WP-29).
 func get_parts() -> Array[EnemyPart]:
-	var found: Array[EnemyPart] = []
-	for part_id: StringName in _parts:
-		found.append(_parts[part_id])
-	return found
+	return _parts_list
 
 
 ## Todos los puntos débiles.
@@ -530,6 +542,7 @@ func _build_parts() -> void:
 
 		parts_root.add_child(part)
 		_parts[part.part_id] = part
+		_parts_list.append(part)
 		_structure_denominator += part.max_hp * part.structure_weight
 		var _discard := part.broken.connect(_on_part_broken)
 
@@ -706,10 +719,15 @@ func _exposure_context() -> Dictionary:
 func _evaluate_phases() -> void:
 	if profile == null or profile.phases.is_empty():
 		return
+	# El contexto se arma **una vez** por evaluación y no una por fase: antes cada
+	# `_phase_matches()` llamaba a `_exposure_context()`, que recorre las 31 partes y
+	# arma dos diccionarios, así que una evaluación de cinco fases pagaba cinco
+	# recorridos para leer siempre el mismo `broken_ids` (WP-29).
+	var broken_ids := _exposure_context()["broken_ids"] as Dictionary
 	var best := -1
 	for index: int in range(profile.phases.size() - 1, -1, -1):
 		var phase := profile.phases[index]
-		if _phase_matches(phase.get("when", {}) as Dictionary):
+		if _phase_matches(phase.get("when", {}) as Dictionary, broken_ids):
 			best = index
 			break
 	if best <= _phase_index:
@@ -718,10 +736,13 @@ func _evaluate_phases() -> void:
 
 
 ## Resuelve el bloque `when` de una fase. Sin criterios, la fase siempre cumple.
-func _phase_matches(when: Dictionary) -> bool:
+##
+## [param broken_ids] lo arma [method _evaluate_phases] una sola vez por evaluación
+## (WP-29): es el `broken_ids` de [method _exposure_context], idéntico para todas las
+## fases de la misma pasada.
+func _phase_matches(when: Dictionary, broken_ids: Dictionary) -> bool:
 	if when.is_empty():
 		return true
-	var broken_ids := (_exposure_context()["broken_ids"] as Dictionary)
 	var results: Array[bool] = []
 
 	if when.has("parts_broken"):

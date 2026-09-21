@@ -53,7 +53,7 @@ const EVENT_SIGNALS: Dictionary[String, int] = {
 	"hull_changed": 1,
 	"weapon_heat_changed": 2,
 	"shot_fired": 2,
-	"hit_confirmed": 3,
+	"hit_confirmed": 4,
 	"battery_collected": 2,
 	"enemy_spawned": 2,
 	"enemy_part_broken": 3,

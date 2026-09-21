@@ -244,9 +244,11 @@ func _process(delta: float) -> void:
 	# día en el primer cuadro.
 	if not is_visible_in_tree():
 		return
+	PerfProbe.begin(&"hud_flight")
 	if preview_mode:
 		_advance_preview(delta)
 	_update_orientation()
+	PerfProbe.end(&"hud_flight")
 
 
 # --- Contrato de datos (`docs/12` §2.2) -------------------------------------------------------
@@ -290,9 +292,10 @@ static func config_label_key(config_key: String) -> String:
 ## Calidad de la señal de video del dron, de 0 (sin imagen) a 1 (señal limpia), para
 ## el [HUDSignalIndicator] (WP-25).
 ##
-## Hoy nadie la mueve y el indicador vive en 1,0: el `CombatHUD` la va a publicar
-## cuando WP-28 ate la degradación por daño y por EMP al overlay FPV. El setter existe
-## desde ya para que ese paquete no tenga que abrir este archivo.
+## La publica [method DroneRig._feed_hud] una vez por paso de física, con la cifra que
+## le da [method FPVOverlay.signal_quality] (WP-28). Que salga del overlay y no de una
+## cuenta propia del HUD es lo que garantiza que las barras y la imagen digan lo mismo:
+## hay un solo lugar donde el daño y el EMP se convierten en «calidad de señal».
 func set_signal_quality(value: float) -> void:
 	if _signal != null:
 		_signal.set_quality(value)

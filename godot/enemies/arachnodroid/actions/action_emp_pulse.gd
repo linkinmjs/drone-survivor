@@ -73,9 +73,18 @@ func _on_active_begin() -> void:
 	_centre = _body_ground()
 	open_window()
 	var _touched := resolve_at(_sweep_transform(), _sweep_shape())
+	# El anillo llegó a los 45 m con el windup; acá sale el destello que dice
+	# «ya pasó» (`docs/13` §4, fila del anillo de EMP).
+	var node := telegraph_node()
+	if node != null:
+		node.flash_ring()
 	var rig_audio := audio_rig()
 	if rig_audio != null:
 		var _player := rig_audio.play(&"emp_burst", _centre)
+	# El `emp_burst` del rig es el golpe; esto es la **estela** del anillo que se
+	# aleja, y va por el `AudioPool` porque el anillo es un efecto del nivel y no
+	# una voz del jefe (WP-27b).
+	var _ring := AudioPool.emit_event(self, &"emp_ring", _centre)
 
 
 ## La ventana activa no vuelve a consultar: el pulso ya pasó.

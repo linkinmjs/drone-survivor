@@ -538,7 +538,15 @@ func _write_import(resource_path: String, looping: bool) -> void:
 	for key: String in IMPORT_PARAMS:
 		config.set_value("params", key, IMPORT_PARAMS[key])
 	if looping:
-		config.set_value("params", "edit/loop_mode", 1)
+		# **2**, no 1. El `edit/loop_mode` del importador es
+		# `0 detectar · 1 deshabilitado · 2 adelante · 3 ping-pong · 4 atrás`, así que
+		# el 1 que había acá importaba el `servo_loop` con el bucle **apagado**:
+		# `AudioStreamWAV.loop_mode` quedaba en 0 y el loop de servos del jefe sonaba
+		# 1.5 s y callaba, aunque el rig lo tratara como continuo (`docs/07` §10).
+		# El WAV plano que escribe `save_to_wav()` no guarda puntos de bucle, así que
+		# el 2 explícito es la única forma de pedirlo. Lo mismo hace
+		# `tools/generate_motor_sounds.gd`, que sí lo tenía bien.
+		config.set_value("params", "edit/loop_mode", 2)
 	var err := config.save(import_path)
 	if err != OK:
 		push_error("No se pudo escribir %s: %s" % [import_path, error_string(err)])

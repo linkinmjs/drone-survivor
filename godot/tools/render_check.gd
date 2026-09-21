@@ -8,7 +8,7 @@
 ##
 ## | Variante | Qué prueba | Presupuesto |
 ## |---|---|---|
-## | `high` | preset HIGH con SDFGI, ojo de pez FAST | fps ≥ 60, p1 ≥ 45, draw calls < 900 |
+## | `high` | preset HIGH con SDFGI, ojo de pez FAST_WIDE | fps ≥ 60, p1 ≥ 45, draw calls < 900 |
 ## | `sdfgi_off` | variante **B** de `docs/13` §3.5: SDFGI apagado, ambiente de color, SSIL y 6 probes | informativa |
 ## | `low` | preset LOW | fps ≥ 120 |
 ##

@@ -141,6 +141,10 @@ var _cinematic: bool = false
 ## cuenta atrás, que es quien consulta al [RespawnController].
 var _drone_absent: bool = false
 
+## Los diecisiete componentes en el orden de [method _components], armados una sola
+## vez en [method _collect_nodes] (WP-29).
+var _component_list: Array[CombatHUDComponent] = []
+
 ## Con `true`, [method advance] sólo corre cuando alguien la llama a mano. Lo usa
 ## `combat_hud_check` para medir plazos en pasos exactos.
 var _manual_time: bool = false
@@ -184,7 +188,9 @@ func _exit_tree() -> void:
 func _process(delta: float) -> void:
 	if _manual_time:
 		return
+	PerfProbe.begin(&"hud_combat")
 	advance(delta)
+	PerfProbe.end(&"hud_combat")
 
 
 # --- Reloj ------------------------------------------------------------------------------------
@@ -502,7 +508,8 @@ func _on_weapon_heat_changed(ratio: float, overheated: bool) -> void:
 
 ## Un impacto en un punto débil es el acuse de que el jugador entendió: apaga el
 ## marcador de ayuda y reinicia el reloj de los ocho segundos (WP-24d).
-func _on_hit_confirmed(_position: Vector3, weak: bool, lethal: bool) -> void:
+func _on_hit_confirmed(_position: Vector3, weak: bool, lethal: bool,
+		_surface: StringName) -> void:
 	if _hit_marker != null:
 		_hit_marker.add_hit(weak, lethal)
 	if not weak:
@@ -709,9 +716,7 @@ func _refresh_intro_keys() -> void:
 
 ## Los diecisiete componentes que dibujan, sin el [HUDGlitchLayer], que los mueve.
 func _components() -> Array[CombatHUDComponent]:
-	return [_energy, _hull, _heat, _reticle, _hit_marker, _boss, _city_bar, _markers,
-			_damage, _telegraph, _timer, _objective, _respawn, _intro, _weak_hint,
-			_coach, _alert]
+	return _component_list
 
 
 ## A quiénes sacude el EMP. El propio [HUDGlitchLayer] no está: moverse a sí mismo no
@@ -812,6 +817,20 @@ func _collect_nodes() -> void:
 	_weak_hint = get_node_or_null(^"%WeakPointHint") as HUDWeakPointHint
 	_coach = get_node_or_null(^"%CoachTip") as HUDCoachTip
 	_alert = get_node_or_null(^"%AlertScreen") as HUDAlertScreen
+	# La lista se arma **una vez**, acá, y no en cada llamada a [method _components]:
+	# la llama [method advance] una vez por cuadro. Los campos no cambian después de
+	# acá —los resuelve este mismo método y nadie más los escribe—, así que rearmar el
+	# arreglo de diecisiete elementos por cuadro era trabajo tirado.
+	#
+	# **Cuánto ahorra, medido** (WP-29): nada que la sonda vea. `hud_combat` marcaba
+	# 0,287 ms/cuadro antes y 0,272 después, dentro del ruido entre corridas: lo que
+	# cuesta es el `tick()` de los diecisiete componentes, no armar la lista. El cambio
+	# queda porque es menos trabajo y no cambia nada, no porque haya movido la aguja.
+	# El costo real del HUD sí importa en LOW, donde esos 0,24 ms son el 11 % de un
+	# cuadro de 2,1 ms.
+	_component_list.assign([_energy, _hull, _heat, _reticle, _hit_marker, _boss,
+			_city_bar, _markers, _damage, _telegraph, _timer, _objective, _respawn,
+			_intro, _weak_hint, _coach, _alert])
 	var missing := PackedStringArray()
 	for pair: Array in [["Root", _root], ["Frame", _frame], ["EnergyBar", _energy],
 			["HullBar", _hull], ["HeatGauge", _heat], ["Reticle", _reticle],

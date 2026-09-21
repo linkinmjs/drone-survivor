@@ -76,6 +76,7 @@ var _weapon: WeaponMount = null
 var _energy: EnergySystem = null
 var _hull: Hull = null
 var _respawn_controller: RespawnController = null
+var _overlay: FPVOverlay = null
 
 
 func _ready() -> void:
@@ -93,6 +94,7 @@ func _ready() -> void:
 	_energy = _drone.get_node_or_null(^"EnergySystem") as EnergySystem
 	_hull = _drone.get_node_or_null(^"Hull") as Hull
 	_respawn_controller = get_node_or_null(^"RespawnController") as RespawnController
+	_overlay = get_node_or_null(^"Overlay") as FPVOverlay
 	_hud = get_node_or_null(^"FlightHUD") as FlightHUD
 	if _controller == null:
 		push_error("DroneRig: falta 'Drone/FlightController' en %s." % name)
@@ -110,6 +112,8 @@ func _ready() -> void:
 		push_error("DroneRig: falta 'Drone/Hull' en %s (docs/09 §3.1)." % name)
 	if _respawn_controller == null:
 		push_error("DroneRig: falta 'RespawnController' en %s (docs/09 §3.1)." % name)
+	if _overlay == null:
+		push_error("DroneRig: falta 'Overlay' en %s (docs/13 §7)." % name)
 	_check_motor_audio()
 
 	if respawn_point != null:
@@ -136,7 +140,9 @@ func _ready() -> void:
 ## peso cambia. Los componentes continuos del HUD se redibujan igual en cada frame de
 ## render, desde su propio `_process`.
 func _physics_process(delta: float) -> void:
+	PerfProbe.begin(&"drone_rig")
 	_feed_hud(delta)
+	PerfProbe.end(&"drone_rig")
 
 
 ## El dron del rig.
@@ -200,6 +206,17 @@ func get_hull() -> Hull:
 ## El controlador de muerte y reaparición del rig (`docs/09` §3.5).
 func get_respawn_controller() -> RespawnController:
 	return _respawn_controller
+
+
+## El overlay de la señal FPV (`docs/13` §7): la capa −1 con la viñeta, el grano, las
+## scanlines, la aberración y los dos estados de degradación.
+##
+## El rig **no lo cablea**: el overlay se engancha solo a `Events.hull_changed` y a la
+## señal local `EnergySystem.emp_hit`, igual que la batería y el casco se cablean solos.
+## Lo único que aporta el rig es este accessor, que es por donde la sacudida de WP-28
+## parte B lee [method FPVOverlay.signal_quality] para publicarla en el `FlightHUD`.
+func get_overlay() -> FPVOverlay:
+	return _overlay
 
 
 ## Multiplicador de puntaje vigente, 1.0 si el dron todavía no murió.
@@ -299,6 +316,11 @@ func _feed_hud(delta: float) -> void:
 	var right := _radio.get_right_stick() if _radio != null else Vector2.ZERO
 	_hud.update_data(delta, state.position, angles, state.velocity, left, right,
 			_drone.get_motor_rpm())
+	# La señal del `HUDSignalIndicator` sale del overlay y no de una cuenta propia
+	# (`docs/13` §7): el overlay ya sabe cuánto daño y cuánto EMP está dibujando, y
+	# publicar su misma cifra es lo que garantiza que las barras y la imagen digan lo
+	# mismo. Sin overlay —un rig de adorno— la señal es perfecta.
+	_hud.set_signal_quality(_overlay.signal_quality() if _overlay != null else 1.0)
 
 
 ## `RECOVER` lo impone el sistema, no el piloto: por eso el badge parpadea

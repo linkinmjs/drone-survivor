@@ -40,7 +40,15 @@ const VISOR_PART: StringName = &"wp_head_visor"
 ## Radio del cilindro del haz visible, en metros. Es el doble del radio de la
 ## cápsula que resuelve el daño (1.2 m) dividido por cinco: el haz se ve fino y
 ## el volumen que mata es más generoso, que es lo que se quiere.
-const BEAM_RADIUS: float = 0.25
+## Radio **visual** del haz, en metros.
+##
+## **0.25 → 0.6 (WP-26).** El volumen de daño es una [CapsuleShape3D] de r 1.2 m
+## (`docs/07` §5.6) y **no se toca**; lo que se corrige es que el haz se veía casi
+## cinco veces más fino que lo que mataba. Con 0.6 m y el fresnel de
+## `vfx/beam.gdshader` —que engorda el borde de silueta— el haz lee alrededor de
+## 1 m, o sea cerca del volumen real sin prometer más alcance del que tiene. Si en
+## el checkpoint 4 el láser se siente injusto, la palanca es ésta y no la cápsula.
+const BEAM_RADIUS: float = 0.6
 
 ## Color aditivo del haz: blanco-cian, el mismo al que carga el visor.
 const BEAM_COLOR: Color = Color(0.70, 0.95, 1.0, 0.85)

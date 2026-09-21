@@ -71,10 +71,12 @@ func _ready() -> void:
 func _physics_process(_delta: float) -> void:
 	if not enabled:
 		return
+	PerfProbe.begin(&"drone_misc")
 	_read_sticks()
 	_poll_axis_switches()
 	if target != null:
 		target.update_command(_command)
+	PerfProbe.end(&"drone_misc")
 
 
 func _unhandled_input(event: InputEvent) -> void:

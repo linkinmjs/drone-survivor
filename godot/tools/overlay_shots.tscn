@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tools/overlay_shots.gd" id="1_overlay_shots"]
+
+[node name="OverlayShots" type="Node"]
+script = ExtResource("1_overlay_shots")
+check_name = "overlay_shots"
+default_timeout = 600.0

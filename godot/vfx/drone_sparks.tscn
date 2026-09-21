@@ -1,0 +1,71 @@
+[gd_scene load_steps=7 format=3]
+
+; Chispas del dron al recibir daño (`docs/13` §8, `docs/09` §2).
+;
+; **Ámbar y blancas, nunca cian**: la segunda mitad de la regla de identidad de
+; `docs/13` §1 es que nada propio es cian. El dron es una pieza suelta reparada
+; con cinta (WP-25) y cuando lo golpean suelta chispas de taller, no energía.
+;
+; Van ancladas al dron y no al punto de origen del golpe: lo que el jugador tiene
+; que ver es **su** máquina echando chispas delante de la cámara.
+
+[ext_resource type="Script" path="res://vfx/vfx_effect.gd" id="1_effect"]
+
+[sub_resource type="Curve" id="Curve_out"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_out"]
+curve = SubResource("Curve_out")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_drone"]
+lifetime_randomness = 0.4
+emission_shape = 1
+emission_sphere_radius = 0.22
+direction = Vector3(0, -0.3, 0)
+spread = 85.0
+initial_velocity_min = 1.5
+initial_velocity_max = 6.0
+gravity = Vector3(0, -16, 0)
+damping_min = 1.0
+damping_max = 5.0
+scale_min = 0.3
+scale_max = 0.8
+color = Color(1, 0.85, 0.6, 1)
+alpha_curve = SubResource("CurveTexture_out")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_drone"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_color = Color(2.8, 2.1, 1.2, 1)
+disable_receive_shadows = true
+billboard_mode = 3
+billboard_keep_scale = true
+
+[sub_resource type="QuadMesh" id="QuadMesh_drone"]
+material = SubResource("StandardMaterial3D_drone")
+size = Vector2(0.06, 0.06)
+
+[node name="DroneSparks" type="Node3D"]
+script = ExtResource("1_effect")
+life_seconds = 0.5
+light_fade_seconds = 0.0
+decal_seconds = 0.0
+
+[node name="Sparks" type="GPUParticles3D" parent="."]
+cast_shadow = 0
+gi_mode = 0
+emitting = false
+amount = 14
+lifetime = 0.5
+one_shot = true
+explosiveness = 1.0
+fixed_fps = 30
+interpolate = true
+draw_order = 3
+local_coords = false
+process_material = SubResource("ParticleProcessMaterial_drone")
+draw_pass_1 = SubResource("QuadMesh_drone")
+metadata/vfx_texture = "spark"

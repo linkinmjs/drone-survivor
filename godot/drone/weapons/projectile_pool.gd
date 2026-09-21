@@ -348,7 +348,7 @@ func _cast(space: PhysicsDirectSpaceState3D, from: Vector3, to: Vector3,
 
 
 ## Aplica la tabla de resolución por capa de `docs/08` §2.7 y publica
-## `Events.hit_confirmed`.
+## `Events.hit_confirmed`, con la superficie que devuelve [method surface_for].
 func _resolve(raycast: Dictionary, projectile: Projectile) -> void:
 	var collider := raycast.get("collider") as Object
 	var point := raycast.get("position", projectile.position) as Vector3
@@ -391,7 +391,30 @@ func _resolve(raycast: Dictionary, projectile: Projectile) -> void:
 
 	_play_fx(point, normal, layer)
 	if confirmed:
-		Events.hit_confirmed.emit(point, weak, lethal)
+		Events.hit_confirmed.emit(point, weak, lethal,
+				surface_for(layer, weak, part_id != StringName()))
+
+
+## Superficie contra la que pegó un disparo, para el [param surface] de
+## `Events.hit_confirmed` (`docs/02` §5.1, WP-26).
+##
+## Es la **misma** tabla de resolución de `docs/08` §2.7 mirada desde el otro
+## lado: el emisor es el único que tiene el collider, así que es el único que
+## puede decir si esos tres flotantes son una rodilla, una coraza o una fachada.
+## Se expone como `static` para que `weapon_check` pueda aseverar el mapeo
+## completo —incluido `world`, que hoy no llega a viajar— sin fabricar un
+## colisionador de cada capa.
+static func surface_for(layer: int, weak: bool, has_part: bool) -> StringName:
+	if weak:
+		return &"weak"
+	if has_part:
+		return &"armor"
+	if (layer & PhysicsLayers.CITY) != 0:
+		return &"city"
+	# Todo lo demás es `world`, y eso incluye el caso raro de un colisionador de
+	# capa 3 **sin** `part_id`: [method _resolve] ya lo trata como mundo y avisa
+	# del error de importación, así que la superficie tiene que decir lo mismo.
+	return &"world"
 
 
 ## Construye el diccionario `hit` con **exactamente** las claves del contrato de

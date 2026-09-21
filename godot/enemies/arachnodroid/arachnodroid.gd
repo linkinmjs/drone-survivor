@@ -137,10 +137,12 @@ func _physics_process(delta: float) -> void:
 	super._physics_process(delta)
 	if delta <= 0.0 or Global.debug_freeze_ai:
 		return
+	PerfProbe.begin(&"enemy_base")
 	_tick_downed_state()
 	_tick_carapace(delta)
 	_tick_backup_sensor(delta)
 	_tick_selfdestruct(delta)
+	PerfProbe.end(&"enemy_base")
 
 
 # --------------------------------------------------------------------------

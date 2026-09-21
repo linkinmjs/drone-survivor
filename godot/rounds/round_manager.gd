@@ -430,6 +430,7 @@ static func derive_seed(tag: String) -> int:
 # --- Bucle -----------------------------------------------------------------------------------
 
 func _process(delta: float) -> void:
+	PerfProbe.begin(&"round_manager")
 	# La derrota primero: si los dos hechos caen en el mismo frame gana ella
 	# (`docs/11` §4.1 y §12, fila 11).
 	if _defeat_pending:
@@ -450,6 +451,7 @@ func _process(delta: float) -> void:
 		_:
 			_tick_outro(delta)
 	_publish_objective_text()
+	PerfProbe.end(&"round_manager")
 
 
 ## «Cualquier botón para continuar» durante la alerta (`docs/narrativa` §5) y el
@@ -910,7 +912,8 @@ func _on_shot_fired(_origin: Vector3, _direction: Vector3) -> void:
 	_shots_fired += 1
 
 
-func _on_hit_confirmed(_position: Vector3, _weak: bool, _lethal: bool) -> void:
+func _on_hit_confirmed(_position: Vector3, _weak: bool, _lethal: bool,
+		_surface: StringName) -> void:
 	_shots_hit += 1
 
 

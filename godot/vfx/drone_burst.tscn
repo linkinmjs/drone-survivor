@@ -1,0 +1,133 @@
+[gd_scene load_steps=12 format=3]
+
+; Estallido del dron al ser destruido (`docs/13` §8, `docs/09` §2.8).
+;
+; **Corto a propósito** (0.6 s): lo que sigue es la estática de la señal y el
+; contador de drones del taller (WP-25), y eso es lo que tiene que quedar en
+; pantalla. Un estallido largo taparía la transición que cuenta la historia.
+;
+; Ámbar y blanco, nunca cian: nada propio es cian (`docs/13` §1). Dos emisores:
+; las chispas del chasis y el humo negro que queda flotando medio segundo.
+
+[ext_resource type="Script" path="res://vfx/vfx_effect.gd" id="1_effect"]
+
+[sub_resource type="Curve" id="Curve_out"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_out"]
+curve = SubResource("Curve_out")
+
+[sub_resource type="Curve" id="Curve_grow"]
+_data = [Vector2(0, 0.4), 0.0, 0.0, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_grow"]
+curve = SubResource("Curve_grow")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_burst"]
+lifetime_randomness = 0.3
+emission_shape = 1
+emission_sphere_radius = 0.3
+direction = Vector3(0, 1, 0)
+spread = 180.0
+initial_velocity_min = 5.0
+initial_velocity_max = 18.0
+gravity = Vector3(0, -14, 0)
+damping_min = 1.0
+damping_max = 5.0
+scale_min = 0.4
+scale_max = 1.2
+color = Color(1, 0.82, 0.52, 1)
+alpha_curve = SubResource("CurveTexture_out")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_burst"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_color = Color(3.2, 2.2, 1.1, 1)
+disable_receive_shadows = true
+billboard_mode = 3
+billboard_keep_scale = true
+
+[sub_resource type="QuadMesh" id="QuadMesh_burst"]
+material = SubResource("StandardMaterial3D_burst")
+size = Vector2(0.18, 0.18)
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_puff"]
+lifetime_randomness = 0.25
+emission_shape = 1
+emission_sphere_radius = 0.4
+direction = Vector3(0, 1, 0)
+spread = 60.0
+initial_velocity_min = 0.8
+initial_velocity_max = 3.0
+gravity = Vector3(0, 0.6, 0)
+damping_min = 1.0
+damping_max = 2.5
+angle_min = -180.0
+angle_max = 180.0
+scale_min = 0.8
+scale_max = 2.0
+scale_curve = SubResource("CurveTexture_grow")
+color = Color(0.16, 0.15, 0.14, 0.8)
+alpha_curve = SubResource("CurveTexture_out")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_puff"]
+transparency = 1
+cull_mode = 2
+vertex_color_use_as_albedo = true
+albedo_color = Color(0.18, 0.17, 0.16, 1)
+disable_receive_shadows = true
+billboard_mode = 3
+billboard_keep_scale = true
+
+[sub_resource type="QuadMesh" id="QuadMesh_puff"]
+material = SubResource("StandardMaterial3D_puff")
+size = Vector2(1.2, 1.2)
+
+[node name="DroneBurst" type="Node3D"]
+script = ExtResource("1_effect")
+life_seconds = 0.6
+light_fade_seconds = 0.18
+decal_seconds = 0.0
+
+[node name="Sparks" type="GPUParticles3D" parent="."]
+cast_shadow = 0
+gi_mode = 0
+emitting = false
+amount = 40
+lifetime = 0.6
+one_shot = true
+explosiveness = 1.0
+fixed_fps = 30
+interpolate = true
+draw_order = 3
+local_coords = false
+process_material = SubResource("ParticleProcessMaterial_burst")
+draw_pass_1 = SubResource("QuadMesh_burst")
+metadata/vfx_texture = "spark"
+
+[node name="Puff" type="GPUParticles3D" parent="."]
+cast_shadow = 0
+gi_mode = 0
+emitting = false
+amount = 14
+lifetime = 0.9
+one_shot = true
+explosiveness = 1.0
+fixed_fps = 30
+interpolate = true
+draw_order = 3
+local_coords = false
+process_material = SubResource("ParticleProcessMaterial_puff")
+draw_pass_1 = SubResource("QuadMesh_puff")
+metadata/vfx_texture = "smoke"
+
+[node name="BurstLight" type="OmniLight3D" parent="."]
+light_color = Color(1, 0.75, 0.42, 1)
+light_energy = 4.0
+light_intensity_lumens = 24000.0
+shadow_enabled = false
+omni_range = 9.0

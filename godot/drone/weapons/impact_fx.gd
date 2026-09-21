@@ -21,7 +21,7 @@ class_name ImpactFX extends Node3D
 ## [method ImpactFXPool.variant_for_layer].
 enum Variant {
 	METAL,    ## Capa 3: blindaje enemigo; chispas blancas y rápidas.
-	WEAK,     ## Capa 4: punto débil; chispas ámbar y destello.
+	WEAK,     ## Capa 4: punto débil; chispas **cian** y destello.
 	CONCRETE, ## Capa 8: ciudad; polvo gris, poca chispa.
 	GROUND,   ## Capa 1: mundo; tierra y esquirlas.
 	DEBRIS,   ## Capa 9: escombro; astillas cortas.
@@ -37,9 +37,15 @@ const PARTICLE_LIFETIME: float = 0.35
 const BUS: StringName = &"Weapons"
 
 ## Color de las chispas de cada variante, en el orden de [enum Variant].
+##
+## **WP-26**: la variante `WEAK` pasa de ámbar `(1.00, 0.68, 0.22)` a **cian**
+## `TARGET` (#38E1FF, `docs/13` §2.2). La regla de identidad de `docs/13` §1 es
+## que nada enemigo es cálido, y el punto débil es del enemigo: con el ámbar
+## viejo, acertarle a una rodilla se veía igual que acertarle a la coraza y el
+## jugador no tenía lectura de «le estoy pegando donde duele».
 const VARIANT_COLOR: Array[Color] = [
 	Color(0.95, 0.90, 0.78, 1.0),
-	Color(1.00, 0.68, 0.22, 1.0),
+	Color(0.22, 0.88, 1.00, 1.0),
 	Color(0.72, 0.70, 0.66, 1.0),
 	Color(0.60, 0.52, 0.42, 1.0),
 	Color(0.80, 0.76, 0.70, 1.0),

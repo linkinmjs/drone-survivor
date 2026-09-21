@@ -18,6 +18,11 @@
 ##    incluye la espera por la GPU y es lo que siente el jugador.
 ## 3. **Reparte el tick de física** entre sistemas leyendo [PerfProbe], y suma
 ##    los contadores de cuerpos activos, pares de colisión e islas de Jolt.
+## 4. **Cierra la atribución** (WP-29): con los dos [PerfBracket] puestos sabe cuánto
+##    costó el GDScript del tick entero, cuánto de eso está instrumentado y cuánto
+##    queda sin atribuir, y estima el paso de Jolt con el hueco entre ticks
+##    encadenados ([method PerfProbe.gap_ms]). Además reparte el fotograma de
+##    `_process` entre [constant PerfProbe.PROCESS_IDS].
 ##
 ## ## Qué es de verdad `TIME_PHYSICS_PROCESS`
 ##
@@ -56,6 +61,28 @@ const P1_PERCENTILE: float = 99.0
 ## Jolt y los `_physics_process` de los archivos que WP-24a no puede instrumentar—
 ## se atribuye con la ablación de `perf_report`, nunca restando.
 const PROBED_KEY: StringName = &"instrumentado_total"
+
+## Clave del GDScript **entero** del tick, medido por los dos [PerfBracket]. Es el
+## denominador honesto de la atribución de WP-29: `instrumentado_total / gdscript_total`
+## es la fracción cubierta por [constant PerfProbe.IDS].
+const SCRIPTS_KEY: StringName = &"gdscript_total"
+
+## Clave de lo que corre dentro del tick y **no** pasó por ninguna sonda.
+const UNPROBED_KEY: StringName = &"sin_instrumentar"
+
+## Clave del paso de Jolt, estimado con el percentil bajo del hueco entre ticks
+## encadenados **menos** lo que corre dentro de ese paso
+## ([constant PerfProbe.STEP_IDS], hoy `_integrate_forces`). No es una resta contra
+## `TIME_PHYSICS_PROCESS` (que es un pico por segundo, WP-24a) sino una medición propia.
+const JOLT_KEY: StringName = &"jolt_step"
+
+## Clave del tick completo: GDScript más paso de Jolt.
+const TICK_KEY: StringName = &"tick_total"
+
+## Percentil del hueco entre ticks que se toma como paso de Jolt. Los huecos que se
+## comieron un fotograma de render quedan por arriba; el cuartil bajo es la lectura
+## limpia (ver la cabecera de [PerfProbe]).
+const JOLT_PERCENTILE: float = 25.0
 
 ## RID de la viewport raíz, o un RID inválido si no se enganchó ninguna.
 var root_rid: RID = RID()
@@ -187,7 +214,24 @@ func finish() -> Dictionary:
 	var physics: Dictionary = {}
 	for id: StringName in PerfProbe.IDS:
 		physics[String(id)] = snappedf(float(breakdown[id]), 0.001)
-	physics[String(PROBED_KEY)] = snappedf(PerfProbe.measured_ms_per_tick(), 0.001)
+	var probed := PerfProbe.measured_ms_per_tick()
+	var scripts := PerfProbe.scripts_ms_per_tick()
+	# Sin cuadro topado el hueco entre ticks es un fotograma de render y no el paso de
+	# Jolt, así que no se publica ningún número antes que publicar uno falso.
+	var gap_valid := PerfProbe.gap_is_valid()
+	var gap := PerfProbe.gap_ms(JOLT_PERCENTILE) if gap_valid else 0.0
+	var in_step := PerfProbe.step_ms_per_tick()
+	var jolt := maxf(gap - in_step, 0.0) if gap_valid else 0.0
+	physics[String(PROBED_KEY)] = snappedf(probed, 0.001)
+	physics[String(SCRIPTS_KEY)] = snappedf(scripts, 0.001)
+	physics[String(UNPROBED_KEY)] = snappedf(maxf(scripts - probed, 0.0), 0.001)
+	physics[String(JOLT_KEY)] = snappedf(jolt, 0.001)
+	physics[String(TICK_KEY)] = snappedf(scripts + gap, 0.001)
+	var process_breakdown := PerfProbe.process_breakdown()
+	var per_frame: Dictionary = {}
+	for id: StringName in PerfProbe.PROCESS_IDS:
+		per_frame[String(id)] = snappedf(float(process_breakdown[id]), 0.001)
+	per_frame[String(PROBED_KEY)] = snappedf(PerfProbe.measured_ms_per_frame(), 0.001)
 	var fisheye_avg: Array[float] = []
 	var fisheye_max: Array[float] = []
 	var fisheye_total := 0.0
@@ -204,6 +248,21 @@ func finish() -> Dictionary:
 		"physics_ticks": PerfProbe.physics_frames(),
 		"frames_without_tick": _idle_physics_frames,
 		"physics_breakdown_ms": physics,
+		"process_breakdown_ms": per_frame,
+		"physics_scripts_ms": snappedf(scripts, 0.001),
+		"physics_probed_ms": snappedf(probed, 0.001),
+		"physics_jolt_ms": snappedf(jolt, 0.001),
+		"physics_gap_ms": snappedf(gap, 0.001),
+		"physics_step_scripts_ms": snappedf(in_step, 0.001),
+		"physics_tick_ms": snappedf(scripts + gap, 0.001),
+		"physics_attributed_pct": snappedf(
+				100.0 * (probed + in_step + jolt) / maxf(scripts + gap, 0.0001)
+				if scripts + gap > 0.0 else 0.0, 0.1),
+		"physics_callbacks_attributed_pct": snappedf(
+				100.0 * probed / maxf(scripts, 0.0001) if scripts > 0.0 else 0.0, 0.1),
+		"physics_bracketed_ticks": PerfProbe.bracketed_ticks(),
+		"physics_gap_samples": PerfProbe.gap_count() if gap_valid else 0,
+		"physics_gap_valid": gap_valid,
 		"physics_active_bodies_avg": _mean(_active_bodies),
 		"physics_collision_pairs_avg": _mean(_collision_pairs),
 		"physics_islands_avg": _mean(_islands),

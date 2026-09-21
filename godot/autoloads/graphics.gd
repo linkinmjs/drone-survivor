@@ -638,9 +638,33 @@ func _preset_index() -> int:
 
 
 ## Emisores de partículas simultáneos que admite el preset activo (`docs/13` §4).
-## Lo consumirá el `VFXPool` de WP-26; hoy nadie lo lee todavía.
+##
+## Lo lee [VFXPool] en **cada** consulta de presupuesto, así que cambiar de preset
+## en el menú de gráficos lo mueve en caliente; y lo lee también [Building] para
+## su polvo y su humo, porque desde WP-26 el tope es uno solo para la ciudad y
+## para el combate.
 func max_emitters() -> int:
 	return PRESET_MAX_EMITTERS[_preset_index()]
+
+
+## Si el overlay FPV corre completo o en «solo viñeta» (`docs/13` §3.4, fila
+## `fpv_overlay`): falso en LOW, verdadero en MEDIUM, HIGH y ULTRA.
+##
+## Lo lee [FPVOverlay] al arrancar y cada vez que suena
+## [signal graphics_settings_updated]. No es un uniform del shader sino un cambio de
+## **material**: el de LOW no declara `hint_screen_texture` y por eso el renderizador
+## deja de copiar el backbuffer, que es de donde sale todo el ahorro.
+##
+## **Con el preset `CUSTOM` sigue a `shadows`** a través de `effective_quality()`, y
+## queda así a propósito (revisión de cierre de la tanda 4, WP-28). El overlay no
+## tiene interruptor propio en el menú de gráficos y había que atarlo a algo; las
+## sombras son la palanca que mejor correlaciona con «esta máquina aguanta un pase
+## de pantalla completa más», porque las dos cuestan ancho de banda y no geometría.
+## Atarlo a la escala de render habría apagado el efecto en quien baja la resolución
+## para ganar nitidez, y darle interruptor propio es una fila nueva en `docs/04` §3.5
+## que nadie pidió. Si algún día la pide, el cambio es acá y en una sola línea.
+func fpv_overlay_full() -> bool:
+	return _preset_index() > int(Quality.LOW)
 
 
 ## Umbral de LOD de malla en píxeles del preset activo.

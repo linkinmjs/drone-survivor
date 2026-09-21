@@ -30,6 +30,17 @@ class_name AudioRig extends Node3D
 ## Bus de audio de los enemigos (`docs/07` §10).
 const BUS: StringName = &"Enemies"
 
+## Grupo por el que el [AudioPool] del nivel descubre este rig (WP-27, ver
+## `AudioPool.SOURCE_GROUPS`).
+const VOICE_GROUP: StringName = &"audio_enemies"
+
+## Categoría que este rig ocupa en el [AudioPool].
+const POOL_CATEGORY: StringName = &"enemies"
+
+## Nombre del canal de carga que crea el [Telegraph] bajo el enemigo. Es la voz
+## que este nodo no controla pero sí cuenta (`docs/06` §12).
+const TELEGRAPH_CHANNEL: StringName = &"ChargeAudio"
+
 ## Carpeta del banco.
 const BANK_DIR: String = "res://assets/audio/enemies"
 
@@ -121,9 +132,14 @@ var _last_yaw: float = 0.0
 var _has_yaw: bool = false
 var _wired: bool = false
 var _played: int = 0
+var _voice_pool: Node = null
+var _telegraph_voice: AudioStreamPlayer3D = null
 
 
 func _ready() -> void:
+	# El `AudioPool` del nivel descubre el rig por este grupo y le impone el tope
+	# de 6 voces de la categoría `enemies` (`docs/13` §5.2 y §8).
+	add_to_group(VOICE_GROUP)
 	if enemy == null:
 		enemy = get_parent() as Node3D
 	for event: String in BANK:
@@ -138,9 +154,11 @@ func _physics_process(delta: float) -> void:
 		return
 	if not _wired:
 		_wire()
+	PerfProbe.begin(&"enemy_audio")
 	_measure_servo(delta)
 	_servo_load = lerpf(_servo_load, _servo_target, 1.0 - exp(-SERVO_SMOOTH * delta))
 	_apply_servo()
+	PerfProbe.end(&"enemy_audio")
 
 
 func _exit_tree() -> void:
@@ -208,6 +226,37 @@ func active_voices() -> int:
 	return count
 
 
+## Voces que este enemigo ocupa en la categoría `enemies` del [AudioPool]: las de
+## [method active_voices] **más el canal de carga del [Telegraph]**, que es una
+## voz más del mismo enemigo y del mismo bus aunque viva en otro nodo.
+##
+## Es la cifra que el pool cuenta contra el tope de 6 de `docs/13` §5.2.
+## [method active_voices] queda como estaba porque es la que mide el presupuesto
+## de 8 del propio jefe (`docs/07` §10) y la que verifica `arachnodroid_check`.
+func total_voices() -> int:
+	var count := active_voices()
+	if _telegraph_voice == null or not is_instance_valid(_telegraph_voice):
+		_telegraph_voice = _find_telegraph_voice()
+	if _telegraph_voice != null and _telegraph_voice.playing:
+		count += 1
+	return count
+
+
+## Le pasa al rig el [AudioPool] del nivel. Con pool, el rig deja de tomar voces
+## libres cuando la categoría está llena y **recicla** la de menor prioridad de su
+## propio pool, que es lo que mantiene los servos y las telegrafías vivas mientras
+## se caen las pisadas (`docs/13` §8).
+func set_voice_pool(pool: Node) -> void:
+	_voice_pool = pool
+
+
+## Busca el `ChargeAudio` que el [Telegraph] crea bajo el enemigo.
+func _find_telegraph_voice() -> AudioStreamPlayer3D:
+	if enemy == null or not is_instance_valid(enemy):
+		return null
+	return enemy.find_child(String(TELEGRAPH_CHANNEL), true, false) as AudioStreamPlayer3D
+
+
 ## Eventos disparados desde el arranque, por id. Lo usa `arachnodroid_check`.
 func event_counts() -> Dictionary[StringName, int]:
 	return _events
@@ -268,11 +317,18 @@ func _configure(player: AudioStreamPlayer3D) -> void:
 
 ## Toma una voz libre, o desaloja la de menor prioridad si [param priority] la
 ## supera. Devuelve `null` si nada es desalojable.
+##
+## Con un [AudioPool] registrado, «libre» deja de alcanzar: si la categoría
+## `enemies` ya llegó a su tope de 6 (`docs/13` §5.2), el rig **no suma** una voz
+## más aunque le queden reproductores parados, y va directo a desalojar. Así el
+## jefe sigue teniendo sus servos y su telegrafía —que nadie desaloja— sin que el
+## presupuesto de la escena se pase.
 func _acquire(priority: int) -> AudioStreamPlayer3D:
-	for index: int in _pool.size():
-		if not _pool[index].playing:
-			_priorities[index] = priority
-			return _pool[index]
+	if _pool_allows():
+		for index: int in _pool.size():
+			if not _pool[index].playing:
+				_priorities[index] = priority
+				return _pool[index]
 	var worst := -1
 	var worst_priority := priority
 	for index: int in _pool.size():
@@ -284,6 +340,16 @@ func _acquire(priority: int) -> AudioStreamPlayer3D:
 	_pool[worst].stop()
 	_priorities[worst] = priority
 	return _pool[worst]
+
+
+## `true` si el rig todavía puede sumar una voz: siempre que no haya pool, y con
+## pool, mientras la categoría `enemies` no haya llegado a su tope.
+func _pool_allows() -> bool:
+	if _voice_pool == null or not is_instance_valid(_voice_pool):
+		return true
+	if not _voice_pool.has_method(&"can_claim"):
+		return true
+	return bool(_voice_pool.call(&"can_claim", POOL_CATEGORY))
 
 
 ## Prioridad del evento, deducida de su familia.

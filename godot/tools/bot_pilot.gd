@@ -783,7 +783,8 @@ func _on_shot_fired(_origin: Vector3, _direction: Vector3) -> void:
 		_shots += 1
 
 
-func _on_hit_confirmed(_position: Vector3, weak: bool, _lethal: bool) -> void:
+func _on_hit_confirmed(_position: Vector3, weak: bool, _lethal: bool,
+		_surface: StringName) -> void:
 	if not _active:
 		return
 	if weak:

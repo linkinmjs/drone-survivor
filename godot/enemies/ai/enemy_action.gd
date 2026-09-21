@@ -51,9 +51,11 @@ var _aborted: bool = false
 func _physics_process(delta: float) -> void:
 	if delta <= 0.0:
 		return
+	PerfProbe.begin(&"enemy_action")
 	_elapsed += delta
 	if _cooldown_left > 0.0:
 		_cooldown_left = maxf(0.0, _cooldown_left - delta)
+	PerfProbe.end(&"enemy_action")
 
 
 # --------------------------------------------------------------------------

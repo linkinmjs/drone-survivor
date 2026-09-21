@@ -1,0 +1,62 @@
+[gd_scene load_steps=2 format=3]
+
+; Zona del pisotón (`docs/13` §4 y §11 #12, `docs/07` §5.4): un `Decal` **rojo**
+; de 18 m de diámetro que parpadea a 4 Hz, sigue al punto que le pasa
+; `ActionStomp` y se congela los últimos 0.25 s, más la marca de cráter de 4 s.
+;
+; **Rojo y no cian**: es el único aviso que anuncia daño inminente al dron, y el
+; rojo de peligro es `DANGER` (#FF4D4D) de `docs/13` §2.2. El cian es «esto es del
+; enemigo y se puede romper»; acá el mensaje es «salí de acá».
+;
+; **Cero emisores y pool dedicado**: `docs/13` §11 #12 lo exige. No hay ni una
+; partícula en esta escena, así que el presupuesto no puede descartar el aviso del
+; ataque más dañino del jefe.
+;
+; Las dos texturas —el anillo de zona y el cráter— son procedurales
+; ([VFXTextures]) y se cablean por el metadato `vfx_texture`.
+
+[ext_resource type="Script" path="res://vfx/vfx_decal_zone.gd" id="1_zone"]
+
+[node name="StompDecal" type="Node3D"]
+script = ExtResource("1_zone")
+life_seconds = 0.0
+light_fade_seconds = 0.0
+decal_seconds = 0.0
+
+; `normal_fade` alto y caja de 6 m de profundidad: sin eso el proyector pintaba
+; de rojo la torre de al lado y las patas del propio jefe (fotograma 197 del
+; showcase). Con 0.75 el decal desaparece en cualquier superficie que no sea
+; horizontal, que es exactamente lo que se quiere de una marca de suelo.
+
+[node name="Zone" type="Decal" parent="."]
+size = Vector3(18, 6, 18)
+albedo_mix = 1.0
+modulate = Color(1, 0.3, 0.3, 1)
+emission_energy = 4.0
+normal_fade = 0.75
+upper_fade = 0.4
+lower_fade = 0.4
+distance_fade_enabled = true
+distance_fade_begin = 260.0
+distance_fade_length = 60.0
+metadata/vfx_texture = "zone_ring"
+metadata/vfx_emissive = true
+
+; El cráter lleva **algo** de emisión y no cero: el pie cae casi siempre dentro de
+; la sombra del propio coloso, y ahí un decal de puro albedo no se ve. Con 0.6 es
+; el rescoldo del hormigón recién roto, muy por debajo del 4.0 del aviso: la marca
+; se lee sin competir con la señal de peligro ni cruzar el umbral de glow.
+
+[node name="Crater" type="Decal" parent="."]
+size = Vector3(14.4, 6, 14.4)
+albedo_mix = 1.0
+modulate = Color(0.95, 0.93, 0.9, 1)
+emission_energy = 0.6
+normal_fade = 0.75
+upper_fade = 0.4
+lower_fade = 0.4
+distance_fade_enabled = true
+distance_fade_begin = 180.0
+distance_fade_length = 50.0
+metadata/vfx_texture = "crater"
+metadata/vfx_emissive = true

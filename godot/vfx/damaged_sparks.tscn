@@ -1,0 +1,77 @@
+[gd_scene load_steps=7 format=3]
+
+; Chispas de parte dañada (`docs/13` §4): 12 chispas en bucle ancladas a una
+; parte con menos del 35 % de vida. Pool de 4, 1 emisor cada una, vida manual: se
+; apagan cuando la parte se repara —no pasa— o se rompe.
+;
+; Son **información de combate**, no adorno: el jugador tiene que poder mirar al
+; coloso y ver qué rodilla está a punto de ceder sin abrir un menú. Por eso el
+; anclaje va a la malla de la parte y no a su posición de rotura.
+;
+; Cálidas: es la máquina fallando, no su luz. El cian del jefe sigue siendo el de
+; las rodillas sanas (`docs/13` §1).
+
+[ext_resource type="Script" path="res://vfx/vfx_effect.gd" id="1_effect"]
+
+[sub_resource type="Curve" id="Curve_out"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_out"]
+curve = SubResource("Curve_out")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_damaged"]
+lifetime_randomness = 0.6
+emission_shape = 1
+emission_sphere_radius = 1.4
+direction = Vector3(0, -0.4, 0)
+spread = 60.0
+initial_velocity_min = 2.0
+initial_velocity_max = 9.0
+gravity = Vector3(0, -18, 0)
+damping_min = 1.0
+damping_max = 4.0
+scale_min = 0.35
+scale_max = 0.9
+color = Color(1, 0.72, 0.38, 1)
+alpha_curve = SubResource("CurveTexture_out")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_damaged"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_color = Color(2.9, 1.5, 0.55, 1)
+disable_receive_shadows = true
+billboard_mode = 3
+billboard_keep_scale = true
+
+[sub_resource type="QuadMesh" id="QuadMesh_damaged"]
+material = SubResource("StandardMaterial3D_damaged")
+size = Vector2(0.3, 0.3)
+
+[node name="DamagedSparks" type="Node3D"]
+script = ExtResource("1_effect")
+life_seconds = 0.0
+light_fade_seconds = 0.0
+decal_seconds = 0.0
+
+[node name="Sparks" type="GPUParticles3D" parent="."]
+cast_shadow = 0
+gi_mode = 0
+emitting = false
+amount = 12
+lifetime = 0.9
+one_shot = false
+explosiveness = 0.0
+randomness = 0.6
+fixed_fps = 30
+interpolate = true
+draw_order = 3
+local_coords = false
+visibility_range_end = 380.0
+visibility_range_fade_mode = 1
+process_material = SubResource("ParticleProcessMaterial_damaged")
+draw_pass_1 = SubResource("QuadMesh_damaged")
+metadata/vfx_texture = "spark"
+metadata/vfx_continuous = true

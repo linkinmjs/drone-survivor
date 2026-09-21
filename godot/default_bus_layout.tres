@@ -1,42 +1,63 @@
-[gd_resource type="AudioBusLayout" format=3]
+[gd_resource type="AudioBusLayout" format=3 uid="uid://bnoumnf7jqwoo"]
 
-; Buses de `docs/04` §3.2 y `docs/13`: Master -> Motors, Weapons, Enemies, City, UI, Music.
-; `audio_check` (WP-07) verifica los siete nombres exactos y que todos envien a Master.
+[sub_resource type="AudioEffectCompressor" id="AudioEffectCompressor_j3pel"]
+threshold = -12.0
+attack_us = 20000.0
+release_ms = 180.0
+
+[sub_resource type="AudioEffectLimiter" id="AudioEffectLimiter_g28q7"]
+ceiling_db = -0.5
+
+[sub_resource type="AudioEffectReverb" id="AudioEffectReverb_n8wo2"]
+room_size = 0.6
+damping = 0.4
+wet = 0.12
+
+[sub_resource type="AudioEffectLowPassFilter" id="AudioEffectLowPassFilter_5t1r3"]
+cutoff_hz = 600.0
 
 [resource]
+bus/0/effect/0/effect = SubResource("AudioEffectCompressor_j3pel")
+bus/0/effect/0/enabled = true
+bus/0/effect/1/effect = SubResource("AudioEffectLimiter_g28q7")
+bus/0/effect/1/enabled = true
 bus/1/name = &"Motors"
 bus/1/solo = false
 bus/1/mute = false
 bus/1/bypass_fx = false
-bus/1/volume_db = 0.0
+bus/1/volume_db = -4.0
 bus/1/send = &"Master"
 bus/2/name = &"Weapons"
 bus/2/solo = false
 bus/2/mute = false
 bus/2/bypass_fx = false
-bus/2/volume_db = 0.0
+bus/2/volume_db = -3.0
 bus/2/send = &"Master"
 bus/3/name = &"Enemies"
 bus/3/solo = false
 bus/3/mute = false
 bus/3/bypass_fx = false
-bus/3/volume_db = 0.0
+bus/3/volume_db = -2.0
 bus/3/send = &"Master"
 bus/4/name = &"City"
 bus/4/solo = false
 bus/4/mute = false
 bus/4/bypass_fx = false
-bus/4/volume_db = 0.0
+bus/4/volume_db = -5.0
 bus/4/send = &"Master"
+bus/4/effect/0/effect = SubResource("AudioEffectReverb_n8wo2")
+bus/4/effect/0/enabled = true
 bus/5/name = &"UI"
 bus/5/solo = false
 bus/5/mute = false
 bus/5/bypass_fx = false
-bus/5/volume_db = 0.0
+bus/5/volume_db = -6.0
 bus/5/send = &"Master"
 bus/6/name = &"Music"
 bus/6/solo = false
 bus/6/mute = false
 bus/6/bypass_fx = false
-bus/6/volume_db = 0.0
+bus/6/volume_db = -8.0
 bus/6/send = &"Master"
+bus/6/effect/0/effect = SubResource("AudioEffectLowPassFilter_5t1r3")
+bus/6/effect/0/enabled = false

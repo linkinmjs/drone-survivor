@@ -69,6 +69,16 @@ func _ready() -> void:
 	_screen.initial_focus = _buttons[&"MENU_RESUME"]
 	# `ui_cancel` sobre la pausa es «seguir jugando», no «cerrar la pantalla».
 	var _discard := _screen.back.connect(_on_screen_back)
+	# La música se va «a la otra habitación» mientras dura la pausa (`docs/13`
+	# §5.1): el pasa-bajos de `Music` es lo único que este menú toca del audio.
+	var _filtered := Audio.set_music_lowpass(true)
+
+
+## Devuelve la música a su sitio. Va en `_exit_tree()` y no en [method request_resume]
+## porque de la pausa se sale por tres caminos —reanudar, volver al menú y que el
+## nivel entero se descargue— y los tres pasan por acá.
+func _exit_tree() -> void:
+	var _clear := Audio.set_music_lowpass(false)
 
 
 ## El botón que abre la pausa es el mismo que la cierra (`docs/12` §5.1, bloqueo de

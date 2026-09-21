@@ -4,6 +4,8 @@
 
 ## 1. Objetivo y alcance
 
+> **Nota de WP-30 (2026-09-20)**: `tools/render_parity_check.gd/.tscn`, que figura en la tabla de herramientas y en el `Copy-Item` de la sala limpia, **no existe en el repo**: el check de paridad nunca se implementó y se retiró del catálogo en WP-24a; la revisión visual la hacen `render_check`, `menu_shots_check` y los Movie Maker de cada WP (`docs/15` §3).
+
 El simulador `drone-simulator` es un fork del proyecto `GodotDrone` (licencia GPL-3). Copiar su código de vuelo, sus menús o su HUD haría de Drone Survivor una obra derivada bajo GPL-3. El usuario decidió **no heredar esa licencia**, por lo que este proyecto se construye en **sala limpia**:
 
 - Se reutilizan **solo** los archivos que el usuario creó después del fork y que no tienen contraparte en el proyecto original (son de su autoría y puede licenciarlos como quiera).

@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://tools/enemy_showcase.gd" id="1_showcase"]
 [ext_resource type="Environment" path="res://world/environment_battle.tres" id="2_env"]
@@ -8,6 +8,7 @@
 [ext_resource type="CameraAttributesPhysical" path="res://world/camera_attributes_dusk.tres" id="6_camera_attributes"]
 [ext_resource type="Script" path="res://world/sun_light.gd" id="7_sun_light"]
 [ext_resource type="Resource" path="res://world/sun_dusk.tres" id="8_sun_profile"]
+[ext_resource type="Script" path="res://vfx/vfx_pool.gd" id="9_vfx_pool"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ground"]
 albedo_color = Color(0.16, 0.17, 0.19, 1)
@@ -55,6 +56,15 @@ rubble_field = NodePath("RubbleField")
 
 [node name="RubbleField" type="Node3D" parent="DebrisPool"]
 script = ExtResource("5_rubble_field")
+
+; Pool de VFX (WP-26): sin él el showcase mostraría las mallas de respaldo de
+; WP-19 —el anillo de suelo, la línea de un píxel y el cilindro liso— en vez de
+; lo que ve el jugador. Con él, los fotogramas del guion enseñan el decal rojo del
+; pisotón, la columna ámbar del asedio, el haz cian del láser, la parábola del
+; salto y las chispas de las partes que se desprenden.
+
+[node name="VFXPool" type="Node" parent="."]
+script = ExtResource("9_vfx_pool")
 
 [node name="Arachnodroid" parent="." node_paths=PackedStringArray("debris_pool", "rubble_field") instance=ExtResource("3_arachnodroid")]
 debris_pool = NodePath("../DebrisPool")

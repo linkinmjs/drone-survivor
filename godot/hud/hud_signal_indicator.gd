@@ -12,9 +12,11 @@
 ## —daño, EMP— el HUD tiene que decirlo antes de ponerse feo.
 ##
 ## Cuatro barras crecientes y el rótulo `HUD_SIGNAL`. La calidad se fija con
-## [method set_quality] y hoy vale siempre **1,0**: el `CombatHUD` la va a publicar
-## cuando WP-28 ate la degradación por daño al overlay FPV. El indicador ya está listo
-## para recibirla.
+## [method set_quality]; desde WP-28 la publica [method DroneRig._feed_hud] con la
+## cifra de [method FPVOverlay.signal_quality], así que las barras bajan exactamente
+## con el daño del casco y con el EMP que está rompiendo la imagen. Umbrales:
+## cuatro barras por encima de 0,75; tres por encima de 0,5; dos por encima de 0,25;
+## una por debajo, y ahí además parpadea.
 ##
 ## Es un componente **continuo** solo mientras la señal está baja: con señal plena no
 ## anima nada y no pide redibujo.
@@ -44,7 +46,13 @@ const FONT_SIZE: int = 16
 
 ## Por debajo de esta calidad el indicador parpadea y se pone en
 ## [constant HUDDraw.ALERT]: la señal se está yendo.
-const CRITICAL_QUALITY: float = 0.34
+##
+## Es exactamente el umbral de la **última barra**: [method lit_bars] enciende cuatro
+## por encima de 0.75, tres por encima de 0.5, dos por encima de 0.25 y una por debajo.
+## Hacer coincidir las dos cosas es lo que deja leer el indicador de un vistazo: una
+## barra sola **y** parpadeando quiere decir lo mismo, y no hay una banda intermedia
+## donde la señal parpadea con dos barras encendidas (WP-28).
+const CRITICAL_QUALITY: float = 0.25
 
 ## Parpadeo de la señal crítica, en Hz.
 const BLINK_HZ: float = 2.0
@@ -61,6 +69,7 @@ var active: bool = true:
 	set(value):
 		if value != active:
 			active = value
+			_refresh_process()
 			queue_redraw()
 
 var _time: float = 0.0
@@ -71,14 +80,23 @@ func _ready() -> void:
 	custom_minimum_size = Vector2(
 			BAR_COUNT * BAR_WIDTH + (BAR_COUNT - 1) * BAR_GAP + 86.0,
 			BAR_MAX_HEIGHT + 8.0)
+	_refresh_process()
 
 
 func _process(delta: float) -> void:
-	# Con señal sana no hay nada que animar: el indicador es estático a propósito.
-	if not active or quality > CRITICAL_QUALITY:
-		return
 	_time += delta
 	queue_redraw()
+
+
+## El `_process` se enciende **solo mientras la señal está en crítico**, que es lo
+## único que necesita reloj: el parpadeo.
+##
+## Antes el nodo pedía un frame por frame y salía por la primera línea. La llamada
+## vacía no cuesta casi nada sola, pero el HUD tiene doce componentes y la vista previa
+## del menú monta un `FlightHUD` entero de más: el criterio del proyecto es que un
+## componente continuo lo sea **cuando tiene algo que animar** (`docs/12` §2.3).
+func _refresh_process() -> void:
+	set_process(active and quality <= CRITICAL_QUALITY)
 
 
 ## Fija la calidad de la señal, de 0 a 1 (`docs/12` §2.2, ampliación de WP-25).
@@ -88,6 +106,7 @@ func set_quality(value: float) -> void:
 		return
 	quality = wanted
 	_time = 0.0
+	_refresh_process()
 	queue_redraw()
 
 

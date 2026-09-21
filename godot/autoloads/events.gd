@@ -48,7 +48,27 @@ signal shot_fired(origin: Vector3, direction: Vector3)
 
 ## Un disparo impactó. [param weak] marca punto débil y [param lethal] marca que
 ## el impacto destruyó el objetivo.
-signal hit_confirmed(position: Vector3, weak: bool, lethal: bool)
+##
+## [param surface] dice **contra qué** pegó, con uno de estos cuatro valores:
+##
+## [codeblock]
+## &"weak"   punto débil del enemigo (capa 4); implica weak = true
+## &"armor"  blindaje del enemigo (capa 3, parte sin punto débil)
+## &"city"   edificio de la ciudad (capa 8)
+## &"world"  suelo, escombro o cualquier otra cosa (capas 1 y 9)
+## [/codeblock]
+##
+## Lo agrega WP-26 porque sin él **nadie puede saber qué dibujar ni qué sonar**:
+## el punto y los dos booleanos no distinguen una rodilla de una fachada, y
+## `VFXPool` lo estaba deduciendo por cercanía al enemigo, que falla justamente
+## cuando el jefe está parado encima del edificio al que le estás tirando. La
+## superficie la deduce el emisor del collider, que es el único que la tiene.
+##
+## [b]`world` no viaja[/b] hoy: `docs/08` §2.7 no le da `HitKind` al suelo ni al
+## escombro, así que [ProjectilePool] no confirma esos impactos. El valor existe
+## en el dominio para que un emisor futuro no tenga que inventarlo y para que
+## [method ProjectilePool.surface_for] sea total.
+signal hit_confirmed(position: Vector3, weak: bool, lethal: bool, surface: StringName)
 
 ## El dron recogió una pila. [param amount] es la energía ganada, de 0.0 a 1.0.
 signal battery_collected(amount: float, position: Vector3)

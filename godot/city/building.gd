@@ -57,8 +57,16 @@ const GROUP_PROTECTED: StringName = &"protected"
 ## Ruta del shader de la etapa `DAMAGED`.
 const DAMAGE_SHADER_PATH: String = "res://city/damage_overlay.gdshader"
 
-## Tope duro de `GPUParticles3D` emitiendo a la vez en toda la ciudad
-## (`docs/13` §7). Un edificio que no consigue plaza se derrumba sin polvo.
+## Tope duro de `GPUParticles3D` emitiendo a la vez cuando no hay [VFXPool] en el
+## árbol. Un edificio que no consigue plaza se derrumba sin polvo.
+##
+## **WP-26**: el tope ya no es una constante de la ciudad sino el del preset
+## (`Graphics.max_emitters()`: 6 / 8 / 12 / 12, `docs/13` §3.4), y desde que
+## existe el [VFXPool] es **conjunto** con él. Antes había dos contadores de 12
+## —uno acá y otro en el pool— que sumaban 24 emisores en pantalla, o sea el doble
+## de lo que `docs/13` §4 presupuesta. Ahora [method _take_emitter] pide la plaza
+## al pool con [method VFXPool.reserve_emitters] y este contador estático sólo se
+## usa como respaldo en los bancos que no tienen pool (`city_check`).
 const MAX_EMITTERS: int = 12
 
 ## Distancia a la que se desvanece la columna de humo (`docs/10` §7).
@@ -72,6 +80,15 @@ const DEBRIS_MAX_ORIGIN_HEIGHT: float = 26.0
 
 ## Emisores de partículas ocupados ahora mismo por la ciudad.
 static var _active_emitters: int = 0
+
+## Pool de VFX del nivel, resuelto tarde y compartido por los sesenta edificios.
+static var _vfx_pool: VFXPool = null
+
+## Cuántas de las plazas de [member _active_emitters] están reservadas **en el
+## pool**. No son lo mismo: sin pool en el árbol, [method _take_emitter] sólo
+## sube el contador local, y devolverle al pool una plaza que nunca le pidió le
+## soltaba la reserva de otro.
+static var _pool_reserved: int = 0
 
 ## Materiales de daño ya construidos, indexados por el material original de la
 ## pieza. Hay **uno por familia** (`buildings_001` y `buildings_002`), no uno por
@@ -219,6 +236,7 @@ func _ready() -> void:
 	_unshare_shape(rubble_shape)
 	refresh_shapes()
 	reset()
+	var _pool := _resolve_vfx_pool()
 	set_physics_process(false)
 
 
@@ -238,9 +256,16 @@ func _exit_tree() -> void:
 	if _smoke_holds_slot:
 		_smoke_holds_slot = false
 		_release_emitter()
+	# El último edificio en irse apaga la luz: `_active_emitters`, `_pool_reserved`
+	# y `_vfx_pool` son `static` y no mueren con el distrito.
+	var tree := get_tree()
+	if tree != null and tree.get_nodes_in_group(GROUP).size() <= 1:
+		reset_emitters()
+		_vfx_pool = null
 
 
 func _physics_process(delta: float) -> void:
+	PerfProbe.begin(&"city_building")
 	var busy := false
 
 	if _collapsing:
@@ -277,6 +302,7 @@ func _physics_process(delta: float) -> void:
 
 	if not busy:
 		set_physics_process(false)
+	PerfProbe.end(&"city_building")
 
 
 # --------------------------------------------------------------------------
@@ -515,7 +541,12 @@ func _enter_rubble(point: Vector3) -> void:
 	if rubble_pile != null:
 		rubble_pile.scale = _pile_rest_scale * 0.6
 	_burst_dust(1.0)
-	_start_smoke()
+	# La columna de humo por edificio sólo se enciende si **no** hay pool: cuando
+	# lo hay, el `collapse` que sirve `Events.building_destroyed` trae la columna
+	# y su `FogVolume` de 18 m, y son dos instancias para toda la ciudad en vez de
+	# sesenta compitiendo por el presupuesto (`docs/13` §4).
+	if _resolve_vfx_pool() == null:
+		_start_smoke()
 	_spawn_debris(point)
 	Events.camera_trauma.emit(profile.trauma_rubble, global_position)
 	stage_changed.emit(stage)
@@ -846,16 +877,64 @@ static func active_emitters() -> int:
 
 ## Devuelve el contador a cero. Lo llama [method CityIntegrity.reset] al
 ## reconstruir el distrito.
+##
+## Devuelve también las plazas que la ciudad tuviera reservadas en el [VFXPool]:
+## si no, un distrito reconstruido a mitad de un derrumbe dejaría el presupuesto
+## del pool ocupado por emisores que ya no existen.
 static func reset_emitters() -> void:
+	var pool := _vfx_pool
+	if pool != null and is_instance_valid(pool) and _pool_reserved > 0:
+		pool.release_emitters(_pool_reserved)
+	_pool_reserved = 0
 	_active_emitters = 0
 
 
 static func _take_emitter() -> bool:
-	if _active_emitters >= MAX_EMITTERS:
+	var pool := _vfx_pool
+	if pool != null and is_instance_valid(pool):
+		if not pool.reserve_emitters(1):
+			return false
+		_pool_reserved += 1
+		_active_emitters += 1
+		return true
+	if _active_emitters >= _emitter_cap():
 		return false
 	_active_emitters += 1
 	return true
 
 
+## Devuelve una plaza. Sólo le devuelve al pool lo que el pool llegó a reservar:
+## el camino de respaldo —sin pool en el árbol— no reserva nada, así que soltarle
+## una plaza ahí le regalaba presupuesto que no era suyo.
 static func _release_emitter() -> void:
 	_active_emitters = maxi(_active_emitters - 1, 0)
+	if _pool_reserved <= 0:
+		return
+	var pool := _vfx_pool
+	if pool != null and is_instance_valid(pool):
+		pool.release_emitters(1)
+	_pool_reserved = maxi(_pool_reserved - 1, 0)
+
+
+## Tope de emisores de respaldo: el del preset vigente (`docs/13` §3.4). Cae en
+## [constant MAX_EMITTERS] si el autoload no está —bancos sin `Graphics`—.
+static func _emitter_cap() -> int:
+	if Engine.get_main_loop() == null:
+		return MAX_EMITTERS
+	return Graphics.max_emitters()
+
+
+## Pool del nivel. Se busca una vez por instancia de edificio y se comparte entre
+## todos: el `static` es intencional, porque el pool es del nivel y los sesenta
+## edificios viven y mueren con él.
+func _resolve_vfx_pool() -> VFXPool:
+	if _vfx_pool != null:
+		if is_instance_valid(_vfx_pool) and _vfx_pool.is_inside_tree():
+			return _vfx_pool
+		# El pool se fue con su nivel y con él las reservas: el contador estático
+		# sobrevive a la escena y arrastrarlo dejaba al distrito siguiente con
+		# plazas ocupadas por emisores que ya no existen.
+		_vfx_pool = null
+		_pool_reserved = 0
+	_vfx_pool = VFXPool.resolve(self)
+	return _vfx_pool

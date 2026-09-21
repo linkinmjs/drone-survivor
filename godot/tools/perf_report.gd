@@ -29,6 +29,42 @@
 ## número y su causa probable, y arreglarlo es trabajo de WP-24 y WP-29
 ## (`docs/15` §8.5 no lo cubre; lo decide el brief de WP-23).
 ##
+## ## Banderas (todo lo que va después de `--`)
+##
+## | Bandera | Qué hace |
+## |---|---|
+## | `--only=<id>` | Mide un solo escenario: `flight_only`, `boss` o `boss_and_city` |
+## | `--suffix=<texto>` | Sufijo del informe: `docs/perf/<fecha><sufijo>.json` |
+## | `--preset=LOW/MEDIUM/HIGH/ULTRA` | Aplica ese preset de [Graphics] antes de medir y
+##   restaura el del jugador al salir. Sin la bandera se mide con lo que haya en memoria (WP-29) |
+## | `--ablate=<lista|all>` | Apaga un rasgo por vez y tabula el Δ. Rasgos: `root3d`,
+##   `shadows`, `sdfgi`, `fog`, `ssao`, `msaa`, `fisheye`, `occlusion`, `vfx`, `overlay`,
+##   `trauma`, `phys_scripts`, `phys_enemies` |
+## | `--ablate_frames=<n>` | Fotogramas por ventana de ablación (por defecto
+##   [constant ABLATE_FRAMES]) |
+## | `--compare=<ruta.json>` | Tabla de Δs por escenario y métrica contra ese informe,
+##   marcando las regresiones mayores a [constant REGRESSION_PCT] % en las métricas de
+##   `docs/15` §8.3 (WP-29) |
+## | `--strict` | Con `--compare`, sale con 1 si hubo alguna regresión. Sin ella la comparación
+##   es informativa |
+## | `--reference=<ruta.json>` | Δ % informativo contra otra referencia; por defecto
+##   [constant DEFAULT_REFERENCE] |
+## | `--max_fps=<n>` | Topa el cuadro: la GPU deja de ser el limitante y `ms/frame` queda
+##   como trabajo de CPU. También es lo que hace medible el paso de Jolt (ver más abajo) |
+## | `--gpu-profile` | Imprime el detalle de GPU **por viewport**. La medición por viewport
+##   está siempre encendida ([PerfSampler]); la bandera sólo agrega la tabla |
+## | `--shots=<dir>` | Guarda una captura por escenario |
+##
+## ## Atribución del tick de física (WP-29)
+##
+## El informe cuelga dos [PerfBracket] del árbol mientras mide, así que sabe lo que costó
+## **todo** el GDScript del tick y no sólo la suma de [constant PerfProbe.IDS]. El paso de
+## Jolt corre después del último `_physics_process` y ninguna sonda lo puede envolver: se
+## estima con el hueco entre ticks encadenados, que sólo aparece cuando el motor mete
+## varios pasos de física en la misma iteración. Para una corrida de atribución hay que
+## pasar `--max_fps=` por debajo de `physics_ticks_per_second` (25 da cuatro pasos por
+## iteración); sin el tope el estimador se queda sin muestras limpias y da 0.
+##
 ## Comando, desde la raíz del repositorio:
 ## [codeblock]
 ## godot --windowed --resolution 1920x1080 --disable-vsync --path godot \
@@ -103,6 +139,29 @@ const ABLATE_WARMUP: int = 60
 ## bot en estar disparando, el jefe en caminar y la ciudad en empezar a romperse.
 const ABLATE_SETTLE: int = 900
 
+## Umbral de regresión de `docs/15` §8.3, en por ciento.
+const REGRESSION_PCT: float = 10.0
+
+## Métricas que `docs/15` §8.3 declara bloqueantes para `--compare`, con el signo
+## que las empeora.
+const REGRESSION_KEYS: Array[Dictionary] = [
+	{"key": "physics_ms_avg", "label": "física media", "lower_is_better": true},
+	{"key": "draw_calls_avg", "label": "draw calls", "lower_is_better": true},
+	{"key": "fps_avg", "label": "fps derivados", "lower_is_better": false},
+]
+
+## Métricas que `--compare` imprime además de las tres de §8.3, como contexto. No
+## deciden nada: `docs/15` §8.3 nombra exactamente tres.
+const COMPARE_EXTRA: Array[Dictionary] = [
+	{"key": "physics_ms_p95", "label": "física p95", "lower_is_better": true},
+	{"key": "primitives_avg", "label": "primitivas", "lower_is_better": true},
+	{"key": "fps_wall", "label": "fps de reloj", "lower_is_better": false},
+	{"key": "gpu_ms_total", "label": "GPU total", "lower_is_better": true},
+]
+
+## Nombres de preset que admite `--preset`, en el orden de [enum Graphics.Quality].
+const PRESET_NAMES: Array[String] = ["LOW", "MEDIUM", "HIGH", "ULTRA"]
+
 ## Rasgos que sabe apagar [method _set_feature], en el orden en que se tabulan.
 const ABLATE_FEATURES: Array[Dictionary] = [
 	{"id": "root3d", "label": "3D de la viewport raíz"},
@@ -113,6 +172,9 @@ const ABLATE_FEATURES: Array[Dictionary] = [
 	{"id": "msaa", "label": "MSAA 3D"},
 	{"id": "fisheye", "label": "ojo de pez"},
 	{"id": "occlusion", "label": "oclusión"},
+	{"id": "vfx", "label": "VFX (presupuesto a 0)"},
+	{"id": "overlay", "label": "overlay FPV"},
+	{"id": "trauma", "label": "sacudida de cámara"},
 	{"id": "phys_scripts", "label": "_physics_process del nivel"},
 	{"id": "phys_enemies", "label": "_physics_process del jefe"},
 ]
@@ -141,6 +203,16 @@ var _prey_centre: Vector3 = Vector3.ZERO
 var _freeze_before: bool = false
 var _seed_before: int = 0
 var _round_before: String = ""
+## Preset y ajustes sueltos de [Graphics] antes de `--preset`, para devolverlos.
+var _graphics_before: Dictionary = {}
+## Plazas de emisor que la ablación `vfx` tiene reservadas ahora mismo.
+var _vfx_reserved: int = 0
+## Regresiones sobre el umbral que encontró `--compare`.
+var _regressions: PackedStringArray = PackedStringArray()
+## Las dos pinzas que miden el tick entero ([PerfBracket]).
+var _brackets: Array[PerfBracket] = []
+## Conexiones de `camera_trauma` que la ablación `trauma` cortó, para devolverlas.
+var _trauma_cut: Array[Callable] = []
 
 
 func _run() -> void:
@@ -150,6 +222,8 @@ func _run() -> void:
 	_round_before = Global.selected_round
 	Global.debug_freeze_ai = false
 	_disable_vsync()
+	_apply_preset(String(_args.get("preset", "")))
+	_attach_brackets()
 
 	if DisplayServer.get_name() == "headless":
 		print("  AVISO: el servidor de pantalla es 'headless'; los monitores de render"
@@ -175,6 +249,7 @@ func _run() -> void:
 
 	_print_budgets()
 	_compare_reference()
+	_compare_report(String(_args.get("compare", "")))
 	# `Performance.RENDER_VIDEO_MEM_USED` cuenta **toda** la memoria de vídeo
 	# —objetivos de render, buffers, sombras, SDFGI— y no es comparable con el
 	# presupuesto de `docs/15` §5.2, que habla de la VRAM de **texturas de ciudad**
@@ -183,9 +258,103 @@ func _run() -> void:
 	print("  (VRAM: dato informativo; el techo de 90 MB de §5.2 es el de las texturas"
 			+ " de ciudad y lo mide city_import_check, no este monitor)")
 	_write_report(String(_args.get("suffix", "")))
+	_detach_brackets()
+	_restore_preset()
 	Global.debug_freeze_ai = _freeze_before
 	Global.round_seed = _seed_before
 	Global.selected_round = _round_before
+	# `--strict` es la única forma de que este informe salga con 1: sin ella una
+	# regresión se reporta y no bloquea (`docs/15` §8.3 y §8.5).
+	if not _regressions.is_empty() and bool(_args.has("strict")):
+		for line: String in _regressions:
+			fail(line)
+
+
+# --- Preset y pinzas de medición (WP-29) -------------------------------------------------------
+
+## Aplica el preset [param name] de [Graphics] y recuerda lo que había para devolverlo.
+##
+## `perf_report` **no** llama a `Global.load_startup_settings()`, así que lo que hay en
+## memoria son los valores por defecto de [Graphics] (HIGH) y no el `.cfg` del jugador
+## (nota de `docs/15` §5.2). Por eso el `persist` de
+## [method Graphics.apply_quality_preset] va en `false`: medir en LOW no puede dejarle
+## al jugador el `Graphics.cfg` en LOW.
+func _apply_preset(name: String) -> void:
+	if name.is_empty():
+		return
+	var wanted := PRESET_NAMES.find(name.strip_edges().to_upper())
+	if wanted < 0:
+		fail("--preset no conoce '%s' (esperaba %s)" % [name, ", ".join(PRESET_NAMES)])
+		return
+	_graphics_before = {
+		"quality": int(Graphics.quality), "msaa": int(Graphics.msaa),
+		"shadows": int(Graphics.shadows), "gi": int(Graphics.gi),
+		"volumetric_fog": Graphics.volumetric_fog, "ssao": Graphics.ssao,
+		"fisheye_mode": int(Graphics.fisheye_mode),
+		"fisheye_resolution": int(Graphics.fisheye_resolution),
+	}
+	Graphics.apply_quality_preset(wanted as Graphics.Quality, false)
+	_apply_preset_side()
+	print("  preset de medición: %s (emisores %d, overlay %s, ojo de pez %d)"
+			% [PRESET_NAMES[wanted], Graphics.max_emitters(),
+			"completo" if Graphics.fpv_overlay_full() else "viñeta",
+			int(Graphics.fisheye_mode)])
+
+
+## Devuelve [Graphics] a como estaba antes de `--preset`. Sin `--preset` no hace nada.
+func _restore_preset() -> void:
+	if _graphics_before.is_empty():
+		return
+	Graphics.quality = int(_graphics_before["quality"]) as Graphics.Quality
+	Graphics.msaa = int(_graphics_before["msaa"]) as Graphics.Msaa
+	Graphics.shadows = int(_graphics_before["shadows"]) as Graphics.Shadows
+	Graphics.gi = int(_graphics_before["gi"]) as Graphics.Gi
+	Graphics.volumetric_fog = bool(_graphics_before["volumetric_fog"])
+	Graphics.ssao = bool(_graphics_before["ssao"])
+	Graphics.fisheye_mode = int(_graphics_before["fisheye_mode"]) as Graphics.FisheyeMode
+	var resolution := int(_graphics_before["fisheye_resolution"])
+	Graphics.fisheye_resolution = resolution as Graphics.FisheyeResolution
+	_apply_preset_side()
+	_graphics_before = {}
+
+
+## Vuelca los ajustes de calidad sin tocar ventana, vsync ni tope de cuadro.
+##
+## [method Graphics.apply_all] también llama a `update_window_mode()`,
+## `update_vsync()` y `update_max_fps()`, que para el jugador es lo correcto y para
+## este informe es veneno: la primera corrida de WP-29 con `--preset=HIGH` se midió
+## **con vsync encendido** —`Graphics.vsync` vale `ON` por defecto— y dio 60,0 fps de
+## reloj y 16,67 ms de cuadro clavados, con un `physics_ms_avg` inflado, porque a 60
+## fps cada iteración del bucle principal se come dos ticks (WP-24a). Acá se llaman
+## sólo los updaters de calidad y el vsync se vuelve a apagar.
+func _apply_preset_side() -> void:
+	Graphics.update_msaa()
+	Graphics.update_shadows()
+	Graphics.update_mesh_lod()
+	Graphics.update_volumetric_fog_volume()
+	Graphics.update_fisheye()
+	Graphics.graphics_settings_updated.emit()
+	Graphics.environment_quality_changed.emit()
+	_disable_vsync()
+
+
+## Cuelga las dos [PerfBracket] que miden el tick entero. Van de hijas de este nodo,
+## que vive fuera del escenario medido y por lo tanto sobrevive a los `queue_free()`
+## de cada escenario.
+func _attach_brackets() -> void:
+	if not _brackets.is_empty():
+		return
+	for edge: PerfBracket.Edge in [PerfBracket.Edge.OPEN, PerfBracket.Edge.CLOSE]:
+		var bracket := PerfBracket.make(edge)
+		add_child(bracket)
+		_brackets.append(bracket)
+
+
+func _detach_brackets() -> void:
+	for bracket: PerfBracket in _brackets:
+		if is_instance_valid(bracket):
+			bracket.queue_free()
+	_brackets.clear()
 
 
 # --- Medición ----------------------------------------------------------------------------------
@@ -518,12 +687,84 @@ func _set_feature(root: Node, id: String, disabled: bool) -> void:
 			viewport.use_occlusion_culling = wanted
 			for sub: SubViewport in fisheye:
 				sub.use_occlusion_culling = wanted
+		"vfx":
+			# Apagar los VFX no es esconder nodos: es dejar al pool **sin presupuesto**,
+			# que es el camino que el juego ya recorre en LOW. Se reserva el tope entero
+			# con la API pública de `reserve_emitters()`, así `acquire()` devuelve `null`
+			# y ningún sistema instancia partículas. Además se deja de escuchar el bus,
+			# para que los efectos que nacen de un evento tampoco pidan ranura.
+			var pool := VFXPool.resolve(self)
+			if pool != null:
+				if disabled:
+					pool.clear()
+					pool.listen_to_events = false
+					_vfx_reserved = pool.budget()
+					var _taken := pool.reserve_emitters(_vfx_reserved)
+				else:
+					pool.release_emitters(_vfx_reserved)
+					_vfx_reserved = 0
+					pool.listen_to_events = true
+		"overlay":
+			# El overlay cuesta un draw call y una copia de backbuffer: lo que se mide es
+			# esconder su `ColorRect`, igual que hace `hud_projection_check`.
+			var overlay := _overlay(root)
+			if overlay != null and overlay.rect() != null:
+				overlay.rect().visible = not disabled
+		"trauma":
+			# La sacudida se apaga desconectando al `CameraRig` del bus y vaciando el
+			# trauma en curso, no tocando su `_process`: lo que se quiere medir es el
+			# coste de la sacudida, no el del nodo.
+			var rig := _camera_rig(root)
+			if rig != null:
+				_set_trauma_listening(rig, not disabled)
+				if disabled:
+					rig.clear_trauma()
 		"phys_scripts":
 			_toggle_physics_process(root, disabled)
 		"phys_enemies":
 			_toggle_physics_process(root.get_node_or_null(^"Enemies"), disabled)
 		_:
 			fail("rasgo de ablación desconocido: %s" % id)
+
+
+## El [FPVOverlay] que cuelgue de [param root], o `null`.
+func _overlay(root: Node) -> FPVOverlay:
+	var rig := _drone_rig(root)
+	return rig.get_overlay() if rig != null else null
+
+
+## El [CameraRig] que cuelgue de [param root], o `null`.
+func _camera_rig(root: Node) -> CameraRig:
+	var rig := _drone_rig(root)
+	return rig.get_camera_rig() if rig != null else null
+
+
+## El [DroneRig] del nivel [param root], o `null` si el escenario no tiene dron.
+func _drone_rig(root: Node) -> DroneRig:
+	var level := root as LevelBase
+	if level != null:
+		return level.drone_rig as DroneRig
+	return null
+
+
+## Conecta o desconecta a [param rig] de [signal Events.camera_trauma].
+##
+## Se recorren las conexiones de la señal en vez de nombrar el método: el manejador es
+## privado y este informe no tiene por qué saber cómo se llama. Las que se cortan se
+## guardan tal cual, así reconectar devuelve exactamente lo que había.
+func _set_trauma_listening(rig: CameraRig, listening: bool) -> void:
+	if listening:
+		for callable: Callable in _trauma_cut:
+			if callable.get_object() == rig and not Events.camera_trauma.is_connected(callable):
+				var _discard := Events.camera_trauma.connect(callable)
+		_trauma_cut.clear()
+		return
+	for connection: Dictionary in Events.camera_trauma.get_connections():
+		var callable := connection["callable"] as Callable
+		if callable.get_object() != rig:
+			continue
+		_trauma_cut.append(callable)
+		Events.camera_trauma.disconnect(callable)
 
 
 ## Apaga o restituye el `_physics_process` de todo el subárbol de [param root].
@@ -600,11 +841,39 @@ func _print_scenario(id: String, sample: Dictionary) -> void:
 	print("  FPS reloj  : media %.1f  ·  p1 %.1f  ·  motor %.1f"
 			% [float(sample["fps_wall"]), float(sample["fps_engine_p1"]),
 			float(sample["fps_engine"])])
+	if _args.has("gpu-profile") or _args.has("gpu_profile"):
+		_print_gpu_profile(sample)
 	print("  Jolt       : cuerpos activos %.0f  ·  pares %.0f  ·  islas %.0f"
 			% [float(sample["physics_active_bodies_avg"]),
 			float(sample["physics_collision_pairs_avg"]),
 			float(sample["physics_islands_avg"])])
 	_print_breakdown(sample)
+
+
+## Detalle de GPU **por viewport** (`--gpu-profile`).
+##
+## [PerfSampler] mide siempre los tiempos de todas las viewports; la bandera sólo
+## agrega esta tabla, que es la que separa el coste de la escena del coste del
+## compuesto del ojo de pez. Con FAST_WIDE hay tres `SubViewport` además de la raíz, y
+## la suma de las tres es lo que manda el cuadro (medido en WP-29: 7,27 ms de ojo de
+## pez contra 0,26 ms de raíz).
+func _print_gpu_profile(sample: Dictionary) -> void:
+	var fisheye := sample.get("gpu_ms_fisheye", []) as Array
+	var peaks := sample.get("gpu_ms_fisheye_max", []) as Array
+	var total := float(sample.get("gpu_ms_total", 0.0))
+	print("  --- GPU por viewport (ms, media · máx) ---")
+	print("    %-22s %7.2f · %7.2f   %5.1f %% del total"
+			% ["raíz", float(sample.get("gpu_ms_root_avg", 0.0)),
+			float(sample.get("gpu_ms_root_max", 0.0)),
+			_share(float(sample.get("gpu_ms_root_avg", 0.0)), total)])
+	for index: int in fisheye.size():
+		var peak := float(peaks[index]) if index < peaks.size() else 0.0
+		print("    %-22s %7.2f · %7.2f   %5.1f %% del total"
+				% ["ojo de pez #%d" % index, float(fisheye[index]), peak,
+				_share(float(fisheye[index]), total)])
+	print("    %-22s %7.2f            ·  CPU de render %.2f ms  ·  cuadro %.2f ms"
+			% ["total", total, float(sample.get("cpu_ms_render_avg", 0.0)),
+			float(sample.get("frame_ms_avg", 0.0))])
 
 
 ## Reparto del tick de física entre sistemas, leído de [PerfProbe].
@@ -616,13 +885,86 @@ func _print_breakdown(sample: Dictionary) -> void:
 	var breakdown := sample.get("physics_breakdown_ms", {}) as Dictionary
 	if breakdown == null or breakdown.is_empty():
 		return
-	var parts: PackedStringArray = PackedStringArray()
-	for key: Variant in breakdown:
-		var value := float(breakdown[key])
-		if value < 0.002:
+	var scripts := float(sample.get("physics_scripts_ms", 0.0))
+	var probed := float(sample.get("physics_probed_ms", 0.0))
+	var jolt := float(sample.get("physics_jolt_ms", 0.0))
+	var gap := float(sample.get("physics_gap_ms", 0.0))
+	var in_step := float(sample.get("physics_step_scripts_ms", 0.0))
+	var total := scripts + gap
+	if total <= 0.0:
+		return
+	var measured_step := bool(sample.get("physics_gap_valid", false))
+	print("  --- atribución del tick (ms/tick, %d ticks con pinza, %d huecos) ---"
+			% [int(sample.get("physics_bracketed_ticks", 0)),
+			int(sample.get("physics_gap_samples", 0))])
+	print("    [fase de `_physics_process`: %.3f ms, %.1f %% del tick]"
+			% [scripts, _share(scripts, total)])
+	for id: StringName in PerfProbe.IDS:
+		if PerfProbe.STEP_IDS.has(id):
 			continue
-		parts.append("%s %.3f" % [String(key), value])
-	print("  GDScript por sistema (ms/tick): %s" % ", ".join(parts))
+		var value := float(breakdown.get(String(id), 0.0))
+		if value < 0.001:
+			continue
+		print("    %-22s %7.3f  %5.1f %% del tick  %5.1f %% de la fase"
+				% [String(id), value, _share(value, total), _share(value, scripts)])
+	var unprobed := maxf(scripts - probed, 0.0)
+	print("    %-22s %7.3f  %5.1f %% del tick  %5.1f %% de la fase"
+			% ["sin_instrumentar", unprobed, _share(unprobed, total),
+			_share(unprobed, scripts)])
+	if measured_step:
+		print("    [paso del servidor: %.3f ms, %.1f %% del tick]" % [gap, _share(gap, total)])
+		for id: StringName in PerfProbe.STEP_IDS:
+			var value := float(breakdown.get(String(id), 0.0))
+			print("    %-22s %7.3f  %5.1f %% del tick  %5.1f %% del paso"
+					% [String(id), value, _share(value, total), _share(value, gap)])
+		print("    %-22s %7.3f  %5.1f %% del tick  %5.1f %% del paso"
+				% ["jolt_step", jolt, _share(jolt, total), _share(jolt, gap)])
+	else:
+		print("    [paso del servidor: no medido]")
+		for id: StringName in PerfProbe.STEP_IDS:
+			print("    %-22s %7.3f  (corre dentro del paso, fuera de la fase)"
+					% [String(id), float(breakdown.get(String(id), 0.0))])
+		print("    (sin `--max_fps` por debajo de los %d ticks/s el motor no encadena"
+				% Engine.physics_ticks_per_second
+				+ " pasos y el hueco entre ticks es un fotograma de render, no Jolt)")
+	if measured_step:
+		print("    %-22s %7.3f  (fase %.3f + paso %.3f)  ·  atribuido %.1f %% del tick,"
+				% ["tick_total", total, scripts, gap,
+				float(sample.get("physics_attributed_pct", 0.0))]
+				+ " %.1f %% de la fase"
+				% float(sample.get("physics_callbacks_attributed_pct", 0.0)))
+	else:
+		print("    %-22s %7.3f  ·  atribuido %.1f %% de la fase"
+				% ["fase (sin el paso)", scripts,
+				float(sample.get("physics_callbacks_attributed_pct", 0.0))])
+	print("    (`physics_ms_avg` %.3f ms es el **pico por segundo** del monitor del motor,"
+			% float(sample.get("physics_ms_avg", 0.0))
+			+ " no este tick: WP-24a, `docs/15` §5.2)")
+	if measured_step:
+		print("    (`_integrate_forces` corre **dentro** del paso, no en la fase de"
+				+ " callbacks: Jolt lo invoca mientras integra, por eso se resta del hueco)")
+	_print_process_breakdown(sample)
+
+
+## Porcentaje de [param value] sobre [param total], o 0 si el total no sirve.
+func _share(value: float, total: float) -> float:
+	return 100.0 * value / total if total > 0.0001 else 0.0
+
+
+## Reparto del fotograma de `_process` entre [constant PerfProbe.PROCESS_IDS].
+func _print_process_breakdown(sample: Dictionary) -> void:
+	var breakdown := sample.get("process_breakdown_ms", {}) as Dictionary
+	if breakdown == null or breakdown.is_empty():
+		return
+	var frame := float(sample.get("frame_ms_avg", 0.0))
+	var parts: PackedStringArray = PackedStringArray()
+	for id: StringName in PerfProbe.PROCESS_IDS:
+		var value := float(breakdown.get(String(id), 0.0))
+		if value < 0.001:
+			continue
+		parts.append("%s %.3f (%.1f %%)" % [String(id), value, _share(value, frame)])
+	print("  _process por sistema (ms/fotograma, cuadro de %.2f ms): %s"
+			% [frame, ", ".join(parts) if not parts.is_empty() else "nada medible"])
 
 
 ## Contrasta cada escenario con el presupuesto de `docs/15` §5.2. No falla: informa.
@@ -682,6 +1024,80 @@ func _compare_reference() -> void:
 					"mejor" if better else "peor"])
 
 
+## Tabla de Δ por escenario y métrica contra el informe [param path] (`--compare=`).
+##
+## Es la puerta de `docs/15` §8.3: una regresión de más de [constant REGRESSION_PCT] %
+## en `physics_ms_avg`, `draw_calls_avg` o `fps_avg` se marca con `REGRESIÓN`. Las
+## métricas de [constant COMPARE_EXTRA] se imprimen como contexto y **no** deciden
+## nada; el documento nombra exactamente tres.
+##
+## Informativo salvo `--strict`, que convierte cada regresión en un fallo y hace que
+## el proceso salga con 1.
+func _compare_report(path: String) -> void:
+	if path.is_empty():
+		return
+	if not FileAccess.file_exists(path):
+		fail("--compare no encuentra %s" % path)
+		return
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	var document := parsed as Dictionary
+	if document == null or not document.has("scenarios"):
+		fail("--compare: %s no tiene 'scenarios'" % path)
+		return
+	var reference := document["scenarios"] as Dictionary
+	print("")
+	print("  --- `docs/15` §8.3: comparación contra %s (%s, commit %s) ---"
+			% [path, String(document.get("date", "?")), String(document.get("commit", "?"))])
+	print("  %-14s %-16s %11s %11s %9s  %s"
+			% ["escenario", "métrica", "antes", "ahora", "Δ %", "veredicto"])
+	var metrics: Array[Dictionary] = []
+	metrics.assign(REGRESSION_KEYS)
+	var context: Array[Dictionary] = []
+	context.assign(COMPARE_EXTRA)
+	for id: String in _results:
+		if not reference.has(id):
+			print("  %-14s (no está en la referencia)" % id)
+			continue
+		var before := reference[id] as Dictionary
+		for metric: Dictionary in metrics:
+			_compare_row(id, before, metric, true)
+		for metric: Dictionary in context:
+			_compare_row(id, before, metric, false)
+	if _regressions.is_empty():
+		print("  sin regresiones sobre el %.0f %% en las tres métricas de §8.3."
+				% REGRESSION_PCT)
+	else:
+		print("  %d regresión(es) sobre el %.0f %%%s." % [_regressions.size(),
+				REGRESSION_PCT, " (--strict: se sale con 1)" if _args.has("strict")
+				else " (informativo: sin --strict no bloquea)"])
+
+
+## Una fila de [method _compare_report]. Con [param blocking] la fila cuenta para
+## `docs/15` §8.3 y puede marcar regresión.
+func _compare_row(id: String, before: Dictionary, metric: Dictionary,
+		blocking: bool) -> void:
+	var key := String(metric["key"])
+	var now := _results[id]
+	if not before.has(key) or not now.has(key):
+		return
+	var old_value := float(before[key])
+	var new_value := float(now[key])
+	if is_zero_approx(old_value):
+		return
+	var delta := (new_value - old_value) / absf(old_value) * 100.0
+	var worse := delta > 0.0 if bool(metric["lower_is_better"]) else delta < 0.0
+	var verdict := "igual"
+	if absf(delta) >= 0.05:
+		verdict = "peor" if worse else "mejor"
+	if blocking and worse and absf(delta) > REGRESSION_PCT:
+		verdict = "REGRESIÓN"
+		_regressions.append("%s · %s: %.3f -> %.3f (%+.1f %%, umbral %.0f %%)"
+				% [id, String(metric["label"]), old_value, new_value, delta, REGRESSION_PCT])
+	print("  %-14s %-16s %11.3f %11.3f %+8.1f %%  %s%s"
+			% [id, String(metric["label"]), old_value, new_value, delta, verdict,
+			"" if blocking else "  (contexto)"])
+
+
 ## Escribe `docs/perf/<fecha><sufijo>.json` con el formato de `docs/15` §5.3 más
 ## los campos nuevos de WP-24a: tiempos de GPU por viewport, percentil 1 de fps,
 ## reparto del tick de física y tabla de ablación.
@@ -714,6 +1130,15 @@ func _write_report(suffix: String = "") -> void:
 				DisplayServer.window_get_size().y],
 		"window_frames": WINDOW_FRAMES,
 		"discarded_frames": DISCARD_FRAMES,
+		# El preset con el que se midió es parte del dato, no del comando: sin él dos
+		# informes del mismo día no son comparables. `perf_report` no lee el `.cfg` del
+		# jugador (`docs/15` §5.2), así que sin `--preset` lo que se mide son los valores
+		# por defecto de `Graphics` en memoria, que **no** son el preset HIGH: el ojo de
+		# pez por defecto es FAST y el de HIGH es FAST_WIDE (medido en WP-29: 492 draw
+		# calls contra 855).
+		"preset": _preset_name(),
+		"fisheye_mode": int(Graphics.fisheye_mode),
+		"max_fps": Engine.max_fps,
 		"scenarios": scenarios,
 		"ablation": ablation,
 	}
@@ -726,6 +1151,14 @@ func _write_report(suffix: String = "") -> void:
 	file.close()
 	print("")
 	print("  informe escrito en %s" % path)
+
+
+## Nombre del preset de calidad vigente, o `"CUSTOM"` si el jugador lo desarmó.
+func _preset_name() -> String:
+	var index := int(Graphics.quality)
+	if index < 0 or index >= PRESET_NAMES.size():
+		return "CUSTOM"
+	return PRESET_NAMES[index]
 
 
 ## Commit corto del repositorio, leído de `.git` sin salir del proceso. Devuelve

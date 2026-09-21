@@ -60,6 +60,10 @@ class_name MotorAudio extends Node
 ## Bus al que van los ocho reproductores (`docs/04` §3.2, `docs/13` §5.1).
 const BUS: StringName = &"Motors"
 
+## Grupo por el que el [AudioPool] del nivel descubre este nodo como fuente de la
+## categoría `motors` (ver `AudioPool.SOURCE_GROUPS`, WP-27).
+const VOICE_GROUP: StringName = &"audio_motors"
+
 ## Carpeta de los loops sintetizados.
 const STREAM_DIR: String = "res://assets/audio/motors"
 
@@ -125,6 +129,10 @@ var _warned: bool = false
 
 
 func _ready() -> void:
+	# El `AudioPool` del nivel descubre las fuentes externas por este grupo y les
+	# cuenta las voces contra el tope de su categoría (`docs/13` §5.2). Acá no
+	# cambia nada de la mezcla: es un alta, nada más.
+	add_to_group(VOICE_GROUP)
 	_load_streams()
 	_resolve_drone()
 	if _drone != null:
@@ -142,6 +150,7 @@ func _physics_process(delta: float) -> void:
 		return
 	if not enabled:
 		return
+	PerfProbe.begin(&"motor_audio")
 	var cut := _is_cut()
 	if _drone.is_armed() and not _playing and not cut:
 		_start()
@@ -149,6 +158,7 @@ func _physics_process(delta: float) -> void:
 		_update_motor(index, delta, cut)
 	if _playing and (cut or not _drone.is_armed()) and _is_silent():
 		_stop()
+	PerfProbe.end(&"motor_audio")
 
 
 ## Enciende o apaga el audio de motores. Apagarlo detiene los ocho reproductores;
@@ -159,9 +169,29 @@ func set_enabled(value: bool) -> void:
 		_stop()
 
 
-## Reproductores que están sonando ahora mismo. Es el consumo de voces de este
-## nodo frente al presupuesto de 24 de `docs/13` §5.2, y nunca pasa de
-## `motores × VOICES_PER_MOTOR`.
+## Voces **lógicas** de este nodo frente al presupuesto de `docs/13` §5.2: una por
+## motor que se esté oyendo, nunca más de cuatro.
+##
+## No son los ocho reproductores. La categoría `motors` del [AudioPool] tiene un
+## tope de 4 y los ocho reproductores de acá son **cuatro motores en dos bandas
+## cada uno**: el par de voces de un motor es un solo sonido repartido en un
+## crossfade de potencia constante, no dos sonidos distintos. Contarlos como ocho
+## haría que el dron se comiera el presupuesto entero de la escena por un detalle
+## de implementación de su propia mezcla.
+##
+## Se cuenta por encima de [constant SILENT_DB]: un motor al ralentí desvanecido
+## no ocupa voz porque no se oye.
+func logical_voice_count() -> int:
+	var _ready_now := _build()
+	var count := 0
+	for index: int in _motors.size():
+		if get_motor_volume_db(index) > SILENT_DB + SILENCE_MARGIN_DB:
+			count += 1
+	return count
+
+
+## Reproductores que están sonando ahora mismo, los ocho. Lo mira `audio_check`;
+## el presupuesto de voces lo lleva [method logical_voice_count].
 func get_active_voice_count() -> int:
 	var _ready_now := _build()
 	var count := 0

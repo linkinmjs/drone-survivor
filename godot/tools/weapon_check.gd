@@ -516,6 +516,9 @@ func _check_damage_layer_3() -> void:
 		var last: Dictionary = _hits[_hits.size() - 1]
 		expect(WeaponMount.hit_kind(bool(last["weak"]), bool(last["lethal"]))
 				== WeaponMount.HitKind.ARMOR, "el HitKind de la capa 3 no es ARMOR")
+		expect(StringName(last["surface"]) == &"armor",
+				"hit_confirmed.surface en la capa 3: esperado='armor' medido='%s'"
+				% String(last["surface"]))
 	print("   damage_layer_3 = %.3f brutos → %.3f efectivos"
 			% [_part.last_amount, _part.last_effective])
 	_check_hit_dict(_part.last_hit, false)
@@ -540,6 +543,9 @@ func _check_damage_layer_4() -> void:
 			"falta hit['weak_point_id'] en la capa 4")
 	var confirmed: Dictionary = _hits[_hits.size() - 1] if not _hits.is_empty() else {}
 	expect(bool(confirmed.get("weak", false)), "hit_confirmed no marcó weak en la capa 4")
+	expect(StringName(confirmed.get("surface", &"")) == &"weak",
+			"hit_confirmed.surface en la capa 4: esperado='weak' medido='%s'"
+			% String(confirmed.get("surface", &"")))
 	expect(WeaponMount.hit_kind(true, false) == WeaponMount.HitKind.WEAK,
 			"el HitKind de un punto débil sano no es WEAK")
 	print("   damage_layer_4 = %.3f brutos → %.3f efectivos"
@@ -602,6 +608,10 @@ func _check_damage_layer_8() -> void:
 			"el daño estructural no es damage × city_friendly_fire_scale")
 	expect_near(_pool.get_friendly_fire_damage(), expected * float(shots), 0.01,
 			"get_friendly_fire_damage() no acumula el daño aplicado")
+	var city_hit: Dictionary = _hits[_hits.size() - 1] if not _hits.is_empty() else {}
+	expect(StringName(city_hit.get("surface", &"")) == &"city",
+			"hit_confirmed.surface en la capa 8: esperado='city' medido='%s'"
+			% String(city_hit.get("surface", &"")))
 	print("   damage_layer_8 = %.3f por impacto, %.3f acumulados en %d impactos"
 			% [_building.last_amount, _pool.get_friendly_fire_damage(), _building.hits])
 
@@ -625,7 +635,25 @@ func _check_damage_layer_1() -> void:
 	# de este disparo. La capa 1 no tiene `HitKind` (`docs/08` §2.7): no publica.
 	expect(_hits.is_empty(),
 			"la capa 1 emitió hit_confirmed (no tiene HitKind, docs/08 §2.7)")
-	print("   damage_layer_1 = 0 daño, %d decal" % requested)
+	# La cuarta superficie de `Events.hit_confirmed` **no puede** llegar por el
+	# bus, justamente porque la capa 1 no confirma. Lo que sí se puede aseverar es
+	# la tabla completa de `ProjectilePool.surface_for`, que es de donde sale el
+	# valor que viaja en las otras tres.
+	var mapping: Array[Array] = [
+		[PhysicsLayers.ENEMY_WEAK, true, true, &"weak"],
+		[PhysicsLayers.ENEMY_BODY, false, true, &"armor"],
+		[PhysicsLayers.CITY, false, false, &"city"],
+		[PhysicsLayers.WORLD, false, false, &"world"],
+		[PhysicsLayers.DEBRIS, false, false, &"world"],
+		[PhysicsLayers.ENEMY_BODY, false, false, &"world"],
+	]
+	for row: Array in mapping:
+		var got := ProjectilePool.surface_for(int(row[0]), bool(row[1]), bool(row[2]))
+		expect(got == row[3],
+				"surface_for(capa %d, weak=%s, parte=%s): esperado='%s' medido='%s'"
+				% [int(row[0]), row[1], row[2], String(row[3]), String(got)])
+	print("   damage_layer_1 = 0 daño, %d decal; surface_for cubre las 4 superficies"
+			% requested)
 
 
 # --- 10: retroceso ----------------------------------------------------------------------------
@@ -1135,8 +1163,10 @@ func _on_shot_fired(_origin: Vector3, direction: Vector3) -> void:
 	_shot_angles.append(_angle_between(direction, _weapon.get_aim_direction()))
 
 
-func _on_hit_confirmed(position: Vector3, weak: bool, lethal: bool) -> void:
-	_hits.append({"position": position, "weak": weak, "lethal": lethal, "tick": _tick})
+func _on_hit_confirmed(position: Vector3, weak: bool, lethal: bool,
+		surface: StringName) -> void:
+	_hits.append({"position": position, "weak": weak, "lethal": lethal,
+			"surface": surface, "tick": _tick})
 
 
 func _on_heat_changed(ratio: float, overheated: bool) -> void:

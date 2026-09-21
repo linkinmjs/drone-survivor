@@ -1,8 +1,9 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://tools/arachnodroid_check.gd" id="1_arachnodroid_check"]
 [ext_resource type="Script" path="res://city/debris_pool.gd" id="2_debris_pool"]
 [ext_resource type="Script" path="res://city/rubble_field.gd" id="3_rubble_field"]
+[ext_resource type="Script" path="res://vfx/vfx_pool.gd" id="4_vfx_pool"]
 
 [node name="ArachnodroidCheck" type="Node"]
 script = ExtResource("1_arachnodroid_check")
@@ -15,3 +16,16 @@ rubble_field = NodePath("RubbleField")
 
 [node name="RubbleField" type="Node3D" parent="DebrisPool"]
 script = ExtResource("3_rubble_field")
+
+; Pool de VFX (WP-26). Está acá para que el criterio 15 mida el **haz nuevo** —el
+; cilindro con `vfx/beam.gdshader`, su luz de impacto y sus chispas de contacto—
+; y no el cilindro placeholder de WP-19, que `SweepAction` conserva sólo como
+; respaldo para los bancos sin pool. También sirve las telegrafías del pisotón y
+; del EMP, así que los criterios de aviso se ejercitan contra lo que el jugador
+; ve de verdad.
+;
+; El bus va encendido: este banco sí instancia un jefe real que emite
+; `enemy_spawned`, `enemy_part_broken` y `camera_trauma`.
+
+[node name="VFXPool" type="Node" parent="."]
+script = ExtResource("4_vfx_pool")

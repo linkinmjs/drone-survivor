@@ -112,6 +112,11 @@ func _on_telegraph_tick(delta: float) -> void:
 		return
 	if telegraph_seconds() - _telegraph_elapsed <= FREEZE_SECONDS:
 		_frozen = true
+		# El decal deja de seguir a la creencia: de acá en más el jugador sabe
+		# exactamente dónde cae el pie (`docs/07` §5.4).
+		var node := telegraph_node()
+		if node != null:
+			node.freeze_zone()
 		return
 	_impact = aim_point()
 	_publish_aim()
@@ -128,6 +133,11 @@ func _on_active_begin() -> void:
 		leg_rig.move_raised_leg(_leg_index, _impact)
 	super._on_active_begin()
 	_landed = true
+	# La zona se apaga y deja la marca de cráter durante 4 s (`docs/13` §4). El
+	# aviso ya cumplió: lo que queda es la cicatriz en la calle.
+	var node := telegraph_node()
+	if node != null:
+		node.freeze_zone(true)
 	Events.camera_trauma.emit(TRAUMA, _impact)
 
 

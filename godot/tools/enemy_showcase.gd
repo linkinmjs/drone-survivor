@@ -134,7 +134,16 @@ const BUILDING_HP: float = 9000.0
 
 ## Punto del mundo en el que aparece el dron de prueba: entre el jefe y la torre,
 ## bajo y cerca, para que el pisotón y el láser lo alcancen.
+##
+## Se puede mover con `--drone=x,y,z`, que es como WP-26 confirmó la marca de
+## cráter del pisotón: el golpe cae **donde está el dron**, así que con el punto
+## por defecto —a 62 m del jefe, sobre el eje `−Z`— la marca queda fuera de todos
+## los encuadres, que miran al coloso y no al suelo lejano.
 const DRONE_SPAWN: Vector3 = Vector3(11.0, 5.0, -62.0)
+
+## Punto efectivo de aparición del dron de prueba: [constant DRONE_SPAWN] o lo
+## que haya pasado `--drone=x,y,z`.
+var _drone_spawn: Vector3 = DRONE_SPAWN
 
 ## Ritmo con el que la cámara persigue al jefe, en s⁻¹.
 const CAMERA_RATE: float = 2.5
@@ -253,6 +262,7 @@ var _last_locomotion: StringName = &""
 
 func _ready() -> void:
 	var args := _user_args()
+	_drone_spawn = _parse_vector(String(args.get("drone", "")), DRONE_SPAWN)
 	_gait_mode = String(args.get("scene", "combat")) == "gait"
 	var key := StringName(args.get("cam", String(DEFAULT_CAMERA)))
 	if not CAMERAS.has(key):
@@ -629,7 +639,7 @@ func _spawn_drone() -> void:
 	_drone.add_child(mesh)
 	add_child(_drone)
 
-	_drone.global_position = DRONE_SPAWN
+	_drone.global_position = _drone_spawn
 	if _perception != null:
 		_perception.set_target(_drone)
 	print("enemy_showcase: %5.1f s · dron de prueba en %s"
@@ -676,6 +686,18 @@ func _aim_camera(delta: float = -1.0) -> void:
 
 
 ## Argumentos de usuario `--clave=valor`, con el mismo parseo que `CheckRunner`.
+## Lee `x,y,z` de [param text]; devuelve [param fallback] si no trae tres números.
+func _parse_vector(text: String, fallback: Vector3) -> Vector3:
+	if text.is_empty():
+		return fallback
+	var parts := text.split(",", false)
+	if parts.size() != 3:
+		push_warning("enemy_showcase: '--drone=%s' no es 'x,y,z'; se usa el punto por defecto."
+				% text)
+		return fallback
+	return Vector3(parts[0].to_float(), parts[1].to_float(), parts[2].to_float())
+
+
 func _user_args() -> Dictionary:
 	var parsed: Dictionary = {}
 	for raw: String in OS.get_cmdline_user_args():

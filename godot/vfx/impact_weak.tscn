@@ -1,0 +1,97 @@
+[gd_scene load_steps=9 format=3]
+
+; Impacto en punto débil (`docs/13` §4): 24 chispas **cian** `TARGET` (#38E1FF) y
+; un destello del mismo color, 0.45 s.
+;
+; El cian es la regla de identidad de `docs/13` §1 y §2.1: marca lo que pertenece
+; al enemigo y lo que se puede romper. Es el único impacto que no es cálido, y por
+; eso se distingue de un tiro a la coraza sin leer un solo número del HUD.
+
+[ext_resource type="Script" path="res://vfx/vfx_effect.gd" id="1_effect"]
+
+[sub_resource type="Curve" id="Curve_out"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_out"]
+curve = SubResource("Curve_out")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_weak"]
+lifetime_randomness = 0.3
+emission_shape = 1
+emission_sphere_radius = 0.14
+direction = Vector3(0, 1, 0)
+spread = 75.0
+initial_velocity_min = 4.0
+initial_velocity_max = 13.0
+gravity = Vector3(0, -10, 0)
+damping_min = 1.5
+damping_max = 6.0
+scale_min = 0.45
+scale_max = 1.1
+color = Color(0.55, 0.95, 1, 1)
+alpha_curve = SubResource("CurveTexture_out")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_weak"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_color = Color(0.9, 2.65, 3.1, 1)
+disable_receive_shadows = true
+billboard_mode = 3
+billboard_keep_scale = true
+
+[sub_resource type="QuadMesh" id="QuadMesh_weak"]
+material = SubResource("StandardMaterial3D_weak")
+size = Vector2(0.18, 0.18)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_flash"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+albedo_color = Color(1.1, 3.2, 3.8, 1)
+disable_receive_shadows = true
+billboard_mode = 1
+billboard_keep_scale = true
+
+[sub_resource type="QuadMesh" id="QuadMesh_flash"]
+material = SubResource("StandardMaterial3D_flash")
+size = Vector2(1.1, 1.1)
+
+[node name="ImpactWeak" type="Node3D"]
+script = ExtResource("1_effect")
+life_seconds = 0.45
+light_fade_seconds = 0.12
+decal_seconds = 0.0
+
+[node name="Sparks" type="GPUParticles3D" parent="."]
+cast_shadow = 0
+gi_mode = 0
+emitting = false
+amount = 24
+lifetime = 0.45
+one_shot = true
+explosiveness = 1.0
+fixed_fps = 30
+interpolate = true
+draw_order = 3
+local_coords = false
+visibility_range_end = 360.0
+visibility_range_fade_mode = 1
+process_material = SubResource("ParticleProcessMaterial_weak")
+draw_pass_1 = SubResource("QuadMesh_weak")
+metadata/vfx_texture = "spark"
+
+[node name="Flash" type="MeshInstance3D" parent="."]
+cast_shadow = 0
+gi_mode = 0
+mesh = SubResource("QuadMesh_flash")
+metadata/vfx_texture = "halo"
+
+[node name="FlashLight" type="OmniLight3D" parent="."]
+light_color = Color(0.22, 0.88, 1, 1)
+light_energy = 3.0
+light_intensity_lumens = 9000.0
+shadow_enabled = false
+omni_range = 6.0

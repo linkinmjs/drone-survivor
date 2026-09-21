@@ -8,6 +8,11 @@
 #   powershell -File godot/tools/run_checks.ps1 -Only project_check
 #   powershell -File godot/tools/run_checks.ps1 -Godot "D:/Godot/godot.console.exe"
 #   powershell -File godot/tools/run_checks.ps1 -Extended     # suma balance_check (~9 min)
+#   powershell -File godot/tools/run_checks.ps1 -HeadlessOnly # modo CI: solo los headless
+#
+# Codigos de salida: 0 todo en verde, 1 fallo algun check, 2 error de uso
+# (binario de Godot ausente, o -Only con un nombre inexistente o incompatible
+# con -HeadlessOnly) y 3 no se ejecuto ningun paso.
 
 [CmdletBinding()]
 param(
@@ -18,7 +23,12 @@ param(
     # sin escena y el timeout interno de CheckRunner nunca corre).
     [int]$ProcessTimeout = 420,
     # Suma los checks extendidos (lentos) al final de la suite.
-    [switch]$Extended
+    [switch]$Extended,
+    # Modo sin ventana, el que usa CI (docs/15 seccion 7.2), en paridad con
+    # --headless-only de run_checks.sh. Salta $Windowed y $ExtendedChecks y los
+    # lista como locales en el resumen. El catalogo no cambia: la bandera solo
+    # elige que listas se recorren. En Windows, con GPU real, no hace falta.
+    [switch]$HeadlessOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -49,6 +59,9 @@ $Headless = @(
     "ai_check"  # WP-18
     "combat_hud_check"  # WP-22
     "arachnodroid_check"  # WP-19
+    "vfx_check"  # WP-26
+    "overlay_check"  # WP-28
+    "shake_check"  # WP-28
 )
 
 # Checks que necesitan un framebuffer real porque capturan imagen (docs/15 seccion 3.1).
@@ -61,7 +74,7 @@ $Windowed = @(
 )
 
 # Extendidos: lentos (minutos), corren solo con -Extended o con -Only <nombre>.
-# balance_check simula cuatro partidas completas a time_scale 4 (docs/07 seccion 14).
+# balance_check simula cinco partidas (3 semillas + control + negativa) completas a time_scale 4 (docs/07 seccion 14).
 $ExtendedChecks = @(
     "balance_check"  # WP-23
 )
@@ -102,6 +115,27 @@ if (-not (Test-Path -LiteralPath $Godot)) {
     Write-Host "No se encontro el binario de Godot en: $Godot"
     Write-Host "Pasalo con -Godot <ruta> o ajusta el valor por defecto del script."
     exit 2
+}
+
+if (-not [string]::IsNullOrEmpty($Only) -and $Only -ne "editor") {
+    if ($Windowed -contains $Only) {
+        if ($HeadlessOnly) {
+            Write-Host "$Only es un check con ventana: no corre con -HeadlessOnly"
+            Write-Host "Correlo sin la bandera: necesita un framebuffer real."
+            exit 2
+        }
+    }
+    elseif ($ExtendedChecks -contains $Only) {
+        if ($HeadlessOnly) {
+            Write-Host "$Only es un check extendido: no corre con -HeadlessOnly"
+            exit 2
+        }
+    }
+    elseif ($Headless -notcontains $Only) {
+        Write-Host "No existe ningun check llamado '$Only' en el catalogo (docs/15 seccion 3)."
+        Write-Host "uso: run_checks.ps1 [-Only <nombre>] [-HeadlessOnly] [-Extended] [-Godot <ruta>]"
+        exit 2
+    }
 }
 
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
@@ -164,6 +198,8 @@ Set-Content -Path $Report -Encoding utf8 -Value ("Drone Survivor - run_checks " 
 
 $failed = New-Object System.Collections.ArrayList
 $passed = 0
+# Pasos realmente ejecutados: si queda en 0 no hubo corrida que evaluar.
+$ran = 0
 
 # --- 0) Importacion previa en frio, sin evaluar la salida ---
 # En un checkout limpio, la primera importacion del pack de ciudad emite lineas
@@ -185,6 +221,7 @@ if ([string]::IsNullOrEmpty($Only) -or $Only -eq "editor") {
     Write-Host "== editor --quit =="
     Add-Report "`n===== editor --quit ====="
     $res = Invoke-Godot -LogName "editor" -GodotArgs @("--headless", "--path", $ProjectArg, "--editor", "--quit")
+    $ran = $ran + 1
     Add-Report $res.Output
     $bad = @($res.Output -split "`r?`n" | Where-Object { $_ -match "^(ERROR:|SCRIPT ERROR:)" })
     if ($res.ExitCode -ne 0 -or $bad.Count -gt 0) {
@@ -202,14 +239,17 @@ if ([string]::IsNullOrEmpty($Only) -or $Only -eq "editor") {
 
 $catalog = New-Object System.Collections.ArrayList
 foreach ($name in $Headless) { [void]$catalog.Add([pscustomobject]@{ Name = $name; Windowed = $false }) }
-foreach ($name in $Windowed) { [void]$catalog.Add([pscustomobject]@{ Name = $name; Windowed = $true }) }
-foreach ($name in $ExtendedChecks) {
-    if ($Extended -or $Only -eq $name) { [void]$catalog.Add([pscustomobject]@{ Name = $name; Windowed = $false }) }
+if (-not $HeadlessOnly) {
+    foreach ($name in $Windowed) { [void]$catalog.Add([pscustomobject]@{ Name = $name; Windowed = $true }) }
+    foreach ($name in $ExtendedChecks) {
+        if ($Extended -or $Only -eq $name) { [void]$catalog.Add([pscustomobject]@{ Name = $name; Windowed = $false }) }
+    }
 }
 
 foreach ($check in $catalog) {
     if (-not [string]::IsNullOrEmpty($Only) -and $check.Name -ne $Only) { continue }
 
+    $ran = $ran + 1
     $scenePath = Join-Path $ToolsDir ($check.Name + ".tscn")
     Write-Host ("== {0} ==" -f $check.Name)
     Add-Report ("`n===== {0} =====" -f $check.Name)
@@ -263,6 +303,18 @@ else {
 }
 
 Write-Host ""
+if ($HeadlessOnly) {
+    $localLine = "Solo headless (-HeadlessOnly): quedan como locales " + (($Windowed + $ExtendedChecks) -join ", ")
+    Write-Host $localLine
+    Add-Report ("`n===== solo headless =====`n" + $localLine)
+}
+if ($ran -eq 0) {
+    $nothing = "NO SE EJECUTO NINGUN PASO: revisa el nombre del check y las banderas"
+    Write-Host $nothing
+    Write-Host ("Detalle: {0}" -f $Report)
+    Add-Report ("`n===== resumen =====`n" + $nothing)
+    exit 3
+}
 Write-Host $summary
 Write-Host ("Detalle: {0}" -f $Report)
 Add-Report ("`n===== resumen =====`n" + $summary)

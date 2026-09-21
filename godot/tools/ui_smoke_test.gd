@@ -850,34 +850,42 @@ func _check_hud_tab(screen: GameSettingsMenu) -> void:
 	if toggle == null or preset == null:
 		fail("la pestaña de HUD no expone el interruptor de señal ni el preset")
 		return
-	expect(not toggle.button_pressed, "el indicador de señal arranca apagado")
-	if preview != null:
-		expect(not preview.is_component_visible(FlightHUD.Component.SIGNAL),
-				"la vista previa arranca con el componente SIGNAL apagado")
-	toggle.grab_focus()
-	await wait_frames(2)
-	await _send_action(&"ui_right")
-	expect(bool(GameSettings.hud_config.get("signal", false)),
-			"encender el interruptor escribe hud_config['signal']")
+	# Desde WP-28 el indicador de señal entra en el preset Standard, que es el del
+	# primer arranque (`GameSettings.HUD_PRESETS`): la pestaña abre con él **encendido**.
+	# Por eso la secuencia de esta fila es apagar y volver a encender, y no al revés: lo
+	# que se prueba es el interruptor, y hay que empezar por el estado que el jugador
+	# se encuentra de verdad.
+	expect(toggle.button_pressed,
+			"el indicador de señal arranca encendido: lo trae el preset Standard")
 	if preview != null:
 		expect(preview.is_component_visible(FlightHUD.Component.SIGNAL),
-				"encender el interruptor enciende el componente SIGNAL de la vista previa real")
+				"la vista previa arranca con el componente SIGNAL encendido")
+	# La captura se toma con la señal puesta, que es la pantalla que el jugador ve.
+	await _settle()
+	await shot("options_hud")
+
+	toggle.grab_focus()
+	await wait_frames(2)
+	await _send_action(&"ui_left")
+	expect(not bool(GameSettings.hud_config.get("signal", true)),
+			"apagar el interruptor escribe hud_config['signal']")
+	if preview != null:
+		expect(not preview.is_component_visible(FlightHUD.Component.SIGNAL),
+				"apagar el interruptor apaga el componente SIGNAL de la vista previa real")
 	expect(GameSettings.get_hud_preset_name() == GameSettings.CUSTOM_HUD_PRESET,
 			"un cambio manual deja el preset de HUD en Custom")
 	expect(preset.selected == HudConfigPanel.CUSTOM_INDEX,
 			"el selector de preset muestra Custom")
 	GameSettings.load_game_settings()
-	expect(bool(GameSettings.hud_config.get("signal", false)),
-			"el interruptor de señal persiste tras guardar y recargar")
-	await _settle()
-	await shot("options_hud")
-
-	await _send_action(&"ui_left")
 	expect(not bool(GameSettings.hud_config.get("signal", true)),
-			"apagar el interruptor vuelve a escribir hud_config['signal']")
+			"el interruptor de señal persiste tras guardar y recargar")
+
+	await _send_action(&"ui_right")
+	expect(bool(GameSettings.hud_config.get("signal", false)),
+			"volver a encenderlo vuelve a escribir hud_config['signal']")
 	if preview != null:
-		expect(not preview.is_component_visible(FlightHUD.Component.SIGNAL),
-				"apagar el interruptor apaga el componente SIGNAL de la vista previa real")
+		expect(preview.is_component_visible(FlightHUD.Component.SIGNAL),
+				"encender el interruptor enciende el componente SIGNAL de la vista previa real")
 		await _check_hud_presets(panel, preview)
 	screen.show_tab(0)
 	await wait_frames(2)

@@ -1,0 +1,105 @@
+[gd_scene load_steps=8 format=3]
+
+; Haz del `head_laser` (`docs/13` §4, `docs/07` §5.6): cilindro con
+; `vfx/beam.gdshader`, una `OmniLight3D` en el punto de impacto y 12 chispas de
+; contacto. Radio 0.25 m, vida la del ataque (2.0 s de ventana activa).
+;
+; **Cian**, porque es luz del enemigo y nada enemigo es cálido (`docs/13` §1). El
+; núcleo tira a blanco para que el haz tenga un centro que se lea a contraluz.
+;
+; `life_seconds = 0`: la duración la manda la acción. `SweepAction` lo pide en
+; `configure_beam`, lo estira en `update_beam` y lo apaga en `hide_beam`.
+
+[ext_resource type="Script" path="res://vfx/vfx_beam.gd" id="1_beam"]
+[ext_resource type="Shader" path="res://vfx/beam.gdshader" id="2_shader"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_laser"]
+render_priority = 1
+shader = ExtResource("2_shader")
+shader_parameter/beam_color = Color(0.08, 0.72, 1, 1)
+shader_parameter/core_color = Color(0.7, 0.96, 1, 1)
+shader_parameter/scroll_speed = 2.8
+shader_parameter/fresnel_power = 2.2
+shader_parameter/pulse_hz = 13.0
+shader_parameter/intensity = 4.2
+shader_parameter/bands = 4.0
+shader_parameter/cap_fade = 0.05
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_laser"]
+material = SubResource("ShaderMaterial_laser")
+top_radius = 0.25
+bottom_radius = 0.25
+height = 1.0
+radial_segments = 10
+rings = 1
+cap_top = false
+cap_bottom = false
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_contact"]
+lifetime_randomness = 0.4
+emission_shape = 1
+emission_sphere_radius = 0.35
+direction = Vector3(0, 0, 1)
+spread = 55.0
+initial_velocity_min = 3.0
+initial_velocity_max = 11.0
+gravity = Vector3(0, -12, 0)
+damping_min = 2.0
+damping_max = 6.0
+scale_min = 0.4
+scale_max = 1.0
+color = Color(0.6, 0.96, 1, 1)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_contact"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_color = Color(1, 2.8, 3.2, 1)
+disable_receive_shadows = true
+billboard_mode = 3
+billboard_keep_scale = true
+
+[sub_resource type="QuadMesh" id="QuadMesh_contact"]
+material = SubResource("StandardMaterial3D_contact")
+size = Vector2(0.3, 0.3)
+
+[node name="LaserBeam" type="Node3D"]
+script = ExtResource("1_beam")
+life_seconds = 0.0
+light_fade_seconds = 0.0
+decal_seconds = 0.0
+
+[node name="Beam" type="MeshInstance3D" parent="."]
+top_level = true
+cast_shadow = 0
+gi_mode = 0
+mesh = SubResource("CylinderMesh_laser")
+
+[node name="ImpactLight" type="OmniLight3D" parent="."]
+top_level = true
+light_color = Color(0.22, 0.78, 1, 1)
+light_energy = 2.5
+light_intensity_lumens = 40000.0
+shadow_enabled = false
+omni_range = 14.0
+
+[node name="ContactSparks" type="GPUParticles3D" parent="."]
+top_level = true
+cast_shadow = 0
+gi_mode = 0
+emitting = false
+amount = 12
+lifetime = 0.45
+one_shot = false
+explosiveness = 0.15
+fixed_fps = 30
+interpolate = true
+draw_order = 3
+local_coords = false
+visibility_range_end = 500.0
+visibility_range_fade_mode = 1
+process_material = SubResource("ParticleProcessMaterial_contact")
+draw_pass_1 = SubResource("QuadMesh_contact")
+metadata/vfx_texture = "spark"
+metadata/vfx_continuous = true
