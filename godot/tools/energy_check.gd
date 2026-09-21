@@ -48,7 +48,13 @@
 ## - **Sub-checks 9 y 10 contra §2.2**: el documento deja al dron agotado bloqueado
 ##   hasta encontrar una pila. Desde WP-24e la batería a 0 % reconstruye el dron como
 ##   si hubiera muerto —doce segundos, `Events.drone_destroyed`, −300 y ×0.6— y lo
-##   devuelve con `respawn_energy_depleted` (20 %), no con los 60 % del casco.
+##   devuelve con `respawn_energy_depleted` (30 %), no con los 60 % del casco.
+## - **Sub-check 6 contra §5 y §4**: la tabla de §5 pide «energía a 50 → **80.0**»
+##   (la pila de +30 del Anexo A/C) y la nota del checkpoint 4 lo corrigió a 95.0
+##   (la pila de +45). Las dos quedaron viejas el mismo día: por pedido del usuario
+##   **una pila renueva toda la energía**, `battery_amount` vale 100 y recoger una
+##   desde 50 % deja **100.0**. La cuenta de §5 ya no es una suma sino un tope, y
+##   [constant DOC_BATTERY_AMOUNT] pasa a ser igual a [constant DOC_MAX_ENERGY].
 ## - **Sub-check 20 contra §2.5**: §2.5 dice que el acumulador reactiva «otra» pila
 ##   y §5 pide cinco de vuelta tras recoger dos y esperar 25 s. Gana el sub-check:
 ##   el acumulador es uno solo y rellena hasta el objetivo de una vez.
@@ -70,19 +76,22 @@ const NEGATIVE_ARG: String = "negative"
 # es lo que se verifica, no la vara de medir.
 
 const DOC_MAX_ENERGY: float = 100.0
-const DOC_BASE_DRAIN: float = 0.55
-const DOC_THROTTLE_DRAIN: float = 0.85
+const DOC_BASE_DRAIN: float = 0.40
+const DOC_THROTTLE_DRAIN: float = 0.60
 const DOC_IDLE_RECHARGE: float = 0.0
 const DOC_IDLE_CAP: float = 0.0
 const DOC_CRITICAL_RATIO: float = 0.15
 const DOC_CRITICAL_EXIT_RATIO: float = 0.18
 const DOC_CRITICAL_THRUST: float = 0.82
-const DOC_BATTERY_AMOUNT: float = 30.0
+## Lo que devuelve una pila. **Una pila renueva toda la energía**, así que es igual
+## a [constant DOC_MAX_ENERGY] y no un monto parcial: el sub-check 6 lo comprueba
+## recogiendo una pila desde 50 % y exigiendo 100 %, no 50 + algo.
+const DOC_BATTERY_AMOUNT: float = 100.0
 const DOC_EMP_DRAIN: float = 25.0
 const DOC_EMP_GLITCH: float = 3.0
 const DOC_RESPAWN_ENERGY: float = 60.0
-const DOC_RESPAWN_ENERGY_DEPLETED: float = 20.0
-const DOC_ENERGY_PER_SHOT: float = 0.45
+const DOC_RESPAWN_ENERGY_DEPLETED: float = 30.0
+const DOC_ENERGY_PER_SHOT: float = 0.30
 
 const DOC_MAX_HP: float = 100.0
 const DOC_IMPACT_THRESHOLD: float = 8.0
@@ -126,6 +135,13 @@ const CLEARANCE_SECONDS: float = 200.0
 
 ## Índice del marcador tapado por el cuerpo de capa 8.
 const BLOCKED_MARKER: int = 7
+
+## Monto de la sonda de inyección del sub-check 6, en la escala 0–100.
+##
+## Tiene que ser un número que **no aparezca en ningún perfil ni escena del
+## proyecto**: es lo único que distingue «el spawner copió el perfil» de «el
+## spawner dejó el default de `battery_pickup.tscn`, que por suerte coincide».
+const PROBE_BATTERY_AMOUNT: float = 12.5
 
 ## Daño por segundo que recibe el edificio de prueba durante el respawn.
 const CITY_DAMAGE_PER_SECOND: float = 500.0
@@ -468,19 +484,19 @@ func _check_drain_throttle() -> void:
 
 func _check_drain_shot() -> void:
 	await get_tree().physics_frame
-	# (a) 20 cobros directos de 0.45 bajan exactamente 9.0.
+	# (a) 20 cobros directos de 0.30 bajan exactamente 6.0.
 	_energy.reset(50.0)
 	for _i: int in 20:
 		expect(_energy.consume(DOC_ENERGY_PER_SHOT),
-				"4 drain_shot: consume(0.45) rechazado con energía de sobra")
-	expect_near(_energy.energy, 41.0, EXACT_TOLERANCE,
-			"4 drain_shot: 20 cobros de 0.45 desde 50 %")
+				"4 drain_shot: consume(0.30) rechazado con energía de sobra")
+	expect_near(_energy.energy, 44.0, EXACT_TOLERANCE,
+			"4 drain_shot: 20 cobros de 0.30 desde 50 %")
 	var measured_drop := 50.0 - _energy.energy
 
 	# (b) todo o nada: sin saldo no resta nada.
 	_energy.reset(0.2)
 	expect(not _energy.consume(DOC_ENERGY_PER_SHOT),
-			"4 drain_shot: consume(0.45) aceptado con 0.2 de saldo")
+			"4 drain_shot: consume(0.30) aceptado con 0.2 de saldo")
 	expect_near(_energy.energy, 0.2, EXACT_TOLERANCE,
 			"4 drain_shot: un cobro rechazado no puede restar nada")
 
@@ -511,7 +527,7 @@ func _check_drain_shot() -> void:
 	expect(not blocked, "4 drain_shot: el arma disparó sin energía")
 	expect_near(_energy.energy, 0.2, EXACT_TOLERANCE,
 			"4 drain_shot: un disparo bloqueado no puede restar energía")
-	_record("4  drain_shot ............. 20×0.45 = %.3f · fire() = %.3f · bloqueado = %s"
+	_record("4  drain_shot ............. 20×0.30 = %.3f · fire() = %.3f · bloqueado = %s"
 			% [measured_drop, shot_cost, str(not blocked)])
 
 
@@ -578,8 +594,10 @@ func _check_battery_pickup() -> void:
 	_energy.reset(50.0)
 	_battery_events = 0
 	_pickup.body_entered.emit(_drone)
-	expect_near(_energy.energy, 80.0, EXACT_TOLERANCE,
-			"6 battery_pickup: la pila no sumó 30 % desde 50 %")
+	# Una pila **renueva toda la energía**: desde 50 % tiene que dejar 100,0, y el
+	# recorte de `recharge()` es lo que impide que el monto de 100 se pase del máximo.
+	expect_near(_energy.energy, DOC_MAX_ENERGY, EXACT_TOLERANCE,
+			"6 battery_pickup: la pila no dejó la energía en 100 % desde 50 %")
 	expect(_battery_events == 1,
 			"6 battery_pickup: battery_collected se emitió %d veces, no 1" % _battery_events)
 	expect_near(_battery_last_amount, DOC_BATTERY_AMOUNT, 0.001,
@@ -596,8 +614,65 @@ func _check_battery_pickup() -> void:
 	expect(_battery_events == 1, "6 battery_pickup: una pila apagada volvió a cobrarse")
 	await wait_physics(2)
 	expect(not _pickup.monitoring, "6 battery_pickup: monitoring quedó en true tras recogerse")
-	_record("6  battery_pickup ........ 50 %%→%.3f %% · battery_collected(%.0f, %v) ×%d"
-			% [_energy.energy, _battery_last_amount, _battery_last_position, _battery_events])
+
+	# (e) el monto de una pila **de ronda** lo inyecta el [BatterySpawner] desde
+	# `EnergyProfile.battery_amount`, y no sale del default de `battery_pickup.tscn`.
+	# La pila del spawner del banco lleva el número del perfil del proyecto...
+	var spawned := _spawner.get_pickup(0) if _spawner != null else null
+	expect(spawned != null, "6 battery_pickup: el spawner del banco no construyó pilas")
+	var spawned_amount := spawned.amount if spawned != null else -1.0
+	expect_near(spawned_amount, DOC_BATTERY_AMOUNT, 0.001,
+			"6 battery_pickup: la pila del spawner suma %.3f y el perfil dice %.2f"
+			% [spawned_amount, DOC_BATTERY_AMOUNT])
+	# ...pero eso solo no prueba nada, porque el default de la escena **también** es
+	# `DOC_BATTERY_AMOUNT`: si el spawner dejara de inyectar, la aserción de arriba
+	# seguiría pasando. La prueba de la inyección es un spawner con un perfil
+	# duplicado y un monto que no existe en ninguna otra parte del proyecto.
+	var injected := await _probe_injected_amount()
+	expect_near(injected, PROBE_BATTERY_AMOUNT, 0.001,
+			"6 battery_pickup: con el perfil en %.1f la pila del spawner salió con %.3f:"
+			% [PROBE_BATTERY_AMOUNT, injected]
+			+ " el monto no se inyecta y quedó el default de la escena")
+	_record("6  battery_pickup ........ 50 %%→%.3f %% · battery_collected(%.0f, %v) ×%d · spawner inyecta %.1f (sonda con perfil %.1f → %.1f)"
+			% [_energy.energy, _battery_last_amount, _battery_last_position, _battery_events,
+			spawned_amount, PROBE_BATTERY_AMOUNT, injected])
+
+
+## Monto con el que un [BatterySpawner] recién construido arma sus pilas cuando su
+## perfil dice [constant PROBE_BATTERY_AMOUNT].
+##
+## Monta un spawner de un solo marcador con una batería propia —un [EnergySystem]
+## suelto con el perfil **duplicado**— en vez de tocar `default_energy.tres`, que es
+## el recurso que comparten el rig del banco y cualquier escena que siga cargada en
+## el proceso: corromperlo a mitad de la corrida contaminaría los quince sub-checks
+## que vienen después.
+##
+## El spawner se desconecta de la física apenas nace: lo único que interesa de él es
+## lo que hizo su `_ready()`, no su acumulador de relleno.
+func _probe_injected_amount() -> float:
+	var profile := _energy.profile.duplicate() as EnergyProfile
+	profile.battery_amount = PROBE_BATTERY_AMOUNT
+	var battery := EnergySystem.new()
+	battery.name = "ProbeEnergy"
+	battery.profile = profile
+
+	var probe := BatterySpawner.new()
+	probe.name = "AmountProbe"
+	probe.energy_system = battery
+	var marker := Marker3D.new()
+	marker.name = "Marker"
+	probe.add_child(marker)
+	add_child(probe)
+	probe.set_physics_process(false)
+	await wait_physics(1)
+
+	var pickup := probe.get_pickup(0)
+	var amount := pickup.amount if pickup != null else -1.0
+	probe.queue_free()
+	# `battery` nunca entró al árbol, así que no hay `queue_free()` que valga.
+	battery.free()
+	await wait_frames(2)
+	return amount
 
 
 # --- 7. critical_enter ------------------------------------------------------------------------
@@ -718,13 +793,13 @@ func _check_depleted() -> void:
 			"9 depleted: la reconstrucción por batería también dura 12 s")
 	_measured_depleted_energy = _energy.energy
 	expect_near(_energy.energy, DOC_RESPAWN_ENERGY_DEPLETED, 0.001,
-			"9 depleted: el dron tenía que volver con 20 %% y volvió con %.2f %%"
+			"9 depleted: el dron tenía que volver con 30 %% y volvió con %.2f %%"
 			% _energy.energy)
 	expect(_destroyed_events == 1,
 			"9 depleted: Events.drone_destroyed se emitió %d veces en toda la secuencia, no 1"
 			% _destroyed_events)
 	expect(not _energy.is_depleted(), "9 depleted: siguió agotado tras reconstruirse")
-	expect(not _energy.is_critical(), "9 depleted: 20 %% está por encima del 18 %% de salida")
+	expect(not _energy.is_critical(), "9 depleted: 30 %% está por encima del 18 %% de salida")
 	expect(_controller.can_arm_energy, "9 depleted: can_arm_energy no volvió a true")
 	expect(not _drone.freeze, "9 depleted: el dron quedó congelado tras reconstruirse")
 	expect(_drone.visible, "9 depleted: el dron quedó invisible tras reconstruirse")
@@ -782,7 +857,7 @@ func _check_emp() -> void:
 	var emp_ticks := _finish_respawn()
 	expect(emp_ticks < RESPAWN_MAX_TICKS, "10 emp: la reconstrucción tras el EMP nunca llegó")
 	expect_near(_energy.energy, DOC_RESPAWN_ENERGY_DEPLETED, 0.001,
-			"10 emp: tras el EMP el dron vuelve con 20 %%, no con %.2f %%" % _energy.energy)
+			"10 emp: tras el EMP el dron vuelve con 30 %%, no con %.2f %%" % _energy.energy)
 	_record("10 emp .................. 80 %%→%.3f · 20 %%→0.000 (crítico %s, agotado %s) · reconstrucción por ENERGY → %.1f %%"
 			% [after_first, str(_critical_enters == 1), str(true), _energy.energy])
 	_respawn.reset()
@@ -1022,9 +1097,9 @@ func _one_death_and_respawn(death: int, expected_multiplier: float) -> float:
 				"16 respawn_state: la energía no quedó en 60 %")
 		expect(_respawn.get_reason() == RespawnController.Reason.HULL,
 				"16 respawn_state: una muerte por casco tiene que dejar el motivo en HULL")
-		# La otra mitad de la regla, medida en el sub-check 9: por batería son 20 %.
+		# La otra mitad de la regla, medida en el sub-check 9: por batería son 30 %.
 		expect_near(_measured_depleted_energy, DOC_RESPAWN_ENERGY_DEPLETED, 0.001,
-				"16 respawn_state: por casco son 60 %% y por batería 20 %%, y el 9 midió %.2f %%"
+				"16 respawn_state: por casco son 60 %% y por batería 30 %%, y el 9 midió %.2f %%"
 				% _measured_depleted_energy)
 		expect(not _drone.freeze, "16 respawn_state: el dron quedó congelado")
 		expect(_drone.visible, "16 respawn_state: el dron quedó invisible")

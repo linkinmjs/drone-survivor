@@ -8,7 +8,7 @@
 ## - `HULL`: el casco llegó a cero ([signal Hull.destroyed]). El dron vuelve con
 ##   [member EnergyProfile.respawn_energy] (60 %).
 ## - `ENERGY`: la batería llegó a cero ([signal EnergySystem.depleted]). El dron
-##   vuelve con [member EnergyProfile.respawn_energy_depleted] (20 %). Es la única
+##   vuelve con [member EnergyProfile.respawn_energy_depleted] (30 %). Es la única
 ##   salida del bloqueo a 0 %: desde WP-24e la recarga en reposo está apagada, así
 ##   que un dron sin batería ya no se rearma con el 1 % que acababa de juntar para
 ##   volver a caerse al frame siguiente.

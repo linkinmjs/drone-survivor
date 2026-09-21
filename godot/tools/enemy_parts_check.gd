@@ -14,7 +14,7 @@
 ##    núcleos en la 3 y fuera del grupo.
 ## 4. El daño con blindaje y el multiplicador de punto débil, que el arma aplica
 ##    y la parte **no** vuelve a aplicar.
-## 5. `total_structure_ratio()` sobre los 12 000 HP de puntos débiles.
+## 5. `total_structure_ratio()` sobre los 10 400 HP de puntos débiles.
 ## 6. El desprendimiento: un chunk por pata, con sus hijos, en la capa 9.
 ## 7. Las cinco fases en orden y la exposición del núcleo ventral.
 ## 8. El tope del pool, el congelado y el horneado en el [RubbleField].
@@ -43,10 +43,11 @@ const PHASES: Array[StringName] = [
 
 ## Daño de un disparo del arma (`docs/08` §2.7).
 ## Suma del HP de los ocho puntos débiles (`docs/07` §4), que es el denominador
-## de `total_structure_ratio()`: `4 · 1600` de rodillas + `1500` del visor +
-## `3 · 1900` de núcleos. Subió de 12 000 a 13 600 al recalibrar las rodillas en
-## WP-23.
-const WEAK_POINT_BUDGET: float = 13600.0
+## de `total_structure_ratio()`: `4 · 800` de rodillas + `1500` del visor +
+## `3 · 1900` de núcleos. El diseño original decía 12 000 (rodillas de 1 200),
+## WP-23 lo subió a 13 600 (rodillas de 1 600) y el rebalance de rodillas del
+## checkpoint 4 lo baja a **10 400** partiendo las rodillas al medio (800).
+const WEAK_POINT_BUDGET: float = 10400.0
 
 const SHOT_DAMAGE: float = 12.0
 
@@ -262,7 +263,7 @@ func _check_initial_exposure() -> void:
 			% [PhysicsLayers.ENEMY_WEAK, PhysicsLayers.ENEMY_BODY])
 
 
-## Criterio 5: los 12 000 HP de integridad salen sólo de los puntos débiles.
+## Criterio 5: los 10 400 HP de integridad salen sólo de los puntos débiles.
 func _check_structure_budget() -> void:
 	var weighted := 0.0
 	var armored := 0
@@ -275,10 +276,10 @@ func _check_structure_budget() -> void:
 		weak_total += weak_point.part.max_hp
 	expect_near(weighted, weak_total, 0.01,
 			"la integridad debería contar sólo los puntos débiles")
-	# **12 000 → 13 600 (WP-23).** El balance subió el HP de las cuatro rodillas de
-	# 1 200 a 1 600 —la palanca de duración de `docs/07` §14— así que el
-	# presupuesto pasa a `4·1600 + 1500 + 3·1900`. `docs/07` §4 y §8 quedan por
-	# recalcular.
+	# **13 600 → 10 400 (rodillas del checkpoint 4).** El balance bajó el HP de las
+	# cuatro rodillas de 1 600 a 800 —la palanca de duración de `docs/07` §14,
+	# movida a la mitad por pedido del usuario— así que el presupuesto pasa a
+	# `4·800 + 1500 + 3·1900`. `docs/07` §4 y §8 quedan por recalcular.
 	expect_near(weighted, WEAK_POINT_BUDGET, 0.01, "presupuesto de integridad (docs/07 §4)")
 	expect(armored == _enemy.get_parts().size() - _enemy.get_weak_points().size(),
 			"partes con structure_weight 0: %d, esperadas %d" \

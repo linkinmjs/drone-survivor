@@ -252,6 +252,15 @@ func _build_pickups() -> void:
 			return
 		pickup.name = "BatteryPickup%d" % (index + 1)
 		pickup.energy_system = energy_system
+		# El **monto sale del perfil**, no del default de la escena. Hasta el
+		# rebalance del checkpoint 4 el spawner inyectaba la batería pero no la
+		# cantidad, así que `EnergyProfile.battery_amount` y `BatteryPickup.amount`
+		# eran dos números independientes que sólo coincidían por disciplina: subir
+		# uno y olvidarse del otro dejaba el perfil diciendo una cosa y el juego
+		# haciendo otra, sin que nada se pusiera rojo salvo `energy_check`, que los
+		# comparaba a los dos contra su propia constante. Ahora hay una sola fuente.
+		if energy_system != null and energy_system.profile != null:
+			pickup.amount = energy_system.profile.battery_amount
 		add_child(pickup)
 		pickup.global_transform = _markers[index].global_transform
 		pickup.deactivate()

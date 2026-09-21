@@ -141,11 +141,41 @@ const VFOG_TEMPORAL_AMOUNT: float = 0.9
 
 # --- Glow y tonemap ---------------------------------------------------------------------------
 
-const GLOW_LEVELS: Array[float] = [0.0, 0.2, 0.8, 1.0, 0.6, 0.2, 0.0]
-const GLOW_INTENSITY: float = 0.85
+## Glow. `docs/13` §3.1 pide niveles `0, 0.2, 0.8, 1.0, 0.6, 0.2, 0`, intensidad
+## `0.85` y umbral `0.95`; WP-24 ya había subido el umbral a **1.4** porque con
+## 0.95 entraba el cielo entero.
+##
+## ## Por qué se recorta otra vez en el checkpoint 4
+##
+## El usuario jugó la tanda 4 y dijo que «las luces de fondo dificultan un poco la
+## visión». Medido con `tools/legibility_shots.tscn` sobre una fachada encendida a
+## **30 m**, comparando el mismo encuadre con `glow_enabled = false`: el halo que
+## el glow agregaba alrededor de cada ventana medía **3.2 px de media, 10.3 px de
+## p90 y 14 px como máximo**, muy por encima de los 6 px que hacen falta para que
+## la ventana se siga leyendo como ventana y no como una mancha. En vuelo bajo
+## entre manzanas, el **1.79 %** del cuadro quedaba por encima de 0.90 de
+## luminancia, casi todo halo.
+##
+## Los tres valores que se tocan y qué hace cada uno:
+##
+## * `GLOW_INTENSITY` 0.85 → **0.60**: cuánto se suma. Baja el brillo del halo sin
+##   tocar su ancho.
+## * `GLOW_HDR_THRESHOLD` 1.4 → **1.7**: qué entra al glow. Deja fuera lo que sólo
+##   estaba **rozando** el umbral —fachadas al sol, niebla iluminada— y conserva
+##   los emisivos de verdad: ventanas (2.21 HDR), cian del jefe y trazadores.
+## * `GLOW_LEVELS`, niveles 5 y 6: 0.6 → **0.3** y 0.2 → **0.05**. Son las mipmaps
+##   **anchas**, las que convierten una ventana de 20 px en un borrón de 50: es el
+##   ancho del halo y no su brillo. El nivel 4 (1.0) se deja intacto, que es el que
+##   le da el núcleo brillante al emisivo.
+##
+## Medido después, mismo encuadre: halo de **1.2 px de media, 5.6 de p90 y 9.5 de
+## máximo**, y 1.47 % del cuadro por encima de 0.90 en la calle. Las ventanas
+## siguen encendidas y con halo; lo que se fue es el velo.
+const GLOW_LEVELS: Array[float] = [0.0, 0.2, 0.8, 1.0, 0.3, 0.05, 0.0]
+const GLOW_INTENSITY: float = 0.60
 const GLOW_STRENGTH: float = 1.0
 const GLOW_BLOOM: float = 0.03
-const GLOW_HDR_THRESHOLD: float = 1.4
+const GLOW_HDR_THRESHOLD: float = 1.7
 const GLOW_HDR_SCALE: float = 2.0
 const GLOW_HDR_LUMINANCE_CAP: float = 12.0
 const GLOW_MIX: float = 0.05
@@ -180,14 +210,64 @@ func _init() -> void:
 
 ## Escribe [param resource] en [param path] y devuelve 1 si falló.
 func _save(resource: Resource, path: String) -> int:
-	# `FLAG_CHANGE_PATH` deja el recurso apuntando al archivo nuevo; sin él, una
-	# segunda pasada guardaría contra la ruta vieja de la caché.
+	# `take_over_path` le saca la ruta al recurso que ya esté en la caché —el `.tres`
+	# de la pasada anterior, que la herramienta abre sin querer al resolver los
+	# `ext_resource`—. Con `FLAG_CHANGE_PATH` a secas, `set_path` fallaba con
+	# «possible cyclic resource inclusion», el recurso se guardaba **sin ruta** y el
+	# guardador de texto no podía buscarle el `uid`: cada regeneración borraba la
+	# línea `uid="uid://…"` del encabezado. Nada referencia el entorno por `uid`
+	# —todos usan `path=`— pero perderlo en cada pasada es ruido en el diff.
+	resource.take_over_path(path)
+	var uid := _read_uid(path)
 	var err := ResourceSaver.save(resource, path, ResourceSaver.FLAG_CHANGE_PATH)
 	if err != OK:
 		push_error("no se pudo guardar %s: %s" % [path, error_string(err)])
 		return 1
-	print("  %s" % path)
+	# Corriendo con `--script` no hay caché de UID que consultar, así que el
+	# guardador de texto escribe el encabezado sin `uid=`. Se vuelve a poner el que
+	# tenía el archivo para que la regeneración sea un cambio de **valores** y no
+	# una reasignación de identidad del recurso.
+	_restore_uid(path, uid)
+	print("  %s%s" % [path, "" if uid.is_empty() else " (uid conservado)"])
 	return 0
+
+
+## Devuelve el `uid://…` del encabezado de [param path], o `""` si no tiene.
+func _read_uid(path: String) -> String:
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return ""
+	var header := file.get_line()
+	file.close()
+	var start := header.find("uid=\"")
+	if start < 0:
+		return ""
+	var end := header.find("\"", start + 5)
+	return header.substr(start + 5, end - start - 5) if end > 0 else ""
+
+
+## Reinyecta [param uid] en el encabezado de [param path] si el guardador lo perdió.
+func _restore_uid(path: String, uid: String) -> void:
+	if uid.is_empty():
+		return
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return
+	var text := file.get_as_text()
+	file.close()
+	var newline := text.find("\n")
+	if newline < 0:
+		return
+	var header := text.substr(0, newline)
+	if header.contains("uid=\""):
+		return
+	header = header.replace("]", " uid=\"%s\"]" % uid)
+	var out := FileAccess.open(path, FileAccess.WRITE)
+	if out == null:
+		push_error("no se pudo reescribir el encabezado de %s" % path)
+		return
+	out.store_string(header + text.substr(newline))
+	out.close()
 
 
 func _build_sun_profile() -> SunProfile:

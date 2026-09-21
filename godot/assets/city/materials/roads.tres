@@ -15,6 +15,26 @@ emission = Color(1, 1, 1, 1)
 ; enciende la **fachada entera** a 1000 nits y no sólo las ventanas del bake:
 ; era la ciudad «plana y gris» del checkpoint 3 (WP-24).
 emission_operator = 1
-emission_energy_multiplier = 1.0
+; Legibilidad (checkpoint 4): 1.0 -> **0.65**. El usuario reportó que «las luces
+; de fondo dificultan un poco la visión». El recorte de glow de WP-24 (intensidad
+; 0.60, umbral 1.70, niveles anchos recortados) arregló el **halo** —grosor medio
+; por ventana a 30 m de 3.2 a 2.3 px, y el velo del glow bajó del 13.99 % al
+; 7.18 % del cuadro— pero no el **núcleo**: volando pegado a una fachada, la
+; ventana sigue siendo un rectángulo blanco y el cuadro se vuelve una pared de luz
+; (medido con `tools/legibility_shots.tscn --win-distance=8`: 0.28 % del cuadro por
+; encima de 0.90 de luminancia, p99 0.835, máximo 0.938; en el recorrido del bot,
+; el fotograma 248 llegaba al 7.04 %).
+;
+; A 0.65 esa misma fachada a 8 m baja a **0.00 %** por encima de 0.90, con p99
+; 0.810 y máximo 0.915: la ventana deja de saturar y se lee como ventana. A 30 m y
+; en vuelo bajo entre manzanas el cambio es chico (la calle pasa de 1.46 % a
+; 1.39 %), que es justamente lo que se quería: se apaga el deslumbre de cerca sin
+; apagar la ciudad de lejos.
+;
+; El **racionado** de `docs/13` §1 no se toca: `Building._resolve_dark_material()`
+; sigue duplicando este material por familia y poniendo el multiplicador en 0.0
+; para las manzanas sorteadas, así que las ventanas apagadas siguen apagadas y las
+; encendidas siguen encendidas, sólo que un tercio menos fuerte.
+emission_energy_multiplier = 0.65
 emission_texture = ExtResource("2_emission")
 texture_filter = 5

@@ -481,8 +481,12 @@ func _damage_target(collider: Object) -> Object:
 func _damage_building(collider: Object, point: Vector3) -> void:
 	if collider == null:
 		return
-	var scale := profile.city_friendly_fire_scale if profile != null else 0.5
-	var amount := (profile.damage if profile != null else 12.0) * scale
+	# Los dos respaldos son los del perfil del MVP tras el rebalance del checkpoint 4
+	# (`damage` 16 × `city_friendly_fire_scale` 0.375 = 6 por impacto, igual que los
+	# 12 × 0.5 de antes). Sin perfil el pool no debería llegar acá nunca; si llega,
+	# que al menos no invente un número de otra época.
+	var scale := profile.city_friendly_fire_scale if profile != null else 0.375
+	var amount := (profile.damage if profile != null else 16.0) * scale
 	_friendly_fire_damage += amount
 	if collider.has_method(&"take_damage"):
 		collider.call(&"take_damage", amount, point)

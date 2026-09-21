@@ -38,7 +38,23 @@ class_name BatteryPickup extends Area3D
 signal collected(pickup: BatteryPickup)
 
 ## Energía que devuelve, en la escala 0–100 de `docs/09` §2.1.
-@export var amount: float = 30.0
+##
+## **Una pila renueva toda la energía**: vale 100, o sea
+## [member EnergyProfile.max_energy], así que recogerla deja el depósito lleno sin
+## importar con cuánto llegue el dron. No hay ninguna rama de «recarga total»; la
+## suma con recorte de [method EnergySystem.recharge] hace exactamente eso.
+##
+## **+30 → +45 en el rebalance del checkpoint 4 (2026-09-21) y +45 → +100 el mismo
+## día**, las dos veces por pedido del usuario: primero «la recarga de batería podría
+## brindar más energía» y después «al agarrar una pila la energía se renueva entera».
+##
+## Este default sólo vale para una pila **suelta**, puesta a mano en una escena o
+## en un banco de pruebas. A las pilas de una ronda se lo **sobrescribe el
+## [BatterySpawner]** con [member EnergyProfile.battery_amount] al construirlas, que
+## es la única fuente del número: antes del checkpoint 4 eran dos valores
+## independientes y podían separarse sin que nada se quejara. Se deja igual al del
+## perfil de todos modos, para que una pila suelta no mienta.
+@export var amount: float = 100.0
 
 ## Batería del dron a la que se le suma [member amount]. La inyecta el spawner.
 @export var energy_system: EnergySystem

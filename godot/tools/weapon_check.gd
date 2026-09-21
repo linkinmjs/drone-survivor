@@ -98,12 +98,12 @@ const HEAT_EVENT_BUDGET: int = 120
 ## Están duplicados a propósito: si el check midiera contra `profile.damage *
 ## profile.weak_point_multiplier` sería tautológico —un perfil con el multiplicador
 ## roto pasaría igual—. Acá el perfil es lo que se verifica, no la vara de medir.
-const DOC_DAMAGE: float = 12.0
+const DOC_DAMAGE: float = 16.0
 const DOC_WEAK_MULTIPLIER: float = 3.0
 const DOC_ARMOR: float = 0.90
-const DOC_EFFECTIVE_ARMOR_DAMAGE: float = 1.2
-const DOC_WEAK_DAMAGE: float = 36.0
-const DOC_CITY_SCALE: float = 0.5
+const DOC_EFFECTIVE_ARMOR_DAMAGE: float = 1.6
+const DOC_WEAK_DAMAGE: float = 48.0
+const DOC_CITY_SCALE: float = 0.375
 const DOC_CITY_DAMAGE: float = 6.0
 const DOC_HEAT_PER_SHOT: float = 0.045
 const DOC_OVERHEAT_LOCK: float = 1.8
@@ -231,8 +231,8 @@ func _prepare() -> void:
 	_discard = _weapon.cooled.connect(_on_cooled)
 
 	if user_args().has("negative"):
-		# Prueba negativa: con el multiplicador en 1.0 el punto débil recibe 12 en
-		# vez de 36 y el sub-check 7 tiene que ponerse rojo.
+		# Prueba negativa: con el multiplicador en 1.0 el punto débil recibe 16 en
+		# vez de 48 y el sub-check 7 tiene que ponerse rojo.
 		print("  (modo negativo: weak_point_multiplier forzado a 1.0)")
 		_profile.weak_point_multiplier = 1.0
 
@@ -300,7 +300,7 @@ func _check_profile_values() -> void:
 	expect(_profile.los_mask == PhysicsLayers.QUERY_LOS,
 			"los_mask = %d, se esperaba QUERY_LOS = %d"
 			% [_profile.los_mask, PhysicsLayers.QUERY_LOS])
-	print("   profile = 8/s · 12 daño · ×3.0 · calor 0.045 · bloqueo 1.8 s · retroceso 0.9 N·s"
+	print("   profile = 8/s · 16 daño · ×3.0 · calor 0.045 · bloqueo 1.8 s · retroceso 0.9 N·s"
 			+ " · máscaras %d/%d" % [_profile.hit_mask, _profile.los_mask])
 
 
@@ -318,7 +318,7 @@ func _build_targets() -> void:
 	_weak.name = "WeakBody"
 	# La parte que hospeda un punto débil expuesto tiene `armor = 0.0`
 	# (`docs/08` §2.7, requisito sobre `docs/06`): el arma aplica el ×3.0 y la
-	# parte no absorbe nada, así que el impacto vale 36 y no 3.6.
+	# parte no absorbe nada, así que el impacto vale 48 y no 4.8.
 	_weak.armor = 0.0
 	_weak.sync_to_physics = false
 	_weak.collision_layer = PhysicsLayers.ENEMY_WEAK
@@ -495,7 +495,7 @@ func _check_heat() -> void:
 # --- 6, 7 y 7b: daño a las capas 3 y 4 -------------------------------------------------------
 
 
-## Sub-check 6 (`damage_layer_3`): blindaje 0.90 → 12 brutos, 1.2 efectivos.
+## Sub-check 6 (`damage_layer_3`): blindaje 0.90 → 16 brutos, 1.6 efectivos.
 func _check_damage_layer_3() -> void:
 	print("-- 6 damage_layer_3")
 	_part.reset()
@@ -504,9 +504,9 @@ func _check_damage_layer_3() -> void:
 	if _part.hits == 0:
 		return
 	expect_near(_part.last_amount, DOC_DAMAGE, 0.01,
-			"el arma no pasó los 12 de daño base a la capa 3")
+			"el arma no pasó los 16 de daño base a la capa 3")
 	expect_near(_part.last_effective, DOC_EFFECTIVE_ARMOR_DAMAGE, 0.01,
-			"el daño efectivo con blindaje 0.90 no es 1.2")
+			"el daño efectivo con blindaje 0.90 no es 1.6")
 	expect_near(_pool.get_last_effective_damage(), DOC_EFFECTIVE_ARMOR_DAMAGE, 0.01,
 			"el pool no recogió el daño efectivo que devolvió take_damage()")
 	expect(not bool(_part.last_hit.get(&"is_weak_point", true)),
@@ -524,7 +524,7 @@ func _check_damage_layer_3() -> void:
 	_check_hit_dict(_part.last_hit, false)
 
 
-## Sub-check 7 (`damage_layer_4`) y la parte letal: ×3.0 → 36 brutos y 36 efectivos.
+## Sub-check 7 (`damage_layer_4`) y la parte letal: ×3.0 → 48 brutos y 48 efectivos.
 func _check_damage_layer_4() -> void:
 	print("-- 7 damage_layer_4")
 	_weak.reset()
@@ -534,9 +534,9 @@ func _check_damage_layer_4() -> void:
 	if _weak.hits == 0:
 		return
 	expect_near(_weak.last_amount, DOC_WEAK_DAMAGE, 0.01,
-			"el arma no pasó los 36 (12 × 3.0) a la capa 4")
+			"el arma no pasó los 48 (16 × 3.0) a la capa 4")
 	expect_near(_weak.last_effective, DOC_WEAK_DAMAGE, 0.01,
-			"el daño efectivo en la capa 4 no es 36 (la parte hospedadora tiene armor 0.0)")
+			"el daño efectivo en la capa 4 no es 48 (la parte hospedadora tiene armor 0.0)")
 	expect(bool(_weak.last_hit.get(&"is_weak_point", false)),
 			"hit['is_weak_point'] no es true en la capa 4")
 	expect(_weak.last_hit.has(&"weak_point_id"),

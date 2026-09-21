@@ -1,7 +1,11 @@
 [gd_resource type="Resource" script_class="WeaponProfile" load_steps=6 format=3]
 
-; Arma primaria del MVP con los valores cerrados del Anexo C (`docs/08` §4).
-; Todo lo de acá lo ajusta WP-23 sin tocar una línea de código.
+; Arma primaria del MVP con los valores cerrados del Anexo C (`docs/08` §4) y el
+; rebalance del checkpoint 4 (2026-09-21) encima: `damage` 12 → 16 y
+; `energy_per_shot` 0.45 → 0.30, con `city_friendly_fire_scale` 0.5 → 0.375 para
+; que el fuego amigo siga valiendo 6 por impacto. Cadencia, dispersión, calor y
+; bloqueo quedan exactamente como estaban. Lo verifica `weapon_check`
+; (constantes `DOC_*`).
 
 [ext_resource type="Script" path="res://drone/weapons/weapon_profile.gd" id="1_profile"]
 [ext_resource type="PackedScene" path="res://drone/weapons/muzzle_flash.tscn" id="2_muzzle_flash"]
@@ -14,7 +18,7 @@ script = ExtResource("1_profile")
 id = &"mk1_repeater"
 display_key = "WPN_MK1_REPEATER"
 fire_rate = 8.0
-damage = 12.0
+damage = 16.0
 weak_point_multiplier = 3.0
 projectile_speed = 420.0
 max_range = 600.0
@@ -28,7 +32,7 @@ heat_cooldown_bonus = 0.15
 heat_cooldown_bonus_threshold = 0.3
 overheat_lock = 1.8
 overheat_release = 0.35
-energy_per_shot = 0.45
+energy_per_shot = 0.3
 recoil_impulse = 0.9
 muzzle_offset = 0.35
 aim_assist_cone_deg = 3.5
@@ -40,7 +44,7 @@ lock_break_angle = 35.0
 lock_break_range = 250.0
 tracer_every = 3
 pool_size = 256
-city_friendly_fire_scale = 0.5
+city_friendly_fire_scale = 0.375
 debris_impulse = 0.6
 hit_mask = 397
 los_mask = 129

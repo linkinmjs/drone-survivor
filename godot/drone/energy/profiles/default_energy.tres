@@ -1,25 +1,35 @@
 [gd_resource type="Resource" script_class="EnergyProfile" load_steps=2 format=3]
 
-; Economía de energía del MVP con los valores cerrados del Anexo A/C (`docs/09` §4).
-; Todo esto lo ajusta WP-23 sin tocar una línea de código; `docs/09` §6 ya anticipa
-; que `base_drain` pueda bajar a 0.35 y `battery_amount` subir a 40 si los 35 s de
-; autonomía en combate resultan cortos.
+; Economía de energía del MVP con los valores cerrados del Anexo A/C (`docs/09` §4)
+; y el rebalance del checkpoint 4 (2026-09-21) encima.
+;
+; `docs/09` §6 riesgo #1 anticipaba exactamente esto —«WP-23 puede ajustar
+; `base_drain` a 0.35, `throttle_drain` a 0.60 o `battery_amount` a 40»— y el
+; usuario lo pidió tras jugar: `base_drain` 0.55 → 0.40, `throttle_drain` 0.85 →
+; 0.60, `battery_amount` 30 → 45 y `respawn_energy_depleted` 20 → 30. Ni una línea
+; de código cambia por esto; lo verifican `energy_check` (constantes `DOC_*`) y
+; `balance_check`.
+;
+; Encima de eso, el mismo día: **una pila renueva toda la energía**. `battery_amount`
+; 45 → **100**, por pedido del usuario. Como el monto es igual a `max_energy`, el
+; recorte que ya hacía `EnergySystem.recharge()` deja el depósito lleno y no hace
+; falta ninguna bandera de «recarga total».
 
 [ext_resource type="Script" path="res://drone/energy/energy_profile.gd" id="1_energy_profile"]
 
 [resource]
 script = ExtResource("1_energy_profile")
 max_energy = 100.0
-base_drain = 0.55
-throttle_drain = 0.85
+base_drain = 0.4
+throttle_drain = 0.6
 idle_recharge = 0.0
 idle_recharge_cap = 0.0
 critical_ratio = 0.15
 critical_exit_ratio = 0.18
 critical_thrust_scale = 0.82
-battery_amount = 30.0
+battery_amount = 100.0
 emp_drain = 25.0
 emp_glitch_seconds = 3.0
 respawn_energy = 60.0
-respawn_energy_depleted = 20.0
+respawn_energy_depleted = 30.0
 publish_epsilon = 0.005

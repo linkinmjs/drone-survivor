@@ -4,6 +4,10 @@
 
 ## 1. Objetivo y alcance
 
+> **Nota del checkpoint 4, segunda vuelta (2026-09-21)**: con rodillas de 800 HP el bot gana en 3–3,5 min y el bono de tiempo (8 pts/s bajo `time_par` 540 s) le da oro en 8 de 9 partidas. Los umbrales 350/800/2000 no cambiaron; la palanca es `time_par` (≈ 300–360 s) o el peso del bono. Pendiente de decisión del usuario.
+
+> **Nota del checkpoint 4 (2026-09-21)**: con la ronda más corta, el bono de tiempo (8 pts/s sobre `time_par` 540 s) reparte el 68 % del puntaje base (antes 56 %): el bot con 2 muertes saca plata en las tres semillas (antes bronce) y una partida limpia saca oro con 75 % de margen. Umbrales 350/800/2000 sin tocar; si se quiere recuperar el reparto anterior, la palanca es `time_par` 540 → ~380 o el bono 8 → 5 pts/s. Se decide cuando el usuario juegue el rebalance.
+
 > **Nota de WP-28 parte B (2026-09-20)**: al completar un objetivo, `ObjectiveSequencer._on_objective_completed()` emite `Events.camera_trauma(0.08, Vector3.INF)` (sin atenuación) junto con el texto de éxito, no en `advance()`, para que el golpecito llegue con el cartel.
 
 > **Nota del cierre de WP-26 (2026-09-20)**: `Events.hit_confirmed(position, weak, lethal, surface)`; `RoundManager` y `BotPilot` aceptan la aridad nueva y la precisión del resultado no cambia.

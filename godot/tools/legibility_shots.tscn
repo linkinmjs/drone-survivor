@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tools/legibility_shots.gd" id="1_legibility_shots"]
+
+[node name="LegibilityShots" type="Node"]
+script = ExtResource("1_legibility_shots")
+check_name = "legibility_shots"
+default_timeout = 600.0

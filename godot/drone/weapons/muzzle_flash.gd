@@ -18,6 +18,11 @@
 ## además el **quad emisivo** de la llamarada, que aparece con la luz y se encoge
 ## con ella: es lo que le da forma al fogonazo delante del cañón.
 ##
+## **Legibilidad (checkpoint 4)**: la energía baja a **1.5** y el alcance a **2 m**.
+## El grueso del ajuste no está acá sino en la escena (chispas más chicas, más
+## juntas y por debajo del umbral de glow): el desglose medido está en el
+## encabezado de `muzzle_flash.tscn`.
+##
 ## El efecto es de este nodo y **no** del [VFXPool] a propósito: §4 lo declara «1
 ## emisor permanente» que no cuenta contra el presupuesto, y a 8 disparos por
 ## segundo pedirle una instancia al pool en cada tiro sería el único cliente capaz
@@ -28,8 +33,15 @@ class_name MuzzleFlash extends Node3D
 ## Duración total del pulso de luz, en segundos (`docs/13` §4).
 const PULSE_SECONDS: float = 0.06
 
-## Energía máxima de la luz durante el pulso (`docs/13` §4).
-const PULSE_ENERGY: float = 4.0
+## Energía máxima de la luz durante el pulso.
+##
+## `docs/13` §4 pedía **4.0**. Baja a 1.5 por el ajuste de legibilidad del
+## checkpoint 4 («los disparos dificultan un poco la visión»): con `omni_range`
+## en 2 m y la exposición de WP-24, una luz de energía 4 a 0.35 m de la cámara
+## aporta un velo cálido sobre el centro del cuadro. Medida la ablación, no era
+## la pieza dominante —lo eran las chispas, ver `muzzle_flash.tscn`— pero sí
+## suma: apagarla del todo bajaba el velo de +20.2 % a +18.5 %.
+const PULSE_ENERGY: float = 1.5
 
 ## Fracción del pulso que dura la subida.
 const PULSE_ATTACK: float = 0.25

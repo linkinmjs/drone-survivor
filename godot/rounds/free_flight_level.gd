@@ -303,8 +303,12 @@ func _report_energy_demo(rig: DroneRig, delta: float) -> void:
 			controller.get_score_multiplier() if controller != null else 1.0])
 
 
-func _on_energy_demo_battery(amount: float, at_position: Vector3) -> void:
-	print("[energy-demo] pila recogida: +%.0f%% en %v." % [amount, at_position])
+## El `amount` de `Events.battery_collected` es lo que **ofrece** la pila, no lo que
+## entró: desde que una pila renueva toda la energía vale 100 siempre, y un dron a
+## 60 % sólo suma 40. Por eso la línea no dice «+100 %» —sería mentira en casi todos
+## los casos— sino lo único que es verdad siempre: la batería queda llena.
+func _on_energy_demo_battery(_amount: float, at_position: Vector3) -> void:
+	print("[energy-demo] pila recogida en %v: batería al 100 %%." % at_position)
 
 
 func _on_energy_demo_emp(glitch_seconds: float) -> void:

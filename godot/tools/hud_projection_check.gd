@@ -151,6 +151,25 @@ const HORIZON_COLUMNS: Array[float] = [0.06, 0.15, 0.5, 0.85, 0.94]
 ## proyección equidistante comprime la periferia y el cruce cielo/suelo se lee peor.
 const HORIZON_SIDE_TOLERANCE: float = 8.0
 
+## Medio ancho, en píxeles, de la ventana donde se busca el borde cielo/suelo.
+##
+## La fila 4 mide **desvío**, no descubre el horizonte: la posición esperada ya la da
+## `FlightHUD.horizon_screen_y()`, que sale de `FPVCamera.project_direction()`. Buscar
+## el borde más pronunciado en la **columna entera** era una invitación a que ganara
+## otro borde: en FULL, con cabeceo 25° y alabeo 12°, la columna de 0.94·w cruza el
+## límite del compuesto de cinco caras, que es un escalón de luminancia más duro que
+## el propio horizonte. Medido en cinco corridas del mismo estado: 3.06, 7.44, 7.44,
+## 7.44 y **253.43 px**, y ese 253 es la distancia del horizonte a ese otro borde, no
+## un error de proyección (el docstring de [method _check_horizon_match] ya registraba
+## el mismo 253 como inestabilidad histórica de esa columna).
+##
+## 40 px son cinco veces la tolerancia lateral: un desvío de verdad entra holgado en
+## la ventana, y un borde ajeno a 253 px queda afuera. Si dentro de la ventana no hay
+## gradiente suficiente, la columna se salta con motivo —igual que ya se saltan las
+## viñeteadas por `coverage()`— y el motivo dice qué se encontró y dónde, para que un
+## desvío grande de verdad no pase en silencio.
+const HORIZON_SEARCH_WINDOW: float = 40.0
+
 ## Cobertura por debajo de la cual una columna se considera viñeteada y no se le mide
 ## el horizonte.
 const COVERED_THRESHOLD: float = 0.5
@@ -887,6 +906,17 @@ func _restore_hud_config() -> void:
 ## - Una columna que caiga en la viñeta —FAST a 0,06 y 0,94 del ancho, que ahora es
 ##   negro honesto— no se mide: se informa el SKIP y se sigue. La decisión no es a
 ##   dedo, sale de `FPVCamera.coverage()` sobre la dirección de ese mismo píxel.
+## - El borde cielo/suelo se busca **sólo** en ±[constant HORIZON_SEARCH_WINDOW] px de
+##   lo que dibujó el HUD, y no en la columna entera. Esta fila mide **desvío**: la
+##   posición esperada ya la da `horizon_screen_y()`, y buscar el máximo global era
+##   dejar que ganara otro borde. En FULL con cabeceo 25° y alabeo 12°, la columna de
+##   0,94·w cruza el límite del compuesto de cinco caras —un escalón más duro que el
+##   horizonte— y el detector lo elegía una de cada cinco corridas: 3,06 / 7,44 /
+##   7,44 / 7,44 / **253,43 px** sobre el mismo estado. Los 253 px eran la distancia a
+##   ese otro borde, no un error de proyección. Si dentro de la ventana no hay
+##   gradiente suficiente, la columna se saltea con motivo y el motivo **dice dónde
+##   estaba el borde más fuerte de la columna**, para que un desvío grande de verdad
+##   no se disfrace de SKIP.
 func _check_horizon_match() -> void:
 	if _hud == null:
 		fail("el rig no expone el FlightHUD (get_flight_hud() devolvió null)")
@@ -967,26 +997,37 @@ func _check_horizon_match() -> void:
 							% [label, attitude.x, fraction]
 							+ " viñeta, ahí no hay imagen que medir")
 					continue
-				var seen := _sky_ground_row(image, column)
-				var error := INF
-				if is_finite(drawn[index]) and is_finite(seen):
-					error = absf(drawn[index] - seen)
-					worst = maxf(worst, error)
-					measured += 1
-				print("  [11] %s cabeceo %.0f° alabeo %.0f° x %.2f·w: HUD %.2f px, imagen %.2f px, error %.2f px"
-						% [label, attitude.x, attitude.y, fraction, drawn[index], seen, error])
 				expect(is_finite(drawn[index]),
 						"en %s con cabeceo %.0f° el HUD no dibujó horizonte en x = %.2f·w"
 								% [label, attitude.x, fraction])
-				expect(is_finite(seen),
-						"en %s con cabeceo %.0f° la imagen no tiene transición cielo/suelo en x = %.2f·w"
-								% [label, attitude.x, fraction])
+				if not is_finite(drawn[index]):
+					skipped += 1
+					continue
+				# La búsqueda se acota a la ventana de ±HORIZON_SEARCH_WINDOW px
+				# alrededor de lo que dibujó el HUD: la fila mide desvío, no descubre
+				# el horizonte.
+				var seen := _sky_ground_row(image, column, drawn[index])
+				if not is_finite(seen):
+					skipped += 1
+					var elsewhere := _sky_ground_row(image, column)
+					print("  [11] %s cabeceo %.0f° alabeo %.0f° x %.2f·w: SKIP — en ±%.0f px"
+							% [label, attitude.x, attitude.y, fraction, HORIZON_SEARCH_WINDOW]
+							+ " de los %.2f px que dibuja el HUD no hay transición cielo/suelo"
+									% drawn[index]
+							+ ("; el borde más fuerte de la columna está en %.2f px" % elsewhere
+									if is_finite(elsewhere) else "; la columna no tiene ningún borde"))
+					continue
+				var error := absf(drawn[index] - seen)
+				worst = maxf(worst, error)
+				measured += 1
+				print("  [11] %s cabeceo %.0f° alabeo %.0f° x %.2f·w: HUD %.2f px, imagen %.2f px, error %.2f px"
+						% [label, attitude.x, attitude.y, fraction, drawn[index], seen, error])
 				expect(error <= tolerance,
 						"en %s con cabeceo %.0f°, alabeo %.0f° y x = %.2f·w el horizonte del HUD y el de la imagen difieren %.2f px (tolerancia %.1f)"
 								% [label, attitude.x, attitude.y, fraction, error, tolerance])
 
 	var total := _all_modes().size() * HORIZON_ATTITUDES.size() * HORIZON_COLUMNS.size()
-	print("  [11] fila 4: %d medidas + %d columnas viñeteadas de %d posibles (%d modos × %d actitudes × %d columnas), peor error %.2f px"
+	print("  [11] fila 4: %d medidas + %d columnas salteadas (viñeta o sin borde en la ventana) de %d posibles (%d modos × %d actitudes × %d columnas), peor error %.2f px"
 			% [measured, skipped, total, _all_modes().size(), HORIZON_ATTITUDES.size(),
 			HORIZON_COLUMNS.size(), worst])
 	expect(measured + skipped == total,
@@ -1922,7 +1963,11 @@ func _capture_image() -> Image:
 ## suelo sino de que entre ellos haya una transición más abrupta que sus propios
 ## degradados, que es lo único que este criterio necesita de verdad. Vale para el
 ## atardecer, para un mediodía plano y para lo que venga después.
-func _sky_ground_row(image: Image, column: int) -> float:
+## [param expected_y] acota la búsqueda a ±[constant HORIZON_SEARCH_WINDOW] px. Es lo
+## que impide que gane un borde ajeno —el límite del compuesto de FULL, sin ir más
+## lejos— en vez del horizonte. Si llega `NAN` se busca en la columna entera, que es
+## el comportamiento de antes.
+func _sky_ground_row(image: Image, column: int, expected_y: float = NAN) -> float:
 	var height := image.get_height()
 	var x := clampi(column, 0, image.get_width() - 1)
 	if height < LUMINANCE_SAMPLE_ROWS * 2 + LUMINANCE_EDGE_MARGIN * 2:
@@ -1936,9 +1981,16 @@ func _sky_ground_row(image: Image, column: int) -> float:
 	ground /= float(LUMINANCE_SAMPLE_ROWS)
 	if absf(sky - ground) < LUMINANCE_MIN_CONTRAST:
 		return NAN
+	var first := LUMINANCE_EDGE_MARGIN + 1
+	var last := height - LUMINANCE_EDGE_MARGIN - 2
+	if is_finite(expected_y):
+		first = maxi(first, int(floorf(expected_y - HORIZON_SEARCH_WINDOW)))
+		last = mini(last, int(ceilf(expected_y + HORIZON_SEARCH_WINDOW)))
+	if first > last:
+		return NAN
 	var best_y := -1
 	var best := 0.0
-	for y: int in range(LUMINANCE_EDGE_MARGIN + 1, height - LUMINANCE_EDGE_MARGIN - 1):
+	for y: int in range(first, last + 1):
 		var gradient := absf(_luminance(image, x, y + 1) - _luminance(image, x, y - 1))
 		if gradient > best:
 			best = gradient

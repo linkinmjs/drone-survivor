@@ -15,7 +15,7 @@
 ##    por debajo de `idle_recharge_cap`. **Apagada desde WP-24e**: las dos constantes
 ##    valen 0 en `default_energy.tres` y este bloque no hace nada. La salida del
 ##    bloqueo a 0 % ya no es esperar sino la reconstrucción de `docs/09` §2.8, que
-##    [RespawnController] dispara con [signal depleted] y termina con 20 % de
+##    [RespawnController] dispara con [signal depleted] y termina con 30 % de
 ##    batería. El mecanismo se conserva entero porque el balance de WP-23 puede
 ##    querer volver a encenderlo con un número distinto.
 ## 3. **Cobra** los disparos con [method consume], que es **todo o nada**:
@@ -229,9 +229,10 @@ func get_drone() -> Drone:
 ##
 ## La guarda de «no cambió nada» compara por igualdad exacta y **no** con
 ## `is_equal_approx`: la tolerancia relativa de esa función cerca de 100 es 0.001,
-## y el drenaje de un tick a 100 Hz vale `rate / 100`. Con los 0.55 %/s del Anexo C
-## son 0.0055 y pasaría, pero si WP-23 bajara `base_drain` por debajo de 0.1 %/s
-## cada escritura se descartaría y el drenaje se detendría del todo.
+## y el drenaje de un tick a 100 Hz vale `rate / 100`. Con los 0.40 %/s del
+## rebalance del checkpoint 4 son 0.0040 y pasa, pero si alguna vez `base_drain`
+## bajara de 0.1 %/s cada escritura se descartaría y el drenaje se detendría del
+## todo.
 func _write_energy(value: float) -> void:
 	var clamped := clampf(value, 0.0, _max_energy())
 	if _live and clamped == _energy:

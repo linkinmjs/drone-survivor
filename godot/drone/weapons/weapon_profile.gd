@@ -36,7 +36,14 @@ class_name WeaponProfile extends Resource
 @export_range(0.5, 30.0) var fire_rate: float = 8.0
 
 ## Daño base por impacto, antes del blindaje del enemigo.
-@export_range(0.0, 200.0) var damage: float = 12.0
+##
+## **12 → 16 en el rebalance del checkpoint 4 (2026-09-21)**, por pedido del usuario
+## («las balas hacen poco daño»). Contra blindaje 0.90 el impacto pasa de 1.2 a 1.6
+## efectivos y contra un punto débil de 36 a **48**: una rodilla de 1 600 HP cae con
+## 34 impactos en vez de 44. `docs/07` §15 #10 prefería bajar el HP de las rodillas
+## antes que subir el daño, pero eso también aceleraría al jefe contra la ciudad; el
+## orquestador eligió la palanca del arma. HP y daños del jefe quedan intactos.
+@export_range(0.0, 200.0) var damage: float = 16.0
 
 ## Multiplicador que **aplica el arma** al impactar en la capa 4 (`enemy_weak`).
 @export_range(1.0, 10.0) var weak_point_multiplier: float = 3.0
@@ -87,7 +94,11 @@ class_name WeaponProfile extends Resource
 # --- Coste y retroceso -----------------------------------------------------------------------
 
 ## Energía por disparo, en puntos de la escala 0–100 de `docs/09`.
-@export_range(0.0, 10.0) var energy_per_shot: float = 0.45
+##
+## **0.45 → 0.30 en el rebalance del checkpoint 4 (2026-09-21)**: sostener el fuego
+## a 8/s costaba 3.6 %/s, más que el vuelo entero a acelerador pleno, y el piloto
+## pagaba dos veces por pelear. Ahora son 2.4 %/s.
+@export_range(0.0, 10.0) var energy_per_shot: float = 0.30
 
 ## Impulso del retroceso, en N·s. Se aplica como `-aim_dir * recoil_impulse`.
 @export_range(0.0, 20.0) var recoil_impulse: float = 0.9
@@ -129,7 +140,19 @@ class_name WeaponProfile extends Resource
 @export_range(16, 512) var pool_size: int = 256
 
 ## Escala del daño que el jugador le hace a la ciudad (capa 8).
-@export_range(0.0, 2.0) var city_friendly_fire_scale: float = 0.5
+##
+## **0.50 → 0.375 en el rebalance del checkpoint 4 (2026-09-21)**, y es una
+## compensación, no una palanca de balance: con `damage` 12 el impacto valía
+## `12 × 0.50` = **6** contra un edificio, y con `damage` 16 habría pasado a 8 sin
+## que nadie lo hubiera pedido. `0.375` es exactamente `0.50 × 12 / 16`, así que el
+## daño estructural del fuego amigo **queda donde estaba**: 6 por impacto, y con él
+## la penalización de `−0.02 × friendly_fire_damage` de `docs/11`.
+##
+## Dicho de otro modo: el rebalance subió el daño del jugador **contra el jefe**, no
+## contra la ciudad que viene a defender. Si algún día `damage` vuelve a moverse,
+## este escalar tiene que moverse con él en sentido inverso o el fuego amigo se
+## reescala solo.
+@export_range(0.0, 2.0) var city_friendly_fire_scale: float = 0.375
 
 ## Impulso que un impacto le transmite a un escombro de la capa 9, en N·s.
 @export_range(0.0, 10.0) var debris_impulse: float = 0.6

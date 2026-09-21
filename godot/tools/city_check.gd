@@ -1173,10 +1173,21 @@ func _check_windows() -> void:
 					+ " no puede multiplicar los lotes de dibujo")
 
 	# El `.tres` compartido sigue encendido: lo que se apaga es una copia.
+	#
+	# Se asevera que **no esté apagado**, no que valga exactamente 1.0. El literal
+	# convertía el valor de autor en contrato: al bajar el emisivo de las fachadas a
+	# 0.65 por legibilidad (checkpoint 4, ver el encabezado de los `.tres`) esta fila
+	# se ponía roja sin que el racionamiento tuviera nada malo. Lo que esta línea
+	# tiene que cazar es que `Building._resolve_dark_material()` mute el recurso
+	# compartido en vez de duplicarlo, y eso lo deja en 0.0.
 	var shared := ResourceLoader.load(BUILDINGS_MATERIAL_PATH, "StandardMaterial3D") \
 			as StandardMaterial3D
-	expect(shared != null and is_equal_approx(shared.emission_energy_multiplier, 1.0),
-			"el material compartido '%s' quedó apagado" % BUILDINGS_MATERIAL_PATH)
+	expect(shared != null and shared.emission_enabled
+					and shared.emission_energy_multiplier > 0.0,
+			"el material compartido '%s' quedó apagado (emisión %s, energía %.3f)"
+					% [BUILDINGS_MATERIAL_PATH,
+					str(shared.emission_enabled) if shared != null else "sin material",
+					shared.emission_energy_multiplier if shared != null else 0.0])
 	print("  ventanas: %d de %d manzanas apagadas (%.0f %%) → %d edificios a oscuras,"
 			% [dark.size(), blocks, ratio * 100.0, unlit]
 			+ " %d materiales de fachada" % materials.size())

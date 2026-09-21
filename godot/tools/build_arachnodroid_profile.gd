@@ -554,13 +554,23 @@ func _build_part_overrides() -> Dictionary:
 			overrides[StringName(part_id)] = _part(part_id, float(row[0]), float(row[1]),
 					&"leg", bool(row[2]), float(row[3]), 0.0)
 		# La rodilla es una parte propia con `armor 0.0` y peso estructural 1.
-		# **HP 1 200 → 1 600 (WP-23).** Es la palanca que `docs/07` §14 nombra para
+		#
+		# **HP 1 200 → 1 600 (WP-23).** Era la palanca que `docs/07` §14 nombra para
 		# la duración del combate: con 1 200 la pelea del bot terminaba en 342–362 s,
 		# por debajo de los 390 s (6.5 min) del rango, y con 1 400 una de las tres
-		# semillas seguía quedándose corta. El total de los ocho puntos débiles pasa
-		# de 12 000 a **13 600**, y `docs/07` §4 y §8 hay que recalcularlos.
+		# semillas seguía quedándose corta.
+		#
+		# **1 600 → 800 (rodillas del checkpoint 4, 2026-09-21).** El usuario jugó la
+		# ronda con el rebalance del arma (`damage` 16, ×3 en punto débil = 48 por
+		# acierto) y la siguió encontrando difícil, así que pidió **la mitad** de vida
+		# en las rodillas. Cada rodilla pasa de 34 a **17 aciertos**; el total de los
+		# ocho puntos débiles pasa de 13 600 a **10 400** (`4·800 + 1500 + 3·1900`).
+		# Es la misma palanca de §14, movida en la dirección contraria y por el mismo
+		# motivo que la subió: la pasada manual manda. Nada más del jefe cambia —otras
+		# partes, fases, cooldowns y daños de ataque quedan igual—, así que el jefe
+		# pega lo mismo y la pelea dura menos.
 		overrides[StringName("wp_leg_%s_knee" % side)] = _part("wp_leg_%s_knee" % side,
-				1600.0, 0.0, &"leg", false, 0.0, 1.0)
+				800.0, 0.0, &"leg", false, 0.0, 1.0)
 	overrides[&"wp_head_visor"] = _part("wp_head_visor", 1500.0, 0.0, &"sensor",
 			false, 0.0, 1.0)
 	for core_id: String in CORE_IDS:
@@ -586,7 +596,9 @@ func _part(part_id: String, hp: float, armor: float, function: StringName,
 	return part
 
 
-## Los 8 puntos débiles de `docs/07` §4: 12 000 HP en total.
+## Los 8 puntos débiles de `docs/07` §4: **10 400 HP** en total desde el
+## rebalance de rodillas del checkpoint 4 (`4·800 + 1500 + 3·1900`; el diseño
+## original decía 12 000 con rodillas de 1 200 y WP-23 lo subió a 13 600).
 func _build_weak_points() -> Array[WeakPointProfile]:
 	var points: Array[WeakPointProfile] = []
 	for side: String in SIDES:
@@ -594,8 +606,10 @@ func _build_weak_points() -> Array[WeakPointProfile]:
 		knee.resource_name = "wp_leg_%s_knee" % side
 		knee.weak_point_id = StringName("wp_leg_%s_knee" % side)
 		knee.host_part_id = StringName("leg_%s_tibia" % side)
-		# 1 200 → 1 600 (WP-23): ver la nota de `_build_part_overrides`.
-		knee.hp = 1600.0
+		# 1 200 → 1 600 (WP-23) → 800 (checkpoint 4): ver la nota de
+		# `_build_part_overrides`. Este `hp` y el de la parte tienen que coincidir:
+		# el `WeakPoint` lee el suyo y la parte es la que descuenta.
+		knee.hp = 800.0
 		knee.damage_multiplier = 3.0
 		knee.conditions = [WeakPoint.Exposure.ALWAYS]
 		knee.require_all = true
