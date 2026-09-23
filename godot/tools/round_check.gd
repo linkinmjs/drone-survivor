@@ -39,22 +39,36 @@ const TIME_PAR: float = 540.0
 ## Tolerancia de huérfanos tras liberar el nivel (fila 14).
 const ORPHAN_TOLERANCE: int = 0
 
-## Filas de la tabla de `docs/11` §11, en orden. La 15 la agrega WP-24d y la 16
-## WP-25b.
+## Filas de la tabla de `docs/11` §11, en orden. La 15 la agrega WP-24d, la 16
+## WP-25b y la 17 WP-C.
 const ROW_TITLES: Array[String] = [
 	"catálogo consistente", "respaldo de configuración", "instanciado", "estado inicial",
 	"salteo de la cinemática", "objetivos", "determinismo de semilla", "victoria",
 	"puntaje", "persistencia", "derrota", "prioridad", "restauración", "sin huérfanos",
-	"secuencia completa", "edificio protegido",
+	"secuencia completa", "edificio protegido", "marcadores del barrio",
 ]
 
-## Nombre de nodo y clave del edificio protegido de la ronda 1 (`docs/11` §1).
-const PROTECTED_NODE: String = "Building_8_4"
+## Clave de traducción del edificio protegido de la ronda 1 (`docs/11` §1).
 const PROTECTED_KEY: String = "BLD_SCHOOL_12"
 
-## Tolerancia del cociente entre lo que cuesta la escuela y lo que cuesta un bloque
-## igual. Es una división de dos restas de coma flotante sobre 127 300 HP.
+## El **nombre de nodo** del protegido no es una constante: sale del catálogo, y lo
+## lee [method protected_node].
+
+## Tolerancia del cociente entre lo que cuesta la escuela y lo que cuesta un
+## edificio igual. Es una división de dos restas de coma flotante sobre los más de
+## cien mil HP del barrio, así que no da exacto.
 const PROTECTED_WEIGHT_TOLERANCE: float = 0.02
+
+## Edificios que la pasada de la fila 16 tira a propósito: el gemelo con el que se
+## mide el peso ×3 y la escuela.
+const FELLED_IN_ROW_16: int = 2
+
+## Piso de cordura de edificios del barrio de la ronda 1.
+##
+## No describe ningún barrio concreto —el pueblo trae 57 y el distrito rectangular
+## traía 60—: descarta el caso en que `CityIntegrity` diera de alta un puñado y las
+## dos mitades de la comparación se movieran juntas sin que nadie lo notara.
+const MIN_BUILDINGS: int = 50
 
 ## Las cuatro rodillas del Arachnodroid, en el orden del perfil (`docs/07` §4).
 const KNEE_IDS: Array[StringName] = [
@@ -82,6 +96,23 @@ const CHAIN_LENGTH: int = 5
 
 ## Meta de los contadores «RODILLAS n/3» y «NÚCLEOS n/3».
 const COUNT_TARGET: int = 3
+
+## Pose del `DroneSpawn` sintético: 46 m de alto, mirando a otro lado que el del nivel.
+const ADOPT_DRONE_POSE: Transform3D = Transform3D(Basis.IDENTITY, Vector3(-64.0, 46.0, 88.0))
+
+## Pose del `CameraFixedPose` sintético.
+const ADOPT_CAMERA_POSE: Transform3D = Transform3D(Basis.IDENTITY, Vector3(30.0, 96.0, -210.0))
+
+## Cuántos puestos de pila trae el `BatteryPosts` sintético. Es a propósito un
+## número **distinto** de los ocho del nivel: si la adopción no pasara, la cuenta
+## seguiría dando ocho y la fila pasaría sin haber probado nada.
+const ADOPT_POST_COUNT: int = 3
+
+## Punto donde se pone el `TownCentre` sintético. No coincide con ningún edificio.
+const ADOPT_TOWN_CENTRE: Vector3 = Vector3(-90.0, 0.0, 110.0)
+
+## Tolerancia de las comparaciones de posición de la fila 17, en metros.
+const ADOPT_TOLERANCE: float = 0.01
 
 ## Estados publicados por `Events.round_state_changed` desde que arrancó el check.
 var _states: Array[int] = []
@@ -116,6 +147,7 @@ func _run() -> void:
 		await _check_defeat_run()
 		await _check_priority_run()
 		await _check_sequence_run()
+		await _check_markers_run()
 		await _check_protected_run()
 	_restore_config()
 	Global.debug_freeze_ai = false
@@ -675,6 +707,195 @@ func _wait_for_index(sequencer: ObjectiveSequencer, index: int) -> bool:
 			return sequencer.current_index == index and sequencer.is_running())
 
 
+# --- Fila 17: marcadores del barrio (WP-C) ----------------------------------------------------
+
+## El barrio manda: dónde aparece el dron, dónde mira la cámara fija, dónde hay
+## pilas y dónde está «la ciudad» para el que le va a caer encima.
+##
+## Las dos mitades de la fila son las dos caras del mismo cambio. Arriba, el nivel
+## **adopta** lo que el distrito publica: un distrito sintético con `DroneSpawn`,
+## `CameraFixedPose` y `BatteryPosts` se impone sobre lo que `battle_level.tscn`
+## trae cableado. Abajo, el jefe **pregunta por grupo** y no por ruta, en el orden
+## protegido → centro del pueblo → baricentro.
+##
+## Los dos se prueban con dobles y no con el pueblo de verdad a propósito: lo que
+## hay que verificar acá es el mecanismo de adopción y el orden de preferencia, que
+## son código de este encargo, y no la geometría del barrio, que es de otro. Con
+## dobles la fila sigue diciendo lo mismo el día que el pueblo cambie de forma.
+func _check_markers_run() -> void:
+	var level := await _enter_level(SEED_A)
+	if level == null:
+		return
+	var manager := level.get_round_manager()
+	if manager == null or manager.battery_spawner == null:
+		_row(17, false, "17 · el nivel no trae RoundManager con BatterySpawner")
+		await _discard_level(level)
+		return
+
+	_check_adoption(level, manager)
+	_check_city_centre(manager)
+	await _discard_level(level)
+
+
+## Un distrito sintético impone sus tres marcadores sobre los del nivel.
+func _check_adoption(level: BattleLevel, manager: RoundManager) -> void:
+	var before_markers := manager.battery_spawner.get_marker_count()
+	var before_target := manager.battery_spawner.active_target
+	var district := _fake_district()
+	manager.district_root.add_child(district)
+	manager._adopt_district_markers(district)
+
+	var respawn := level.respawn_point
+	_row(17, respawn != null
+					and respawn.global_position.distance_to(ADOPT_DRONE_POSE.origin)
+							<= ADOPT_TOLERANCE,
+			"17 · el Respawn del nivel se fue al DroneSpawn del distrito (%s)"
+					% [str(respawn.global_position) if respawn != null else "sin Respawn"])
+	var rig := manager.drone_rig
+	_row(17, rig != null
+					and rig.global_position.distance_to(ADOPT_DRONE_POSE.origin)
+							<= ADOPT_TOLERANCE,
+			"17 · el DroneRig también (%s)"
+					% [str(rig.global_position) if rig != null else "sin DroneRig"])
+	var drone := rig.get_drone() if rig != null else null
+	_row(17, drone != null
+					and drone.global_position.distance_to(ADOPT_DRONE_POSE.origin)
+							<= ADOPT_TOLERANCE,
+			"17 · y el cuerpo del dron, que lleva su propia transformada (%s)"
+					% [str(drone.global_position) if drone != null else "sin Drone"])
+	var camera := level.get_respawn_camera()
+	_row(17, camera != null
+					and camera.global_position.distance_to(ADOPT_CAMERA_POSE.origin)
+							<= ADOPT_TOLERANCE,
+			"17 · la cámara fija se fue al CameraFixedPose (%s)"
+					% [str(camera.global_position) if camera != null else "sin cámara"])
+	_row(17, manager.battery_spawner.get_marker_count() == ADOPT_POST_COUNT,
+			"17 · el spawner adoptó %d puestos de los %d del distrito (tenía %d del nivel)"
+					% [manager.battery_spawner.get_marker_count(), ADOPT_POST_COUNT,
+					before_markers])
+	_row(17, manager.battery_spawner.active_target == before_target,
+			"17 · adoptar no toca active_target (era %d, es %d)"
+					% [before_target, manager.battery_spawner.active_target])
+	_row(17, manager.battery_spawner.get_active_count() == 0,
+			"17 · el spawner queda reiniciado tras adoptar (%d pilas encendidas)"
+					% manager.battery_spawner.get_active_count())
+
+	district.queue_free()
+
+
+## El centro de la ciudad, en los tres escalones del orden de preferencia.
+func _check_city_centre(manager: RoundManager) -> void:
+	var boss := _first_enemy(manager) as Arachnodroid
+	var school := manager.get_protected_building()
+	if boss == null or school == null:
+		_row(17, false, "17 · la ronda no trae Arachnodroid y edificio protegido")
+		return
+
+	# `town_a.tscn` ya trae **su** `TownCentre` en el grupo, y de forma persistente
+	# (WP-B): sin sacarlo, `city_centre()` devolvería el del pueblo —que está en el
+	# origen— y esta fila mediría el marcador equivocado. Se lo saca del grupo
+	# mientras dura la fila y se lo devuelve al final.
+	var baked: Array[Node] = []
+	for node: Node in get_tree().get_nodes_in_group(&"town_centre"):
+		baked.append(node)
+		node.remove_from_group(&"town_centre")
+	# El centro de prueba se pone **desde el principio**, porque el primer escalón no
+	# es «hay protegido» sino «el protegido le gana a un centro que también está».
+	var centre := Marker3D.new()
+	centre.name = "TownCentreProbe"
+	centre.add_to_group(&"town_centre")
+	manager.district_root.add_child(centre)
+	centre.global_position = ADOPT_TOWN_CENTRE
+
+	# 1. Con el protegido en pie gana el protegido, aunque haya centro declarado.
+	_row(17, boss.city_centre().distance_to(school.global_position) <= ADOPT_TOLERANCE,
+			"17 · con protegido en pie, city_centre() es '%s' (%s)"
+					% [school.name, str(boss.city_centre())])
+
+	# 2. **Con el protegido derribado, el centro del pueblo.** Es el caso que
+	#    importa: un `Building` no sale del grupo `protected` cuando cae, así que
+	#    sin el filtro de ruinas el jefe seguiría corriendo a un montón de escombros
+	#    en el que ya no queda nada que destruir. Se lo tira de verdad —con
+	#    `take_damage`, no sacándolo del grupo— porque lo que hay que reproducir es
+	#    el estado real de la partida.
+	var _applied := school.take_damage(school.get_max_hp(), school.global_position)
+	_row(17, school.is_destroyed(), "17 · la escuela queda derribada para el escalón 2")
+	_row(17, boss.city_centre().distance_to(ADOPT_TOWN_CENTRE) <= ADOPT_TOLERANCE,
+			"17 · con el protegido caído, city_centre() pasa al TownCentre (%s)"
+					% str(boss.city_centre()))
+
+	# 3. Con dos centros declarados gana el **más cercano al jefe**, no el primero
+	#    del grupo. El lejano se pone sobre la misma recta y al triple de distancia,
+	#    para que no haya empate posible.
+	var far := Marker3D.new()
+	far.name = "TownCentreFar"
+	far.add_to_group(&"town_centre")
+	manager.district_root.add_child(far)
+	far.global_position = boss.global_position \
+			+ (ADOPT_TOWN_CENTRE - boss.global_position) * 3.0
+	_row(17, boss.city_centre().distance_to(ADOPT_TOWN_CENTRE) <= ADOPT_TOLERANCE,
+			"17 · con dos centros gana el más cercano al jefe (%s, el lejano está en %s)"
+					% [str(boss.city_centre()), str(far.global_position)])
+
+	# 4. Sin ninguno de los dos, el baricentro de los edificios **vivos**, que ya no
+	#    cuenta la escuela.
+	centre.remove_from_group(&"town_centre")
+	far.remove_from_group(&"town_centre")
+	var expected := _living_barycentre(manager)
+	var measured := boss.city_centre()
+	_row(17, measured.distance_to(expected) <= ADOPT_TOLERANCE
+					and measured.distance_to(ADOPT_TOWN_CENTRE) > ADOPT_TOLERANCE,
+			"17 · sin ninguno de los dos, el baricentro de los vivos: %s (esperado %s)"
+					% [str(measured), str(expected)])
+
+	# La escuela **no** se devuelve a ningún lado: nunca se la sacó del grupo, se la
+	# tiró abajo, y el nivel se descarta en cuanto termina esta fila.
+	far.queue_free()
+	centre.queue_free()
+	for node: Node in baked:
+		if is_instance_valid(node):
+			node.add_to_group(&"town_centre")
+
+
+## Distrito sintético con los tres marcadores que WP-C enseñó a adoptar.
+func _fake_district() -> Node3D:
+	var district := Node3D.new()
+	district.name = "FakeDistrict"
+	var drone_spawn := Marker3D.new()
+	drone_spawn.name = RoundManager.DRONE_SPAWN_NODE
+	drone_spawn.transform = ADOPT_DRONE_POSE
+	district.add_child(drone_spawn)
+	var camera_pose := Marker3D.new()
+	camera_pose.name = RoundManager.CAMERA_POSE_NODE
+	camera_pose.transform = ADOPT_CAMERA_POSE
+	district.add_child(camera_pose)
+	var posts := Node3D.new()
+	posts.name = RoundManager.BATTERY_POSTS_NODE
+	for index: int in ADOPT_POST_COUNT:
+		var post := Marker3D.new()
+		post.name = "Post%d" % index
+		post.position = Vector3(float(index) * 24.0 - 24.0, 6.0, 40.0)
+		posts.add_child(post)
+	district.add_child(posts)
+	return district
+
+
+## Baricentro de los edificios vivos del distrito, calculado acá para no confiar en
+## el que calcula el jefe.
+func _living_barycentre(manager: RoundManager) -> Vector3:
+	var district := manager.get_district()
+	if district == null:
+		return Vector3.ZERO
+	var total := Vector3.ZERO
+	var count := 0
+	for building: Building in district.get_buildings():
+		if building.is_destroyed():
+			continue
+		total += building.global_position
+		count += 1
+	return Vector3.ZERO if count == 0 else total / float(count)
+
+
 # --- Fila 16: edificio protegido (WP-25b) -----------------------------------------------------
 
 ## El edificio con nombre de la ronda: que exista, que pese el triple y que su caída
@@ -696,8 +917,10 @@ func _check_protected_run() -> void:
 		await _discard_level(level)
 		return
 
-	_row(16, school.name == PROTECTED_NODE,
-			"16 · el protegido es '%s' (es '%s')" % [PROTECTED_NODE, school.name])
+	var wanted_node := protected_node()
+	_row(16, not wanted_node.is_empty() and school.name == wanted_node,
+			"16 · el protegido del catálogo es '%s' (el resuelto es '%s')"
+					% [wanted_node, school.name])
 	_row(16, school.display_key == PROTECTED_KEY,
 			"16 · su display_key es '%s' (es '%s')" % [PROTECTED_KEY, school.display_key])
 	var name_text := school.display_name()
@@ -755,9 +978,27 @@ func _check_protected_run() -> void:
 	var rows := result.summary_rows()
 	_row(16, result.protected_state == RoundResult.Protected.FALLEN,
 			"16 · el resultado marca el protegido como caído (marca %d)" % result.protected_state)
-	_row(16, result.buildings_total == 60 and result.buildings_standing == 58,
-			"16 · quedan %d de %d edificios en pie"
-					% [result.buildings_standing, result.buildings_total])
+	# La cuenta de edificios **sale del barrio**, no de un literal: esta pasada tiró
+	# dos —el gemelo y la escuela— y lo que hay que verificar es que la tarjeta
+	# cuente esos dos, no que el barrio tenga sesenta. Tenía `60` y `58` escritos
+	# acá, del distrito rectangular, y la fila pasó a fallar el día que la ronda
+	# cambió de barrio sin que nada estuviera roto.
+	#
+	# Que `buildings_total` salga de `city.get_buildings()` es **la misma fuente que
+	# usa el código bajo prueba**, así que esa mitad sola no prueba gran cosa: si
+	# `CityIntegrity` diera de alta la mitad del barrio, las dos darían la mitad y la
+	# fila pasaría. Por eso va además el piso de cordura: sea cual sea el barrio de
+	# la ronda 1, tiene que tener al menos [constant MIN_BUILDINGS] edificios. Lo que
+	# sí prueba de verdad es la **resta**: que caer dos se note como dos.
+	var total := city.get_buildings().size()
+	_row(16, total >= MIN_BUILDINGS,
+			"16 · el barrio de la ronda da de alta %d edificios (mínimo de cordura %d)"
+					% [total, MIN_BUILDINGS])
+	_row(16, result.buildings_total == total
+					and result.buildings_standing == total - FELLED_IN_ROW_16,
+			"16 · quedan %d de %d edificios en pie (el barrio tiene %d y cayeron %d)"
+					% [result.buildings_standing, result.buildings_total, total,
+					FELLED_IN_ROW_16])
 	_row(16, rows.size() >= 4 and String(rows[0]["label_key"]) == "RESULT_STANDING_HEADER"
 					and bool(rows[0].get("header", false)),
 			"16 · summary_rows() abre con el encabezado 'Qué quedó en pie'")
@@ -766,9 +1007,12 @@ func _check_protected_run() -> void:
 							== TranslationServer.translate("RESULT_PROTECTED_FALLEN"),
 			"16 · la segunda fila es «%s · %s»"
 					% [name_text, String(rows[1]["value_text"]) if rows.size() >= 2 else ""])
+	var standing_text := "%d/%d" % [total - FELLED_IN_ROW_16, total]
 	_row(16, rows.size() >= 3 and String(rows[2]["label_key"]) == "RESULT_STANDING_COUNT"
-					and String(rows[2]["value_text"]) == "58/60",
-			"16 · la tercera fila cuenta los edificios en pie")
+					and String(rows[2]["value_text"]) == standing_text,
+			"16 · la tercera fila cuenta los edificios en pie: dice «%s» y esperaba «%s»"
+					% [String(rows[2]["value_text"]) if rows.size() >= 3 else "",
+					standing_text])
 	var order := PackedStringArray()
 	for row: Dictionary in rows:
 		order.append(String(row["label_key"]))
@@ -832,6 +1076,23 @@ func _restore_config() -> void:
 
 
 # --- Utilidades -------------------------------------------------------------------------------
+
+## Nombre de nodo del edificio protegido de la ronda 1.
+##
+## **Sale del catálogo**, no de un literal. Tenía `"Building_8_4"` escrito acá y eso
+## obligaba a tocar dos archivos el día que la ronda cambiara de barrio: el catálogo
+## y este check. Peor, si alguien tocaba sólo el catálogo el check fallaba **con
+## razón aparente** —«el protegido es Building_8_4 y es Building_School»— cuando lo
+## único que pasaba era que el literal había quedado viejo. Leyendo el catálogo, lo
+## que la fila 16 verifica es lo que siempre tuvo que verificar: que la ronda
+## resuelva **el** edificio que declara, se llame como se llame.
+##
+## No es una constante porque una constante de GDScript no puede llamar a una
+## función; es estática y sin estado, así que da lo mismo.
+static func protected_node() -> String:
+	return String(RoundCatalog.protected_of(RoundCatalog.get_by_id(ROUND_ID))
+			.get("building", ""))
+
 
 ## Una comprobación de la fila [param row]: suma al resultado de la fila y delega en
 ## [method CheckRunner.expect], que imprime el motivo si falla.

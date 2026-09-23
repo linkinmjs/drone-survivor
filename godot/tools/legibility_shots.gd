@@ -395,7 +395,7 @@ func _shoot_windows() -> void:
 		return
 	var centre := building.global_position + Vector3.UP * (building.get_height() * 0.5)
 	var grid := _level.get_city_grid()
-	var crossing := grid.to_global(grid.avenue_crossing()) if grid != null else Vector3.ZERO
+	var crossing := _city_centre(grid)
 	var normal := centre - crossing
 	normal.y = 0.0
 	normal = Vector3.BACK if normal.length() < 1.0 else normal.normalized()
@@ -417,7 +417,7 @@ func _shoot_street() -> void:
 	if grid == null:
 		fail("el nivel no trae CityGrid")
 		return
-	var crossing := grid.to_global(grid.avenue_crossing())
+	var crossing := _city_centre(grid)
 	var boss := _boss_position()
 	var away := _away_from_city(boss)
 	var position := crossing + away * STREET_BACK
@@ -504,11 +504,24 @@ func _boss_position() -> Vector3:
 	return enemy.global_position if enemy != null else Vector3.ZERO
 
 
+## Centro del barrio de [param grid], en coordenadas globales.
+##
+## `play_centre()` devuelve **local**: se transforma acá. La ronda 1 corre sobre
+## el pueblo y lo trae; un barrio sin plano se cae a su propio origen, que para
+## encuadrar un plano de legibilidad es de sobra.
+func _city_centre(grid: CityGrid) -> Vector3:
+	if grid == null or not is_instance_valid(grid):
+		return Vector3.ZERO
+	if grid.has_method(&"play_centre"):
+		return grid.to_global(grid.call(&"play_centre") as Vector3)
+	return grid.global_position
+
+
 ## Dirección horizontal **del jefe hacia la ciudad**. El dron se pone del lado
 ## opuesto para que el distrito entre en cuadro por detrás del jefe.
 func _away_from_city(boss: Vector3) -> Vector3:
 	var grid := _level.get_city_grid()
-	var city := grid.to_global(grid.avenue_crossing()) if grid != null else Vector3.ZERO
+	var city := _city_centre(grid)
 	var away := city - boss
 	away.y = 0.0
 	return Vector3.BACK if away.length() < 1.0 else away.normalized()
@@ -519,7 +532,7 @@ func _lit_building() -> Building:
 	var grid := _level.get_city_grid()
 	if grid == null:
 		return null
-	var crossing := grid.to_global(grid.avenue_crossing())
+	var crossing := _city_centre(grid)
 	var best: Building = null
 	var best_distance := INF
 	for building: Building in grid.get_buildings():

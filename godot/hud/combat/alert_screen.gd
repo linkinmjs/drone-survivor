@@ -20,23 +20,52 @@
 ##
 ## ## El mapa
 ##
-## Se dibuja desde el **plano de carriles** de [CityGrid], no desde la geometría: una
-## manzana es un rectángulo entre `lane_start()` y `lane_start() + lane_width()` de
-## sus celdas extremas, y las calles son los huecos que quedan entre manzanas. Las
-## avenidas salen más anchas solas —`lane_width` vale 32 m contra los 16 de una
-## calle— y además llevan la línea de su cantero, que es lo que las hace legibles como
-## avenidas y no como calles gordas.
+## Se dibuja desde el **plano del pueblo** —el `TownPlan` que el distrito publica con
+## `get_plan()`—, no desde la geometría. Un pueblo de ruta no tiene carriles: tiene
+## manzanas que son polígonos convexos irregulares, una ruta que lo cruza con dos
+## quiebres y un círculo de juego. Así que el mapa son tres trazos:
 ##
-## La escala es única para los dos ejes, `min(640 / extent.x, 400 / extent.z)` con la
-## extensión de [method CityGrid.get_extent]: con el distrito de 432 × 272 m son
-## 1,47 px/m y el barrio entra casi exacto en la caja. El norte es **−Z**, así que
-## arriba del mapa es el norte y la barra de escala mide los mismos metros en los dos
-## ejes por construcción.
+## - las **manzanas**, un `draw_colored_polygon` por cada `block_polygon(i)` con su
+##   contorno de 1 px; las que están a oscuras (`is_block_dark`) van a menos de la
+##   mitad de relleno, lo justo para que el barrio sin luz se note sin volverse un
+##   agujero;
+## - la **ruta**, la polilínea de `route` con el ancho de `route_width` a escala, que
+##   es lo que hace que se lea como una calzada y no como un trazo de dibujo;
+## - el **círculo de juego**, punteado, de radio `play_radius` alrededor de
+##   `play_centre`. Es el que le dice al jugador dónde termina el pueblo, y sobre él
+##   —no contra el borde de la caja— se apoya el chevrón por el que entra el jefe.
 ##
-## Los dos puntos que **no** están dentro del barrio —el marcador por el que entra el
-## jefe, a 40 m del borde, y la azotea desde la que sale el dron— se proyectan contra
-## el borde del mapa en vez de agrandar la ventana del mundo: lo que la pantalla
-## cuenta es «por acá entra», no a cuántos metros exactos está.
+## La escala es única para los dos ejes, `min(640 / extent.x, 400 / extent.y)` con
+## `get_extent()` del plano (2·r·1,35 = 378 m con el radio de 140): son 1,06 px/m y
+## el círculo de 148 px entra holgado en la caja de 640 × 400. El norte es **−Z**, así
+## que arriba del mapa es el norte y la barra de escala mide los mismos metros en los
+## dos ejes por construcción.
+##
+## La azotea desde la que sale el dron, que puede caer fuera del campo dibujado, se
+## recorta contra el borde del mapa en vez de agrandar la ventana del mundo: lo que la
+## pantalla cuenta es «salís de acá», no a cuántos metros exactos está.
+##
+## ## Barrio sin plano
+##
+## Hoy **no hay ninguno**: el distrito rectangular de P2 ya no existe y todo lo que
+## se instancia publica `get_plan()`. La degradación se conserva igual, y no por
+## inercia: este componente vive en el `CombatHUD`, que es del nivel de batalla, y el
+## nivel de batalla es **uno solo para todas las rondas** (`docs/11` §3). Quién le
+## toca de barrio lo decide el catálogo en tiempo de ejecución, así que la pantalla
+## no puede dar por sentado que lo que le pongan delante tenga plano.
+##
+## Con un barrio así la pantalla dibuja el marco, el norte, la escala, el edificio
+## protegido, el rombo del dron y el chevrón contra el **borde de la caja**
+## (`_border_hit`), y no dibuja manzanas, ruta ni círculo. Sigue contando lo único
+## que la alerta tiene que contar: qué hay que defender y por dónde viene el que
+## viene. Eso es una pantalla peor, no una pantalla rota, que es exactamente lo que
+## se quiere de una degradación.
+##
+## **Por qué se degradó en vez de conservar el dibujo por carriles**: el dibujo viejo
+## dependía de ocho métodos de [CityGrid] que desaparecieron con el pueblo
+## —`lane_start`, `lane_width`, `lane_centre`, `lane_count`, `lane_kind`,
+## `block_cell`, `block_rows`, `block_cols`—, así que mantenerlo no habría sido
+## conservar una degradación sino impedir que el proyecto compilara.
 ##
 ## ## Acumuladores, nunca [Timer] (`docs/00` §6)
 ##
@@ -199,16 +228,32 @@ const MARK_COLOR: Color = UIPalette.HUD_DIM
 ## Relleno de una manzana encendida.
 const BLOCK_ALPHA: float = 0.08
 
-## Relleno de una manzana a oscuras ([method CityGrid.is_block_dark]): menos de la
-## mitad, lo justo para que el barrio sin luz se note sin volverse un agujero.
+## Relleno de una manzana a oscuras (`TownPlan.is_block_dark`): menos de la mitad,
+## lo justo para que el barrio sin luz se note sin volverse un agujero.
 const BLOCK_DARK_ALPHA: float = 0.035
 
 ## Trazo de 1 px de una manzana encendida y de una a oscuras.
 const BLOCK_STROKE_ALPHA: float = 0.42
 const BLOCK_STROKE_DARK_ALPHA: float = 0.22
 
-## Cantero de una avenida.
-const AVENUE_ALPHA: float = 0.30
+## Calzada de la ruta. Va más apagada que el contorno de una manzana porque es una
+## banda ancha y no una línea: con el mismo peso se comería el barrio.
+const ROUTE_ALPHA: float = 0.26
+
+## Eje de la ruta, el hilo de 1 px por el medio de la calzada. Es lo que la hace
+## leer como una ruta y no como una mancha.
+const ROUTE_AXIS_ALPHA: float = 0.48
+
+## Círculo de juego.
+const RING_ALPHA: float = 0.34
+
+## Segmentos con los que se aproxima el círculo de juego. Con 72 el lado mide 13 px
+## en el radio de 148 px de esta ronda: ya no se ve el polígono.
+const RING_STEPS: int = 72
+
+## Trazo y hueco del punteado del círculo, en píxeles.
+const RING_DASH: float = 6.0
+const RING_GAP: float = 6.0
 
 ## Marco y relleno de la caja del mapa.
 const PANEL_BORDER_ALPHA: float = 0.34
@@ -230,7 +275,17 @@ const VIGNETTE_DEPTH: float = 126.0
 const VIGNETTE_ALPHA: float = 0.30
 
 var _manager: RoundManager = null
-var _grid: CityGrid = null
+
+## Barrio que se está dibujando. Se guarda como [Node3D] y no como [CityGrid] porque
+## lo único que la pantalla le pide es pasar de global a local: todo lo demás sale
+## del plano. Así un banco puede atarle un doble sin construir media ciudad.
+var _grid: Node3D = null
+
+## Plano del pueblo, o `null` si el distrito no lo publica. Se guarda como [Object] y
+## se consulta por `call`/`get`: `TownPlan` es de la ciudad y la pantalla tiene que
+## seguir dibujando el distrito que no lo tenga.
+var _plan: Object = null
+
 var _protected: Building = null
 
 ## Punto por el que entra el jefe, en el espacio local del distrito.
@@ -253,11 +308,12 @@ var _map: Rect2 = Rect2()
 ## Escala mundo → mapa, en píxeles por metro.
 var _scale: float = 1.0
 
-## Manzanas y avenidas que el último `_draw()` dibujó de verdad. Es lo que mira
-## `combat_hud_check`: contar lo que se pidió dibujar y no lo que la rejilla dice
-## que hay es lo que hace que la fila signifique algo.
+## Manzanas, tramos de ruta y círculo que el último `_draw()` dibujó de verdad. Es
+## lo que mira `combat_hud_check`: contar lo que se pidió dibujar y no lo que el
+## plano dice que hay es lo que hace que la fila signifique algo.
 var _blocks_drawn: int = 0
-var _avenues_drawn: int = 0
+var _route_drawn: int = 0
+var _ring_drawn: bool = false
 
 
 # --- Vínculos ---------------------------------------------------------------------------------
@@ -271,6 +327,7 @@ func bind_round(manager: RoundManager) -> void:
 	_manager = manager if manager != null and is_instance_valid(manager) else null
 	_has_map = false
 	_grid = null
+	_plan = null
 	_protected = null
 	refresh()
 
@@ -281,15 +338,48 @@ func bind_round(manager: RoundManager) -> void:
 func refresh() -> void:
 	if _manager == null or not is_instance_valid(_manager):
 		return
-	_grid = _manager.get_district()
 	_protected = _manager.get_protected_building()
-	if _grid == null or not is_instance_valid(_grid):
-		_has_map = false
+	if not bind_district(_manager.get_district()):
 		return
 	_entry = _grid.to_local(_manager.get_enemy_entry_position())
 	_self = _drone_local()
+	queue_redraw()
+
+
+## Ata el mapa al barrio [param district] y devuelve `true` si quedó algo que
+## dibujar.
+##
+## La usa [method refresh] con el distrito de la ronda, y es también la costura por
+## la que `combat_hud_check` le pasa el pueblo armado a mano con el que fija el
+## dibujo —nueve manzanas y cuatro tramos escritos a mano, a propósito distintos de
+## los del pueblo real, así que ningún barrio puede darle la razón por casualidad—.
+## Es pública por eso y porque es una operación legítima de la pantalla —«dibujá
+## este barrio»— y no un agujero de prueba: no cambia nada más que el barrio.
+##
+## **Todo lo que sale del plano viene en coordenadas locales del distrito**
+## —`play_centre`, `route`, `block_polygon()`—, que es la convención acordada para
+## `TownPlan` y para `CityGrid.play_centre()`. Acá no hace falta transformar nada:
+## [method _map_point] proyecta desde ese mismo espacio local. Quien sí necesita
+## global —la cámara de la cinemática, los `ReflectionProbe`— lo pasa con
+## `to_global()` por su cuenta.
+func bind_district(district: Node3D) -> bool:
+	if district == null or not is_instance_valid(district):
+		_grid = null
+		_plan = null
+		_has_map = false
+		return false
+	_grid = district
+	_plan = _plan_of(district)
 	_has_map = true
 	queue_redraw()
+	return true
+
+
+## El plano del pueblo de [param district], o `null` si el distrito no lo publica.
+func _plan_of(district: Node3D) -> Object:
+	if not district.has_method(&"get_plan"):
+		return null
+	return district.call(&"get_plan") as Object
 
 
 # --- Consultas (`combat_hud_check`) -----------------------------------------------------------
@@ -305,15 +395,26 @@ func map_rect() -> Rect2:
 	return _map
 
 
-## Manzanas que dibujó el último cuadro. Tiene que coincidir con
-## [method CityGrid.block_count].
+## Manzanas que dibujó el último cuadro. Tiene que coincidir con el
+## `block_count()` del plano.
 func block_count() -> int:
 	return _blocks_drawn
 
 
-## Avenidas que dibujó el último cuadro: una por eje en el distrito A.
-func avenue_count() -> int:
-	return _avenues_drawn
+## Tramos de ruta que dibujó el último cuadro.
+##
+## Con los dos quiebres que pide el contrato son tres, y siguen siendo tres aunque
+## la ruta salga del campo dibujado: el recorte de [method _clip_to_map] le corta las
+## puntas pero no la parte en pedazos, porque la ruta cruza la caja de lado a lado.
+## Si alguna vez diera menos, sería que un tramo entero quedó fuera del mapa, y eso
+## es justo lo que `combat_hud_check` tiene que poder ver.
+func route_segments() -> int:
+	return _route_drawn
+
+
+## `true` si el último cuadro dibujó el círculo de juego.
+func ring_drawn() -> bool:
+	return _ring_drawn
 
 
 ## Rótulo del edificio protegido, ya traducido y con su nombre propio adentro.
@@ -389,8 +490,18 @@ func _layout() -> void:
 	_design = Rect2(mid - DESIGN_SIZE * 0.5, DESIGN_SIZE)
 	_map = Rect2(Vector2(mid.x - MAP_SIZE.x * 0.5, _design.position.y + MAP_TOP_OFFSET),
 			MAP_SIZE)
-	var extent := _grid.get_extent() if _has_map else MAP_SIZE
+	var extent := _world_extent()
 	_scale = minf(MAP_SIZE.x / maxf(extent.x, 1.0), MAP_SIZE.y / maxf(extent.y, 1.0))
+
+
+## Cuánto mide el barrio, en metros. Manda el plano; si no hay, se le pregunta al
+## distrito por `has_method` y, si tampoco, el mapa se dibuja a 1 px/m.
+func _world_extent() -> Vector2:
+	if _plan != null:
+		return _plan.call(&"get_extent") as Vector2
+	if _grid != null and is_instance_valid(_grid) and _grid.has_method(&"get_extent"):
+		return _grid.call(&"get_extent") as Vector2
+	return MAP_SIZE
 
 
 func _draw_title() -> void:
@@ -430,15 +541,19 @@ func _draw_vignette() -> void:
 
 func _draw_map() -> void:
 	_blocks_drawn = 0
-	_avenues_drawn = 0
+	_route_drawn = 0
+	_ring_drawn = false
 	HUDDraw.box(self, _map, 1.0, _amber(PANEL_BORDER_ALPHA), _amber(PANEL_FILL_ALPHA))
 	if not _has_map:
 		return
 	_draw_blocks()
-	_draw_avenues()
+	_draw_route()
+	_draw_ring()
 	_draw_north()
 	_draw_scale()
-	var entry := _border_hit(_entry)
+	# Con plano el chevrón se apoya en el círculo de juego, que es el borde real del
+	# pueblo; sin plano no hay círculo y se cae al borde de la caja del mapa.
+	var entry := _circle_hit(_entry) if _plan != null else _border_hit(_entry)
 	var tip: Vector2 = entry["tip"]
 	_draw_trajectory(tip)
 	_draw_protected()
@@ -446,41 +561,70 @@ func _draw_map() -> void:
 	_draw_enemy(entry)
 
 
-## Las quince manzanas, una por una, entre los bordes de sus celdas extremas.
+## Las manzanas del plano, una por una, como los polígonos que son.
 func _draw_blocks() -> void:
-	var span := maxi(_grid.block_span, 1)
-	for block_z: int in _grid.block_rows:
-		for block_x: int in _grid.block_cols:
-			var first := _grid.block_cell(block_x, block_z, 0, 0)
-			var last := _grid.block_cell(block_x, block_z, span - 1, span - 1)
-			var near := _map_point(Vector3(_grid.lane_start(0, first.x), 0.0,
-					_grid.lane_start(1, first.y)))
-			var far := _map_point(Vector3(
-					_grid.lane_start(0, last.x) + _grid.lane_width(0, last.x), 0.0,
-					_grid.lane_start(1, last.y) + _grid.lane_width(1, last.y)))
-			var rect := Rect2(near, far - near).abs()
-			var dark := _grid.is_block_dark(Vector2i(block_x, block_z))
-			draw_rect(rect, _amber(BLOCK_DARK_ALPHA if dark else BLOCK_ALPHA), true)
-			draw_rect(rect, _amber(BLOCK_STROKE_DARK_ALPHA if dark
-					else BLOCK_STROKE_ALPHA), false, 1.0)
-			_blocks_drawn += 1
+	if _plan == null:
+		return
+	for index: int in int(_plan.call(&"block_count")):
+		var polygon := _plan.call(&"block_polygon", index) as PackedVector2Array
+		if polygon.size() < 3:
+			continue
+		var points := PackedVector2Array()
+		for corner: Vector2 in polygon:
+			points.append(_map_point(Vector3(corner.x, 0.0, corner.y)))
+		var dark := bool(_plan.call(&"is_block_dark", index))
+		draw_colored_polygon(points, _amber(BLOCK_DARK_ALPHA if dark else BLOCK_ALPHA))
+		# `draw_polyline` no cierra el contorno solo: hay que repetirle el primer
+		# vértice, o la manzana queda con un lado de menos.
+		points.append(points[0])
+		draw_polyline(points, _amber(BLOCK_STROKE_DARK_ALPHA if dark
+				else BLOCK_STROKE_ALPHA), 1.0)
+		_blocks_drawn += 1
 
 
-## El cantero de cada avenida, de punta a punta del distrito. Las calles no llevan
-## nada: ya son el hueco entre dos manzanas.
-func _draw_avenues() -> void:
-	var half := _grid.get_extent() * 0.5
-	for axis: int in 2:
-		for lane: int in _grid.lane_count(axis):
-			if _grid.lane_kind(axis, lane) != CityGrid.Lane.AVENUE:
-				continue
-			var along := _grid.lane_centre(axis, lane)
-			var from := Vector3(along, 0.0, -half.y) if axis == 0 \
-					else Vector3(-half.x, 0.0, along)
-			var to := Vector3(along, 0.0, half.y) if axis == 0 \
-					else Vector3(half.x, 0.0, along)
-			HUDDraw.line(self, _map_point(from), _map_point(to), 1.0, _amber(AVENUE_ALPHA))
-			_avenues_drawn += 1
+## La ruta: la calzada a su ancho real y el eje por el medio.
+##
+## El ancho sale de `route_width` a escala y no de un número de píxeles fijo, así que
+## la ruta se lee ancha porque **es** ancha: diez metros contra los ocho de una calle.
+##
+## Va **recortada a la caja del mapa**, y es la única cosa del mapa que lo necesita:
+## la ruta entra y sale del pueblo, así que por contrato es más larga que el campo
+## dibujado. Sin recortar, con el pueblo de verdad se salía del marco por los dos
+## costados y se metía por debajo del rótulo de la escuela. Las manzanas y el círculo
+## caben por construcción —están dentro del radio de juego— y los dos puntos que
+## pueden caer fuera ya se recortan aparte.
+func _draw_route() -> void:
+	if _plan == null:
+		return
+	var route := _plan.get(&"route") as PackedVector3Array
+	if route.size() < 2:
+		return
+	var points := PackedVector2Array()
+	for point: Vector3 in route:
+		points.append(_map_point(point))
+	var width := maxf(float(_plan.get(&"route_width")) * _scale, 2.0)
+	for run: PackedVector2Array in _clip_to_map(points):
+		draw_polyline(run, _amber(ROUTE_ALPHA), width)
+		draw_polyline(run, _amber(ROUTE_AXIS_ALPHA), 1.0)
+		_route_drawn += run.size() - 1
+
+
+## El círculo de juego: hasta acá llega el pueblo, y de acá para afuera no hay nada
+## que defender. Punteado porque no es una pared: es un límite.
+func _draw_ring() -> void:
+	if _plan == null:
+		return
+	var radius := float(_plan.get(&"play_radius"))
+	if radius <= 0.0:
+		return
+	var centre_local := _plan.get(&"play_centre") as Vector3
+	var points := PackedVector2Array()
+	for step: int in RING_STEPS + 1:
+		var angle := TAU * float(step) / float(RING_STEPS)
+		points.append(_map_point(centre_local
+				+ Vector3(cos(angle), 0.0, sin(angle)) * radius))
+	HUDDraw.dashed_polyline(self, points, RING_DASH, RING_GAP, 1.0, _amber(RING_ALPHA))
+	_ring_drawn = true
 
 
 ## Tick de norte, arriba a la izquierda del mapa. El norte es **−Z**, que es hacia
@@ -596,6 +740,69 @@ func _map_point(local: Vector3) -> Vector2:
 	return _map.get_center() + Vector2(local.x, local.z) * _scale
 
 
+## Recorta la polilínea [param points] a la caja del mapa y devuelve los tramos que
+## sobreviven, cada uno como una polilínea aparte.
+##
+## Los trozos contiguos se encadenan en una sola polilínea en vez de dibujarse
+## segmento por segmento: `draw_polyline` une los vértices de una misma llamada, y
+## con una calzada de diez metros de ancho dos llamadas seguidas dejan una muesca en
+## el quiebre.
+func _clip_to_map(points: PackedVector2Array) -> Array[PackedVector2Array]:
+	var runs: Array[PackedVector2Array] = []
+	var run := PackedVector2Array()
+	for index: int in range(1, points.size()):
+		var piece := _clip_segment(points[index - 1], points[index])
+		if piece.size() < 2:
+			if run.size() >= 2:
+				runs.append(run)
+			run = PackedVector2Array()
+			continue
+		if run.is_empty():
+			run = piece
+		elif run[run.size() - 1].is_equal_approx(piece[0]):
+			var _appended := run.append(piece[1])
+		else:
+			if run.size() >= 2:
+				runs.append(run)
+			run = piece
+	if run.size() >= 2:
+		runs.append(run)
+	return runs
+
+
+## Recorta el segmento [param from]–[param to] a la caja del mapa por Liang–Barsky y
+## devuelve sus dos extremos, o una lista vacía si el segmento queda entero afuera.
+##
+## Liang–Barsky y no Cohen–Sutherland porque acá no hace falta iterar: se resuelve el
+## intervalo de `t` contra las cuatro rectas de la caja y se evalúa una vez.
+func _clip_segment(from: Vector2, to: Vector2) -> PackedVector2Array:
+	var delta := to - from
+	# Para cada borde, `p` es cuánto avanza el segmento hacia afuera y `q` cuánto le
+	# sobra al punto de partida por dentro. Orden: izquierda, derecha, arriba, abajo.
+	var edge_p := PackedFloat32Array([-delta.x, delta.x, -delta.y, delta.y])
+	var edge_q := PackedFloat32Array([
+		from.x - _map.position.x, _map.end.x - from.x,
+		from.y - _map.position.y, _map.end.y - from.y])
+	var enter := 0.0
+	var exit := 1.0
+	for index: int in 4:
+		var p := edge_p[index]
+		var q := edge_q[index]
+		if is_zero_approx(p):
+			# Paralelo a este borde: o está dentro de la franja, o no entra nunca.
+			if q < 0.0:
+				return PackedVector2Array()
+			continue
+		var ratio := q / p
+		if p < 0.0:
+			enter = maxf(enter, ratio)
+		else:
+			exit = minf(exit, ratio)
+		if enter > exit:
+			return PackedVector2Array()
+	return PackedVector2Array([from + delta * enter, from + delta * exit])
+
+
 ## Recorta un punto dentro del mapa, con sangría. Lo usan los dos extremos que caen
 ## fuera del barrio.
 func _clamp_into_map(point: Vector2) -> Vector2:
@@ -604,9 +811,28 @@ func _clamp_into_map(point: Vector2) -> Vector2:
 			clampf(point.y, _map.position.y + CLAMP_INSET, _map.end.y - CLAMP_INSET))
 
 
+## Proyecta [param local] contra el **círculo de juego** y devuelve el mismo
+## `{hit, inward, tip}` que [method _border_hit].
+##
+## El chevrón del jefe va sobre el círculo y no contra la esquina de la caja porque
+## lo que la pantalla tiene que decir es por qué punto del pueblo entra, y el pueblo
+## termina en el círculo. Como la escala es la misma en los dos ejes, el círculo del
+## mundo sigue siendo un círculo en píxeles y alcanza con normalizar el radio.
+func _circle_hit(local: Vector3) -> Dictionary:
+	var centre_local := _plan.get(&"play_centre") as Vector3
+	var centre_px := _map_point(centre_local)
+	var radius_px := float(_plan.get(&"play_radius")) * _scale
+	var offset := _map_point(local) - centre_px
+	if offset.length_squared() < 0.001:
+		offset = Vector2(0.0, -1.0)
+	var outward := offset.normalized()
+	var hit := centre_px + outward * radius_px
+	return {"hit": hit, "inward": -outward, "tip": hit - outward * CHEVRON_LENGTH}
+
+
 ## Proyecta [param local] contra el borde del mapa por el rayo que sale del centro, y
 ## devuelve `{hit, inward, tip}`: el punto del borde, la dirección hacia adentro y la
-## punta del chevrón.
+## punta del chevrón. Es el camino del distrito sin plano.
 func _border_hit(local: Vector3) -> Dictionary:
 	var mid := _map.get_center()
 	var offset := _map_point(local) - mid
@@ -642,10 +868,12 @@ func _protected_rect() -> Rect2:
 
 ## Azotea desde la que sale el dron, en el espacio local del distrito. Se prefiere el
 ## conjunto vivo —que durante la alerta está congelado donde aparece— y se cae al
-## punto de aparición que declara la rejilla si la ronda todavía no lo trae.
+## punto de aparición que declara el plano si la ronda todavía no lo trae.
 func _drone_local() -> Vector3:
 	if _manager != null and is_instance_valid(_manager):
 		var rig := _manager.drone_rig
 		if rig != null and is_instance_valid(rig) and rig.is_inside_tree():
 			return _grid.to_local(rig.global_position)
-	return CityGrid.DRONE_SPAWN
+	if _plan != null:
+		return (_plan.call(&"drone_spawn") as Transform3D).origin
+	return Vector3.ZERO

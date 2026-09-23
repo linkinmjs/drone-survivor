@@ -7,14 +7,14 @@
 ## asfalto mojado no refleja nada. Cuatro cajas con `box_projection` bien puestas
 ## arreglan eso por 0 ms de CPU y un único horneado.
 ##
-## ## Por qué se crean en tiempo de ejecución y no en `district_a.tscn`
+## ## Por qué se crean en tiempo de ejecución y no en `town_a.tscn`
 ##
 ## La cantidad depende del preset (0 / 2 / 4 / 6, `docs/13` §3.4) y el distrito es
-## una escena **horneada** por `tools/build_district.gd`: meter los probes ahí
+## una escena **horneada** por su herramienta de construcción: meter los probes ahí
 ## obligaría a regenerarla cada vez que se toque la tabla de calidad y dejaría cuatro
-## nodos muertos en LOW. Acá se piden las posiciones a la API de [CityGrid]
-## —[method CityGrid.avenue_crossing], [method CityGrid.lane_centre],
-## [method CityGrid.get_core_extent]— y se arman los que pida `Graphics`.
+## nodos muertos en LOW. Acá se piden las posiciones al **plano del pueblo** que el
+## distrito publica con `get_plan()` —centro de juego, ruta, calles— y se arman los
+## que pida `Graphics`.
 ##
 ## Con `update_mode = UPDATE_ONCE` cada probe se hornea en el primer cuadro en que se
 ## lo ve y no vuelve a costar nada. El precio es que un edificio que colapse **no**
@@ -45,6 +45,17 @@ const ROOF_CLEARANCE: float = 8.0
 
 ## Distancia de mezcla con el entorno en el borde de la caja, en metros.
 const BLEND_DISTANCE: float = 6.0
+
+## Distancia a la que se ponen los dos probes de ruta, medida **sobre la ruta**
+## desde el punto más cercano al centro del pueblo, en metros.
+##
+## Sesenta metros es poco más de la mitad del radio de juego: el probe todavía ve
+## el centro y ya ve el tramo siguiente de la ruta, que es donde la calzada mojada
+## tiene que reflejar algo.
+const ROUTE_REACH: float = 60.0
+
+## Distancia al centro, en metros, a la que se busca el probe de calle lateral.
+const SIDE_STREET_REACH: float = 100.0
 
 ## Probes vivos, en el orden en que los pide `docs/13` §3.3.
 var _probes: Array[ReflectionProbe] = []
@@ -82,39 +93,98 @@ func get_probes() -> Array[ReflectionProbe]:
 
 
 ## Las seis posiciones candidatas, **en orden de importancia** (`docs/13` §3.3):
-## cruce de avenidas, avenida, azotea del hito más alto, calle lateral y, ya sólo
-## para ULTRA, el otro extremo de la avenida y una segunda azotea.
+## centro del pueblo, ruta adelante, azotea del edificio más alto, calle lateral y,
+## ya sólo para ULTRA, ruta atrás y una segunda azotea.
+##
+## El orden es el mismo de siempre —dos de calle, una de azotea, una de calle, y
+## las dos últimas para ULTRA— porque es el que hace que con 2 probes se vea el
+## centro y el tramo principal de la ruta, que es donde el jugador pasa la ronda.
+##
+## **Barrio sin plano**: hoy no hay ninguno —el distrito rectangular de P2 ya no
+## existe—, pero el camino queda **por diseño**. Este rig lo arma el nivel de
+## batalla, que es uno solo para todas las rondas (`docs/11` §3) y recibe el barrio
+## que le toque del catálogo, así que no puede dar por sentado que publique plano.
+## Sin plano no hay ruta ni círculo de juego que consultar y se degrada a las azoteas
+## más altas y al origen del distrito: son peores puntos, pero son puntos reales y el
+## nivel no se queda sin GI local, que es lo que importa.
 ##
 ## Cada entrada es `{"position": Vector3, "size": Vector3}` en espacio global.
 func probe_spots(grid: CityGrid) -> Array[Dictionary]:
 	var spots: Array[Dictionary] = []
-	var core := grid.get_core_extent()
-	var crossing := grid.to_global(grid.avenue_crossing())
-
-	# 1. Cruce de las dos avenidas: la «plaza central» de `docs/13` §3.3.
-	spots.append(_street_spot(crossing, 1.6))
-	# 2. Avenida, a un cuarto del núcleo del cruce hacia el borde negativo en X.
-	var avenue_x := grid.to_global(_lane_point(grid, CityGrid.Lane.AVENUE, 0, crossing))
-	avenue_x.x = crossing.x - core.x * 0.25
-	spots.append(_street_spot(avenue_x, 1.2))
-	# 3. Azotea del edificio más alto.
 	var landmarks := _tallest_buildings(grid, 2)
+	var plan := _plan_of(grid)
+	if plan == null:
+		for building: Building in landmarks:
+			spots.append(_roof_spot(building))
+		spots.append(_street_spot(grid.global_position, 1.6))
+		return spots
+
+	var centre: Vector3 = plan.get(&"play_centre")
+	var along := float(plan.call(&"route_closest", centre))
+
+	# 1. Centro del pueblo: la «plaza» de `docs/13` §3.3, ahora sin avenidas.
+	spots.append(_street_spot(grid.to_global(centre), 1.6))
+	# 2. Ruta, sesenta metros adelante del centro.
+	spots.append(_street_spot(grid.to_global(_route_point(plan, along + ROUTE_REACH)), 1.2))
+	# 3. Azotea del edificio más alto: en el pueblo es el hito y, tras él, el
+	#    mediano más alto, que es el que da el segundo probe de azotea.
 	if not landmarks.is_empty():
 		spots.append(_roof_spot(landmarks[0]))
-	# 4. Calle lateral: el centro de la calle más alejada del cruce.
-	spots.append(_street_spot(grid.to_global(_side_street_point(grid)), 1.0))
-	# 5. El otro extremo de la avenida (ULTRA).
-	var avenue_z := crossing
-	avenue_z.z = crossing.z + core.y * 0.25
-	spots.append(_street_spot(avenue_z, 1.2))
+	# 4. Calle lateral, a un centenar de metros del centro.
+	spots.append(_street_spot(grid.to_global(_side_street_point(plan, centre)), 1.0))
+	# 5. Ruta, sesenta metros atrás (ULTRA).
+	spots.append(_street_spot(grid.to_global(_route_point(plan, along - ROUTE_REACH)), 1.2))
 	# 6. Segunda azotea (ULTRA).
 	if landmarks.size() > 1:
 		spots.append(_roof_spot(landmarks[1]))
 	return spots
 
 
+## El plano del pueblo de [param grid], o `null` si el distrito no lo publica.
+##
+## Por `has_method` y no por tipo: este nodo lo arma el nivel de batalla, que es uno
+## para todas las rondas, y nada le garantiza que el barrio de la que venga publique
+## un plano.
+func _plan_of(grid: CityGrid) -> Object:
+	if grid == null or not is_instance_valid(grid) or not grid.has_method(&"get_plan"):
+		return null
+	return grid.call(&"get_plan") as Object
+
+
+## Punto de la ruta a [param distance] metros de su origen, recortado a la ruta.
+##
+## El recorte es lo que hace que los dos probes de ruta sigan cayendo **sobre la
+## calzada** cuando el centro del pueblo queda cerca de una punta: sin él,
+## `centro − 60 m` se iría fuera de la polilínea y el probe terminaría en el campo.
+func _route_point(plan: Object, distance: float) -> Vector3:
+	var length := float(plan.call(&"route_length"))
+	return plan.call(&"route_point", clampf(distance, 0.0, length)) as Vector3
+
+
+## Punto de calle más parecido a [constant SIDE_STREET_REACH] metros de
+## [param centre]: la «calle lateral» de `docs/13` §3.3.
+##
+## Recorre los vértices de las calles del plano y se queda con el que menos se
+## desvía de la distancia buscada. Si el plano no trae calles se cae a la ruta, que
+## siempre existe.
+func _side_street_point(plan: Object, centre: Vector3) -> Vector3:
+	var streets := plan.get(&"streets") as Array
+	var best := Vector3.ZERO
+	var best_error := INF
+	for street: Variant in streets:
+		for point: Vector3 in street as PackedVector3Array:
+			var error := absf(point.distance_to(centre) - SIDE_STREET_REACH)
+			if error < best_error:
+				best_error = error
+				best = point
+	if best_error == INF:
+		return _route_point(plan,
+				float(plan.call(&"route_closest", centre)) + SIDE_STREET_REACH)
+	return best
+
+
 ## Caja de calle centrada en [param position], con el lado escalado por
-## [param scale_xz] (el cruce de avenidas es el punto más abierto y pide más caja).
+## [param scale_xz] (el centro del pueblo es el punto más abierto y pide más caja).
 func _street_spot(position: Vector3, scale_xz: float) -> Dictionary:
 	var centre := position
 	centre.y = STREET_HEIGHT
@@ -130,40 +200,6 @@ func _roof_spot(building: Building) -> Dictionary:
 	var centre := building.global_position
 	centre.y = building.global_position.y + building.get_height() + ROOF_CLEARANCE
 	return {"position": centre, "size": ROOF_EXTENT * 2.0}
-
-
-## Centro del primer carril de clase [param kind] del eje [param axis], conservando
-## la otra coordenada de [param fallback].
-func _lane_point(grid: CityGrid, kind: int, axis: int, fallback: Vector3) -> Vector3:
-	var point := fallback
-	for lane: int in grid.lane_count(axis):
-		if grid.lane_kind(axis, lane) != kind:
-			continue
-		if axis == 0:
-			point.x = grid.lane_centre(0, lane)
-		else:
-			point.z = grid.lane_centre(1, lane)
-		return point
-	return point
-
-
-## Cruce de calles comunes más lejano al cruce de avenidas: la «calle lateral».
-func _side_street_point(grid: CityGrid) -> Vector3:
-	var crossing := grid.avenue_crossing()
-	var best := crossing
-	var best_distance := -1.0
-	for lane_x: int in grid.lane_count(0):
-		if grid.lane_kind(0, lane_x) != CityGrid.Lane.STREET:
-			continue
-		for lane_z: int in grid.lane_count(1):
-			if grid.lane_kind(1, lane_z) != CityGrid.Lane.STREET:
-				continue
-			var point := Vector3(grid.lane_centre(0, lane_x), 0.0, grid.lane_centre(1, lane_z))
-			var distance := point.distance_to(crossing)
-			if distance > best_distance:
-				best_distance = distance
-				best = point
-	return best
 
 
 ## Los [param count] edificios más altos, de mayor a menor.

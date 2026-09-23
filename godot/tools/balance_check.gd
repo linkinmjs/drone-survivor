@@ -201,6 +201,96 @@
 ##   cuatro muertes son del jefe, las que la fila 4 quiere que existan.
 ##   [constant RANGE_DEATHS] y [constant MIN_DEATHS_TOTAL] quedan igual.
 ##
+## ## El pueblo de ruta (WP-D, 2026-09-21, encima de todo lo anterior)
+##
+## Cuarto movimiento del mismo día y el primero que **no toca una sola palanca de
+## balance**: el nivel dejó de cargar el distrito rectangular de P2 y carga el
+## pueblo de ruta de P2b (`city/districts/town_a.tscn`). Lo que cambió es el
+## mundo, no los números:
+##
+## | | distrito `district_a` | pueblo `town_a` |
+## |---|---|---|
+## | destructibles | 60 | **59** |
+## | HP total | 120 300 | **92 100** (−23 %) |
+## | HP del edificio típico | 1 200 (39 de 60) | **1 300** (52 de 59) |
+## | edificios de 3 500 HP | 21 | **7** |
+## | extensión | 480 × 288 m | círculo de **280 m** de diámetro |
+## | edificio más alto | 75–80 m | **18,1 m** |
+##
+## Dos suites completas, mismo binario, mismas tres semillas, mismo `BotPilot`:
+##
+## | pueblo | dur (s) | integr | muert | fuego (s) | acierto | pilas/min | pts | medalla |
+## |---|---|---|---|---|---|---|---|---|
+## | **A** semilla 1 | 173 | 0.669 | 2 | 125 | 0.508 | 1.38 | 1225 | plata |
+## | **A** semilla 7 | 152 | 0.734 | 1 | 116 | 0.511 | 2.36 | 2361 | **oro** |
+## | **A** semilla 99 | 172 | 0.723 | 1 | 124 | 0.495 | 1.74 | 2260 | **oro** |
+## | **A** media | **166** | **0.709** | **4** | **122** | **0.505** | **1.83** | — | — |
+## | **B** semilla 1 | 171 | 0.590 | 1 | 142 | 0.439 | 1.41 | 2235 | **oro** |
+## | **B** semilla 7 | 107 | 0.773 | 0 | 95 | 0.546 | 1.69 | 4599 | **oro** |
+## | **B** semilla 99 | 154 | 0.749 | 1 | 107 | 0.481 | 1.56 | 2362 | **oro** |
+## | **B** media | **144** | **0.704** | **2** | **115** | **0.489** | **1.55** | — | — |
+##
+## Las cinco fases salen en las seis partidas, en orden y sin retrocesos, y las
+## seis caben de sobra en el reloj de `time_par` (540 s): cinco medallas de oro y
+## una de plata. Las fases, con su tiempo:
+##
+## | | P2 alerta | P3 furia | P4 vientre | P5 autodestrucción |
+## |---|---|---|---|---|
+## | A · semilla 1 | 81 s | 82 s | 110 s | 147 s |
+## | A · semilla 7 | 66 s | 85 s | 100 s | 144 s |
+## | A · semilla 99 | 60 s | 82 s | 107 s | 164 s |
+## | B · semilla 1 | 96 s | 111 s | 137 s | 159 s |
+## | B · semilla 7 | 49 s | 55 s | 74 s | 97 s |
+## | B · semilla 99 | 67 s | 82 s | 89 s | 144 s |
+##
+## Y el ruido, que es lo que decide cuánto se puede estrechar una banda: la
+## semilla 7 se movió **152 → 107 s** (un 30 %) entre dos corridas con exactamente
+## el mismo código, y la semilla 1 dejó la ciudad en 0.669 y en 0.590. Es la misma
+## nota de siempre (`docs/15` §1.1) y esta vez es más grande que nunca.
+##
+## Lo que se recalibra y lo que no:
+##
+## - **La pelea dura otro 15–25 % menos** (183–207 → **166** y **144**). No es una
+##   palanca: el presupuesto de puntos débiles del jefe es el mismo, pero el pueblo
+##   cabe en un círculo de 280 m contra los 480 × 288 del distrito, y el bot pasa
+##   mucho menos tiempo viajando entre el jefe y la pila. [constant RANGE_DURATION]
+##   recalibrada.
+## - **La ciudad termina parecido en la media y mucho peor en el peor caso**
+##   (0.74–0.80 → **0.709** y **0.704** de media, pero **0.590** en una partida
+##   suelta). El techo de esta fila se asevera **por partida**, así que lo que la
+##   mueve es el 0.590, que quedaba a 0.010 del piso viejo.
+##   [constant RANGE_INTEGRITY] recalibrada.
+## - **El control tarda un 20 % más, no menos** (461 → **568** y **511 s**), y es
+##   la única fila que **falló** con las bandas viejas. Contra la intuición, porque
+##   el pueblo tiene un 23 % menos de HP. El mecanismo es el desperdicio del haz:
+##   `siege_beam` reparte 900 /s durante 4 s, o sea **3 600 de daño por uso**, y lo
+##   que absorbe es un solo edificio. En el distrito, 21 de los 60 blancos eran
+##   torres de 3 500 HP que se comían el haz entero; en el pueblo quedan **siete**,
+##   y las otras 52 casas devuelven 1 300 de 3 600. El coloso además camina entre
+##   59 blancos repartidos en un disco de 280 m en vez de 60 alineados en una
+##   retícula: 148 `approach` por partida de control en las **dos** corridas, el
+##   mismo número. [constant RANGE_CONTROL] recalibrada.
+## - **El fuego neto no se mueve** (108–113 → **122** y **115**, dentro de 80–160).
+##   El numerador —10 400 HP de puntos débiles— es el mismo y la ciudad no entra en
+##   esa cuenta. [constant RANGE_FIRE] queda igual.
+## - **El acierto tampoco** (0.507–0.511 → **0.505** y **0.489**). Undécima y
+##   duodécima medias observadas, todas entre 0.454 y 0.513. [constant RANGE_HIT]
+##   queda igual **por cuarta vez**: ni el daño por bala, ni el `hp` del blanco, ni
+##   la batería, ni el mundo tocan la puntería.
+## - **Las pilas/min suben pero no llegan al techo** (1.24 → **1.83** y **1.55**,
+##   techo 2.6). Suben porque la partida se acortó y el denominador manda, no
+##   porque la batería rinda menos: ninguna de las seis partidas llega a agotarla
+##   (mínimos 0.09–0.29, con las tres más bajas en la segunda corrida).
+##   [constant MAX_BATTERIES_PER_MINUTE] queda igual.
+## - **Las ventanas de daño casi se duplican** (1.6–2.3 → **2.79–3.54**), y por fin
+##   cumplen el ≥ 3.0 de `docs/07` §14 en una de las dos corridas. El motivo es el
+##   mismo que acorta la partida: el jefe tiene los blancos más cerca y gasta menos
+##   turnos caminando. [constant MIN_WINDOWS_PER_MINUTE] **no se sube a la medida**,
+##   por la regla de abajo: 3.15 y 2.91 de media son dos corridas, no una
+##   población.
+## - **Las muertes siguen donde estaban** (2 → **4** y **2** en la suite, máximo 2
+##   por partida). [constant RANGE_DEATHS] y [constant MIN_DEATHS_TOTAL] igual.
+##
 ## ## Estas tablas no son reproducibles y conviene no fingir que lo son
 ##
 ## Se corrieron **cinco** suites completas cerrando el rebalance. Dos consecutivas,
@@ -286,7 +376,18 @@ const PHYSICS_SAMPLE_DISCARD: int = 40
 ## palancas viejas el piso ya estaba por debajo (376 s) y el usuario igual tardó lo
 ## suyo; ahora el piso baja a 3,5 min y la pasada manual decide si eso deja la
 ## partida corta. Queda anotado como discrepancia.
-const RANGE_DURATION: Vector2 = Vector2(140.0, 340.0)
+##
+## **140–340 → 90–290 con el pueblo de ruta (WP-D).** El nivel cambió de mundo y
+## no de palancas: el pueblo cabe en un círculo de 280 m de diámetro contra los
+## 480 × 288 m del distrito, y el bot deja de perder minutos en tránsito. Medido
+## 173, 152 y 172 s (media **166**) en una corrida y 171, 107 y 154 (media
+## **144**) en la otra, contra 157–246 (183–207) sobre el distrito. La banda nueva
+## vuelve a conservar el **ancho de 200 s** y deja las dos medias a 54 y 38 s del
+## piso: con el ancho viejo, 144 quedaba a **cuatro segundos** de los 140, que es
+## exactamente la situación que la nota de [constant MIN_DEATHS_TOTAL] prohíbe.
+## El techo de 290 sigue cazando una regresión que devuelva la pelea a los seis
+## minutos del distrito.
+const RANGE_DURATION: Vector2 = Vector2(90.0, 290.0)
 
 ## Integridad de la ciudad al vencer.
 ##
@@ -307,7 +408,19 @@ const RANGE_DURATION: Vector2 = Vector2(140.0, 340.0)
 ## recorrido. Con el techo viejo de 0.85 esa tercera corrida pasaba por 0.018. Con
 ## 0.88 el margen vuelve a ser el de antes y el techo sigue haciendo su
 ## trabajo: una ciudad intacta sigue siendo un fallo.
-const RANGE_INTEGRITY: Vector2 = Vector2(0.58, 0.88)
+##
+## **0.58–0.88 → 0.53–0.83 con el pueblo de ruta (WP-D).** Las medias apenas se
+## mueven (0.74–0.80 → **0.709** y **0.704**) pero esta fila se asevera **por
+## partida**, y la partida peor de las seis dejó el pueblo en **0.590**, a 0.010
+## del piso viejo. Mismo ancho de 0.30, centrado en el punto medio de lo medido
+## (0.590–0.773): quedan 0.06 de margen abajo y 0.057 arriba, que es el mejor
+## reparto posible sin ensanchar. Queda anotado que el margen es **más chico que
+## el ruido de una misma semilla** —la 1 midió 0.669 y 0.590 entre dos corridas
+## idénticas—: si esta fila falla sola en una corrida futura, lo que hay que
+## revisar primero es si el ancho de 0.30 sigue alcanzando para un mundo de 59
+## edificios chicos, donde una ráfaga de más o de menos vale el 1,4 % de la
+## integridad y no el 1 % de antes.
+const RANGE_INTEGRITY: Vector2 = Vector2(0.53, 0.83)
 
 ## Muertes del dron por partida.
 ##
@@ -525,7 +638,36 @@ const MIN_WINDOWS_PER_MINUTE: float = 1.5
 ## Medido con las dos cosas: **461 s**. Subir `crush_damage` para compensar era
 ## la alternativa, pero mueve un número de balance de `docs/07` §12 y acelera
 ## también las tres partidas con dron, que ya están en rango.
-const RANGE_CONTROL: Vector2 = Vector2(240.0, 480.0)
+##
+## **240–480 → 420–660 con el pueblo de ruta (WP-D), y es la única fila que
+## falló.** El control tarda **568 s** en una corrida y **511 s** en la otra,
+## contra los 461 del distrito. Contra la intuición: el pueblo tiene un 23 % menos
+## de HP total. Se suman dos cosas y ninguna es la potencia del haz:
+##
+## 1. **El haz desperdicia más.** `siege_beam` reparte 900 /s durante 4 s —3 600 de
+##    daño por uso— y lo absorbe un solo edificio. El distrito tenía 21 torres de
+##    3 500 HP que se comían el haz entero; el pueblo tiene **siete**, y las otras
+##    52 casas devuelven 1 300 de esos 3 600. Con 32 y 29 usos de `siege_beam` el
+##    coloso tira 115 000 y 104 000 de daño para arrancar los 60 300 que hacen
+##    falta.
+## 2. **Camina más.** 59 blancos repartidos en un disco de 280 m en vez de 60
+##    alineados en una retícula. Las dos corridas miden **148 `approach`** en la
+##    partida de control, exactamente el mismo número.
+##
+## La banda nueva conserva el **ancho de 240 s** y se centra en las dos medidas
+## (540): 91 s de margen por debajo de la más rápida y 92 por encima de la más
+## lenta. Se recalibra y no se «arregla» porque arreglarlo pedía mover
+## `crush_damage` o `siege_beam`, que son números de balance de `docs/07` §12 y
+## afectan también a las tres partidas con dron, que están en rango.
+##
+## La distancia con `docs/07` §14 y `docs/11` §11 —que hablan de **cinco
+## minutos**— pasa de 461 s a 511–568, o sea de un 54 % a un 70–89 % por encima
+## del objetivo. Queda anotado como discrepancia, con las palancas de `docs/10`
+## §1 que la cerrarían sin tocar al jefe: bajar el `hp` de la casa de 1 300 a
+## 1 100 (−15 % del presupuesto que el haz tiene que masticar) o recortar la
+## cantidad de casas. **Ninguna de las dos se aplica acá**: son decisiones de
+## diseño del pueblo, no de este check.
+const RANGE_CONTROL: Vector2 = Vector2(420.0, 660.0)
 
 ## Presupuesto de física con jefe y ciudad, en ms/tick.
 ##
@@ -565,11 +707,11 @@ const WINDOW_ATTACKS: Array[StringName] = [&"pounce", &"siege_beam"]
 
 ## Títulos de las filas del resumen.
 const ROW_TITLES: Array[String] = [
-	"las tres semillas terminan en victoria", "duración media 140–340 s",
-	"integridad al vencer 0.58–0.88",
+	"las tres semillas terminan en victoria", "duración media 90–290 s",
+	"integridad al vencer 0.53–0.83",
 	"muertes ≤ 5 por partida, ≥ 1 en la suite y ≤ 2.6 pilas/min (la batería dura más)",
 	"fuego neto 80–160 s y acierto débil 0.33–0.55 (promedio de las tres semillas)",
-	"ventanas de daño ≥ 1.5/min (media)", "control: derrota por integridad en 240–480 s",
+	"ventanas de daño ≥ 1.5/min (media)", "control: derrota por integridad en 420–660 s",
 	"sin NaN en las métricas", "física mediana bajo la guarda de regresión",
 	"Engine.time_scale restaurado", "prueba negativa: el bot responde a sus parámetros",
 ]
@@ -1121,7 +1263,7 @@ func _print_table() -> void:
 	# Los rangos se **derivan de las constantes** en vez de transcribirse. La fila decía
 	# `.33-.50` a mano, y al recalibrar `RANGE_HIT` en WP-28 habría quedado mintiendo
 	# sin que nadie lo notara: la tabla impresa es lo que el revisor lee, no el `const`.
-	print("  %-26s %7s %7s %6s %7s %7s %7s %7s %7s" % ["aseverado (rodillas 800)",
+	print("  %-26s %7s %7s %6s %7s %7s %7s %7s %7s" % ["aseverado (pueblo de ruta)",
 			"%.0f-%.0f" % [RANGE_DURATION.x, RANGE_DURATION.y],
 			"%s-%s" % [_short(RANGE_INTEGRITY.x), _short(RANGE_INTEGRITY.y)],
 			"%d-%d" % [RANGE_DEATHS.x, RANGE_DEATHS.y],

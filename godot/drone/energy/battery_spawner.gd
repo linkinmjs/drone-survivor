@@ -2,11 +2,30 @@
 ##
 ## Reparte y repone las pilas del distrito (`docs/09` §2.5).
 ##
-## Es un [Node3D] cuyos hijos [Marker3D] son las posiciones candidatas —ocho en el
-## nivel del MVP— de las que mantiene [member active_target] activas. No busca
-## nodos por ruta ni por nombre: recorre sus hijos en orden de árbol, que es lo que
-## hace que el orden sea estable entre ejecuciones y, con la misma semilla, la
-## secuencia de marcadores sea reproducible.
+## Es un [Node3D] con una lista de puestos —[Marker3D]— de los que mantiene
+## [member active_target] activos. No busca nodos por ruta ni por nombre: recorre
+## hijos en orden de árbol, que es lo que hace que el orden sea estable entre
+## ejecuciones y, con la misma semilla, la secuencia de puestos sea reproducible.
+##
+## ## De dónde salen los puestos, y por qué arrancar vacío es normal
+##
+## Los pone **el barrio**: el distrito trae un `BatteryPosts` y
+## `RoundManager._adopt_district_markers()` se lo pasa a [method adopt_markers].
+## Los hijos propios de la escena son sólo el respaldo de un nivel que no instancie
+## distrito, y en `battle_level.tscn` ya no hay ninguno.
+##
+## Por eso [method _ready] **no** se queja de quedarse sin puestos: en el nivel de
+## batalla eso es el estado normal durante el resto de ese mismo cuadro, hasta que
+## `RoundManager.begin()` —que corre en el `_ready()` del nivel, o sea después que
+## el de este nodo— llame a la adopción. Quejarse ahí llenaba de un `ERROR` por
+## carga a `balance_check`, `render_check`, Movie Maker y CI, avisando de algo que
+## se arreglaba solo un instante después.
+##
+## La comprobación está **diferida al primer uso**: el aviso sale de
+## [method _physics_process], que es el primer momento en que este nodo tiene que
+## repartir pilas de verdad, y para entonces la adopción ya pasó. Sale una sola vez
+## por ronda —lo cuenta [method empty_warnings]— y es un `push_warning`, no un
+## `push_error`: una ronda sin pilas se juega peor, pero se juega.
 ##
 ## **Una pila por marcador, encendida o apagada**. Se instancian tantas
 ## [BatteryPickup] como marcadores y cada una queda anclada al suyo; activar es
@@ -69,6 +88,11 @@ var _next_delay: float = 0.0
 var _active_count: int = 0
 var _used_markers: PackedInt32Array = PackedInt32Array()
 
+## Veces que avisó que llegó al juego sin puestos, en esta ronda. Es un contador y
+## no un `bool` para que `energy_check` pueda distinguir «no avisó» de «avisó una
+## vez» sin tener que leer la consola.
+var _empty_warnings: int = 0
+
 
 func _ready() -> void:
 	_collect_markers()
@@ -86,6 +110,11 @@ func _ready() -> void:
 ## geometría vuelve a intentarlo en [member retry_interval].
 func _physics_process(delta: float) -> void:
 	if delta <= 0.0:
+		return
+	if _markers.is_empty():
+		# Primer uso real sin puestos: acá sí es un problema, porque la adopción ya
+		# tuvo su oportunidad. Ver la cabecera.
+		_warn_empty()
 		return
 	PerfProbe.begin(&"drone_energy")
 	if _active_count >= active_target:
@@ -109,6 +138,51 @@ func get_active_count() -> int:
 ## Marcadores candidatos que encontró en [method _ready].
 func get_marker_count() -> int:
 	return _markers.size()
+
+
+## Veces que este spawner avisó que se quedó sin puestos, en la ronda en curso.
+##
+## Lo mira `energy_check`: con la adopción pendiente —el caso normal del nivel de
+## batalla— tiene que quedar en **cero**, y ese cero es lo que prueba que arrancar
+## vacío dejó de ensuciar la consola.
+func empty_warnings() -> int:
+	return _empty_warnings
+
+
+## Cambia los puestos de pila por los [Marker3D] hijos de [param source].
+##
+## La llama `RoundManager._adopt_district_markers()` con el `BatteryPosts` del
+## distrito recién instanciado. **Los marcadores del nivel quedan como respaldo**:
+## siguen colgando de este nodo en `battle_level.tscn` y son los que se usan
+## mientras el distrito no traiga los suyos, que es lo que hace que un distrito
+## viejo —o un banco que abra el nivel suelto— siga funcionando sin tocar nada.
+## Esa es también la razón por la que el nivel puede tener los dos juegos a la vez:
+## los del distrito **ganan**, no se suman.
+##
+## Rehace las pilas, porque cada [BatteryPickup] está anclada a su marcador y
+## sobran o faltan según cuántos traiga el distrito, y termina en [method reset],
+## así que la secuencia vuelve a salir de la semilla de la ronda. [member
+## active_target] **no se toca**: cuántas pilas hay a la vez es una decisión de
+## balance del nivel (`docs/09` §2.5), no del barrio.
+##
+## Con [param source] nulo o sin hijos [Marker3D] no hace nada y avisa: es mejor
+## seguir con los puestos del nivel que quedarse sin ninguno.
+func adopt_markers(source: Node3D) -> void:
+	if source == null or not is_instance_valid(source):
+		return
+	var adopted := _markers_of(source)
+	if adopted.is_empty():
+		push_warning("BatterySpawner: '%s' no trae hijos Marker3D; se conservan los %d del nivel."
+				% [source.name, _markers.size()])
+		return
+	for pickup: BatteryPickup in _pickups:
+		if is_instance_valid(pickup):
+			pickup.queue_free()
+	_pickups.clear()
+	_markers = adopted
+	_active.resize(_markers.size())
+	_build_pickups()
+	reset()
 
 
 ## Marcadores que llegaron a usarse al menos una vez, en índices de
@@ -144,6 +218,9 @@ func reset() -> void:
 	_used_markers = PackedInt32Array()
 	_accumulator = 0.0
 	_next_delay = 0.0
+	# El aviso de «sin puestos» es **por ronda**: si la que viene tampoco los trae,
+	# se avisa de nuevo, y una sola vez.
+	_empty_warnings = 0
 	_rng.seed = Global.round_seed
 
 
@@ -226,15 +303,40 @@ func _is_clear(index: int) -> bool:
 
 # --- Construcción -----------------------------------------------------------------------------
 
+## Los puestos que trae la propia escena. Quedarse sin ninguno **no es un error**:
+## es lo que pasa en `battle_level.tscn`, que espera los del distrito (ver la
+## cabecera). El aviso, si hace falta, lo da [method _warn_empty].
 func _collect_markers() -> void:
-	_markers.clear()
-	for child: Node in get_children():
+	_markers = _markers_of(self)
+	_active.resize(_markers.size())
+
+
+## Avisa **una sola vez por ronda** que este spawner tiene que repartir pilas y no
+## tiene dónde: ni la escena traía puestos ni el distrito se los adoptó.
+##
+## Es `push_warning` y no `push_error` a propósito: el juego sigue, sin pilas, y el
+## único que puede arreglarlo es quien armó el barrio.
+func _warn_empty() -> void:
+	if _empty_warnings > 0:
+		return
+	_empty_warnings += 1
+	push_warning(("BatterySpawner: %s llegó al juego sin puestos de pila; " % name)
+			+ "ni la escena trae hijos Marker3D ni el distrito le adoptó un "
+			+ "BatteryPosts (`docs/09` §2.5).")
+
+
+## Los [Marker3D] hijos directos de [param source], **en orden de árbol**.
+##
+## El orden importa: es lo que hace que dos rondas con la misma semilla activen la
+## misma secuencia de puestos (`docs/09` §5 sub-check 22). Por eso se recorren los
+## hijos y no se busca por nombre.
+func _markers_of(source: Node) -> Array[Marker3D]:
+	var found: Array[Marker3D] = []
+	for child: Node in source.get_children():
 		var marker := child as Marker3D
 		if marker != null:
-			_markers.append(marker)
-	if _markers.is_empty():
-		push_error("BatterySpawner: %s no tiene hijos Marker3D (docs/09 §2.5)." % name)
-	_active.resize(_markers.size())
+			found.append(marker)
+	return found
 
 
 func _build_pickups() -> void:

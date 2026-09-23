@@ -43,10 +43,13 @@ PYTHONPATH=godot/tools python -m voxsplit build godot/enemies/... --out godot/en
 ### Subcomandos
 
 ```
-python -m voxsplit inspect <archivo.vox>
-python -m voxsplit build   <parts.json | models.modulo> --out <dir>
-                           [--preview] [--preview-out <dir>] [--report] [--allow-unassigned]
-python -m voxsplit preview <parts.json | models.modulo> [--out <dir>]
+python -m voxsplit inspect    <archivo.vox>
+python -m voxsplit build      <parts.json | models.modulo> --out <dir>
+                              [--preview] [--preview-out <dir>] [--report] [--allow-unassigned]
+python -m voxsplit preview    <parts.json | models.modulo> [--out <dir>]
+python -m voxsplit objinspect <archivo.obj | archivo.zip!miembro.obj>
+                              [--step <u>] [--scale <f>] [--no-fill]
+python -m voxsplit town       [<nuke_town.json>] --out <dir> [--quiet]
 ```
 
 | Subcomando | Qué hace | Salidas |
@@ -54,14 +57,18 @@ python -m voxsplit preview <parts.json | models.modulo> [--out <dir>]
 | `inspect` | Tamaño, voxels, bbox ocupado, histograma de índices, emisivos según `MATL` y **componentes conexas** (globales y por índice de paleta, 6 vecinos). Es el punto de partida para escribir las cajas de un `parts.json` nuevo. | stdout |
 | `build` | Segmenta, hace meshing greedy, escribe el GLB, lo **vuelve a leer y lo valida**, y emite el sidecar, la paleta y (opcionalmente) previews y reporte. | `<modelo>.glb`, `<modelo>.parts.json`, `<modelo>_palette.png`, `preview_*.png`, `report.txt` |
 | `preview` | Solo las tres vistas ortográficas, sin tocar el GLB. Es el bucle de trabajo para ajustar cajas. | `preview_front/side/top.png` |
+| `objinspect` | Lo mismo que `inspect` pero para un **OBJ** de MagicaVoxel: paso, bbox, dimensiones en celdas y en metros, triángulos del OBJ crudo, voxels recuperados (cáscara + relleno), conflictos y colores usados. Es el punto de partida para escribir un JSON de `compose`. | stdout |
+| `town` | Compone las casas y los props del **pueblo de ruta** desde `models/nuke_town.json`: voxeliza cada OBJ del pack, agrupa la paleta, apila las piezas y emite un GLB por variante, más la paleta, la máscara emisiva, el sidecar y el reporte. | `<pieza>.glb` ×19, `nuke_town_palette.png`, `nuke_town_emissive.png`, `nuke_town.pieces.json`, `nuke_town_report.txt` |
 
 ### Códigos de salida
 
 | Código | Significado |
 |---|---|
 | `0` | Todo bien |
-| `1` | Hay voxels en `_unassigned` sin `--allow-unassigned`, o falla algún criterio del bloque `expect` |
-| `2` | El `parts.json` o el `.vox` son inválidos, o el GLB escrito no pasa la validación interna |
+| `1` | Hay voxels en `_unassigned` sin `--allow-unassigned`, o falla algún criterio del bloque `expect`. En `town`: alguna pieza se pasó del presupuesto de triángulos, no quedó centrada en XZ o apoyada en `y = 0`, o una pieza de casa resultó no estanca |
+| `2` | El `parts.json`, el `.vox`, el `.obj` o el JSON de recetas son inválidos, o el GLB escrito no pasa la validación interna |
+
+`objinspect` devuelve `0` o `2`. `town` devuelve los tres.
 
 ---
 
@@ -108,6 +115,9 @@ python -m voxsplit inspect '../assets/_raw/Arachnodroid.zip!Package/Arachnoid.vo
 
 | Archivo | Responsabilidad |
 |---|---|
+| `objvox.py` | Voxelizador **OBJ → rejilla**, para los packs que sólo traen malla y no `.vox`. Recupera la celda interior de cada cara por su normal, rellena el volumen por inundación y lee el color de la UV de paleta. Acepta `archivo.zip!miembro`. |
+| `compose.py` | Compositor del pueblo de ruta: familias de paleta, recorte, diezmado, apilado de pisos, embutido de puertas, espejo y máscara emisiva. |
+| `models/nuke_town.json` | Las recetas: qué OBJ es cada pieza, cómo se agrupa la paleta, qué índices se encienden y cómo se arma cada tipo y variante de casa. |
 | `voxreader.py` | Parseo de `.vox` (chunks, `SIZE`, `XYZI`, `RGBA`, `MATL`, grafo `nTRN`/`nGRP`/`nSHP`, paleta por defecto). Acepta `archivo.zip!miembro`. |
 | `parts.py` | Carga y validación de `parts.json`, `axis_map`, espejo, asignación de voxels y `_unassigned`. |
 | `mesher.py` | Meshing greedy por parte y por material, UV de paleta, normales de eje, bobinado. |
@@ -278,6 +288,87 @@ No cambian ningún criterio de aceptación, pero conviene tenerlas anotadas:
   porque `docs/05` §4.4 no se lo da y `docs/07` resuelve la apertura de P4 con una rotación.
   Lo mismo con `leg_XX_tibia` y `leg_XX_foot`: llevan `debris_mass` de `docs/07` y los flags
   de `docs/05`.
+
+---
+
+## 5bis. El pueblo de ruta: de OBJ a casa (WP-A)
+
+El pack `assets/_raw/nuke Free Sample.zip` no trae `.vox` ni casas: trae 26 **OBJ ya
+mallados** por MagicaVoxel con piezas sueltas de una escena (bloque cuadrado, bloque
+angosto, dos tapas de techo, puerta, portón de garaje, barriles, basura y maleza). El
+camino `objvox` → `compose` los devuelve a la rejilla, los apila y los vuelve a mallar con
+el mismo mesher greedy que el dron y el Arachnodroid.
+
+```
+python -m voxsplit town --out ../assets/town        # cwd = godot/tools
+```
+
+### Por qué re-voxelizar en vez de importar el OBJ
+
+El exportador de MagicaVoxel emite **un quad por cara de vóxel visible**, sin fusionar
+nada: `BuildingBlock-0` son 48 644 triángulos para una casa de 4,85 × 2,50 m. Pasándolo
+por la rejilla y por el mesher greedy la misma pieza queda en **346**, con la misma
+silueta y con la UV de paleta de 256×1 del resto del pipeline.
+
+### La rejilla: normales para la cáscara, inundación para el volumen
+
+La normal de cada cara apunta hacia afuera, así que la celda del lado contrario es
+*interior* y la del lado de la normal, *exterior*. Una celda se ocupa si alguna cara la
+marca interior y ninguna la marca exterior; los conflictos se reportan, no se silencian
+(en las 26 piezas del pack son **0**).
+
+Esa regla sola recupera sólo la **cáscara**: MagicaVoxel no emite las caras entre dos
+vóxeles adyacentes, así que un bloque macizo no deja ninguna cara por dentro y quedaría
+hueco — y un modelo hueco no es equivalente al macizo, porque el mesher generaría también
+la superficie interior. Por eso `objvox` hace además un **relleno por inundación** desde
+fuera de la caja envolvente, cruzando de una celda a la vecina sólo cuando no hay una cara
+entre las dos. `BuildingBlock-0` pasa de 37 236 celdas de cáscara a 470 428: es un macizo.
+
+### Familias de paleta: el 98 % del ahorro
+
+Las caras del pack están *dithered*. La fachada del bloque cuadrado alterna los índices
+**69** `(174, 171, 136)` y **70** `(178, 174, 139)` vóxel a vóxel: una diferencia de
+**4/255**, invisible, que sin embargo impide fusionar dos caras vecinas porque la UV
+depende del índice. Medido sobre `BuildingBlock-0`:
+
+| Paleta | Triángulos |
+|---|---|
+| Cruda (38 índices) | 34 390 |
+| Un solo color (cota geométrica) | **70** |
+| 11 familias perceptuales | **346** |
+
+`palette_families` del JSON agrupa los 48 índices visibles del pack en 11 representantes.
+Los tres índices de ventana (`7` papel, `50` marco, `13` fondo) se declaran aparte y
+**nunca** se funden con la pared: son los que lleva la máscara emisiva. Una pieza puede
+apagarlos con `palette_override` — el portón de garaje tiene manchas de moho del mismo
+verde pálido que el vidrio y sin el override el garaje brillaría.
+
+### `decimate`: la única palanca para la cota geométrica
+
+Dos piezas tienen una cota de triángulos **geométrica**, no cromática: el ático
+`Rooftop-0` (2 166 a un solo color) y el montón de basura grande (1 238). Para ésas el
+JSON declara `decimate: 2` o `3`: se vota el color por bloques de *n*³ y se vuelve a
+expandir **sobre la misma rejilla de 5 cm**, así la pieza sigue encajando vóxel a vóxel
+con el bloque de abajo pero con la mitad (o un tercio) del detalle de superficie.
+
+### Receta de una casa
+
+| Campo | Qué hace |
+|---|---|
+| `stack` | Pisos apilados en Y, centrados en XZ sobre el primero |
+| `roof` | Tapa apoyada en el techo del último piso |
+| `attach` | Piezas **embutidas** en una cara (`-x`, `+x`, `-z`, `+z`) con `u` como fracción a lo largo de la cara. Embutidas y no pegadas: la puerta ocupa el hueco de la pared, así la huella del conjunto sigue siendo la del bloque |
+| `trim` | Celdas que se recortan del último piso, para variar la altura |
+| `mirror` | Espejo en X de todo el conjunto |
+
+El resultado se recentra en XZ y se apoya en `y = 0`, que es lo que exigen `CityGrid` y
+`tools/town_import_check.gd`.
+
+### Escala
+
+El pack está a 0,02 unidades por vóxel y se multiplica por **2,5**: 1 vóxel = **5 cm**, la
+puerta mide **2,20 m** y el bloque **4,85 × 2,50 m**. El `axis_map` es la identidad porque
+el OBJ de MagicaVoxel ya sale Y-arriba, a diferencia del `.vox`, que es Z-arriba.
 
 ---
 

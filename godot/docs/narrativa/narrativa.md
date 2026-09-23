@@ -12,7 +12,7 @@ Con recursos limitados, nos defendemos como podemos: con lo que hay, con lo que 
 
 ## 2. El mundo
 
-**La ciudad.** Barrios de edificios bajos y medianos, calles anchas, carteles publicitarios de una época en que había algo que vender. Antenas en las azoteas: la ciudad se comunica por radio porque la red no es de fiar. Esto aún no son ruinas.
+**La ciudad.** Un pueblo de ruta: la ruta lo atraviesa y sigue hacia el horizonte, casas bajas con frente a la calle en cuadras que no son iguales, unos pocos edificios medianos y la escuela junto a la ruta, en el centro; campo alrededor y un caserío más lejos. Carteles de una época en que había algo que vender. Antenas en las azoteas: el pueblo se comunica por radio porque la red no es de fiar. Esto aún no son ruinas. *(Redacción de P2b, 2026-09-21: el nivel dejó de ser una rejilla en medio de la nada.)*
 
 **La gente.** Nadie pelea de uniforme. Quien pilotea hoy fue ayer técnico, mecánico, artista, panadero. La defensa no es un ejército; es un turno más del barrio.
 

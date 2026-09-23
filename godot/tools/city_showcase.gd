@@ -1,27 +1,30 @@
 ## Copyright (c) 2026 Drone Survivor. Todos los derechos reservados.
 ##
-## Recorrido de revisión visual del distrito `district_a`. **No es un check**: no
-## afirma nada ni devuelve códigos de salida; existe para mirar la ciudad y
-## comprobar a ojo lo que ningún check mide —escala de las piezas, red viaria y
-## silueta— y que las tres etapas de destrucción se distinguen.
+## Recorrido de revisión visual del **pueblo de ruta** `town_a`. **No es un
+## check**: no afirma nada ni devuelve códigos de salida; existe para mirar el
+## pueblo y comprobar a ojo lo que ningún check mide —escala de las casas,
+## legibilidad de la calzada contra la vereda, silueta y campo— y que las tres
+## etapas de destrucción se distinguen.
 ##
 ## Guion por **planos fijos**, con acumuladores y nunca un [Timer] (convención de
 ## `docs/00` §6). Cada plano dura [constant SHOT_SECONDS] y, a 10 fps de Movie
 ## Maker, ocupa doce fotogramas:
 ##
 ## [codeblock]
-## 1  aéreo      el distrito entero: rejilla, calles de 16 m y avenidas de 32
-## 2  avenida    tres cuartos a 60 m sobre la avenida norte-sur
-## 3  calle      nivel de calle desde una esquina: cordón, vereda y fachadas
-## 4  azotea     una azotea con prop, para medir el cartel contra el edificio
-## 5  silueta    horizonte bajo: hitos de 75-80 m contra bloques de 7-17 m
-## 6  daño       cuatro edificios en DAMAGED y tres derrumbándose
+## 1  aéreo     el pueblo entero desde 380 m: ruta, manzanas y campo alrededor
+## 2  ruta      tres cuartos a 60 m sobre la ruta, entrando al pueblo
+## 3  calle     nivel de calle en una transversal: cordón, vereda y fachadas
+## 4  centro    escuela e hito desde 40 m, que son la silueta alta del pueblo
+## 5  campo     horizonte bajo desde fuera del círculo: casas de 5 m y caserío
+## 6  daño      cuatro casas en DAMAGED y tres derrumbándose
 ## [/codeblock]
 ##
-## Hasta WP-21 era una órbita continua; los planos fijos la reemplazan porque lo
-## que hay que revisar son detalles concretos (que las marcas de la calzada vayan
-## a lo largo, que el cordón se vea, que el cartel no sea más grande que la
-## azotea) y una órbita no garantiza que ninguno caiga en un fotograma.
+## Los planos salen de la **geometría del plano** ([TownPlan]: centro, radio,
+## ruta) y no de números a mano, así que siguen apuntando a donde tienen que
+## apuntar si se regenera el pueblo con otra semilla. Hasta WP-D estaban escritos
+## contra el distrito rectangular de P2 —medio kilómetro de lado, hitos de 75 m—
+## y encuadraban un pueblo de 280 m de diámetro desde tan lejos que no se veía
+## nada.
 ##
 ## Captura con Movie Maker, desde la raíz del repositorio:
 ## [codeblock]
@@ -32,7 +35,7 @@
 extends Node3D
 
 ## Ruta del distrito que se muestra.
-const DISTRICT_PATH: String = "res://city/districts/district_a.tscn"
+const DISTRICT_PATH: String = "res://city/districts/town_a.tscn"
 
 ## Duración de cada plano fijo, en segundos.
 const SHOT_SECONDS: float = 1.2
@@ -100,71 +103,87 @@ func _apply_render_quality() -> void:
 	Graphics.register_sun(get_node_or_null(^"Sun") as DirectionalLight3D)
 
 
-## Los seis planos. Salen de la geometría de la rejilla —cruce de avenidas,
-## esquinas y azoteas reales— y no de números a mano, así que siguen apuntando a
-## donde tienen que apuntar si cambia el tamaño del distrito.
+## Centro del círculo de juego, en coordenadas **globales**.
+##
+## `CityGrid.play_centre()` devuelve local, así que hay que transformarlo. Hoy el
+## distrito se instancia en el origen y las dos coinciden; el `to_global` está
+## para el día que el nivel lo mueva, que es cuando un plano encuadrado sobre el
+## punto equivocado sale mal sin que nada falle.
+func _city_centre() -> Vector3:
+	if _district == null or not is_instance_valid(_district):
+		return Vector3.ZERO
+	return _district.to_global(_district.play_centre())
+
+
+## Los seis planos. Salen del plano del pueblo —centro, radio y ruta— y no de
+## números a mano, así que siguen apuntando a donde tienen que apuntar si se
+## regenera el pueblo con otra semilla o con otro radio.
 func _build_shots() -> Array[Dictionary]:
-	var extent := _district.get_extent()
-	var half := Vector3(extent.x * 0.5, 0.0, extent.y * 0.5)
-	var avenue := _district.avenue_crossing()
+	var centre := _city_centre()
+	var radius: float = _district.play_radius()
+	var plan := _district.get_plan()
+	# La ruta atraviesa el pueblo casi recta: su tangente en el punto más cercano
+	# al centro es el eje sobre el que se encuadran los planos 1, 2 y 3, y su
+	# perpendicular el que los separa de la calzada.
+	var along := Vector3.FORWARD
+	var mid := centre
+	if plan != null and plan.route.size() >= 2:
+		var at := plan.route_centre_distance()
+		along = plan.route_tangent(at)
+		mid = plan.route_point(at)
+	var across := TownPlan.left_of(along)
 	var roof := _pick_roof()
-	_focus = Vector3(avenue.x, 0.0, avenue.z - 48.0)
+	_focus = centre + across * (radius * 0.45)
 
 	return [
 		{
 			"name": "aéreo",
-			"eye": Vector3(half.x * 0.35, half.x * 1.25, half.z + 250.0),
-			"target": Vector3(0.0, 0.0, 0.0),
+			"eye": centre - along * (radius * 1.2) + Vector3(0.0, radius * 2.7, 0.0),
+			"target": centre,
 		},
 		{
-			"name": "avenida",
-			"eye": Vector3(avenue.x + 78.0, 60.0, half.z + 84.0),
-			"target": Vector3(avenue.x, 14.0, -40.0),
+			"name": "ruta",
+			"eye": mid - along * (radius * 1.15) + across * 26.0 + Vector3(0.0, 60.0, 0.0),
+			"target": centre + Vector3(0.0, 8.0, 0.0),
 		},
 		{
 			"name": "calle",
-			"eye": Vector3(avenue.x - 6.0, 2.8, avenue.z + 92.0),
-			"target": Vector3(avenue.x + 1.0, 11.0, avenue.z - 120.0),
+			"eye": mid - along * (radius * 0.55) + Vector3(0.0, 2.6, 0.0),
+			"target": mid + along * (radius * 0.4) + Vector3(0.0, 6.0, 0.0),
 		},
 		{
-			"name": "azotea",
-			"eye": roof + Vector3(21.0, 13.0, 21.0),
-			"target": roof + Vector3(0.0, -2.5, 0.0),
+			"name": "centro",
+			"eye": roof + across * 38.0 - along * 34.0 + Vector3(0.0, 22.0, 0.0),
+			"target": roof + Vector3(0.0, -4.0, 0.0),
 		},
 		{
-			"name": "silueta",
-			"eye": Vector3(-half.x - 150.0, 30.0, half.z + 150.0),
-			"target": Vector3(0.0, 40.0, 0.0),
+			"name": "campo",
+			"eye": centre - across * (radius + 210.0) + Vector3(0.0, 16.0, 0.0),
+			"target": centre + Vector3(0.0, 14.0, 0.0),
 		},
 		{
 			"name": "daño",
-			"eye": _focus + Vector3(62.0, 32.0, 74.0),
-			"target": _focus + Vector3(0.0, 10.0, 0.0),
+			"eye": _focus + across * 46.0 - along * 52.0 + Vector3(0.0, 30.0, 0.0),
+			"target": _focus + Vector3(0.0, 4.0, 0.0),
 		},
 	]
 
 
-## Techo de un edificio con prop.
+## Techo del edificio protegido, que en el pueblo es la escuela.
 ##
-## Se prefiere uno **bajo** y cercano al centro: sobre un hito de 80 m el cartel
-## queda a tanta distancia de la cámara que no se puede juzgar su tamaño, que es
-## justo lo que este plano tiene que dejar revisar.
+## Se busca por nombre y se cae al edificio **más alto** —el hito— si no está: son
+## los dos únicos volúmenes que sobresalen de un caserío de casas de 5 m, y el
+## plano 4 existe para juzgarlos contra ellas.
 func _pick_roof() -> Vector3:
 	var best: Building = null
-	var fallback: Building = null
 	for building: Building in _district.get_buildings():
-		if building.props == null:
-			continue
-		if fallback == null or building.get_height() > fallback.get_height():
-			fallback = building
-		if building.get_height() > 20.0:
-			continue
-		if best == null or building.position.length() < best.position.length():
+		if building.name == String(TownPlan.SCHOOL_NODE):
+			best = building
+			break
+		if best == null or building.get_height() > best.get_height():
 			best = building
 	if best == null:
-		best = fallback
-	if best == null:
-		return Vector3(0.0, 20.0, 0.0)
+		return _city_centre() + Vector3(0.0, 15.0, 0.0)
 	return best.position + Vector3(0.0, best.get_height(), 0.0)
 
 

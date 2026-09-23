@@ -30,6 +30,7 @@ Fijar la licencia del juego, registrar todas las atribuciones obligatorias y man
 |---|---|---|---|
 | Mechas voxel (Arachnodroid, Companion-bot, FieldFighter, Mecha01, MechaTrooper, MechGolem, MobileStorageBot, QuadrupedTank, ReconBot) | `assets/_raw/*.zip`, `Mecha01.rar` (MagicaVoxel, 2020) | packs de un autor de itch.io/Sketchfab | Términos exactos de la página de descarga: uso comercial, modificación (segmentación y remallado), prohibición de redistribuir el asset suelto (el GLB generado y el `.vox` **no** deben publicarse fuera del build), crédito requerido |
 | VoxelCity Free Sample | `assets/_raw/FreeSample.zip` (13 FBX + texturas) | muestra gratuita de un pack comercial | Términos de la muestra: uso en producto comercial, modificación (texturas reducidas), crédito; si la muestra no permite uso comercial, comprar el pack completo o reemplazar las piezas |
+| nuke Free Sample (VoxelNuke) | `assets/_raw/nuke Free Sample.zip` (26 OBJ + MTL + PNG de paleta; **sin readme ni licencia**) | muestra gratuita de un pack de MagicaVoxel de autor no identificado | **Pendiente (P2b, 2026-09-21)**: identificar autor y términos; en el repo solo quedan los GLB derivados en `assets/town/` (remallados y recompuestos por `tools/voxsplit/objvox.py`), el ZIP sigue fuera de git; ver `assets/town/LICENSE-PENDING.md`. Si no permite uso comercial, reemplazar las casas del pueblo |
 
 Hasta confirmar, los `.vox`, `.obj`, `.fbx` y texturas originales se mantienen solo en `assets/_raw/` (con `.gdignore`, fuera del export) y el repo **no se publica** en un remoto público.
 

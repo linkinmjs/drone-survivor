@@ -1,0 +1,119 @@
+voxsplit 1.0.0 — pueblo «nuke_town»
+origen              : nuke Free Sample.zip
+paso del OBJ        : 0.02 u · escala ×2.5 · vóxel 0.05 m
+
+piezas del pack (tras familias de paleta, recorte y diezmado):
+  pieza          celdas           metros                      vox  OBJ tris
+  --------------------------------------------------------------------------
+  block_square   97×50×97         4.85 × 2.50 × 4.85       470428     48644
+  block_narrow   97×50×50         4.85 × 2.50 × 2.50       242438     31310
+  roof_flat      100×10×100       5.00 × 0.50 × 5.00        29353     28808
+  roof_attic     102×11×53        5.10 × 0.55 × 2.65        22272     18668
+  door           3×44×32          0.15 × 2.20 × 1.60         2322      2606
+  garage_door    81×48×4          4.05 × 2.40 × 0.20         4917      3920
+  barrel_a       13×17×13         0.65 × 0.85 × 0.65         2328       606
+  barrel_b       13×13×17         0.65 × 0.65 × 0.85         2312       606
+  trash_big      24×15×27         1.20 × 0.75 × 1.35         4131      5134
+  trash_wide     39×4×18          1.95 × 0.20 × 0.90         1342      1680
+  trash_small    20×6×18          1.00 × 0.30 × 0.90          521       882
+  trash_wide_b   39×4×18          1.95 × 0.20 × 0.90         1342      1680
+  trash_small_b  20×6×18          1.00 × 0.30 × 0.90          521       882
+  weeds_flat     32×1×13          1.60 × 0.05 × 0.65          322      1164
+  weeds_clump    28×4×6           1.40 × 0.20 × 0.30          304       884
+
+diagnóstico de la voxelización (cáscara por normales frente a relleno por inundación):
+  una pieza de casa con más desajustes que su 'allow_fill_mismatches' es un fallo;
+  en un prop es sólo un aviso, porque los montones del pack son mallas abiertas.
+  roof_attic: 1 celdas de desajuste de relleno (tolerancia 1), 0 de color
+      la celda (9, 30, 14) está marcada exterior pero el relleno la llena
+  trash_big: 248 celdas de desajuste de relleno (tolerancia 0), 0 de color
+      la celda (18, 8, 11) está marcada exterior pero el relleno la llena
+      la celda (18, 4, 13) está marcada exterior pero el relleno la llena
+      la celda (8, 7, 14) está marcada exterior pero el relleno la llena
+      la celda (15, 5, 18) está marcada exterior pero el relleno la llena
+      la celda (12, 4, 19) está marcada exterior pero el relleno la llena
+      la celda (17, 4, 14) está marcada exterior pero el relleno la llena
+      la celda (17, 5, 14) está marcada exterior pero el relleno la llena
+      la celda (15, 8, 9) está marcada exterior pero el relleno la llena
+      … y 240 más
+
+piezas compuestas:
+  pieza            clase    tris  presup  OBJ tris      vox  AABB (m)                 vent.
+  ------------------------------------------------------------------------------------------------
+  house_a          house     876    2400     80058   499781  5.00 × 3.00 × 5.00       732
+      partes: block_square, door, roof_flat
+      AABB   : min [-2.5, 0.0, -2.5]  max [2.5, 3.0, 2.5]
+  house_a_b        house     884    2400     80058   443327  5.00 × 2.70 × 5.00       748
+      partes: block_square, door, roof_flat
+      AABB   : min [-2.5, 0.0, -2.5]  max [2.5, 2.7, 2.5]
+  house_b          house    2254    2400     52584   507148  5.10 × 5.55 × 2.65       924
+      partes: block_narrow, block_narrow, door, roof_attic
+      AABB   : min [-2.55, 0.0, -1.325]  max [2.55, 5.55, 1.325]
+  house_b_b        house    2246    2400     52584   482905  5.10 × 5.30 × 2.65       932
+      partes: block_narrow, block_narrow, door, roof_attic
+      AABB   : min [-2.55, 0.0, -1.325]  max [2.55, 5.3, 1.325]
+  house_c          house     772    2400     81372   499781  5.00 × 3.00 × 5.00       480
+      partes: block_square, garage_door, roof_flat
+      AABB   : min [-2.5, 0.0, -2.5]  max [2.5, 3.0, 2.5]
+  house_c_b        house     886    2400     83978   480963  5.00 × 2.90 × 5.00       708
+      partes: block_square, garage_door, door, roof_flat
+      AABB   : min [-2.5, 0.0, -2.5]  max [2.5, 2.9, 2.5]
+  house_d          house    1204    2400     80058   970209  5.00 × 5.50 × 5.00       1238
+      partes: block_square, block_square, door, roof_flat
+      AABB   : min [-2.5, 0.0, -2.5]  max [2.5, 5.5, 2.5]
+  house_d_b        house    1188    2400     80058   876119  5.00 × 5.00 × 5.00       1217
+      partes: block_square, block_square, door, roof_flat
+      AABB   : min [-2.5, 0.0, -2.5]  max [2.5, 5.0, 2.5]
+  shed             house    1462    2400     49978   187110  5.10 × 2.25 × 2.65       320
+      partes: block_narrow, roof_attic
+      AABB   : min [-2.55, 0.0, -1.325]  max [2.55, 2.25, 1.325]
+  shed_b           house    1474    2400     49978   216210  5.10 × 2.55 × 2.65       320
+      partes: block_narrow, roof_attic
+      AABB   : min [-2.55, 0.0, -1.325]  max [2.55, 2.55, 1.325]
+  barrel_a         prop      186     300       606     2328  0.65 × 0.85 × 0.65       0
+      partes: barrel_a
+      AABB   : min [-0.325, 0.0, -0.325]  max [0.325, 0.85, 0.325]
+  barrel_b         prop      178     300       606     2312  0.65 × 0.65 × 0.85       0
+      partes: barrel_b
+      AABB   : min [-0.325, 0.0, -0.425]  max [0.325, 0.65, 0.425]
+  trash_0          prop      206     300      5134     4131  1.20 × 0.75 × 1.35       0
+      partes: trash_big
+      AABB   : min [-0.6, 0.0, -0.675]  max [0.6, 0.75, 0.675]
+  trash_1          prop      192     300      1680     1342  1.95 × 0.20 × 0.90       0
+      partes: trash_wide
+      AABB   : min [-0.975, 0.0, -0.45]  max [0.975, 0.2, 0.45]
+  trash_2          prop      284     300       882      521  1.00 × 0.30 × 0.90       0
+      partes: trash_small
+      AABB   : min [-0.5, 0.0, -0.45]  max [0.5, 0.3, 0.45]
+  trash_3          prop      192     300      1680     1342  1.95 × 0.20 × 0.90       0
+      partes: trash_wide_b
+      AABB   : min [-0.975, 0.0, -0.45]  max [0.975, 0.2, 0.45]
+  trash_4          prop      284     300       882      521  1.00 × 0.30 × 0.90       0
+      partes: trash_small_b
+      AABB   : min [-0.5, 0.0, -0.45]  max [0.5, 0.3, 0.45]
+  overgrowth_a     prop      276     300      1164      322  1.60 × 0.05 × 0.65       0
+      partes: weeds_flat
+      AABB   : min [-0.8, 0.0, -0.325]  max [0.8, 0.05, 0.325]
+  overgrowth_b     prop      112     300       884      304  1.40 × 0.20 × 0.30       0
+      partes: weeds_clump
+      AABB   : min [-0.7, 0.0, -0.15]  max [0.7, 0.2, 0.15]
+
+familias de paleta (representante ← miembros):
+    6 ← [4, 5, 6, 71, 215]
+    7 ← [7, 16, 133]
+   13 ← [13]
+   48 ← [41, 45, 48]
+   50 ← [14, 50, 65]
+   70 ← [23, 24, 29, 30, 31, 32, 69, 70, 124, 125, 126, 127, 132]
+  117 ← [116, 117, 228, 229, 230]
+  167 ← [167, 168, 249]
+  190 ← [78, 79, 189, 190, 191, 192]
+  210 ← [209, 210, 211]
+  246 ← [223, 246, 255]
+
+índices de ventana de la máscara emisiva:
+    7 → RGB (198, 152, 100)
+   13 → RGB (32, 24, 16)
+   50 → RGB (74, 57, 37)
+
+CHECK compose: OK

@@ -1,6 +1,8 @@
 """CLI de `voxsplit`: `inspect`, `build` y `preview` (§8 y §14.1 de `docs/05`).
 
     python -m voxsplit inspect <archivo.vox>
+    python -m voxsplit objinspect <archivo.obj | archivo.zip!miembro.obj> [--step <u>]
+    python -m voxsplit town [<nuke_town.json>] --out <dir>
     python -m voxsplit build <parts.json | models.modulo> --out <dir> [--preview] [--report]
                              [--allow-unassigned] [--preview-out <dir>]
     python -m voxsplit preview <parts.json | models.modulo> [--out <dir>]
@@ -36,8 +38,9 @@ if _PACKAGE_PARENT not in sys.path:
     sys.path.insert(0, _PACKAGE_PARENT)
 
 from voxsplit import VERSION                                      # noqa: E402
-from voxsplit import glbvalidate, glbwriter, mesher, preview      # noqa: E402
+from voxsplit import compose, glbvalidate, glbwriter, mesher, preview  # noqa: E402
 from voxsplit import parts as parts_module                        # noqa: E402
+from voxsplit import objvox                                       # noqa: E402
 from voxsplit import voxreader                                    # noqa: E402
 from voxsplit.jsonio import dumps                                 # noqa: E402
 from voxsplit.parts import UNASSIGNED, PartsError, PartsSpec      # noqa: E402
@@ -485,6 +488,99 @@ def cmd_preview(args: argparse.Namespace) -> int:
     return EXIT_FAILED_CRITERIA if unassigned else EXIT_OK
 
 
+
+# --------------------------------------------------------------------------- #
+# objinspect                                                                    #
+# --------------------------------------------------------------------------- #
+
+
+def cmd_objinspect(args: argparse.Namespace) -> int:
+    """Paso, dimensiones, voxels, triangulos del OBJ y colores usados (`objvox`)."""
+    try:
+        mesh = objvox.read_obj(args.file)
+        try:
+            palette = objvox.read_palette(args.file)
+        except objvox.ObjVoxError as exc:
+            print(f"aviso: sin paleta hermana ({exc})", file=sys.stderr)
+            palette = None
+        grid = objvox.voxelize(mesh, step=args.step, palette=palette, fill=not args.no_fill)
+    except objvox.ObjVoxError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return EXIT_INVALID
+
+    lo, hi = mesh.bounds()
+    extent = grid.extent()
+    print(f"archivo          : {args.file}")
+    print(f"objeto           : {mesh.name}")
+    print(f"paso             : {grid.step} u  (x{args.scale} = {grid.step * args.scale} m/voxel)")
+    print(f"bbox del OBJ     : "
+          f"x[{lo[0]:g},{hi[0]:g}] y[{lo[1]:g},{hi[1]:g}] z[{lo[2]:g},{hi[2]:g}]")
+    print(f"dimensiones      : {extent[0]} x {extent[1]} x {extent[2]} celdas  =  "
+          f"{extent[0] * grid.step:g} x {extent[1] * grid.step:g} x {extent[2] * grid.step:g} u"
+          f"  =  {extent[0] * grid.step * args.scale:.2f} x "
+          f"{extent[1] * grid.step * args.scale:.2f} x "
+          f"{extent[2] * grid.step * args.scale:.2f} m")
+    print(f"triangulos OBJ   : {grid.source_triangles}  ({grid.face_count} caras leidas)")
+    print(f"voxels           : {grid.voxel_count}  "
+          f"(cascara {grid.shell_count} + relleno {grid.filled_count})")
+    print(f"conflictos       : {len(grid.conflicts)} interior/exterior, "
+          f"{len(grid.colour_conflicts)} de color, {len(grid.fill_mismatches)} de relleno")
+    for line in grid.conflicts[:10]:
+        print(f"    celda en conflicto: {line}")
+    for line in grid.fill_mismatches[:10]:
+        print(f"    {line}")
+    print()
+    print("colores usados (indice 1-based de la paleta 256x1):")
+    print(f"  {'idx':>4}  {'voxels':>8}  color RGB")
+    for index, count in sorted(grid.colours().items()):
+        if grid.palette:
+            r, g, b, _a = grid.palette[index - 1]
+            print(f"  {index:>4}  {count:>8}  ({r:>3}, {g:>3}, {b:>3})")
+        else:
+            print(f"  {index:>4}  {count:>8}  -")
+    return EXIT_OK
+
+
+# --------------------------------------------------------------------------- #
+# town                                                                          #
+# --------------------------------------------------------------------------- #
+
+
+def cmd_town(args: argparse.Namespace) -> int:
+    """Compone las casas y los props del pueblo de ruta (`compose.build_town`)."""
+    default_spec = Path(__file__).resolve().parent / "models" / "nuke_town.json"
+    target = Path(args.spec) if args.spec else default_spec
+    try:
+        results, failures, _inventory = compose.build_town(target, args.out,
+                                                           verbose=not args.quiet)
+    except (compose.ComposeError, objvox.ObjVoxError, PartsError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return EXIT_INVALID
+    except glbvalidate.GlbValidationError as exc:
+        print("ERROR: la validación interna del GLB falló.\n%s" % exc, file=sys.stderr)
+        return EXIT_INVALID
+    # Un JSON de recetas mal escrito —una clave que falta, un número donde iba una lista—
+    # sale por acá. Es un archivo inválido (código 2), no un fallo interno de la
+    # herramienta: sin esto el usuario veía un `KeyError: 'file'` sin contexto.
+    except (KeyError, TypeError, ValueError) as exc:
+        print(f"ERROR: '{target}' no es un JSON de recetas válido: "
+              f"{type(exc).__name__}: {exc}", file=sys.stderr)
+        return EXIT_INVALID
+
+    houses = sum(1 for r in results if r.kind == "house")
+    props = len(results) - houses
+    print(f"casas {houses} · props {props} · "
+          f"triangulos {sum(r.triangle_count for r in results)} · "
+          f"escrito en {args.out}")
+    if failures:
+        print("CHECK compose: FAIL", file=sys.stderr)
+        for failure in failures:
+            print(f"  - {failure}", file=sys.stderr)
+        return EXIT_FAILED_CRITERIA
+    print("CHECK compose: OK")
+    return EXIT_OK
+
+
 # --------------------------------------------------------------------------- #
 # Punto de entrada                                                              #
 # --------------------------------------------------------------------------- #
@@ -526,6 +622,25 @@ def build_parser() -> argparse.ArgumentParser:
     build.add_argument("--allow-unassigned", action="store_true",
                        help="degrada a advertencia los voxels sin asignar")
     build.set_defaults(func=cmd_build)
+
+    objinspect = subparsers.add_parser(
+        "objinspect", help="paso, dimensiones, voxels, triangulos y colores de un .obj")
+    objinspect.add_argument("file", help="ruta al .obj, o 'archivo.zip!miembro.obj'")
+    objinspect.add_argument("--step", type=float, default=objvox.DEFAULT_STEP,
+                            help="unidades del OBJ por voxel (por defecto 0.02)")
+    objinspect.add_argument("--scale", type=float, default=2.5,
+                            help="factor a metros con el que se imprimen las dimensiones")
+    objinspect.add_argument("--no-fill", action="store_true",
+                            help="no rellenar el interior: deja solo la cascara")
+    objinspect.set_defaults(func=cmd_objinspect)
+
+    town = subparsers.add_parser(
+        "town", help="compone las casas y los props del pueblo de ruta")
+    town.add_argument("spec", nargs="?", default=None,
+                      help="ruta al JSON de recetas (por defecto models/nuke_town.json)")
+    town.add_argument("--out", required=True, help="carpeta de salida")
+    town.add_argument("--quiet", action="store_true", help="solo la linea de resumen")
+    town.set_defaults(func=cmd_town)
 
     preview_cmd = subparsers.add_parser("preview", help="solo las 3 vistas ortográficas")
     preview_cmd.add_argument("target", help="ruta a <modelo>.parts.json, o 'models.drone_quad'")

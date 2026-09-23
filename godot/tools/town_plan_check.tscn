@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tools/town_plan_check.gd" id="1_town_plan_check"]
+
+[node name="TownPlanCheck" type="Node"]
+script = ExtResource("1_town_plan_check")
+check_name = "town_plan_check"
+default_timeout = 30.0

@@ -44,8 +44,10 @@ combat_hud = NodePath("CombatHUDSlot/CombatHUD")
 environment = ExtResource("2_env")
 camera_attributes = ExtResource("19_camera_attributes")
 
-; Sol de atardecer sobre la ciudad entera: el distrito mide 432 × 272 m (WP-24b), y
-; el alcance, las cascadas y los sesgos de la sombra los pone `Graphics` por preset
+; Sol de atardecer sobre la ciudad entera. El alcance de la sombra tiene que cubrir el
+; barrio más grande que se instancie acá: el pueblo de ruta mide 378 × 378 m (2 · 140 m
+; de radio de juego · 1,35) y el distrito rectangular, 432 × 272 m (WP-24b). El
+; alcance, las cascadas y los sesgos de la sombra los pone `Graphics` por preset
 ; desde que `LevelBase` lo registra (WP-24a). Lo que queda acá es el **look**, y lo
 ; trae `world/sun_dusk.tres` a través de `SunLight`: 2400 lux a 3200 K, 6° sobre el
 ; horizonte. La transformada la escribe `apply_profile()` en `_ready()`; la de la
@@ -123,19 +125,26 @@ script = ExtResource("24_audio_pool")
 [node name="MusicDirector" type="AudioStreamPlayer" parent="Pools"]
 script = ExtResource("25_music_director")
 
-; Puestos de pila (`docs/09` §2.5): ocho marcadores del distrito, de los que el spawner
-; mantiene cinco activos. Seis van sobre cruces de calle interiores, entre 4 y 6 m de
-; altura, y dos sobre azoteas de torre media. Tras WP-24b la rejilla no es uniforme: los
-; carriles de calzada caen en x ∈ {−208, −128, −48, 40, 128, 208} y z ∈ {−128, −48, 40, 128},
-; con la avenida en x = 40 y z = 40 y el anillo perimetral en ±208 y ±128. Los cruces son
-; los únicos puntos garantizados sin edificio, y los seis elegidos cubren el distrito de
-; punta a punta: si se juntan cerca del centro el dron deja de perder tiempo yendo a
-; buscarlos y el ciclo de trabajo del arma se dispara.
+; Puestos de pila (`docs/09` §2.5): **los pone el barrio**, no el nivel.
 ;
-; Las dos azoteas van a `techo + 3,2 m` y no a `techo + 1,5` como pedía el encargo: el
-; spawner valida el sitio con una esfera de `clearance_radius` 2,5 m sobre las capas
-; `city | debris`, así que a 1,5 m la esfera todavía muerde la caja del edificio y el
-; puesto no se activaría nunca.
+; Este nodo no tiene hijos a propósito. El distrito trae un `BatteryPosts` con sus
+; `Marker3D` y `RoundManager._adopt_district_markers()` se los pasa con
+; `BatterySpawner.adopt_markers()` antes de que arranque la alerta; de esos ocho
+; puestos el spawner mantiene cinco activos.
+;
+; Hasta WP-C acá colgaban ocho `Marker1..8` con coordenadas absolutas copiadas del
+; distrito rectangular. Eso sólo funciona mientras haya **un** distrito: el único
+; que sabe dónde hay una esquina sin edificio o una azotea despejada es el que armó
+; el barrio, y unas coordenadas fijas no pueden servir para dos. Se borraron al
+; pasar la ronda 1 a `town_a.tscn`, que es el primer barrio que publica los suyos.
+;
+; **Un nivel abierto suelto queda sin puestos**, y el spawner no se queja de eso al
+; entrar al árbol: entre su `_ready()` y el de este nivel —que es el que adopta— no
+; tener puestos es el estado normal, y quejarse ahí ponía un `ERROR` en cada carga.
+; El aviso está diferido al primer `_physics_process`, o sea al primer momento en que
+; de verdad tiene que repartir pilas, y es un `push_warning`: sin distrito tampoco
+; hay ciudad, ni enemigo, ni ronda, y un puesto de pila colgando en el vacío no
+; arreglaría ninguna de las tres.
 
 [node name="BatterySpawner" type="Node3D" parent="."]
 script = ExtResource("9_battery_spawner")
@@ -146,34 +155,15 @@ clearance_radius = 2.5
 retry_interval = 1.0
 clearance_mask = 384
 
-[node name="Marker1" type="Marker3D" parent="BatterySpawner"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -208, 5, -48)
-
-[node name="Marker2" type="Marker3D" parent="BatterySpawner"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -48, 4, 40)
-
-[node name="Marker3" type="Marker3D" parent="BatterySpawner"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 40, 6, 128)
-
-[node name="Marker4" type="Marker3D" parent="BatterySpawner"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 128, 4.5, -48)
-
-[node name="Marker5" type="Marker3D" parent="BatterySpawner"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 208, 5, 40)
-
-[node name="Marker6" type="Marker3D" parent="BatterySpawner"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -128, 4, 128)
-
-[node name="Marker7" type="Marker3D" parent="BatterySpawner"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -72, 20.2, -34.5)
-
-[node name="Marker8" type="Marker3D" parent="BatterySpawner"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18.5, 19.8, 104)
-
-; Reaparición: 40 m sobre el borde sureste del distrito (`docs/11` §3), mirando al
-; centro de la ciudad y, más allá, al acceso norte por donde entra el coloso. Queda
-; fuera del eje de `EnemySpawn1` a propósito, para que una ronda futura con dos
-; enemigos no haga aparecer uno encima del dron.
+; Reaparición. La pose de abajo es la del distrito rectangular — 40 m sobre su borde
+; sureste (`docs/11` §3), mirando al centro— y hoy es un **respaldo**: el distrito
+; trae su `DroneSpawn` y `RoundManager._adopt_district_markers()` manda este marcador
+; y el `DroneRig` a esa pose antes de que arranque la alerta.
+;
+; El nodo se conserva igual, y no sólo por el nivel abierto suelto: es el que
+; `LevelBase` le cablea al `DroneRig` en `_ready()`, o sea **antes** de que exista
+; distrito, y el que el dron vuelve a leer en cada reconstrucción. Lo que el barrio
+; cambia es dónde está, no quién es.
 
 [node name="Respawn" type="Marker3D" parent="."]
 transform = Transform3D(0.9546, 0, -0.2979, 0, 1, 0, 0.2979, 0, 0.9546, 120, 1.5, 200)
@@ -185,6 +175,10 @@ respawn_point = NodePath("../Respawn")
 ; Cámaras del nivel (`docs/11` §3 y §4.1). La de la cinemática arranca activa y
 ; `RoundManager` la mueve por código; `CameraFixed` es la de reaparición que devuelve
 ; `LevelBase.get_respawn_camera()` y la que encuadra la ciudad en la derrota.
+;
+; La pose de `CameraFixed` es también un respaldo: el distrito trae un
+; `CameraFixedPose` y se la reescribe al instanciarse, porque quién encuadra bien
+; **este** barrio lo sabe el barrio.
 
 [node name="Cameras" type="Node3D" parent="."]
 

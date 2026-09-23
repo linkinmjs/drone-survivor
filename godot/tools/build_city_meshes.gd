@@ -154,8 +154,8 @@ func _build_ground_material() -> StandardMaterial3D:
 # --------------------------------------------------------------------------
 
 ## Recursos compartidos de los dos emisores de cada edificio. Son **compartidos
-## a propósito**: sesenta copias de un `ParticleProcessMaterial` en
-## `district_a.tscn` serían sesenta lotes distintos y un archivo enorme.
+## a propósito**: una copia del `ParticleProcessMaterial` por edificio serían
+## cincuenta y nueve lotes distintos en `town_a.tscn` y un archivo enorme.
 func _build_vfx() -> void:
 	_save(_particle_quad(Color(0.62, 0.58, 0.52, 1.0), 7.0), "%s/dust_quad.tres" % RUBBLE_DIR)
 	_save(_particle_quad(Color(0.20, 0.195, 0.20, 1.0), 20.0), "%s/smoke_quad.tres" % RUBBLE_DIR)

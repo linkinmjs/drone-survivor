@@ -1,0 +1,18 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://city/terrain.gdshader" id="1_mlk6r"]
+
+[resource]
+resource_name = "town_terrain"
+render_priority = 0
+shader = ExtResource("1_mlk6r")
+shader_parameter/grass_color = null
+shader_parameter/dirt_color = null
+shader_parameter/rock_color = null
+shader_parameter/sand_color = null
+shader_parameter/patch_scale = null
+shader_parameter/grain_scale = null
+shader_parameter/patch_strength = null
+shader_parameter/grain_strength = null
+shader_parameter/terrain_roughness = null
+shader_parameter/terrain_specular = null

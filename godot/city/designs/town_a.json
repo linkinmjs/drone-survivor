@@ -1,0 +1,240 @@
+{
+	"version": 1,
+	"variation_seed": 20260922,
+	"play_centre": [0.0, 0.0],
+	"play_radius": 140.0,
+	"block_radius": 180.0,
+	"field_size": 1200.0,
+
+	"nodes": [
+		{"id": "n_in", "pos": [-553.15, -86.574]},
+		{"id": "n_out", "pos": [555.912, 36.406]},
+		{"id": "n_b1", "pos": [-163.674, -19.474]},
+		{"id": "n_r1", "pos": [-142.454, -76.761]},
+		{"id": "n_a1", "pos": [-124.364, -125.597]},
+		{"id": "n_b2", "pos": [-105.938, -1.621]},
+		{"id": "n_r2", "pos": [-89.025, -60.241]},
+		{"id": "n_a2", "pos": [-74.608, -110.212]},
+		{"id": "n_b3", "pos": [-44.212, 17.465]},
+		{"id": "n_r3", "pos": [-38.298, -44.555]},
+		{"id": "n_a3", "pos": [-33.256, -97.426]},
+		{"id": "n_b4", "pos": [-21.507, 24.486]},
+		{"id": "n_r4", "pos": [12.627, -28.809]},
+		{"id": "n_a4", "pos": [41.725, -74.241]},
+		{"id": "n_b5", "pos": [44.756, 44.975]},
+		{"id": "n_r5", "pos": [62.946, -13.25]},
+		{"id": "n_a5", "pos": [78.453, -62.884]},
+		{"id": "n_b6", "pos": [105.825, 63.858]},
+		{"id": "n_r6", "pos": [113.523, 2.389]},
+		{"id": "n_a6", "pos": [120.085, -50.011]},
+		{"id": "n_b7", "pos": [149.085, 77.235]},
+		{"id": "n_r7", "pos": [160.918, 17.044]},
+		{"id": "n_a7", "pos": [171.006, -34.266]}
+	],
+
+	"route": {
+		"vertices": [[-553.15, -86.574], [-164.05, -83.439], [223.562, 36.414], [555.912, 36.406]],
+		"width": 10.0, "shoulder": 3.0,
+		"nodes": ["n_in", "n_r1", "n_r2", "n_r3", "n_r4", "n_r5", "n_r6", "n_r7", "n_out"]
+	},
+
+	"streets": [
+		{"id": "c1", "a": "n_b1", "b": "n_a1", "width": 10.614, "sidewalk": 3.0, "kind": "street", "stub_a": 8.53, "stub_b": 12.0, "closure_a": "gate", "closure_b": "gate"},
+		{"id": "c2", "a": "n_b2", "b": "n_a2", "width": 8.834, "sidewalk": 3.0, "kind": "street", "stub_a": 7.755, "stub_b": 11.555, "closure_a": "gate", "closure_b": "gate"},
+		{"id": "c3", "a": "n_b3", "b": "n_a3", "width": 8.955, "sidewalk": 3.0, "kind": "street", "stub_a": 7.972, "stub_b": 16.712, "closure_a": "gate", "closure_b": "gate"},
+		{"id": "c4", "a": "n_b4", "b": "n_a4", "width": 9.776, "sidewalk": 3.0, "kind": "street", "stub_a": 16.757, "stub_b": 10.507, "closure_a": "gate", "closure_b": "gate"},
+		{"id": "c5", "a": "n_b5", "b": "n_a5", "width": 11.256, "sidewalk": 3.0, "kind": "street", "stub_a": 12.767, "stub_b": 9.139, "closure_a": "gate", "closure_b": "gate"},
+		{"id": "c6", "a": "n_b6", "b": "n_a6", "width": 10.074, "sidewalk": 3.0, "kind": "street", "stub_a": 13.097, "stub_b": 14.125, "closure_a": "gate", "closure_b": "gate"},
+		{"id": "c7", "a": "n_b7", "b": "n_a7", "width": 8.382, "sidewalk": 3.0, "kind": "street", "stub_a": 13.006, "stub_b": 12.0, "closure_a": "gate", "closure_b": "gate"},
+		{"id": "back_a", "a": "n_a1", "b": "n_a7", "width": 11.746, "sidewalk": 3.0, "kind": "street", "stub_a": 0.0, "stub_b": 0.0, "closure_a": "none", "closure_b": "none"},
+		{"id": "back_b", "a": "n_b1", "b": "n_b7", "width": 11.429, "sidewalk": 3.0, "kind": "street", "stub_a": 0.0, "stub_b": 0.0, "closure_a": "none", "closure_b": "none"}
+	],
+
+	"blocks": [
+		{
+			"id": "m00", "nodes": ["n_r1", "n_r2", "n_a2", "n_a1"],
+			"datum": "auto", "pad": "garden",
+			"houses": [
+				{"front": "c2", "t": 0.67031, "piece": "house_a", "variant": 0, "color": 0, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.967, "height_scale": 0.935},
+				{"front": "c2", "t": 0.32970, "piece": "house_b_b", "variant": 1, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.967, "height_scale": 1.008}
+			]
+		},
+		{
+			"id": "m01", "nodes": ["n_r2", "n_r3", "n_a3", "n_a2"],
+			"datum": "auto", "pad": "garden",
+			"houses": [
+				{"front": "c3", "t": 0.67196, "piece": "house_c", "variant": 2, "color": 3, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 12.338, "height_scale": 1.025},
+				{"front": "back_a", "t": 0.65636, "piece": "house_d_b", "variant": 3, "color": 0, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 9.351, "height_scale": 0.984},
+				{"front": "back_a", "t": 0.34364, "piece": "shed", "variant": 4, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 9.351, "height_scale": 1.064},
+				{"front": "c2", "t": 0.67030, "piece": "shed", "variant": 4, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.967, "height_scale": 0.97},
+				{"front": "c2", "t": 0.32969, "piece": "house_a_b", "variant": 5, "color": 2, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.967, "height_scale": 1.103}
+			]
+		},
+		{
+			"id": "m02", "nodes": ["n_r3", "n_r4", "n_a4", "n_a3"],
+			"datum": "auto", "pad": "garden",
+			"houses": [
+				{"front": "c4", "t": 0.67317, "piece": "house_d_b", "variant": 3, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 12.623, "height_scale": 1.079},
+				{"front": "c4", "t": 0.32683, "piece": "shed", "variant": 4, "color": 2, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 12.623, "height_scale": 1.021},
+				{"front": "route", "t": 0.74306, "piece": "house_a_b", "variant": 5, "color": 3, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 10.052, "height_scale": 1.094},
+				{"front": "route", "t": 0.49999, "piece": "house_b", "variant": 6, "color": 0, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 10.052, "height_scale": 1.107},
+				{"front": "route", "t": 0.25693, "piece": "house_c_b", "variant": 7, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 10.052, "height_scale": 1.145}
+			]
+		},
+		{
+			"id": "m03", "nodes": ["n_r4", "n_r5", "n_a5", "n_a4"],
+			"datum": "auto", "pad": "garden",
+			"houses": [
+				{"front": "back_a", "t": 0.50001, "piece": "house_a_b", "variant": 5, "color": 0, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 12.86, "height_scale": 0.949},
+				{"front": "c5", "t": 0.67029, "piece": "house_d", "variant": 8, "color": 3, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.964, "height_scale": 0.967},
+				{"front": "c5", "t": 0.32971, "piece": "shed_b", "variant": 9, "color": 0, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.964, "height_scale": 1.145}
+			]
+		},
+		{
+			"id": "m04", "nodes": ["n_r5", "n_r6", "n_a6", "n_a5"],
+			"datum": "auto", "pad": "garden",
+			"houses": [
+				{"front": "c6", "t": 0.67152, "piece": "house_b", "variant": 6, "color": 2, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 12.237, "height_scale": 0.984},
+				{"front": "back_a", "t": 0.49999, "piece": "house_a", "variant": 0, "color": 0, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 15.0, "height_scale": 1.022}
+			]
+		},
+		{
+			"id": "m05", "nodes": ["n_r6", "n_r7", "n_a7", "n_a6"],
+			"datum": "auto", "pad": "garden",
+			"houses": [
+				{"front": "c6", "t": 0.67151, "piece": "house_c_b", "variant": 7, "color": 0, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 12.237, "height_scale": 1.077},
+				{"front": "c6", "t": 0.32848, "piece": "house_d", "variant": 8, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 12.237, "height_scale": 0.978}
+			]
+		},
+		{
+			"id": "m06", "nodes": ["n_r1", "n_b1", "n_b2", "n_r2"],
+			"datum": "auto", "pad": "garden",
+			"houses": [
+				{"front": "c2", "t": 0.74905, "piece": "shed_b", "variant": 9, "color": 3, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.031, "height_scale": 1.16},
+				{"front": "c2", "t": 0.50000, "piece": "house_a", "variant": 0, "color": 2, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.031, "height_scale": 1.089},
+				{"front": "c2", "t": 0.25096, "piece": "house_b_b", "variant": 1, "color": 3, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.031, "height_scale": 0.956},
+				{"front": "back_b", "t": 0.71820, "piece": "house_b_b", "variant": 1, "color": 3, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 13.627, "height_scale": 1.108}
+			]
+		},
+		{
+			"id": "m07", "nodes": ["n_r2", "n_b2", "n_b3", "n_r3"],
+			"datum": "auto", "pad": "garden",
+			"houses": [
+				{"front": "c3", "t": 0.75080, "piece": "house_c", "variant": 2, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.344, "height_scale": 0.964},
+				{"front": "c3", "t": 0.50001, "piece": "house_d_b", "variant": 3, "color": 2, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.344, "height_scale": 1.168},
+				{"front": "c3", "t": 0.24921, "piece": "shed", "variant": 4, "color": 3, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.344, "height_scale": 1.161},
+				{"front": "c2", "t": 0.74904, "piece": "house_c", "variant": 2, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.031, "height_scale": 0.968},
+				{"front": "c2", "t": 0.50000, "piece": "house_d_b", "variant": 3, "color": 2, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.031, "height_scale": 1.133},
+				{"front": "c2", "t": 0.25095, "piece": "shed", "variant": 4, "color": 3, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.031, "height_scale": 1.16}
+			]
+		},
+		{
+			"id": "m08", "nodes": ["n_r3", "n_b3", "n_b4", "n_r4"],
+			"datum": "auto", "pad": "garden",
+			"houses": [
+				{"front": "c3", "t": 0.75079, "piece": "house_a_b", "variant": 5, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.344, "height_scale": 1.037},
+				{"front": "c3", "t": 0.49999, "piece": "house_b", "variant": 6, "color": 2, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.344, "height_scale": 1.161},
+				{"front": "c4", "t": 0.50001, "piece": "house_a_b", "variant": 5, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.582, "height_scale": 1.152},
+				{"front": "c4", "t": 0.24793, "piece": "house_b", "variant": 6, "color": 2, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.582, "height_scale": 1.043}
+			]
+		},
+		{
+			"id": "m09", "nodes": ["n_r4", "n_b4", "n_b5", "n_r5"],
+			"datum": "auto", "pad": "garden",
+			"houses": [
+				{"front": "back_b", "t": 0.75890, "piece": "house_c_b", "variant": 7, "color": 0, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 12.987, "height_scale": 1.062},
+				{"front": "back_b", "t": 0.49999, "piece": "house_d", "variant": 8, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 12.987, "height_scale": 1.056},
+				{"front": "back_b", "t": 0.24108, "piece": "shed_b", "variant": 9, "color": 2, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 12.987, "height_scale": 1.176},
+				{"front": "c4", "t": 0.50000, "piece": "house_c_b", "variant": 7, "color": 0, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.582, "height_scale": 0.974},
+				{"front": "c4", "t": 0.24792, "piece": "house_d", "variant": 8, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.582, "height_scale": 1.027}
+			]
+		},
+		{
+			"id": "m10", "nodes": ["n_r5", "n_b5", "n_b6", "n_r6"],
+			"datum": "auto", "pad": "garden",
+			"houses": [
+				{"front": "c6", "t": 0.75033, "piece": "house_a", "variant": 0, "color": 2, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.258, "height_scale": 0.966},
+				{"front": "c6", "t": 0.50000, "piece": "house_b_b", "variant": 1, "color": 3, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.258, "height_scale": 1.013},
+				{"front": "c6", "t": 0.24968, "piece": "house_c", "variant": 2, "color": 0, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.258, "height_scale": 1.007},
+				{"front": "back_b", "t": 0.50000, "piece": "shed_b", "variant": 9, "color": 3, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.454, "height_scale": 0.925},
+				{"front": "back_b", "t": 0.24860, "piece": "house_a", "variant": 0, "color": 2, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.454, "height_scale": 0.958}
+			]
+		},
+		{
+			"id": "m11", "nodes": ["n_r6", "n_b6", "n_b7", "n_r7"],
+			"datum": "auto", "pad": "garden",
+			"houses": [
+				{"front": "c6", "t": 0.75032, "piece": "house_b_b", "variant": 1, "color": 0, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.258, "height_scale": 1.117},
+				{"front": "c6", "t": 0.50000, "piece": "house_c", "variant": 2, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.258, "height_scale": 0.934},
+				{"front": "c6", "t": 0.24967, "piece": "house_d_b", "variant": 3, "color": 2, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.258, "height_scale": 1.033}
+			]
+		}
+	],
+
+	"poi": [
+		{"id": "school", "piece": "tower_b", "pos": [-17.422, -23.708], "yaw_deg": -17.182, "footprint": [21.0, 11.5], "height_scale": 1.15, "role": "school", "name_key": "BLD_SCHOOL", "silhouette": "block", "story": []},
+		{"id": "landmark", "piece": "tower_b", "pos": [91.854, -18.704], "yaw_deg": 162.818, "footprint": [21.0, 11.5], "height_scale": 1.45, "role": "landmark", "name_key": "BLD_LANDMARK", "silhouette": "tower", "story": []},
+		{"id": "mid_0", "piece": "block_mid", "pos": [32.445, -8.289], "yaw_deg": -17.182, "footprint": [21.0, 11.5], "height_scale": 1.249, "role": "medium", "name_key": "BLD_MID_0", "silhouette": "block", "story": []},
+		{"id": "mid_1", "piece": "tower_b", "pos": [-66.962, -39.026], "yaw_deg": -17.182, "footprint": [21.0, 11.5], "height_scale": 1.016, "role": "medium", "name_key": "BLD_MID_1", "silhouette": "block", "story": []},
+		{"id": "mid_2", "piece": "block_mid", "pos": [42.704, -33.901], "yaw_deg": 162.818, "footprint": [21.0, 11.5], "height_scale": 1.046, "role": "medium", "name_key": "BLD_MID_2", "silhouette": "block", "story": []},
+		{"id": "mid_3", "piece": "tower_b", "pos": [-60.571, -65.835], "yaw_deg": 162.818, "footprint": [21.0, 11.5], "height_scale": 1.034, "role": "medium", "name_key": "BLD_MID_3", "silhouette": "block", "story": []},
+		{"id": "mid_4", "piece": "block_low_c", "pos": [85.061, 7.98], "yaw_deg": -17.182, "footprint": [21.0, 11.5], "height_scale": 1.091, "role": "medium", "name_key": "BLD_MID_4", "silhouette": "block", "story": []}
+	],
+
+	"creek": {
+		"polyline": [[-275.344, 73.025], [-230.516, 27.347], [-199.201, -23.833], [-182.672, -83.589], [-174.674, -112.503], [-167.1, -139.146], [-151.635, -161.388], [-130.856, -178.691], [-106.177, -189.862], [-79.817, -195.435], [-53.707, -197.464], [-28.663, -198.527], [-4.253, -200.442], [20.599, -203.34], [46.644, -205.562], [101.189, -225.282], [154.402, -257.1]],
+		"width": 6.0, "depth": 2.4, "bank": 9.0
+	},
+	"bridge": {"at": [-182.672, -83.589], "span": 16.0, "deck_width": 12.0},
+
+	"groves": [],
+	"fences": [],
+	"props": [],
+
+	"decor_houses": [
+		// 00 estaba en [-164.332, -93.442]: a 10,0 m del eje de la ruta —media calzada más
+		// banquina son 8 m— y su pad aplanaba la banquina. Movida 34,01 m al sursureste:
+		// 43,2 m a la ruta, 20,15 m al eje del arroyo, 15,6 m fuera de la franja de la calle 1
+		// y 14,01 m de la 04. Los 15,6 m de calle no son coquetería: el pad de una casa de
+		// caserío aplana un disco de unos 7,2 m de radio, y con el metro que pedía el encargo
+		// el pad levantaba el terreno 1,5 cm por encima del asfalto (`city_check`) (WP-T5).
+		{"piece": "house_a", "pos": [-150.332, -124.442], "yaw_deg": 179.538, "width": 10.241, "height_scale": 1.072},
+		{"piece": "house_b_b", "pos": [-159.044, -59.387], "yaw_deg": -17.182, "width": 9.922, "height_scale": 1.149},
+		{"piece": "house_c", "pos": [-151.694, -96.797], "yaw_deg": 162.818, "width": 10.39, "height_scale": 1.057},
+		{"piece": "house_d_b", "pos": [-168.562, -68.498], "yaw_deg": -0.462, "width": 11.149, "height_scale": 0.937},
+		// 04 estaba en [-180.883, -96.89]: a 1,82 m del eje del arroyo, o sea **dentro del
+		// cauce**, y su pad aplanaba el lecho. Movida 30,41 m al este, a la cuña que queda
+		// entre el arroyo y la ruta: 20,44 m al arroyo, 29,2 m a la ruta y 14,3 m fuera de
+		// la franja de la calle 1 (WP-T5).
+		{"piece": "shed", "pos": [-153.883, -110.89], "yaw_deg": 179.538, "width": 10.72, "height_scale": 0.946},
+		// 05 estaba en [-192.334, -62.752]: a 3,76 m del eje del arroyo, también dentro del
+		// cauce. Al este la tapan la 01 y la 03 —quedaría a menos de 14 m de las dos—, así
+		// que cruza a la barranca de enfrente, cerca del puente: 16,29 m al oeste, 20,03 m al
+		// arroyo, 16,04 m a la ruta y r 218,6 m, dentro de la banda 150–220 (WP-T5).
+		{"piece": "house_a_b", "pos": [-207.834, -67.752], "yaw_deg": -0.462, "width": 9.637, "height_scale": 1.118},
+		{"piece": "house_b", "pos": [172.991, -1.727], "yaw_deg": 162.818, "width": 9.502, "height_scale": 1.161},
+		{"piece": "house_c_b", "pos": [165.235, 37.743], "yaw_deg": -17.182, "width": 10.009, "height_scale": 1.02},
+		{"piece": "house_d", "pos": [186.224, 7.462], "yaw_deg": 162.818, "width": 10.433, "height_scale": 1.065},
+		{"piece": "shed_b", "pos": [185.074, 46.038], "yaw_deg": -17.182, "width": 9.69, "height_scale": 0.959},
+		{"piece": "house_a", "pos": [208.605, 11.59], "yaw_deg": 162.818, "width": 10.996, "height_scale": 1.147},
+		{"piece": "house_b_b", "pos": [207.494, 45.552], "yaw_deg": -17.182, "width": 10.132, "height_scale": 1.093}
+	],
+
+	"rocks": [
+		{"piece": "rock_a", "pos": [18.298, -216.404], "yaw_deg": 0.0},
+		{"piece": "rock_b", "pos": [197.034, -142.351], "yaw_deg": 0.0},
+		{"piece": "rock_c", "pos": [97.18, 189.036], "yaw_deg": 0.0},
+		{"piece": "rock_d", "pos": [-101.703, 250.3], "yaw_deg": 0.0},
+		{"piece": "rock_e", "pos": [-36.15, -206.559], "yaw_deg": 0.0},
+		{"piece": "rock_f", "pos": [131.703, -160.378], "yaw_deg": 0.0}
+	],
+
+	"terrain": {
+		"seed": 4711,
+		"hills": {"wavelength": 120.0, "amplitude": 3.5},
+		"grain": {"wavelength": 25.0, "amplitude": 0.6},
+		"fade": [230.0, 256.0],
+		"route_grade_max": 0.02,
+		"mask_feather": 12.0
+	}
+}

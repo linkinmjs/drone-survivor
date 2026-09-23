@@ -24,3 +24,6 @@ builds/*
 !builds/windows/
 builds/windows/*
 !builds/windows/.gitkeep
+
+# Teoría de level design (libro con derechos, solo local)
+godot/docs/pdfs/

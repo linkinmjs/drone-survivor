@@ -109,6 +109,16 @@ const FALLBACK_ROUND_ID: String = "first-contact"
 ## Nombre de los marcadores de aparición del distrito (`docs/10`, `docs/11` §4.2).
 const SPAWN_MARKER_PREFIX: String = "EnemySpawn"
 
+## Marcador del distrito con la pose de aparición del dron. Si el distrito lo trae,
+## [method _adopt_district_markers] lo impone sobre el del nivel.
+const DRONE_SPAWN_NODE: String = "DroneSpawn"
+
+## Marcador del distrito con la pose de la cámara fija de reaparición.
+const CAMERA_POSE_NODE: String = "CameraFixedPose"
+
+## Contenedor del distrito con los puestos de pila (`docs/09` §2.5).
+const BATTERY_POSTS_NODE: String = "BatteryPosts"
+
 ## Prioridad que recibe el edificio protegido (`docs/11` §1). Lo pone por encima
 ## del jefe en los marcadores fuera de cuadro (`docs/12` §4.1).
 const PROTECTED_PRIORITY: float = 3.0
@@ -673,6 +683,91 @@ func _spawn_district() -> void:
 	if city_integrity != null:
 		city_integrity.grid = _district
 		city_integrity.rebuild()
+	_adopt_district_markers(district)
+
+
+## Le deja al distrito imponer dónde aparecen el dron, la cámara fija y las pilas.
+##
+## **Por qué el distrito manda.** Hasta el pueblo de ruta, el nivel de batalla
+## traía esas tres cosas cableadas a mano con coordenadas copiadas del distrito
+## rectangular: la azotea de reaparición en (120, 1.5, 200), la cámara fija en
+## (0, 120, 240) y los ocho puestos de pila sobre cruces de calle concretos. Eso
+## sólo funciona mientras haya **un** distrito. Con dos —o con uno generado por
+## semilla— el barrio es el único que sabe dónde hay una azotea despejada y dónde
+## una esquina sin edificio, así que el barrio los publica como marcadores y el
+## nivel los adopta.
+##
+## **Compatibilidad**: lo que el distrito no traiga, no se toca. Un distrito sin
+## `DroneSpawn`, sin `CameraFixedPose` y sin `BatteryPosts` —el rectangular de P2—
+## deja el nivel exactamente como estaba, así que las tres cosas del nivel son a la
+## vez el caso viejo y el respaldo del nuevo.
+##
+## `TownCentre` **no se adopta**: es un grupo (`town_centre`) y quien lo necesita
+## —el jefe, en [method Arachnodroid.city_centre]— lo pide por grupo, que es lo que
+## `docs/11` §3 pide para que el enemigo no conozca al distrito.
+func _adopt_district_markers(district: Node3D) -> void:
+	if district == null or not is_instance_valid(district):
+		return
+	_adopt_drone_spawn(district)
+	_adopt_fixed_camera(district)
+	_adopt_battery_posts(district)
+
+
+## Manda el punto de reaparición y el conjunto del dron a la pose del `DroneSpawn`.
+##
+## Se mueven **los dos**: el `Respawn` del nivel, que es lo que
+## [method DroneRig.respawn] va a leer en cada reconstrucción, y el conjunto vivo,
+## que si no arrancaría la ronda sobre la azotea del distrito anterior.
+##
+## Al cuerpo del dron se le escribe la transformada **además** de moverle el padre:
+## un [RigidBody3D] lleva su propia copia en el servidor de física y no se entera de
+## que su conjunto se movió. Es seguro hacerlo acá porque esto corre dentro del
+## `_ready()` del nivel, antes del primer paso de física.
+func _adopt_drone_spawn(district: Node3D) -> void:
+	var marker := district.find_child(DRONE_SPAWN_NODE, true, false) as Node3D
+	if marker == null:
+		return
+	var pose := marker.global_transform
+	if _level != null and _level.respawn_point != null \
+			and is_instance_valid(_level.respawn_point):
+		_level.respawn_point.global_transform = pose
+	if drone_rig == null or not is_instance_valid(drone_rig):
+		return
+	drone_rig.global_transform = pose
+	var drone := drone_rig.get_drone()
+	if drone == null or not is_instance_valid(drone):
+		return
+	drone.global_transform = pose
+	drone.linear_velocity = Vector3.ZERO
+	drone.angular_velocity = Vector3.ZERO
+
+
+## Manda la cámara fija de reaparición a la pose del `CameraFixedPose`.
+##
+## Es la cámara que encuadra la ciudad mientras el dron se reconstruye y en la
+## derrota (`docs/09` §2.8, `docs/11` §4.1), así que tiene que mirar **este** barrio
+## y no el centro del anterior.
+func _adopt_fixed_camera(district: Node3D) -> void:
+	var marker := district.find_child(CAMERA_POSE_NODE, true, false) as Node3D
+	if marker == null:
+		return
+	var pose := marker.global_transform
+	if respawn_camera != null and is_instance_valid(respawn_camera):
+		respawn_camera.global_transform = pose
+	if _level != null and _level.respawn_camera != null \
+			and is_instance_valid(_level.respawn_camera) \
+			and _level.respawn_camera != respawn_camera:
+		_level.respawn_camera.global_transform = pose
+
+
+## Le pasa al spawner los puestos de pila del distrito.
+func _adopt_battery_posts(district: Node3D) -> void:
+	if battery_spawner == null or not is_instance_valid(battery_spawner):
+		return
+	var posts := district.find_child(BATTERY_POSTS_NODE, true, false) as Node3D
+	if posts == null:
+		return
+	battery_spawner.adopt_markers(posts)
 
 
 ## Resuelve el edificio protegido de la ronda (`docs/11` §1).
@@ -1000,7 +1095,7 @@ func _freeze_drone(frozen: bool) -> void:
 ## La semilla `"intro"` decide de qué lado entra la cámara, así que dos partidas
 ## con la misma semilla abren igual (`docs/11` §4.4).
 func _prepare_intro_camera() -> void:
-	var city := district_root.global_position if district_root != null else Vector3.ZERO
+	var city := _city_focus()
 	var enemy := _ctx.first_enemy() if _ctx != null else null
 	var boss := enemy.global_position if enemy != null else city + Vector3(0.0, 0.0, -184.0)
 
@@ -1016,6 +1111,30 @@ func _prepare_intro_camera() -> void:
 	_intro_to = boss + away * INTRO_END_FORWARD 			+ side * (lateral * INTRO_END_SIDE) + Vector3.UP * INTRO_END_HEIGHT
 	_intro_look_from = boss + Vector3.UP * INTRO_LOOK_START_HEIGHT
 	_intro_look_to = boss + Vector3.UP * INTRO_LOOK_END_HEIGHT
+
+
+## Hacia dónde mira «la ciudad» para la cinemática, en coordenadas globales.
+##
+## El barrio lo publica con `play_centre()` —el centro del círculo de juego del
+## plano del pueblo— y eso es lo que decide de qué lado entra la cámara. Un barrio
+## que no lo publique se cae al origen del contenedor, que es lo que se usaba hasta
+## el pueblo. Va por `has_method` y no por tipo porque el nivel de batalla es uno
+## para todas las rondas y nada le garantiza que el barrio de la que venga publique
+## un plano.
+##
+## **El `to_global` no sobra.** El contrato de `CityGrid` dice que `play_centre()`
+## devuelve global, pero la implementación devuelve `plan.play_centre` tal cual, o
+## sea en el espacio del distrito. Hoy da igual porque el distrito se instancia en
+## el origen de `District`; el día que se lo mueva —dos barrios en una ronda, un
+## offset para el streaming— la cámara de la cinemática entraría por el lado
+## equivocado, y es el tipo de bug que no se ve hasta que se ve. Transformar un
+## punto que ya está en global es idempotente mientras el contenedor esté en el
+## origen, así que esto es correcto con las dos lecturas del contrato.
+func _city_focus() -> Vector3:
+	if _district != null and is_instance_valid(_district) \
+			and _district.has_method(&"play_centre"):
+		return _district.to_global(_district.call(&"play_centre") as Vector3)
+	return district_root.global_position if district_root != null else Vector3.ZERO
 
 
 ## Interpola la pose con un `smoothstep` para que el arranque y el final no tengan

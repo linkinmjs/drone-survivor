@@ -61,9 +61,10 @@ const ROW_TITLES: Array[String] = [
 ## Cuántos componentes tiene el `CombatHUD` tras WP-25b.
 const COMPONENT_COUNT: int = 18
 
-## Avenidas que tiene que dibujar el mapa de la alerta: una por eje
-## (`CityGrid.avenue_gap_col` y `avenue_gap_row`, `docs/10` §4.2).
-const AVENUE_COUNT: int = 2
+## Manzanas que tiene que dibujar el mapa de la alerta, como mínimo. La cuenta
+## exacta se compara contra el plano que se le ata; esto sólo descarta el caso de
+## un plano vacío que haría pasar la fila por casualidad.
+const MIN_BLOCKS_DRAWN: int = 4
 
 ## Grupos de la barra del jefe, como `[primera_barra, cuántas, clave del rótulo]`
 ## (`docs/07` §4: 4 rodillas, 1 visor, 3 núcleos).
@@ -240,11 +241,36 @@ func _check_alert() -> void:
 			hidden.append(label)
 	var drew := screen.draw_count > 0
 
-	# 2. El mapa es el barrio de verdad: las manzanas de la rejilla y sus dos avenidas.
-	var district := _manager.get_district()
-	var blocks := district.block_count() if district != null else -1
-	var map_ok := screen.has_map() and screen.block_count() == blocks \
-			and screen.avenue_count() == AVENUE_COUNT
+	# 2. El mapa es el barrio de verdad: las manzanas, la ruta y el círculo del plano.
+	#
+	#    Se mide **dos veces**, y las dos hacen falta.
+	#
+	#    Primero contra el barrio de la ronda, que es el que se juega: si el pueblo
+	#    cambia de forma o deja de publicar su plano, la fila lo dice.
+	#
+	#    Y después contra un pueblo **armado a mano** (`FakeTown`), que es el que fija
+	#    el dibujo: trae nueve manzanas y cuatro tramos de ruta escritos a mano, a
+	#    propósito **distintos** de los doce y tres del pueblo real. Esa diferencia es
+	#    lo que le da sentido a medir dos veces: con los mismos números, un error de
+	#    conteo en `_draw_blocks()` o `_draw_route()` daría igual en las dos mitades y
+	#    ninguna lo vería. Es además el único plano que sigue midiendo algo si mañana
+	#    la ronda 1 corre sobre un barrio sin plano.
+	var round_ok: bool = await _check_map_against(screen, _manager.get_district())
+
+	var town := FakeTown.district()
+	add_child(town)
+	var plan := town.get_plan()
+	var double_ok: bool = await _check_map_against(screen, town)
+	await _shoot("alert_town")
+	var map_ok := round_ok and double_ok \
+			and screen.block_count() == plan.block_count() \
+			and screen.route_segments() == plan.route.size() - 1
+
+	# Y se lo devuelve a la ronda, para que las comprobaciones que siguen midan lo
+	# que la ronda dibuja de verdad.
+	town.queue_free()
+	screen.bind_round(_manager)
+	await _advance(STEP)
 
 	# 3. Las dos voces, traducidas y con sus datos adentro.
 	var protect := screen.protected_text()
@@ -282,15 +308,15 @@ func _check_alert() -> void:
 	var handover := state == Global.RoundState.INTRO and not screen.visible \
 			and city != null and city.visible and banner != null and banner.visible
 
-	print("  [20] %d manzanas y %d avenidas · «%s» · «%s» · corte %s → %s"
-			% [screen.block_count(), screen.avenue_count(), protect, enemy,
-			str(cut), str(done)])
+	print("  [20] mapa %s · «%s» · «%s» · corte %s → %s"
+			% [str(map_ok), protect, enemy, str(cut), str(done)])
 	_row(20, shown.is_empty() and hidden.is_empty() and drew,
 			"20 · en ALERT sobran [%s], faltan [%s], el monitor dibujó %s"
 			% [", ".join(shown), ", ".join(hidden), str(drew)])
-	_row(20, map_ok, "20 · el mapa dibuja %d manzanas (la rejilla tiene %d) y %d avenidas "
-			% [screen.block_count(), blocks, screen.avenue_count()]
-			+ "(esperadas %d), con barrio %s" % [AVENUE_COUNT, str(screen.has_map())])
+	_row(20, map_ok, "20 · el mapa dibuja el plano entero del barrio de la ronda (%s) y "
+			% str(round_ok)
+			+ "el del pueblo de prueba (%s); el detalle va en las líneas [20] de arriba"
+			% str(double_ok))
 	_row(20, protect_ok and enemy_ok and counting,
 			"20 · rótulo del protegido «%s» (%s), línea del enemigo «%s» (%s), cuenta «%s»"
 			% [protect, str(protect_ok), enemy, str(enemy_ok), screen.remaining_text()])
@@ -304,6 +330,35 @@ func _check_alert() -> void:
 			% [state, "visible" if screen.visible else "oculto"]
 			+ "CityBar %s / IntroBanner %s"
 			% [str(city != null and city.visible), str(banner != null and banner.visible)])
+
+
+## Ata [param district] al mapa de la alerta y devuelve `true` si dibujó su plano
+## entero: una manzana por cada manzana, un tramo por cada tramo de ruta y el
+## círculo de juego.
+##
+## Devuelve `false` —sin reventar— si el barrio no publica plano: ahí la pantalla
+## degrada a propósito y no hay nada que contar, pero tampoco es lo que la fila 20
+## quiere ver.
+func _check_map_against(screen: HUDAlertScreen, district: Node3D) -> bool:
+	if district == null or not district.has_method(&"get_plan"):
+		print("  [20] %s no publica get_plan(): el mapa degradaría"
+				% [district.name if district != null else "sin distrito"])
+		return false
+	if not screen.bind_district(district):
+		return false
+	await _advance(STEP)
+	var plan := district.call(&"get_plan") as Object
+	if plan == null:
+		return false
+	var blocks := int(plan.call(&"block_count"))
+	var route := plan.get(&"route") as PackedVector3Array
+	print("  [20] %s: %d/%d manzanas · %d/%d tramos de ruta · círculo %s"
+			% [district.name, screen.block_count(), blocks, screen.route_segments(),
+			route.size() - 1, str(screen.ring_drawn())])
+	return screen.has_map() and blocks >= MIN_BLOCKS_DRAWN \
+			and screen.block_count() == blocks \
+			and screen.route_segments() == route.size() - 1 \
+			and screen.ring_drawn()
 
 
 # --- Fila 11 (se mide primero, en `INTRO`) ----------------------------------------------------

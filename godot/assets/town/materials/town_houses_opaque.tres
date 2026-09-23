@@ -1,0 +1,14 @@
+[gd_resource type="StandardMaterial3D" load_steps=2 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/town/nuke_town_palette.png" id="1_albedo"]
+
+[resource]
+resource_name = "town_houses_opaque"
+albedo_texture = ExtResource("1_albedo")
+metallic_specular = 0.25
+roughness = 0.85
+; La paleta es de 256x1 y la UV cae en el centro del pixel `indice - 1`. Con
+; cualquier filtro que no sea NEAREST el muestreo sangra al color vecino y una
+; pared beige se tinta del verde de la ventana de al lado. `docs/02` §7.3.
+; 0 = TEXTURE_FILTER_NEAREST.
+texture_filter = 0

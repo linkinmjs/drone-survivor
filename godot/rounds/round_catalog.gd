@@ -50,7 +50,7 @@ const ROUNDS: Array[Dictionary] = [
 		"id": "first-contact",
 		"name_key": "ROUND_FIRST_CONTACT_NAME",
 		"goal_key": "ROUND_FIRST_CONTACT_GOAL",
-		"district": "res://city/districts/district_a.tscn",
+		"district": "res://city/districts/town_a.tscn",
 		"enemies": ["arachnodroid"],
 		"time_par": 540.0,
 		# **Umbrales recalibrados en WP-23** con los puntajes medidos por
@@ -77,23 +77,27 @@ const ROUNDS: Array[Dictionary] = [
 		"unlock_after": "",
 		# **Edificio protegido** (WP-25b, `docs/11` §1 y `docs/narrativa` §5 y §8).
 		#
-		# `building` es el **nombre de nodo** dentro del `Buildings` de
-		# `district_a.tscn`, que es estable porque el distrito está horneado con
-		# semilla 0 y no se regenera. Se eligió `Building_8_4` —bloque medio,
-		# `BuildingBlock_18`, 16,2 m— porque:
+		# `building` es el **nombre de nodo** dentro del `Buildings` del distrito, que
+		# es estable porque el distrito está horneado y no se regenera en tiempo de
+		# ejecución. En el pueblo de ruta la escuela **se llama escuela**: el
+		# planificador le da a la parcela el rol `SCHOOL` y el horneado la nombra
+		# `Building_School`, así que ya no hay que elegir a mano una celda de la
+		# retícula ni justificar por qué esa y no otra.
 		#
-		# 1. las cuatro celdas que tocan el cruce de avenidas (`Building_8_5`,
-		#    `_10_5`, `_8_7`, `_10_7`) son los hitos de 74–80 m, y `docs/11` §1
-		#    prohíbe usar uno;
-		# 2. es el edificio **no hito** más cercano al cruce sobre la recta que va
-		#    de `EnemySpawn0` (0, −176) —el marcador que usa la ronda 1— al centro:
-		#    en el mapa de la alerta el chevrón del enemigo y la escuela quedan en
-		#    la misma línea, que es lo que la pantalla tiene que contar;
-		# 3. con 3 500 HP de perfil torre y el peso ×3 de `CityIntegrity` la
-		#    escuela vale el 8,7 % del barrio, suficiente para que su caída se vea
-		#    en la barra EN PIE sin volverla una derrota encubierta.
+		# **Historia de este campo.** Hasta WP-C la ronda 1 corría sobre
+		# `district_a.tscn` —la retícula rectangular— y acá decía `Building_8_4`: un
+		# bloque medio elegido por ser el edificio no hito más cercano al cruce de
+		# avenidas sobre la recta de `EnemySpawn0` al centro. Con el pueblo esa
+		# elección desaparece, y con ella la única razón por la que el nombre del nodo
+		# tenía que explicarse en un comentario de diez líneas.
+		#
+		# `district` y `building` **van juntos**: `Building_School` sólo existe en el
+		# pueblo. Cambiar uno sin el otro deja a `RoundManager._resolve_protected()`
+		# sin encontrarlo —avisa con `push_warning` y la ronda se juega sin protegido—.
+		# `tools/round_check.gd` lee el nombre de acá con `RoundCatalog.protected_of()`
+		# en vez de repetirlo, así que el check acompaña el cambio solo.
 		"protected": {
-			"building": "Building_8_4",
+			"building": "Building_School",
 			"name_key": "BLD_SCHOOL_12",
 			"kind": &"school",
 		},

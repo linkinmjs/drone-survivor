@@ -151,7 +151,7 @@ signal damage_taken(amount: float, point: Vector3)
 ## Transformada de [member stage_intact] **sin** variación de altura, ya
 ## recentrada sobre la huella. Es el punto de partida de la escala y del
 ## hundimiento; se guarda explícitamente porque la transformada que queda en
-## `district_a.tscn` ya lleva la variación aplicada y leerla en `_ready()`
+## `town_a.tscn` ya lleva la variación aplicada y leerla en `_ready()`
 ## volvería a multiplicar la altura en cada carga.
 @export var intact_rest_transform: Transform3D = Transform3D.IDENTITY
 
@@ -226,7 +226,7 @@ func _ready() -> void:
 	if rubble_pile != null:
 		_pile_rest_scale = rubble_pile.scale
 	# Las formas se **desclonan y se recalculan en cada carga**, no se guardan en
-	# `district_a.tscn`: los nodos internos de una escena instanciada no
+	# `town_a.tscn`: los nodos internos de una escena instanciada no
 	# conservan sus anulaciones al empaquetar, así que las diez instancias de una
 	# misma pieza compartirían el `BoxShape3D` del `PackedScene` y la variación
 	# de altura de un edificio reescribiría la de sus hermanos. El estado que se
@@ -262,6 +262,15 @@ func _exit_tree() -> void:
 	if tree != null and tree.get_nodes_in_group(GROUP).size() <= 1:
 		reset_emitters()
 		_vfx_pool = null
+		# Las dos cachés de material se purgan por el mismo motivo y en el mismo
+		# momento: son `static`, así que sobreviven al distrito y guardan copias
+		# de material **por pieza del distrito que se fue**. Sin esto, cargar una
+		# ronda tras otra las va acumulando —cada pueblo nuevo aporta sus copias y
+		# ninguna se suelta—, y las copias retienen sus texturas en VRAM. La
+		# única razón por la que hasta ahora no se vio es que el distrito era
+		# siempre el mismo.
+		_damage_materials.clear()
+		_dark_materials.clear()
 
 
 func _physics_process(delta: float) -> void:
@@ -426,14 +435,31 @@ func display_name() -> String:
 # --------------------------------------------------------------------------
 
 ## Aplica la variación de `docs/10` §4.3: [param new_height_scale] sobre la
-## malla y [param yaw_steps] cuartos de vuelta sobre el cuerpo.
+## malla y [param yaw_steps] **cuartos de vuelta** sobre el cuerpo.
+##
+## Es la forma corta de [method apply_variation_yaw] y la que usa la retícula
+## rectangular, donde una fachada sólo puede mirar a uno de los cuatro puntos
+## cardinales.
+func apply_variation(new_height_scale: float, yaw_steps: int) -> void:
+	apply_variation_yaw(new_height_scale, float(yaw_steps) * (PI * 0.5))
+
+
+## Aplica la variación con un giro **libre** [param yaw], en radianes.
+##
+## Lo pide el pueblo de ruta: una parcela se planta mirando a su frente de calle, y
+## una calle que dobla dos veces no deja las fachadas en múltiplos de 90°. El giro
+## entra tal cual, sin redondear: redondearlo dejaría la casa cruzada respecto de
+## su vereda, que es justo lo que se ve.
 ##
 ## **No escala el `StaticBody3D`.** Escala el [Node3D] que contiene la malla y
 ## **reescribe** `BoxShape3D.size.y` y la posición de las dos formas. Escalar un
 ## cuerpo físico produce formas inconsistentes en Jolt y `docs/03` lo prohíbe.
-func apply_variation(new_height_scale: float, yaw_steps: int) -> void:
+##
+## El giro sí va sobre el cuerpo entero y eso es legítimo: rotar un cuerpo físico
+## no deforma nada, y las dos cajas siguen siendo cajas.
+func apply_variation_yaw(new_height_scale: float, yaw: float) -> void:
 	height_scale = maxf(new_height_scale, 0.05)
-	rotation = Vector3(0.0, float(yaw_steps) * (PI * 0.5), 0.0)
+	rotation = Vector3(0.0, yaw, 0.0)
 	_place_intact(height_scale, 0.0)
 	_place_props()
 	refresh_shapes()
@@ -591,11 +617,15 @@ func _finish_collapse() -> void:
 ##
 ## La oclusión por oclusores está apagada en todos los presets desde WP-24e
 ## (`Graphics.use_occlusion_culling()`), así que hoy esto no cambia un solo píxel.
-## Existe igual porque **el bug era éste**: los 15 oclusores se hornean en
-## `district_a.tscn` ceñidos al edificio más alto de cada manzana y nadie los
-## retiraba al derrumbarlo, así que quedaba una losa opaca invisible de hasta 75 m
-## tapando al coloso y tragándose el cuadro cuando la cámara entraba en ella. Con
-## esto, volver a encender la oclusión es cambiar una línea del `project.godot`.
+## Existe igual porque **el bug era éste**: el distrito rectangular de P2 horneaba
+## 15 oclusores ceñidos al edificio más alto de cada manzana y nadie los retiraba
+## al derrumbarlo, así que quedaba una losa opaca invisible de hasta 75 m tapando
+## al coloso y tragándose el cuadro cuando la cámara entraba en ella. Con esto,
+## volver a encender la oclusión es cambiar una línea del `project.godot`.
+##
+## El pueblo de ruta de P2b no hornea ninguno —`CityGrid.occluder_for()` devuelve
+## siempre `null` y `city_check` lo verifica—, así que hoy esta rama no se toma
+## nunca. Se conserva porque el que vuelva a hornear oclusores la va a necesitar.
 ##
 ## Se usa `visible`, que es lo que el `RenderingServer` mira para armar la lista de
 ## oclusores del escenario, y no borrar el recurso: así [method reset] lo devuelve
@@ -754,7 +784,7 @@ func _resolve_damage_material() -> ShaderMaterial:
 	if _damage_materials.has(key):
 		return _damage_materials[key] as ShaderMaterial
 
-	var shader := ResourceLoader.load(DAMAGE_SHADER_PATH, "Shader") as Shader
+	var shader: Shader = profile.damage_shader if profile != null and profile.damage_shader != null else ResourceLoader.load(DAMAGE_SHADER_PATH, "Shader") as Shader
 	if shader == null:
 		push_error("Building: no se pudo cargar '%s'." % DAMAGE_SHADER_PATH)
 		return null

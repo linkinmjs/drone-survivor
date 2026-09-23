@@ -1,83 +1,94 @@
 ## Copyright (c) 2026 Drone Survivor. Todos los derechos reservados.
 ##
-## Rejilla del distrito (`docs/10` §4).
+## Constructor del **pueblo de ruta** (`docs/10` §4, reescrito por WP-B).
 ##
-## Siembra manzanas de `block_span × block_span` celdas de edificio separadas por
-## **calles de verdad** —vereda, cordón y calzada— coloca **exactamente**
-## [method building_count] edificios con la fachada sobre la línea municipal,
-## dibuja calzada, cruces y veredas con cinco [MultiMeshInstance3D], apoya todo
-## sobre una única caja de suelo y remata con oclusores, rocas y puntos de
-## aparición.
+## Toma un [TownPlan] —que es aritmética pura, sin un solo asset— y lo convierte
+## en escena: una caja de suelo, la red viaria en cinco [MultiMeshInstance3D] sin
+## colisión, un [Building] por parcela destructible, dos caseríos decorativos,
+## seis rocas y los marcadores de la ronda. El resultado se empaqueta como
+## `city/districts/town_a.tscn` desde `tools/build_town.gd`.
 ##
-## Es `@tool` para poder regenerar el distrito desde el editor, pero **nunca**
-## construye sola: [method build] se llama a mano o desde
-## `tools/build_district.gd`. El resultado se guarda como escena concreta
-## `city/districts/district_a.tscn` y es lo que instancia `RoundManager`
-## (`docs/10` §12, decisión 10): así los oclusores, la iluminación y `city_check`
-## son reproducibles.
+## Es `@tool` para poder regenerar el pueblo desde el editor, pero **nunca**
+## construye sola: [method build] se llama a mano o desde la herramienta. El
+## pueblo se comitea como escena concreta y no se siembra en cada arranque
+## (`docs/10` §12, decisión 10), así que la iluminación, las capturas y los
+## checks son reproducibles.
 ##
-## ## Celda de 32 m, y no de 24 m
+## ## Conserva el nombre de clase
 ##
-## `docs/10` §4.1 fija la celda en 24 m, pero la Nota de WP-13 de §1 midió que
-## `BuildingBlock_1` y `BuildingBlock_2` tienen **30 m de ancho**: en una celda
-## de 24 m desbordarían 3 m por lado sobre la calle. De las tres palancas que
-## enumera `assets/city/README.md` (agrandar la celda, reservar esas piezas para
-## el borde, o escalarlas también en planta) se elige **agrandar la celda a
-## 32 m**, porque es la única que no escala en XZ —lo que obligaría a reescribir
-## `BoxShape3D.size` en los tres ejes— ni desperdicia dos de las seis piezas de
-## edificio.
+## Diez archivos están tipados contra `CityGrid`, así que la clase sigue
+## llamándose igual aunque ya no haya rejilla ninguna. Lo que se fue es el
+## **modelo de carriles** (`lane_count`, `lane_kind`, `cell_position`,
+## `block_cell`, `avenue_crossing`…): un pueblo de ruta no tiene carriles, tiene
+## una ruta y calles que la cruzan en ángulos que no son rectos, y mantener una
+## API que devolviera carriles falsos habría sido peor que quitarla. Quien
+## necesita geometría se la pide al plano con [method get_plan].
 ##
-## ## Rejilla NO uniforme: carriles de tres anchos (WP-24b)
+## ## Qué sobrevive del distrito rectangular
 ##
-## Hasta WP-21 la rejilla era uniforme y **una calle ocupaba una celda entera de
-## 32 m de asfalto**: una autopista de doce carriles entre dos bloques de
-## oficinas. WP-24b la parte en *carriles* de tres clases, cada uno con su ancho:
-##
-## [codeblock]
-## celda de edificio  32 m   fachada a fachada de la manzana
-## calle              16 m   vereda 3 + calzada 10 + vereda 3
-## avenida            32 m   vereda 5 + calzada 10 + cantero 2 + calzada 10 + vereda 5
-## [/codeblock]
-##
-## Hay **una avenida por eje**, junto a la manzana central, y un anillo de calle
-## en el perímetro para que los edificios del borde también tengan vereda
-## enfrente. Con 5 × 3 manzanas de 2 × 2 celdas la extensión baja de
-## 480 × 288 m a **432 × 272 m** (400 × 240 m de manzanas y calles interiores más
-## el anillo perimetral), y la cuenta de edificios (60), el reparto de HP y todo
-## lo demás quedan igual.
-##
-## [method cell_position] ya no multiplica índice por lado: **acumula anchos**
-## carril a carril, y [method get_extent] es la suma de esos anchos. Es lo que
-## verifica `city_check`.
+## Todo lo que no dependía de la rejilla: el horneado de mallas de pieza, el
+## búfer crudo de [MultiMesh], la malla de asfalto liso de los cruces, el armado
+## completo de un [Building] con sus etapas —incluido el desclonado de la
+## [BoxShape3D], que es lo que evita que la variación de altura de un edificio
+## reescriba la de sus hermanos— y el racionamiento de ventanas por manzana.
 @tool
 class_name CityGrid extends Node3D
-
-## Clase de carril. Un carril `BLOCK` es una fila o columna de celdas de
-## edificio; `STREET` y `AVENUE` son calzada con sus veredas.
-enum Lane {
-	BLOCK,   ## Celdas de edificio, de [member cell_size] metros.
-	STREET,  ## Calle de [member street_width] metros.
-	AVENUE,  ## Avenida de [member avenue_width] metros, con cantero central.
-}
 
 ## Nombres de los contenedores generados. `build()` los recrea de cero.
 const BUILDINGS_NODE: StringName = &"Buildings"
 const STREETS_NODE: StringName = &"Streets"
-const OCCLUDERS_NODE: StringName = &"Occluders"
+const DECOR_NODE: StringName = &"Decor"
 const ROCKS_NODE: StringName = &"Rocks"
+const PROPS_NODE: StringName = &"Props"
+
 const SPAWNS_NODE: StringName = &"Spawns"
+const POSTS_NODE: StringName = &"BatteryPosts"
 const GROUND_NODE: StringName = &"Ground"
 
-## Nombres de los cinco [MultiMeshInstance3D] de la red viaria. Los dos primeros
-## están separados **a propósito**: llevan la misma malla con la basis girada un
-## cuarto de vuelta entre sí, y tenerlos en nodos distintos es lo que permite a
-## `city_check` comprobar que las marcas de la calzada van a lo largo de cada
-## calle y no cruzadas.
-const ROAD_NS_NODE: StringName = &"RoadNS"
-const ROAD_EW_NODE: StringName = &"RoadEW"
-const CROSSINGS_NODE: StringName = &"Crossings"
-const SIDEWALKS_NODE: StringName = &"Sidewalks"
-const PADS_NODE: StringName = &"BlockPads"
+## Marcadores sueltos que cuelgan de la raíz.
+const DRONE_NODE: StringName = &"DroneSpawn"
+const CENTRE_NODE: StringName = &"TownCentre"
+const CAMERA_NODE: StringName = &"CameraFixedPose"
+
+## Grupo del marcador del centro del pueblo, que es lo que buscan el jefe y la
+## cámara de la intro sin conocer a esta clase.
+const CENTRE_GROUP: StringName = &"town_centre"
+
+## Ruta a las rocas, que cuelgan de [constant DECOR_NODE].
+const ROCKS_PATH: String = "Decor/Rocks"
+
+## Los dos nodos de la red viaria (P2c, WP-T1 y WP-T4).
+##
+## - [constant ASPHALT_NODE] — **una** [MeshInstance3D] con todo el asfalto del
+##   pueblo: la ruta entera, las calles y los polígonos de cruce, fundidos en una
+##   sola superficie con `roads.tres`.
+## - [constant WALKWAYS_NODE] — **una** [MeshInstance3D] con los anillos de
+##   vereda y los cierres de cabo, con `walkway.tres`.
+##
+## Eran cinco MultiMesh en P2b (`RoadRoute`, `RoadStreets`, `Crossings`,
+## `Sidewalks`, `BlockPads`, 1 013 instancias). El cambio no es de rendimiento
+## sino de modelo: un cruce no es un parche cuadrado apoyado sobre la calzada,
+## es el polígono que queda entre las bocas de las calles que llegan, y eso no se
+## puede instanciar.
+##
+## ## Por qué ya no queda ni una baldosa de ruta
+##
+## WP-T1 dejó la ruta de **afuera** del disco como una cadena de `Road_Chunk_5`
+## de 10 m: sobre el plano `y = 0` de P2b una baldosa plana apoyaba exacto y
+## costaba un solo lote. Con el relieve de WP-T2 debajo deja de apoyar. Medido
+## sobre el terreno horneado, una baldosa de 10 m inclinada por sus dos extremos
+## y puesta a la cota media se separa del terreno entre **−1,5 cm y +8,5 cm**
+## —se entierra en un extremo y flota en el otro— contra la banda de
+## `[0,01; 0,08]` m que pide el criterio 1 del plan; con baldosas de 5 m todavía
+## se entierra a 0,9 cm. La culpa no es del pueblo sino del **desvanecido**: la
+## ruta cruza el anillo de 230 a 256 m donde el perfil se apaga contra el plano
+## lejano, y ahí el terreno llega a un 5,4 % de pendiente con toda su curvatura
+## concentrada. La cinta, que se subdivide cada 2,5 m con la altura del terreno,
+## se queda en `[0,025; 0,036]` m en los 1 127 m de ruta: entra holgada. Así que
+## la cinta cubre la ruta entera y `RoadRoute` desaparece —un lote de dibujo
+## menos y un modelo menos que explicar.
+const ASPHALT_NODE: StringName = &"Asphalt"
+const WALKWAYS_NODE: StringName = &"Walkways"
 
 ## Script que se pone sobre la raíz de cada pieza al sembrarla (`docs/10` §2.5).
 const BUILDING_SCRIPT: String = "res://city/building.gd"
@@ -89,448 +100,314 @@ const PIECE_SHAPE: StringName = &"IntactShape"
 const GROUND_LAYER: int = 1
 const GROUND_MASK: int = 294
 
-## Fracción de manzanas que se queda sin luz en las ventanas (`docs/13` §1,
-## préstamo de la dirección B del checkpoint 3b).
-##
-## Se raciona por **manzana** y no por edificio: un apagón salpicado edificio a
-## edificio se lee como ruido de textura, y lo que la ciudad tiene que contar es
-## que hay barrios enteros sin luz.
-const DARK_BLOCK_RATIO: float = 0.30
+## Fracción de manzanas que se queda sin luz en las ventanas. El reparto lo hace
+## el plano; la constante se conserva acá porque hay checks que la citan.
+const DARK_BLOCK_RATIO: float = TownPlan.DARK_BLOCK_RATIO
 
-## Etiqueta de la semilla derivada del racionamiento de ventanas.
-const DARK_SEED_TAG: String = "windows"
-
-## Variación de altura por rol (`docs/10` §4.3 adaptada a las piezas reales).
-##
-## Los **hitos** (`Building_3`, 81 m nativos) ya no se aplastan a 0.40–0.55: con
-## pisos de 1,2 m la torre se leía como una maqueta y era lo que el jugador veía
-## como «estructuras muy escaladas». Van casi a escala 1, que es lo que da la
-## silueta que `docs/07` §2 necesita para `climb` y `siege_beam`. Las otras
-## torres son bloques medios estirados a 15–17 m.
-const LANDMARK_SCALE_MIN: float = 0.90
-const LANDMARK_SCALE_MAX: float = 1.00
-const MID_TOWER_SCALE_MIN: float = 1.20
-const MID_TOWER_SCALE_MAX: float = 1.35
-const LOW_SCALE_MIN: float = 0.85
-const LOW_SCALE_MAX: float = 1.20
-
-## Separación mínima entre hitos, en metros. Se relaja si con ella no entran los
-## [member tall_primary_count] pedidos.
-const LANDMARK_SPACING: float = 72.0
-
-## Alturas a las que se apoyan calzada y veredas, en metros sobre `y = 0`. La
-## diferencia (15 cm) es el cordón visible.
+## Alturas a las que se apoyan calzada y veredas, en metros **sobre el terreno**.
+## La diferencia (15 cm) es el cordón visible.
 const ROAD_TOP: float = 0.03
 const SIDEWALK_TOP: float = 0.18
 
-## Ancho de una hilera de calzada, en metros. Es exactamente el lado de
-## `Road_Chunk_5`, así que una sola instancia cubre la calzada a lo ancho.
-const ROADWAY_WIDTH: float = 10.0
+## Cuántas mallas de terreno cuelga [method _build_ground] (`tools/build_terrain.gd`
+## hornea una rejilla de 2 × 2 de 260 m de alcance).
+const TERRAIN_CHUNKS: int = 4
 
-## Lado nativo de las piezas de calle, en metros.
-const ROAD_PIECE_SIDE: float = 10.0
-const WALK_PIECE_SIDE: float = 10.0
-const TILE_PIECE_SIDE: float = 20.0
-
-## Alto nativo de las piezas de calle, en metros (su AABB arranca en `y = 0`).
-const ROAD_PIECE_HEIGHT: float = 0.5
-const WALK_PIECE_HEIGHT: float = 1.0
-const TILE_PIECE_HEIGHT: float = 1.0
-
-## Relación largo/ancho de las baldosas de vereda. La textura de
-## `Sidewalk_Chunk_2` sólo tiene estructura **a lo ancho** (las dos bandas
-## oscuras del cordón), así que estirarla a lo largo no se ve y ahorra dos
-## tercios de las instancias.
-const WALK_TILE_ASPECT: float = 2.5
-
-## Lado del parche de asfalto liso del cruce, en metros, y cuántos entran en una
-## baldosa. Ver [method _build_crossing_mesh].
-const CROSSING_PATCH: float = 2.0
-const CROSSING_CELLS: int = 4
-
-## Rectángulo UV de un parche de asfalto **sin marcas** del atlas
-## `t_roads_diffuse.png`, medido sobre la cara superior de `Road_Chunk_5`: la
-## pieza mapea sus 10 m a 0.1353 de UV, así que 0.02706 son 2 m de calzada. El
-## parche está entre las dos bandas anaranjadas del borde y esquiva las dos
-## tapas de alcantarilla; en `bake_roads_emissive.png` es negro, o sea que el
-## cruce no emite. Así el cruce reutiliza el material `roads.tres` sin estirar
-## la textura ni añadir un PNG al presupuesto de VRAM de `docs/10` §2.3.
-const ASPHALT_UV: Rect2 = Rect2(0.8905, 0.1565, 0.02606, 0.02606)
-
-## Punto de aparición del dron en el nivel de batalla, en el espacio local del
-## distrito (que está en el origen), y semiángulo del cono de visión inicial que
-## ninguna roca puede invadir.
-const DRONE_SPAWN: Vector3 = Vector3(120.0, 0.0, 200.0)
-const SPAWN_CONE_DEG: float = 30.0
-
-## Rumbo real del dron al aparecer (el `-Z` de la base de `Respawn` en
-## `rounds/battle_level.tscn`) y semiángulo que se le respeta.
+## Hasta dónde llegan los chunks del terreno desde el centro del pueblo, en
+## metros, y de dónde a dónde va el anillo de campo lejano.
 ##
-## No coincide con la línea al centro: el nivel hace aparecer al dron mirando
-## por encima del lado este de la ciudad, 48° a la izquierda del centro. El cono
-## que pide el encargo se mide contra el centro, pero una roca justo enfrente del
-## rumbo **real** se vería igual de mal, así que las posiciones respetan los dos.
-const DRONE_FACING: Vector3 = Vector3(0.2979, 0.0, -0.9546)
+## El **agujero** del anillo coincide con el borde de los chunks y no con el
+## radio de desvanecido (256 m): así los dos comparten literalmente la junta, y
+## no hay una franja de cuatro metros con dos superficies a `y = 0` peleándose
+## el depth buffer. Entre 256 y 260 m el terreno ya vale cero exacto, así que la
+## junta es plana de los dos lados.
+const TERRAIN_REACH: float = 260.0
+const FIELD_REACH: float = 600.0
+
+## Paso con el que se subdivide el anillo de campo, en metros. No es por
+## iluminación —el sol es por píxel— sino por la niebla de distancia y por el
+## culling: un cuadrilátero de 344 × 1 200 m nunca se descarta y su interpolación
+## de profundidad es la peor posible.
+const FIELD_STEP: float = 60.0
+
+## Cuánto se hunde una roca en el terreno, en metros. Una roca apoyada exacto
+## sobre la cota se lee como una piedra puesta encima del pasto; hundida veinte
+## centímetros se lee como una piedra que estaba ahí.
+const ROCK_SINK: float = 0.20
+
+## Cara superior de la caja de seguridad, en metros. Está por debajo del punto
+## más bajo del relieve (el lecho del arroyo, −5,53 m en el horneado de WP-T2):
+## es la red que atrapa a un cuerpo que se escapó del heightfield, no un piso.
+const SAFETY_TOP: float = -6.0
+
+## Metadato que marca a una pieza de pueblo (lo escribe
+## `asset_import/import_town_piece.gd`).
+##
+## Hace falta porque las dos familias de pieza **no tienen la fachada en el
+## mismo eje**: las FBX de VoxelCity la tienen en `-Z` —su lado largo es X y es
+## lo que daba a la calle en la rejilla cartesiana— y las GLB de WP-A la tienen
+## en `-X` (puerta y carteles). Sin esto la mitad del pueblo mostraría a la
+## calle su pared lateral, que es el tipo de error que no se ve en el informe y
+## se ve en la primera captura.
+const TOWN_PIECE_META: StringName = &"town_kind"
+
+## Cuarto de vuelta que se le suma al giro de una pieza de pueblo para que su
+## `-X` local quede donde el `-Z` de una pieza FBX. Ver [constant TOWN_PIECE_META].
+const TOWN_YAW_OFFSET: float = -PI * 0.5
+
+## Semiángulo del cono de visión inicial que ninguna roca puede invadir.
+const SPAWN_CONE_DEG: float = 30.0
 const SPAWN_VIEW_CONE_DEG: float = 20.0
 
-## Lado de la celda de edificio, en metros. Ver la nota de cabecera: 32 y no 24.
-@export_range(8.0, 100.0, 0.5) var cell_size: float = 32.0
+## Proporción de azoteas de edificio grande con prop (`docs/10` §4.3).
+const PROP_CHANCE: float = 0.30
 
-## Manzanas en X y en Z.
-@export_range(1, 20) var block_cols: int = 5
-@export_range(1, 20) var block_rows: int = 3
 
-## Celdas de edificio por lado de manzana.
-@export_range(1, 8) var block_span: int = 2
+# --------------------------------------------------------------------------
+# Propiedades
+# --------------------------------------------------------------------------
 
-## Ancho de una calle común: vereda + calzada + vereda.
-@export_range(8.0, 60.0, 0.5) var street_width: float = 16.0
+## El plano del pueblo. Se guarda como **sub-recurso** de `town_a.tscn`: es el
+## dato del que sale todo lo demás y tiene que viajar con la escena, o el mapa
+## de la alerta y los puestos de pila se quedarían sin geometría al cargarla.
+@export var plan: TownPlan = null
 
-## Ancho de una avenida: vereda + calzada + cantero + calzada + vereda.
-@export_range(8.0, 80.0, 0.5) var avenue_width: float = 32.0
+## Relieve del pueblo (`TownTerrain`, WP-T2). Mientras sea nulo el mundo es el
+## plano `y = 0` y todo el viario apoya ahí.
+##
+## **Hay que asignarlo antes de [method build]**: de él salen la forma de
+## colisión del suelo, la cota de cada cinta de calzada, la de cada anillo de
+## vereda y la de todo lo que se siembra afuera del círculo.
+##
+## Va tipado como [Resource] y no como [TownTerrain] a propósito: la clase la
+## entrega otro encargo y tipar contra ella ataría el horneado del viario a que
+## exista. Lo que [method terrain_height_fn] le pide es un `height_at(x, z)`,
+## resuelto por `has_method`, que es el mismo despacho flojo con el que
+## [method occluder_for] y `is_building_dark` cruzan la frontera entre clases.
+@export var terrain: Resource = null
 
-## Ancho del anillo de calle que rodea el distrito.
-@export_range(8.0, 60.0, 0.5) var perimeter_width: float = 16.0
+## Forma de colisión del relieve (`HeightMapShape3D` de 513², WP-T2).
+##
+## Va como propiedad y no se deriva de [member terrain] con `build_shape()` a
+## propósito: el `.res` horneado se comparte entre la escena del pueblo y los
+## bancos, y construirla en cada `build()` metería un megabyte de alturas
+## **dentro** de `town_a.tscn`.
+@export var terrain_shape: Shape3D = null
 
-## Vereda de una calle y de una avenida, en metros.
-@export_range(1.0, 12.0, 0.25) var street_sidewalk: float = 3.0
-@export_range(1.0, 12.0, 0.25) var avenue_sidewalk: float = 5.0
+## Las cuatro mallas de relieve, en coordenadas del distrito. Se cuelgan en el
+## origen y no se mueven ni se escalan.
+@export var terrain_chunks: Array[Mesh] = []
 
-## Cantero central de la avenida, en metros.
-@export_range(0.0, 8.0, 0.25) var avenue_median: float = 2.0
+## Material de las cuatro mallas de relieve (`assets/city/materials/terrain.tres`).
+@export var terrain_material: Material = null
 
-## Qué hueco entre manzanas es la avenida, contando desde el borde negativo. Con
-## 5 manzanas hay 4 huecos (0–3) y ninguno cae justo en el centro: el 2 deja la
-## avenida pegada a la manzana central.
-@export_range(0, 18) var avenue_gap_col: int = 2
-@export_range(0, 18) var avenue_gap_row: int = 1
+## Piezas por identificador de parcela: `{StringName: PackedScene}`. El plano
+## dice `&"house_a"`; la tabla dice qué `.tscn` es. Sustituir una pieza por otra
+## —lo que hay que hacer mientras las casas de WP-A no existen— es cambiar una
+## entrada de `tools/build_town.gd`.
+##
+## El diccionario va **sin tipar**: `tools/build_town.gd` corre con `-s` y
+## despacha todo por `Variant` (los autoload no existen cuando se compila su
+## script), y asignarle un `Dictionary` pelado a una propiedad
+## `Dictionary[StringName, PackedScene]` es un error de asignación en tiempo de
+## ejecución. [method _piece_for] hace la conversión de una sola vez.
+@export var pieces: Dictionary = {}
 
-## Semilla del sembrado. `district_a` se generó con **0**.
-@export var seed: int = 0
+## Perfil de las casas (1 300 HP) y de los edificios grandes (3 500 HP).
+@export var house_profile: BuildingProfile = null
+@export var big_profile: BuildingProfile = null
 
-## Edificios con perfil de torre (3 500 HP). El resto son bloques bajos.
-@export_range(0, 400) var tall_count: int = 21
-
-## De las torres, cuántas son **hitos** con la pieza alta de verdad
-## (`Building_3`, 81 m) casi a escala 1. Las demás son bloques medios estirados.
-@export_range(0, 400) var tall_primary_count: int = 6
-
-## Piezas de bloque bajo o medio.
-@export var low_pieces: Array[PackedScene] = []
-
-## Pieza alta real. `docs/10` §2.1 esperaba dos; el pack sólo trae una.
-@export var tall_pieces: Array[PackedScene] = []
-
-## Piezas de «torre baja»: bloques de 12,5 m estirados a 15–17 m.
-@export var mid_tower_pieces: Array[PackedScene] = []
-
-## Carteles y antenas de azotea.
+## Carteles y antenas de azotea, sólo para los edificios grandes.
 @export var prop_pieces: Array[PackedScene] = []
-
-## Proporción de azoteas con prop (`docs/10` §4.3 y WP-20: 30 %).
-@export_range(0.0, 1.0, 0.01) var prop_chance: float = 0.30
 
 ## Rocas del borde, en el grupo `city_rocks`.
 @export var rock_scenes: Array[PackedScene] = []
 
-## Perfil de los bloques bajos y medios.
-@export var low_profile: BuildingProfile = null
-
-## Perfil de las torres.
-@export var tall_profile: BuildingProfile = null
-
-## Piezas de calle, de las que se hornean las mallas de [MultiMesh].
+## `Road_Chunk_5`. Ya no se instancia ni una baldosa: la pieza se conserva
+## porque de su malla sale el material `roads.tres` con el que se pinta **todo**
+## el asfalto del pueblo, marcas viales incluidas.
 @export var road_piece: PackedScene = null
-@export var sidewalk_piece: PackedScene = null
-@export var sidewalk_tile_piece: PackedScene = null
 
-## Material del suelo del descampado.
+## Piezas de maleza, basura y barriles. Cada una da su propio
+## [MultiMeshInstance3D] bajo `Decor`: un [MultiMesh] lleva **una** malla, y
+## repartir noventa y seis manojos entre cuatro piezas distintas cuesta cuatro
+## lotes de dibujo y compra la única variedad que el campo va a tener.
+@export var decor_pieces: Array[PackedScene] = []
+
+## Material del prop de reserva. Sólo se usa si [member decor_pieces] está
+## vacío, que es como corrió esto mientras WP-A no había entregado los props.
+@export var decor_material: Material = null
+
+## Material de veredas, banquinas y patios.
+##
+## **No puede ser el de la calzada.** Con el mismo `roads.tres` en los cinco
+## MultiMesh, lo único que separaba la calzada de la vereda eran las marcas
+## pintadas: a nivel de calle el jugador no ve dónde termina el asfalto, y desde
+## el aire el pueblo es una mancha gris pareja. Es una copia del material de
+## calzada con el albedo subido y entibiado, así que el cordón de 15 cm pasa a
+## leerse por color y no sólo por su sombra propia.
+@export var walkway_material: Material = null
+
+## Material del suelo del campo.
 @export var ground_material: Material = null
 
-## Lado de la caja de suelo, en metros (`docs/10` §4.4).
-@export_range(100.0, 4000.0, 10.0) var ground_size: float = 1200.0
-
-## Pool de escombros del nivel. `district_a` lo deja vacío: cada [Building] lo
+## Pool de escombros del nivel. `town_a` lo deja vacío: cada [Building] lo
 ## resuelve con [method DebrisPool.resolve] (grupo `debris_pool`).
 @export var debris_pool: DebrisPool = null
 
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _prop_debt: float = 0.0
 
-## Plano de carriles por eje, recalculado cuando cambia algún parámetro.
-var _kinds: Array[PackedInt32Array] = [PackedInt32Array(), PackedInt32Array()]
-var _widths: Array[PackedFloat32Array] = [PackedFloat32Array(), PackedFloat32Array()]
-var _starts: Array[PackedFloat32Array] = [PackedFloat32Array(), PackedFloat32Array()]
-var _extent: Vector2 = Vector2.ZERO
-var _lane_signature: String = ""
-
-## Manzanas sin luz, resueltas una vez por semilla. La firma incluye la semilla
-## maestra porque el reparto cambia con ella.
-var _dark_blocks: Dictionary[Vector2i, bool] = {}
-var _dark_signature: String = ""
 
 
 # --------------------------------------------------------------------------
-# Plano de carriles
+# Ciclo de vida
 # --------------------------------------------------------------------------
 
-## Reconstruye el plano de carriles si cambió algún parámetro de la rejilla.
+## Aplica al cargar las dos anulaciones que el `.tscn` **no puede guardar**.
 ##
-## La firma es explícita y no un `dirty` puesto a mano: la rejilla es `@tool` y
-## sus propiedades se editan desde el inspector, donde nadie va a llamar a una
-## invalidación.
-func _ensure_lanes() -> void:
-	var signature := "%d|%d|%d|%.3f|%.3f|%.3f|%.3f|%d|%d" % [block_cols, block_rows,
-			block_span, cell_size, street_width, avenue_width, perimeter_width,
-			avenue_gap_col, avenue_gap_row]
-	if signature == _lane_signature:
+## Las dos son la misma trampa del serializador de Godot por dos caminos
+## distintos, y las dos costaron un horneado en falso:
+##
+## 1. **La sombra de las casas.** La malla vive dentro de la pieza instanciada, y
+##    una anulación sobre un nodo cuyo dueño es la pieza no se guarda. Forzarle el
+##    dueño para que se guarde hace que Godot **copie la malla entera** dentro de
+##    la escena, una por casa: cincuenta y dos copias, novecientos kilobytes y el
+##    fin de la malla compartida, que es justo lo contrario de lo que se busca.
+## 2. **La capa de las casas de caserío.** Se les pone
+##    [constant PhysicsLayers.WORLD], que vale `1`, y `1` es **el valor por
+##    defecto de la clase** `StaticBody3D`: el serializador compara contra el
+##    defecto de la clase y no contra el de la instancia, así que omite la línea
+##    y al cargar gana el `128` que traía la pieza de WP-A. Una casa de caserío en
+##    la capa de ciudad es un blanco para el arma y para el jefe a doscientos
+##    metros del círculo.
+##
+## Aplicarlo al cargar cuesta un recorrido del árbol una vez por ronda. Es
+## idempotente y no construye nada: [method build] sigue llamándose a mano.
+func _ready() -> void:
+	_mute_house_shadows()
+	_ground_decor_bodies()
+
+
+## Devuelve las casas de caserío a la capa del terreno.
+func _ground_decor_bodies() -> void:
+	var decor := get_node_or_null(NodePath(DECOR_NODE))
+	if decor == null:
 		return
-	_lane_signature = signature
-	for axis: int in 2:
-		var blocks := block_cols if axis == 0 else block_rows
-		var avenue_gap := avenue_gap_col if axis == 0 else avenue_gap_row
-		var kinds := PackedInt32Array()
-		var widths := PackedFloat32Array()
-		kinds.append(Lane.STREET)
-		widths.append(perimeter_width)
-		for block: int in blocks:
-			for _d: int in block_span:
-				kinds.append(Lane.BLOCK)
-				widths.append(cell_size)
-			if block >= blocks - 1:
-				continue
-			var avenue := block == avenue_gap
-			kinds.append(Lane.AVENUE if avenue else Lane.STREET)
-			widths.append(avenue_width if avenue else street_width)
-		kinds.append(Lane.STREET)
-		widths.append(perimeter_width)
-
-		var total := 0.0
-		for width: float in widths:
-			total += width
-		var starts := PackedFloat32Array()
-		var cursor := -total * 0.5
-		for width: float in widths:
-			starts.append(cursor)
-			cursor += width
-		_kinds[axis] = kinds
-		_widths[axis] = widths
-		_starts[axis] = starts
-		if axis == 0:
-			_extent.x = total
-		else:
-			_extent.y = total
+	for child: Node in decor.get_children():
+		var body := child as PhysicsBody3D
+		if body == null or not body.name.begins_with(String(TownPlan.DECOR_PREFIX)):
+			continue
+		body.collision_layer = PhysicsLayers.WORLD
+		body.collision_mask = 0
 
 
-## Carriles del eje [param axis] (0 = X, 1 = Z).
-func lane_count(axis: int) -> int:
-	_ensure_lanes()
-	return _kinds[axis].size()
-
-
-## Clase del carril [param lane] del eje [param axis], como valor de [enum Lane].
-## Devuelve `int` y no `Lane` porque el plano vive en un [PackedInt32Array] y
-## GDScript no convierte de entero a enumerado.
-func lane_kind(axis: int, lane: int) -> int:
-	_ensure_lanes()
-	var kinds := _kinds[axis]
-	if lane < 0 or lane >= kinds.size():
-		return Lane.STREET
-	return kinds[lane]
-
-
-## Ancho en metros del carril [param lane] del eje [param axis].
-func lane_width(axis: int, lane: int) -> float:
-	_ensure_lanes()
-	var widths := _widths[axis]
-	if lane < 0 or lane >= widths.size():
-		return 0.0
-	return widths[lane]
-
-
-## Borde de menor coordenada del carril [param lane], en el espacio local.
-func lane_start(axis: int, lane: int) -> float:
-	_ensure_lanes()
-	var starts := _starts[axis]
-	if lane < 0 or lane >= starts.size():
-		return 0.0
-	return starts[lane]
-
-
-## Centro del carril [param lane], en el espacio local.
-func lane_centre(axis: int, lane: int) -> float:
-	return lane_start(axis, lane) + lane_width(axis, lane) * 0.5
-
-
-## Ancho de calzada + veredas del carril [param lane], o **0** si es un carril de
-## edificio. Es la consulta que usa `city_check` para rehacer la cuenta de la
-## extensión sin copiar la tabla de anchos.
-func street_width_at(axis: int, lane: int) -> float:
-	var kind := lane_kind(axis, lane)
-	return 0.0 if kind == Lane.BLOCK else lane_width(axis, lane)
-
-
-## Vereda del carril [param lane], en metros. Cero si no es calle.
-func sidewalk_width_at(axis: int, lane: int) -> float:
-	match lane_kind(axis, lane):
-		Lane.AVENUE:
-			return avenue_sidewalk
-		Lane.STREET:
-			return street_sidewalk
-		_:
-			return 0.0
-
-
-# --------------------------------------------------------------------------
-# Consultas de rejilla
-# --------------------------------------------------------------------------
-
-## Celdas en X (de edificio y de calle).
-func get_cols() -> int:
-	return lane_count(0)
-
-
-## Celdas en Z.
-func get_rows() -> int:
-	return lane_count(1)
-
-
-## Extensión del distrito, en metros: la **suma de los anchos** de los carriles
-## de cada eje, anillo perimetral incluido.
-func get_extent() -> Vector2:
-	_ensure_lanes()
-	return _extent
-
-
-## Extensión de manzanas y calles interiores, sin el anillo perimetral.
-func get_core_extent() -> Vector2:
-	_ensure_lanes()
-	return get_extent() - Vector2(perimeter_width, perimeter_width) * 2.0
-
-
-## Verdadero si [param cell] cae sobre calzada en alguno de los dos ejes.
-func is_street_cell(cell: Vector2i) -> bool:
-	return lane_kind(0, cell.x) != Lane.BLOCK or lane_kind(1, cell.y) != Lane.BLOCK
-
-
-## Verdadero si [param cell] es un cruce: calle en los dos ejes.
-func is_crossing_cell(cell: Vector2i) -> bool:
-	return lane_kind(0, cell.x) != Lane.BLOCK and lane_kind(1, cell.y) != Lane.BLOCK
-
-
-## Centro de [param cell] en el espacio local del distrito, con `y = 0`.
-func cell_position(cell: Vector2i) -> Vector3:
-	return Vector3(lane_centre(0, cell.x), 0.0, lane_centre(1, cell.y))
-
-
-## Celda de edificio [param dx], [param dz] de la manzana [param block_x],
-## [param block_z].
-func block_cell(block_x: int, block_z: int, dx: int, dz: int) -> Vector2i:
-	var period := block_span + 1
-	return Vector2i(1 + block_x * period + dx, 1 + block_z * period + dz)
-
-
-## Manzana a la que pertenece [param cell].
-func cell_block(cell: Vector2i) -> Vector2i:
-	var period := block_span + 1
-	return Vector2i((cell.x - 1) / period, (cell.y - 1) / period)
-
-
-## Posición de [param cell] dentro de su manzana.
-func cell_in_block(cell: Vector2i) -> Vector2i:
-	var period := block_span + 1
-	return Vector2i((cell.x - 1) % period, (cell.y - 1) % period)
-
-
-## Cuántas manzanas tiene el distrito.
-func block_count() -> int:
-	return block_cols * block_rows
-
-
-## Manzanas cuyas ventanas están apagadas esta partida (`docs/13` §1).
+## Recorre las casas y la decoración ya sembradas y las saca del pase de sombra.
 ##
-## El reparto es determinista por [member Global.round_seed] y de **tamaño fijo**:
-## `round(manzanas · DARK_BLOCK_RATIO)`, que con 5 × 3 manzanas da 5 de 15 (33 %).
-## Sortear cada manzana por separado con probabilidad 0,30 daría el mismo promedio
-## pero una varianza enorme —con quince tiradas es normal salir con 2 o con 8—, y
-## lo que el jugador ve en una partida no es el promedio: es esa partida. Por eso
-## cada manzana recibe una **llave** de su propio generador sembrado con su celda y
-## la semilla maestra, y se apagan las `K` llaves más bajas. Sigue siendo «sembrado
-## por manzana» y además el recuento no se mueve.
-func dark_blocks() -> Dictionary[Vector2i, bool]:
-	var signature := "%d|%d|%d|%.3f" % [Global.round_seed, block_cols, block_rows,
-			DARK_BLOCK_RATIO]
-	if signature == _dark_signature:
-		return _dark_blocks
-	_dark_signature = signature
-	_dark_blocks = {}
-	var keyed: Array[Dictionary] = []
-	for block_z: int in block_rows:
-		for block_x: int in block_cols:
-			var rng := RandomNumberGenerator.new()
-			rng.seed = hash("%s:%d:%d" % [DARK_SEED_TAG, block_x, block_z]) ^ Global.round_seed
-			keyed.append({"block": Vector2i(block_x, block_z), "key": rng.randf()})
-	# Desempate por coordenada: dos llaves iguales no pueden depender del orden en
-	# que `sort_custom` las visite, o el reparto dejaría de ser reproducible.
-	keyed.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		if not is_equal_approx(float(a["key"]), float(b["key"])):
-			return float(a["key"]) < float(b["key"])
-		var left: Vector2i = a["block"]
-		var right: Vector2i = b["block"]
-		return left.y * 1000 + left.x < right.y * 1000 + right.x)
-	var wanted := clampi(roundi(float(keyed.size()) * DARK_BLOCK_RATIO), 0, keyed.size())
-	for index: int in wanted:
-		_dark_blocks[keyed[index]["block"] as Vector2i] = true
-	return _dark_blocks
+## La decoración se apaga entera —doce casas de caserío y seis rocas— porque vive
+## a 165–260 m del centro, **fuera** del círculo de juego: su sombra cae sobre
+## campo vacío que el jugador no mira nunca, y cada una entra igual en las
+## cascadas del sol.
+func _mute_house_shadows() -> void:
+	for building: Building in get_buildings():
+		if int(building.get_meta(&"role", -1)) != TownPlan.Role.HOUSE:
+			continue
+		_mute_house_shadow(building)
+	var decor := get_node_or_null(NodePath(DECOR_NODE))
+	if decor == null:
+		return
+	for node: Node in _descendants(decor):
+		var geometry := node as GeometryInstance3D
+		if geometry != null:
+			geometry.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+# --------------------------------------------------------------------------
+# Consultas
+# --------------------------------------------------------------------------
+
+## El plano del pueblo. Es el punto de entrada de todo el que necesite
+## geometría: el mapa de la alerta, las sondas de reflejo y los checks lo piden
+## por `has_method(&"get_plan")`, sin conocer esta clase.
+func get_plan() -> TownPlan:
+	return plan
+
+
+## Centro del círculo de juego.
+##
+## **Devuelve coordenadas locales del distrito**, no globales. El contrato de
+## WP-B decía «global» y la clase nunca lo cumplió; se deja local porque es lo
+## coherente con el resto de la API —`get_plan()`, `rock_spots()`,
+## `battery_posts()` y los marcadores horneados están todos en el espacio del
+## distrito— y porque convertir acá obligaría a que la rejilla estuviera en el
+## árbol para tener `global_transform`, que durante el horneado no lo está.
+## Quien necesite global usa `grid.to_global(grid.play_centre())`. Hoy el
+## distrito se instancia en el origen y las dos coinciden, así que la diferencia
+## no se ve en runtime: se va a ver el día que el nivel lo mueva.
+func play_centre() -> Vector3:
+	return plan.play_centre if plan != null else Vector3.ZERO
+
+
+## Radio del círculo de juego, en metros. Es una distancia, así que local y
+## global coinciden mientras nadie escale el distrito —y `docs/03` prohíbe
+## escalar cuerpos físicos.
+func play_radius() -> float:
+	return plan.play_radius if plan != null else 0.0
+
+
+## Extensión que dibuja el mapa de la alerta.
+func get_extent() -> Vector2:
+	return plan.get_extent() if plan != null else Vector2.ZERO
+
+
+## Extensión del casco del pueblo, sin margen.
+func get_core_extent() -> Vector2:
+	return plan.get_core_extent() if plan != null else Vector2.ZERO
+
+
+## Cuántas manzanas tiene el pueblo.
+func block_count() -> int:
+	return plan.block_count() if plan != null else 0
+
+
+## Manzanas sin luz esta partida. Delega en el plano, que es quien conoce el
+## recuento; el algoritmo —conjunto de tamaño fijo `round(manzanas · 0,30)` con
+## una llave por manzana— es el mismo que estrenó WP-25b.
+func dark_blocks() -> Dictionary:
+	return plan.dark_blocks() if plan != null else {}
 
 
 ## Verdadero si la manzana [param block] tiene las ventanas apagadas.
-func is_block_dark(block: Vector2i) -> bool:
-	return dark_blocks().has(block)
+func is_block_dark(block: int) -> bool:
+	return plan != null and plan.is_block_dark(block)
 
 
 ## Verdadero si [param building] tiene que apagar sus ventanas, es decir, si su
-## manzana está a oscuras. Un edificio sin metadato `cell` —una escena de prueba
-## con un edificio suelto— queda siempre encendido.
+## manzana está a oscuras. Un edificio sin metadato `block` —una casa de caserío
+## o una escena de prueba con un edificio suelto— queda siempre encendido.
 ##
 ## Lo consulta [method Building._apply_window_ration] por `has_method`, sin
-## conocer esta clase: es el mismo despacho flojo que usa `occluder_for`, y por el
-## mismo motivo (no cerrar el ciclo `city_grid.gd` → `building.gd`).
+## conocer esta clase: es el mismo despacho flojo que usa [method occluder_for],
+## y por el mismo motivo (no cerrar el ciclo `city_grid.gd` → `building.gd`).
 func is_building_dark(building: Node3D) -> bool:
-	if building == null:
+	if building == null or plan == null:
 		return false
-	var cell: Vector2i = building.get_meta(&"cell", Vector2i(-1, -1))
-	if cell.x < 0 or cell.y < 0:
+	var block: int = building.get_meta(&"block", -1)
+	if block < 0:
 		return false
-	return is_block_dark(cell_block(cell))
+	return plan.is_block_dark(block)
 
 
-## Cruce de las dos avenidas, en el espacio local. Es el punto al que mira el
-## centro financiero y donde se concentran los hitos.
-func avenue_crossing() -> Vector3:
-	var lane_x := 1 + avenue_gap_col * (block_span + 1) + block_span
-	var lane_z := 1 + avenue_gap_row * (block_span + 1) + block_span
-	return Vector3(lane_centre(0, lane_x), 0.0, lane_centre(1, lane_z))
-
-
-## Celdas de edificio, en orden fijo (Z externo, X interno). El orden es parte
-## del contrato: es lo que hace reproducible el sembrado con la misma semilla.
-func building_cells() -> Array[Vector2i]:
-	var cells: Array[Vector2i] = []
-	for z: int in get_rows():
-		if lane_kind(1, z) != Lane.BLOCK:
-			continue
-		for x: int in get_cols():
-			if lane_kind(0, x) != Lane.BLOCK:
-				continue
-			cells.append(Vector2i(x, z))
-	return cells
-
-
-## Cuántos edificios produce esta rejilla. Con 5 × 3 manzanas de 2 × 2 son
-## exactamente **60**.
-func building_count() -> int:
-	return block_cols * block_rows * block_span * block_span
+## Oclusor de la manzana de [param building]. **Siempre `null`**.
+##
+## La oclusión por oclusores está apagada en todos los presets desde WP-24e
+## (`Graphics.use_occlusion_culling()`), y el pueblo de ruta no hornea ninguno:
+## sus edificios son casas de 5 m repartidas en manzanas abiertas, donde una
+## caja oclusora tapa más de lo que ahorra. El método se conserva porque
+## `city/building.gd` lo resuelve por `has_method` al derrumbarse y espera poder
+## llamarlo; devolver `null` es exactamente lo que ese camino tolera.
+func occluder_for(_building: Building) -> OccluderInstance3D:
+	return null
 
 
 ## Edificios ya sembrados, en el orden en que se crearon.
@@ -546,61 +423,25 @@ func get_buildings() -> Array[Building]:
 	return found
 
 
-## Edificio de [param cell], o `null` si esa celda es calle.
-func get_building_at(cell: Vector2i) -> Building:
+## Edificio de la parcela [param parcel], o `null`.
+func get_building_at(parcel: int) -> Building:
 	for building: Building in get_buildings():
-		if building.get_meta(&"cell", Vector2i(-1, -1)) == cell:
+		if int(building.get_meta(&"parcel", -1)) == parcel:
 			return building
 	return null
 
 
-## Oclusor de la manzana de [param building], o `null` si ese edificio no es el
-## que lo define.
-##
-## Hay **un oclusor por manzana** y su caja está ceñida al edificio **más alto** de
-## esa manzana (ver [method _build_occluders]): mientras ese edificio siga en pie el
-## volumen está dentro de geometría opaca y los otros tres pueden caerse sin que el
-## oclusor mienta. Por eso esto devuelve el nodo **solo** para el más alto: es el
-## único que tiene derecho a apagarlo cuando se derrumba.
-##
-## Se resuelve por nombre y por metadato, no por un vínculo horneado en
-## `district_a.tscn`, para que la escena empaquetada no cambie: los nombres
-## `Occluder_<x>_<z>` y el metadato `cell` los escribe esta misma clase al sembrar.
-func occluder_for(building: Building) -> OccluderInstance3D:
-	if building == null:
-		return null
-	var cell: Vector2i = building.get_meta(&"cell", Vector2i(-1, -1))
-	if cell.x < 0 or cell.y < 0:
-		return null
-	var container := get_node_or_null(NodePath(OCCLUDERS_NODE))
-	if container == null:
-		return null
-	var block := cell_block(cell)
-	var node := container.get_node_or_null(
-			NodePath("Occluder_%d_%d" % [block.x, block.y])) as OccluderInstance3D
-	if node == null:
-		return null
-	return node if tallest_in_block(block) == building else null
-
-
-## Edificio más alto de la manzana [param block], o `null` si no queda ninguno.
-## Es el que define el oclusor de esa manzana.
-func tallest_in_block(block: Vector2i) -> Building:
-	var tallest: Building = null
-	for dz: int in block_span:
-		for dx: int in block_span:
-			var building := get_building_at(block_cell(block.x, block.y, dx, dz))
-			if building == null:
-				continue
-			if tallest == null or building.get_height() > tallest.get_height():
-				tallest = building
-	return tallest
-
-
 ## Rocas del borde (grupo `city_rocks`).
+##
+## El pueblo las cuelga de `Decor/Rocks`. El respaldo a `Rocks` a secas se
+## conserva para cualquier escena de prueba que arme un distrito a mano —
+## `tools/fake_town.gd` es la única hoy— y cuesta una búsqueda fallida por
+## llamada, que ocurre cero veces sobre `town_a.tscn`.
 func get_rocks() -> Array[Node3D]:
 	var found: Array[Node3D] = []
-	var container := get_node_or_null(NodePath(ROCKS_NODE))
+	var container := get_node_or_null(NodePath(ROCKS_PATH))
+	if container == null:
+		container = get_node_or_null(NodePath(ROCKS_NODE))
 	if container == null:
 		return found
 	for child: Node in container.get_children():
@@ -610,28 +451,50 @@ func get_rocks() -> Array[Node3D]:
 	return found
 
 
+## Ángulo, en grados, entre la línea que une el punto de aparición del dron con
+## el centro del pueblo y [param spot].
+func spawn_cone_angle(spot: Vector3) -> float:
+	if plan == null:
+		return 0.0
+	return plan.spawn_cone_angle(spot)
+
+
+## Ángulo, en grados, entre el rumbo real del dron al aparecer y [param spot].
+func spawn_view_angle(spot: Vector3) -> float:
+	if plan == null:
+		return 0.0
+	return plan.spawn_view_angle(spot)
+
+
+func _flat_angle(reference: Vector3, target: Vector3) -> float:
+	return TownPlan.flat_angle(reference, target)
+
+
 # --------------------------------------------------------------------------
 # Construcción
 # --------------------------------------------------------------------------
 
-## Genera el distrito completo de cero. Es idempotente: vuelve a empezar
-## borrando lo que hubiera. Con la misma [member seed] produce siempre lo mismo.
+## Genera el pueblo completo de cero. Es idempotente: vuelve a empezar borrando
+## lo que hubiera. Con el mismo [member plan] produce siempre lo mismo.
 func build() -> void:
 	_clear_generated()
-	_ensure_lanes()
-	_rng.seed = seed
+	if plan == null:
+		push_error("CityGrid: no hay plano que construir.")
+		return
+	_rng.seed = plan.seed
 	_prop_debt = 0.0
 
 	_build_ground()
 	_build_streets()
 	_build_buildings()
-	_build_occluders()
-	_build_rocks()
+	_build_decor()
 	_build_spawns()
+	_build_posts()
+	_build_markers()
 
 
 ## Asigna `owner` a todo lo generado para que [method PackedScene.pack] lo
-## guarde. Se llama una vez, al final, desde `tools/build_district.gd`.
+## guarde. Se llama una vez, al final, desde `tools/build_town.gd`.
 ##
 ## La regla vale también dentro de las piezas instanciadas: un nodo **sin
 ## dueño** lo creó [method build] y hay que reclamarlo; uno que ya tiene dueño
@@ -645,28 +508,53 @@ func claim_ownership(scene_root: Node) -> void:
 			node.owner = scene_root
 
 
+
 func _clear_generated() -> void:
-	for name: StringName in [BUILDINGS_NODE, STREETS_NODE, OCCLUDERS_NODE,
-			ROCKS_NODE, SPAWNS_NODE, GROUND_NODE]:
+	for name: StringName in [BUILDINGS_NODE, STREETS_NODE, DECOR_NODE, SPAWNS_NODE,
+			POSTS_NODE, GROUND_NODE, DRONE_NODE, CENTRE_NODE, CAMERA_NODE]:
 		var existing := get_node_or_null(NodePath(name))
 		if existing != null:
 			remove_child(existing)
 			existing.free()
 
 
-## Contenedor vacío colgado de la rejilla.
-func _container(name: StringName) -> Node3D:
+## Contenedor vacío colgado de [param parent], o de la rejilla si no se pasa.
+func _container(name: StringName, parent: Node3D = null) -> Node3D:
 	var node := Node3D.new()
 	node.name = name
-	add_child(node)
+	var host := parent if parent != null else self
+	host.add_child(node)
 	return node
 
 
 # --- Suelo -----------------------------------------------------------------
 
-## Un único `StaticBody3D` de capa 1 con una caja de `ground_size × 4 × ground_size`
-## centrada en `y = −2`, más un `PlaneMesh` del mismo lado. Cubre el distrito y
-## el descampado con **un solo colisionador** (`docs/10` §4.4).
+## Un único `StaticBody3D` de capa 1 con el relieve adentro (`docs/10` §4.4).
+##
+## Lo que cuelga, y por qué cada cosa es como es:
+##
+## - **`Shape`** — el [HeightMapShape3D] horneado de 513 × 513 muestras a un
+##   metro, **en el origen y sin escalar**. Jolt trabaja el heightfield en
+##   unidades de rejilla: escalar el nodo o darle un paso distinto de uno lo
+##   hace caer a una malla de colisión, que cuesta diez veces más.
+## - **`RingN/E/S/W`** — cuatro cajas a `y = 0` que cubren del borde del
+##   heightfield (±256 m) al borde del campo. El relieve se desvanece a cero
+##   antes de los 256 m justamente para empalmar con ellas sin escalón.
+## - **`Safety`** — una caja de seguridad con la cara superior en
+##   [constant SAFETY_TOP], **debajo del lecho del arroyo**. No es piso: es la
+##   red que atrapa a un cuerpo que se escapó por un borde.
+## - **`Chunk0..3`** — las cuatro mallas del relieve, en el origen.
+## - **`Field`** — el campo lejano.
+##
+## ## El plano de 1 200 m no podía seguir en `y = 0`
+##
+## Hasta P2b el suelo visible era un `PlaneMesh` de 1 200 m a `y = 0` **debajo**
+## de todo. Con relieve encima eso se rompe: el arroyo baja a −5,5 m y las
+## vaguadas del campo a −2 m, así que el plano asomaba por el medio del cauce
+## como una lámina de agua gris y opaca. En su lugar va un **anillo cuadrado con
+## agujero** de [constant TERRAIN_REACH] a [constant FIELD_REACH] metros: no hay
+## ni un triángulo de campo lejano debajo del relieve, y la junta cae donde el
+## terreno vale cero exacto.
 func _build_ground() -> void:
 	var body := StaticBody3D.new()
 	body.name = GROUND_NODE
@@ -674,283 +562,457 @@ func _build_ground() -> void:
 	body.collision_mask = GROUND_MASK
 	add_child(body)
 
-	var plane := PlaneMesh.new()
-	plane.size = Vector2(ground_size, ground_size)
-	plane.material = ground_material
-	var mesh_instance := MeshInstance3D.new()
-	mesh_instance.name = "Mesh"
-	mesh_instance.mesh = plane
-	mesh_instance.gi_mode = GeometryInstance3D.GI_MODE_STATIC
-	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	body.add_child(mesh_instance)
+	_add_terrain_collision(body)
+	_add_ground_ring(body)
+	_add_terrain_chunks(body)
+	_add_far_field(body)
 
+
+## El heightfield horneado, en el origen y sin escalar.
+func _add_terrain_collision(body: StaticBody3D) -> void:
+	if terrain_shape == null:
+		return
+	var node := CollisionShape3D.new()
+	node.name = "Shape"
+	node.shape = terrain_shape
+	body.add_child(node)
+
+
+## Las cuatro cajas de anillo a `y = 0` y la caja de seguridad.
+##
+## El anillo se arma con cuatro cajas y no con una sola grande porque una sola
+## grande taparía el heightfield: dos colisionadores superpuestos en el mismo
+## sitio hacen que el cuerpo apoye en el más alto, y el más alto sería la caja
+## plana en cada vaguada del pueblo.
+func _add_ground_ring(body: StaticBody3D) -> void:
+	var half := plan.field_size * 0.5
+	var inner := _terrain_half()
+	if half > inner:
+		var band := half - inner
+		var spans: Array[Array] = [
+			# nombre, tamaño XZ, centro XZ
+			["RingN", Vector2(half * 2.0, band), Vector2(0.0, -(inner + band * 0.5))],
+			["RingS", Vector2(half * 2.0, band), Vector2(0.0, inner + band * 0.5)],
+			["RingW", Vector2(band, inner * 2.0), Vector2(-(inner + band * 0.5), 0.0)],
+			["RingE", Vector2(band, inner * 2.0), Vector2(inner + band * 0.5, 0.0)],
+		]
+		for span: Array in spans:
+			var size: Vector2 = span[1]
+			var centre: Vector2 = span[2]
+			_add_ground_box(body, StringName(span[0]),
+					Vector3(size.x, 4.0, size.y), Vector3(centre.x, -2.0, centre.y))
+
+	_add_ground_box(body, &"Safety",
+			Vector3(plan.field_size, 4.0, plan.field_size),
+			Vector3(0.0, SAFETY_TOP - 2.0, 0.0))
+
+
+func _add_ground_box(body: StaticBody3D, name: StringName, size: Vector3,
+		centre: Vector3) -> void:
 	var box := BoxShape3D.new()
-	box.size = Vector3(ground_size, 4.0, ground_size)
-	var shape_node := CollisionShape3D.new()
-	shape_node.name = "Shape"
-	shape_node.shape = box
-	shape_node.position = Vector3(0.0, -2.0, 0.0)
-	body.add_child(shape_node)
+	box.size = size
+	var node := CollisionShape3D.new()
+	node.name = name
+	node.shape = box
+	node.position = centre
+	body.add_child(node)
+
+
+## Medio lado del cuadrado que cubre el heightfield, en metros.
+func _terrain_half() -> float:
+	if terrain == null or not terrain.has_method(&"extent"):
+		return 0.0
+	var rect: Rect2 = terrain.call(&"extent")
+	return rect.size.x * 0.5
+
+
+## Las cuatro mallas del relieve. Van **en el origen**: sus vértices ya vienen
+## en coordenadas del distrito, así que moverlas las duplicaría de lugar.
+func _add_terrain_chunks(body: StaticBody3D) -> void:
+	for index: int in terrain_chunks.size():
+		var mesh := terrain_chunks[index]
+		if mesh == null:
+			continue
+		var node := MeshInstance3D.new()
+		node.name = "Chunk%d" % index
+		node.mesh = mesh
+		if terrain_material != null:
+			node.material_override = terrain_material
+		node.gi_mode = GeometryInstance3D.GI_MODE_STATIC
+		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		body.add_child(node)
+
+
+## El campo lejano: un anillo cuadrado con agujero, a `y = 0`, con la normal
+## hacia arriba y el material de campo.
+func _add_far_field(body: StaticBody3D) -> void:
+	var inner := _terrain_half()
+	if inner <= 0.0:
+		inner = TERRAIN_REACH
+	var outer := maxf(plan.field_size * 0.5, inner + FIELD_STEP)
+	var mesh := _field_ring_mesh(inner, outer)
+	if mesh == null:
+		return
+	var node := MeshInstance3D.new()
+	node.name = "Field"
+	node.mesh = mesh
+	if terrain_material != null:
+		node.material_override = terrain_material
+	node.gi_mode = GeometryInstance3D.GI_MODE_STATIC
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	body.add_child(node)
+
+
+## Anillo cuadrado de `[-outer, outer]²` menos `[-inner, inner]²`, teselado con
+## un paso de [constant FIELD_STEP] metros y con el agujero exacto.
+##
+## Se arma recorriendo la rejilla completa y salteando las celdas que caen
+## enteras dentro del agujero: así el borde del agujero es una fila de vértices
+## de la misma rejilla y no hay que coser nada a mano.
+func _field_ring_mesh(inner: float, outer: float) -> ArrayMesh:
+	var axis := _field_axis(inner, outer)
+	if axis.size() < 2:
+		return null
+	var builder := SurfaceTool.new()
+	builder.begin(Mesh.PRIMITIVE_TRIANGLES)
+	builder.set_material(ground_material)
+	var count := axis.size() - 1
+	for iz: int in count:
+		for ix: int in count:
+			var x0 := axis[ix]
+			var x1 := axis[ix + 1]
+			var z0 := axis[iz]
+			var z1 := axis[iz + 1]
+			if maxf(absf(x0), absf(x1)) <= inner + 0.001 \
+					and maxf(absf(z0), absf(z1)) <= inner + 0.001:
+				continue
+			_field_quad(builder, x0, x1, z0, z1, outer)
+	builder.index()
+	return builder.commit()
+
+
+## Coordenadas del eje del anillo: el borde del agujero y el del campo son
+## vértices exactos, y entre ellos se reparte un paso regular de a lo sumo
+## [constant FIELD_STEP].
+func _field_axis(inner: float, outer: float) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	var band := outer - inner
+	var steps := maxi(ceili(band / FIELD_STEP), 1)
+	for index: int in range(steps, 0, -1):
+		out.append(-inner - band * float(index) / float(steps))
+	var inside := maxi(ceili(inner * 2.0 / FIELD_STEP), 1)
+	for index: int in inside + 1:
+		out.append(-inner + inner * 2.0 * float(index) / float(inside))
+	for index: int in range(1, steps + 1):
+		out.append(inner + band * float(index) / float(steps))
+	return out
+
+
+## Una celda del anillo, como dos triángulos mirando a `+Y`.
+##
+## El orden de giro sale de la misma comprobación que [method RoadMesh._tri] y
+## no de razonarlo: Godot dibuja de frente los triángulos **horarios** vistos
+## desde fuera, así que `(b−a) × (c−a)` tiene que apuntar al revés de la normal
+## visible. Un anillo con la cara para abajo es invisible desde el aire y sólo
+## se descubre en la captura.
+func _field_quad(builder: SurfaceTool, x0: float, x1: float, z0: float, z1: float,
+		outer: float) -> void:
+	var corners: Array[Vector2] = [
+		Vector2(x0, z0), Vector2(x0, z1), Vector2(x1, z1), Vector2(x1, z0),
+	]
+	for triangle: Array in [[0, 1, 2], [0, 2, 3]]:
+		var a: Vector2 = corners[triangle[0]]
+		var b: Vector2 = corners[triangle[1]]
+		var c: Vector2 = corners[triangle[2]]
+		var pa := Vector3(a.x, 0.0, a.y)
+		var pb := Vector3(b.x, 0.0, b.y)
+		var pc := Vector3(c.x, 0.0, c.y)
+		if (pb - pa).cross(pc - pa).dot(Vector3.UP) > 0.0:
+			var swap := pb
+			pb = pc
+			pc = swap
+		for point: Vector3 in [pa, pb, pc]:
+			# Peso de capa «todo pasto», que es lo que el shader del relieve
+			# espera en el COLOR de cada vértice. El campo lejano lleva **el
+			# mismo material** que los chunks y no el de P2b: con dos materiales
+			# distintos la junta a 260 m se leía como una línea recta en el pasto
+			# —un verde a un lado y un gris azulado al otro— y era lo primero que
+			# saltaba en la captura aérea.
+			builder.set_color(Color(1.0, 0.0, 0.0, 0.0))
+			builder.set_normal(Vector3.UP)
+			# El material del campo es triplanar sobre la posición de mundo: la
+			# UV no la mira nadie, pero un `SurfaceTool` sin UV deja el canal
+			# fuera y cualquier material que sí lo use se vería en negro.
+			builder.set_uv(Vector2(point.x, point.z) / maxf(outer * 2.0, 1.0)
+					+ Vector2(0.5, 0.5))
+			builder.add_vertex(point)
 
 
 # --- Calles ----------------------------------------------------------------
 
-## Calzada, cruces, veredas y patios en cinco [MultiMeshInstance3D] **sin
-## colisión propia**: el suelo lo aporta la caja única de [method _build_ground]
-## y la red viaria no suma ni un colisionador (`docs/10` §4.4 y §7).
+## Calzada, cruces y veredas del pueblo: **dos mallas y un MultiMesh**, sin
+## colisión propia (el suelo lo aporta la caja única de [method _build_ground],
+## `docs/10` §4.4 y §7).
 ##
-## Reparto, y por qué cada pieza va donde va:
+## Reparto, y por qué cada cosa va donde va:
 ##
-## - **Calzada** — un `Road_Chunk_5` cubre los 10 m de ancho de una hilera de una
-##   sola vez y se repite **sólo a lo largo**. Las bandas pintadas de la pieza
-##   corren sobre su eje X local, así que las calles este–oeste van sin girar y
-##   las norte–sur con un cuarto de vuelta ([method _turns]): las marcas quedan
-##   siempre a lo largo de la calle y nunca cruzadas.
-## - **Cruces** — asfalto liso horneado ([method _build_crossing_mesh]) con el
-##   mismo `roads.tres`. Un cruce no lleva las marcas de ninguna de las dos
-##   calles.
-## - **Veredas** — `Sidewalk_Chunk_2` a escala casi uniforme. La pieza **no trae
-##   un cordón modelado**: es una losa plana de 1 m de espesor cuya cara lateral
-##   es el cordón, y las dos bandas oscuras de su textura caen sobre los bordes
-##   largos. Por eso se la escala poco a lo ancho (0.3 para 3 m) y bastante a lo
-##   largo: las bandas quedan justo en el borde de la vereda y el cordón sale de
-##   los 15 cm que separan [constant SIDEWALK_TOP] de [constant ROAD_TOP].
-## - **Patios** — el interior de la manzana con `Sidewalk_Tile_1` a escala
-##   **uniforme** 0.8 (16 m), 2 × 2 por celda: los 20 m nativos no dividen los
-##   32 m de la celda, y estirar la baldosa era justo lo que se veía mal.
+## - **Calzada** — una cinta triangulada por tramo de calle
+##   ([method RoadMesh.ribbon]), recortada contra el polígono de cada nodo que
+##   toca. Con miter en los quiebres no queda muesca; con el corte recto en la
+##   boca del nodo no queda ni hueco ni solape, que es lo que borra el
+##   z-fighting de P2b.
+## - **Cruces** — el polígono que queda entre las bocas de las calles que llegan
+##   al nodo ([method RoadMesh.node_polygon]), con asfalto liso y chaflán en las
+##   esquinas. Ya no es un cuadrado alineado a los ejes del mundo apoyado encima
+##   de la calzada.
+## - **Veredas** — un anillo por manzana ([method RoadMesh.ring]) **sólo en los
+##   lados que dan a una calle**, con la cara vertical del cordón de 15 cm. Ya
+##   no atraviesan los cruces ni se meten por el fondo de la manzana.
+## - **Cierres** — cada cabo declarado lleva su tranquera, su alcantarilla o su
+##   tramo de alambrado ([method RoadMesh.closure]).
+## - **Ruta entera** — la cinta cubre los 1 127 m de ruta y no sólo el tramo del
+##   pueblo. Ver la nota de [constant ASPHALT_NODE]: sobre relieve, una baldosa
+##   plana de 10 m no apoya.
+##
+## Los dos [MeshInstance3D] van **sin sombra propia**: son superficies planas a
+## tres centímetros del suelo, su sombra cae sobre el suelo que ya las tapa y
+## entrarían igual en cada cascada del sol. Es la misma decisión que tomaba
+## `_add_multimesh` con los cinco MultiMesh de P2b y vale por lo mismo
+## (`docs/10`, nota del cierre de P2b).
 func _build_streets() -> void:
 	var streets := _container(STREETS_NODE)
-	var roads_ns: Array[Transform3D] = []
-	var roads_ew: Array[Transform3D] = []
-	var crossings: Array[Transform3D] = []
-	var walks: Array[Transform3D] = []
-	var pads: Array[Transform3D] = []
-
-	for lane_x: int in get_cols():
-		for lane_z: int in get_rows():
-			var cell := Vector2i(lane_x, lane_z)
-			var kind_x := lane_kind(0, lane_x)
-			var kind_z := lane_kind(1, lane_z)
-			if kind_x == Lane.BLOCK and kind_z == Lane.BLOCK:
-				_emit_block_pad(pads, cell)
-			elif kind_x != Lane.BLOCK and kind_z != Lane.BLOCK:
-				_emit_crossing(crossings, walks, cell)
-			elif kind_x != Lane.BLOCK:
-				_emit_street_segment(roads_ns, walks, cell, false)
-			else:
-				_emit_street_segment(roads_ew, walks, cell, true)
-
-	var road_mesh := _bake_piece_mesh(road_piece)
-	var walk_mesh := _bake_piece_mesh(sidewalk_piece)
-	var tile_mesh := _bake_piece_mesh(sidewalk_tile_piece)
+	var height := terrain_height_fn()
+	var road_tile := _bake_piece_mesh(road_piece)
 	var asphalt_material: Material = null
-	if road_mesh != null and road_mesh.get_surface_count() > 0:
-		asphalt_material = road_mesh.surface_get_material(0)
+	if road_tile != null and road_tile.get_surface_count() > 0:
+		asphalt_material = road_tile.surface_get_material(0)
 
-	_add_multimesh(streets, ROAD_EW_NODE, road_mesh, roads_ew)
-	_add_multimesh(streets, ROAD_NS_NODE, road_mesh, roads_ns)
-	_add_multimesh(streets, CROSSINGS_NODE, _build_crossing_mesh(asphalt_material), crossings)
-	_add_multimesh(streets, SIDEWALKS_NODE, walk_mesh, walks)
-	_add_multimesh(streets, PADS_NODE, tile_mesh, pads)
+	var asphalt: Array = []
+	var walkways: Array = []
 
+	_emit_roadways(asphalt, height)
+	_emit_crossings(asphalt, height)
+	_emit_walkways(walkways, height)
+	_emit_closures(walkways, height)
 
-## Patio de una celda de edificio: 2 × 2 baldosas de 16 m a escala uniforme.
-func _emit_block_pad(out: Array[Transform3D], cell: Vector2i) -> void:
-	var tiles := 2
-	var side := cell_size / float(tiles)
-	var scale := side / TILE_PIECE_SIDE
-	var basis := Basis.from_scale(Vector3(scale, scale, scale))
-	var origin_x := lane_start(0, cell.x)
-	var origin_z := lane_start(1, cell.y)
-	var top := SIDEWALK_TOP - TILE_PIECE_HEIGHT * scale
-	for j: int in tiles:
-		for i: int in tiles:
-			out.append(Transform3D(basis, Vector3(
-					origin_x + side * (float(i) + 0.5), top,
-					origin_z + side * (float(j) + 0.5))))
+	var _asphalt_node := _add_surface(streets, ASPHALT_NODE,
+			RoadMesh.paint(RoadMesh.merge(asphalt), asphalt_material))
+	var _walkway_node := _add_surface(streets, WALKWAYS_NODE,
+			RoadMesh.paint(RoadMesh.merge(walkways), walkway_material))
 
 
-## Tramo de calle entre dos manzanas: calzada (una hilera, o dos con cantero si
-## es avenida) más las dos veredas.
+## Función de altura del terreno que usa todo el viario.
 ##
-## [param along_x] indica si la calle corre este–oeste. La calzada de una calle
-## norte–sur va girada un cuarto de vuelta para que sus marcas sigan el eje de
-## la calle.
-func _emit_street_segment(roads: Array[Transform3D], walks: Array[Transform3D],
-		cell: Vector2i, along_x: bool) -> void:
-	var across_axis := 1 if along_x else 0
-	var along_axis := 0 if along_x else 1
-	var lane := cell.y if along_x else cell.x
-	var span := cell.x if along_x else cell.y
-	var from_along := lane_start(along_axis, span)
-	var to_along := from_along + lane_width(along_axis, span)
-	var start := lane_start(across_axis, lane)
-	var width := lane_width(across_axis, lane)
-	var walk := sidewalk_width_at(across_axis, lane)
+## Mientras [member terrain] sea nulo —o no sepa contestar `height_at`— el mundo
+## es el plano `y = 0`, que es el suelo que construye [method _build_ground].
+## Cuando WP-T2 entregue [TownTerrain] y WP-T4 lo cablee acá, las mismas cintas y
+## los mismos anillos se apoyan sobre el relieve sin tocar una línea de
+## [RoadMesh]: por eso la altura entra como [Callable] y no como una dependencia
+## de tipo.
+func terrain_height_fn() -> Callable:
+	var source := terrain
+	if source != null and source.has_method(&"height_at"):
+		return func(x: float, z: float) -> float:
+			return float(source.call(&"height_at", x, z))
+	return Callable()
 
-	# Veredas: una en cada borde del carril, con el cordón mirando a la calzada.
-	_walk_strip(walks, start + walk * 0.5, walk, from_along, to_along, along_x)
-	_walk_strip(walks, start + width - walk * 0.5, walk, from_along, to_along, along_x)
 
-	if lane_kind(across_axis, lane) == Lane.AVENUE:
-		# La banda pintada de `Road_Chunk_5` cae siempre sobre el borde de menor
-		# coordenada de la pieza. La hilera de vuelta va espejada media vuelta
-		# para que las dos bandas queden contra las veredas y no una contra la
-		# vereda y la otra contra el cantero.
-		_road_strip(roads, start + walk + ROADWAY_WIDTH * 0.5, from_along, to_along,
-				along_x, false)
-		_road_strip(roads, start + width - walk - ROADWAY_WIDTH * 0.5,
-				from_along, to_along, along_x, true)
-		_median_strip(walks, start + width * 0.5, from_along, to_along, along_x)
+## Altura del terreno en `(x, z)`, o `0` sin relieve conectado.
+func ground_y(x: float, z: float) -> float:
+	if terrain == null or not terrain.has_method(&"height_at"):
+		return 0.0
+	return float(terrain.call(&"height_at", x, z))
+
+
+## [param point] apoyado sobre el terreno conservando su `y` como **holgura**.
+##
+## Es la regla con la que WP-T4 subió al relieve todo lo que el plano declara
+## con una altura relativa al suelo: un poste de pila a 4,8 m, el dron a 1,5 m,
+## una aparición a ras. El plano no sabe de relieve —su `y` es «cuánto por
+## encima del suelo»— y acá se le suma el suelo. Con [member terrain] nulo la
+## cuenta es la identidad, que es como corrió hasta P2b.
+func on_terrain(point: Vector3) -> Vector3:
+	return Vector3(point.x, point.y + ground_y(point.x, point.z), point.z)
+
+
+## [param xform] con su origen apoyado sobre el terreno. La base no se toca: el
+## giro de una aparición mira al centro del pueblo y eso no depende de la cota.
+func on_terrain_xform(xform: Transform3D) -> Transform3D:
+	return Transform3D(xform.basis, on_terrain(xform.origin))
+
+
+## Calzada de la ruta y de las calles, recortada contra los nodos.
+func _emit_roadways(asphalt: Array, height: Callable) -> void:
+	for street: int in plan.graph_street_count():
+		var axis := plan.street_axis(street)
+		if axis.size() < 2:
+			continue
+		var half := plan.street_width_of(street) * 0.5
+		if half <= 0.0:
+			continue
+		# Sólo la ruta lleva el tile con marcas (`docs/17` §4). Estirar las dos
+		# bandas pintadas de `Road_Chunk_5` a lo ancho de una calle de nueve
+		# metros deja una franja anaranjada paralela al cordón, y como la V del
+		# tile se repite cada diez metros esa franja se corta y vuelve con un
+		# período regular: son los dientes que WP-T5 midió en `plaza_60`.
+		var marked := plan.street_kind_of(street) == TownPlan.StreetKind.ROUTE
+		var uv_rect := RoadMesh.ROAD_UV if marked else RoadMesh.ROAD_SMOOTH_UV
+		for piece: PackedVector3Array in RoadMesh.clip_ribbon_at_nodes(axis,
+				_street_cuts(street, axis), plan.street_stub_of(street, 0),
+				plan.street_stub_of(street, 1)):
+			var mesh := RoadMesh.ribbon(piece, half, height, ROAD_TOP,
+					RoadMesh.ROAD_U_SCALE, uv_rect)
+			if mesh != null:
+				asphalt.append(mesh)
+
+
+## Los nodos que la calle [param street] toca, como recortes sobre su eje.
+##
+## Se recorren **todos** los nodos y no sólo los dos de [method TownPlan.node_of]
+## a propósito: la ruta entra al pueblo por una punta y sale por la otra, pero en
+## el medio cruza siete transversales, y cada uno de esos cruces es un nodo que
+## le abre un hueco. Un nodo de grado uno —un cabo— no recorta nada: ahí no hay
+## cruce, hay un cierre.
+func _street_cuts(street: int, axis: PackedVector3Array) -> Array[Dictionary]:
+	var cuts: Array[Dictionary] = []
+	if plan == null or not plan.has_graph():
+		return cuts
+	for index: int in plan.nodes.size():
+		var node := plan.node_at(index)
+		var incident: PackedInt32Array = node.get("streets", PackedInt32Array())
+		if not incident.has(street):
+			continue
+		var poly: PackedVector2Array = node.get("poly", PackedVector2Array())
+		if poly.size() < 3:
+			continue
+		var pos: Vector3 = node.get("pos", Vector3.ZERO)
+		cuts.append({
+			"at": TownPlan.polyline_closest(axis, pos),
+			"radius": float(node.get("radius", 0.0)),
+		})
+	return cuts
+
+
+## El polígono de asfalto liso de cada nodo de grado dos o más.
+func _emit_crossings(asphalt: Array, height: Callable) -> void:
+	if plan == null or not plan.has_graph():
 		return
-	_road_strip(roads, start + width * 0.5, from_along, to_along, along_x, false)
+	for index: int in plan.nodes.size():
+		var poly := plan.node_polygon(index)
+		if poly.size() < 3:
+			continue
+		var mesh := RoadMesh.polygon_mesh(poly, height, ROAD_TOP)
+		if mesh != null:
+			asphalt.append(mesh)
 
 
-## Cruce: asfalto liso en todo el rectángulo y una vereda de esquina en cada
-## ángulo. La vereda va encima del asfalto —15 cm más alta—, así que el solape
-## no se ve y no hace falta recortar el cruce.
-func _emit_crossing(crossings: Array[Transform3D], walks: Array[Transform3D],
-		cell: Vector2i) -> void:
-	var x0 := lane_start(0, cell.x)
-	var z0 := lane_start(1, cell.y)
-	var width := lane_width(0, cell.x)
-	var depth := lane_width(1, cell.y)
-	var side := CROSSING_PATCH * float(CROSSING_CELLS)
-	var cols := maxi(roundi(width / side), 1)
-	var rows := maxi(roundi(depth / side), 1)
-	var step_x := width / float(cols)
-	var step_z := depth / float(rows)
-	var basis := Basis.from_scale(Vector3(step_x / side, 1.0, step_z / side))
-	for j: int in rows:
-		for i: int in cols:
-			crossings.append(Transform3D(basis, Vector3(
-					x0 + step_x * (float(i) + 0.5), ROAD_TOP,
-					z0 + step_z * (float(j) + 0.5))))
-
-	var walk_x := sidewalk_width_at(0, cell.x)
-	var walk_z := sidewalk_width_at(1, cell.y)
-	var corner := Basis.from_scale(Vector3(walk_x / WALK_PIECE_SIDE, 1.0,
-			walk_z / WALK_PIECE_SIDE))
-	var top := SIDEWALK_TOP - WALK_PIECE_HEIGHT
-	for sx: int in 2:
-		for sz: int in 2:
-			var cx := x0 + walk_x * 0.5 if sx == 0 else x0 + width - walk_x * 0.5
-			var cz := z0 + walk_z * 0.5 if sz == 0 else z0 + depth - walk_z * 0.5
-			walks.append(Transform3D(corner, Vector3(cx, top, cz)))
+## Un anillo de vereda por manzana, con el ancho de vereda de cada calle.
+func _emit_walkways(walkways: Array, height: Callable) -> void:
+	for block: int in plan.block_count():
+		var ring := plan.block_ring(block)
+		if ring.size() < 3 or block >= plan.block_streets.size():
+			continue
+		var sides := plan.block_streets[block]
+		if sides.size() < ring.size():
+			continue
+		var widths := PackedFloat32Array()
+		var widest := 0.0
+		for side: int in sides:
+			var walk := plan.street_sidewalk_of(side)
+			widths.append(walk)
+			widest = maxf(widest, walk)
+		if widest <= 0.0:
+			continue
+		var mesh := RoadMesh.ring(ring, sides, 0.0, widest, SIDEWALK_TOP,
+				RoadMesh.CURB, height, widths)
+		if mesh != null:
+			walkways.append(mesh)
 
 
-## Hilera de calzada de 10 m de ancho centrada en [param centre], de
-## [param from_along] a [param to_along]. Con [param mirror] la pieza va media
-## vuelta girada, que es como se espeja la hilera de vuelta de una avenida.
-func _road_strip(out: Array[Transform3D], centre: float, from_along: float,
-		to_along: float, along_x: bool, mirror: bool) -> void:
-	var length := to_along - from_along
-	var tiles := maxi(roundi(length / ROAD_PIECE_SIDE), 1)
-	_lay_strip(out, centre, ROADWAY_WIDTH, from_along, to_along, tiles,
-			_turns(along_x, mirror), ROAD_PIECE_SIDE, ROAD_PIECE_HEIGHT, ROAD_TOP)
-
-
-## Franja de vereda de [param width] metros de ancho.
-func _walk_strip(out: Array[Transform3D], centre: float, width: float,
-		from_along: float, to_along: float, along_x: bool) -> void:
-	var length := to_along - from_along
-	var tiles := maxi(roundi(length / maxf(width * WALK_TILE_ASPECT, 0.5)), 1)
-	_lay_strip(out, centre, width, from_along, to_along, tiles,
-			_turns(along_x, false), WALK_PIECE_SIDE, WALK_PIECE_HEIGHT, SIDEWALK_TOP)
-
-
-## Cantero central de una avenida, con la misma pieza de vereda.
-func _median_strip(out: Array[Transform3D], centre: float, from_along: float,
-		to_along: float, along_x: bool) -> void:
-	if avenue_median <= 0.0:
+## La tranquera, la alcantarilla o el alambrado de cada cabo declarado.
+func _emit_closures(walkways: Array, height: Callable) -> void:
+	if plan == null or not plan.has_graph():
 		return
-	var length := to_along - from_along
-	var tiles := maxi(roundi(length / maxf(avenue_median * WALK_TILE_ASPECT, 0.5)), 1)
-	_lay_strip(out, centre, avenue_median, from_along, to_along, tiles,
-			_turns(along_x, false), WALK_PIECE_SIDE, WALK_PIECE_HEIGHT, SIDEWALK_TOP)
+	for street: int in plan.graph_street_count():
+		var axis := plan.street_axis(street)
+		if axis.size() < 2:
+			continue
+		var total := TownPlan.polyline_length(axis)
+		for end: int in 2:
+			# Un cabo puede venir de dos formas: sin nodo (`-1`) o con un nodo de
+			# **grado uno**, que es como el resolvedor del diseño marca la punta
+			# de un acceso. Las dos terminan en el aire y las dos llevan cierre;
+			# lo que no lleva cierre es un nodo de grado dos o más, que es un
+			# cruce y ya tiene su polígono de asfalto.
+			var node := plan.node_of(street, end)
+			if node >= 0 and plan.node_polygon(node).size() >= 3:
+				continue
+			var kind := plan.street_closure_of(street, end)
+			if not RoadMesh.CLOSURE_KINDS.has(kind) or kind == RoadMesh.KIND_NONE:
+				continue
+			var stub := plan.street_stub_of(street, end)
+			var at := -stub if end == 0 else total + stub
+			var point := TownPlan.polyline_point(axis, at)
+			var facing := TownPlan.polyline_tangent(axis, clampf(at, 0.0, total))
+			if end == 0:
+				facing = -facing
+			var mesh := RoadMesh.closure(kind, point, facing,
+					plan.street_width_of(street), height)
+			if mesh != null:
+				walkways.append(mesh)
 
 
-## Reparte [param tiles] instancias de una pieza cuadrada de [param piece_side]
-## metros a lo largo de una franja.
+## Cuelga de [param parent] una [MeshInstance3D] con la malla ya fundida.
+func _add_surface(parent: Node3D, name: StringName, mesh: ArrayMesh) -> MeshInstance3D:
+	if mesh == null:
+		push_error("CityGrid: la malla de calle '%s' quedaría vacía." % name)
+		return null
+	var node := MeshInstance3D.new()
+	node.name = name
+	node.mesh = mesh
+	node.gi_mode = GeometryInstance3D.GI_MODE_STATIC
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(node)
+	return node
+
+
+## Guarda las dos mallas de calle como `.res` binarios en [param dir] y deja los
+## nodos apuntando a los archivos.
 ##
-## La escala **a lo ancho** es la que manda: es la que decide si el cordón de la
-## vereda o el ancho de la calzada salen bien. La escala a lo largo se deduce del
-## número de baldosas, y por eso [method _walk_strip] elige ese número con
-## [constant WALK_TILE_ASPECT]: la textura de estas piezas no tiene estructura en
-## esa dirección.
-func _lay_strip(out: Array[Transform3D], centre: float, across: float,
-		from_along: float, to_along: float, tiles: int, turns: int,
-		piece_side: float, piece_height: float, top: float) -> void:
-	var along_x := turns % 2 == 0
-	var step := (to_along - from_along) / float(tiles)
-	var scale := Vector3(step / piece_side, 1.0, across / piece_side)
-	# El giro se aplica **después** de la escala: así `scale.x` sigue queriendo
-	# decir «a lo largo de la franja» y `scale.z` «a lo ancho», cualquiera sea la
-	# orientación de la calle.
-	var basis := Basis.from_euler(Vector3(0.0, float(turns) * (PI * 0.5), 0.0)) 			* Basis.from_scale(scale)
-	var y := top - piece_height
-	for index: int in tiles:
-		var along := from_along + step * (float(index) + 0.5)
-		var origin := Vector3(along, y, centre) if along_x else Vector3(centre, y, along)
-		out.append(Transform3D(basis, origin))
-
-
-## Cuartos de vuelta de una franja: 0 este-oeste, 1 norte-sur, y dos más si va
-## espejada.
-func _turns(along_x: bool, mirror: bool) -> int:
-	return (0 if along_x else 1) + (2 if mirror else 0)
-
-
-## Baldosa de asfalto liso de los cruces: una rejilla de
-## [constant CROSSING_CELLS]² parches de [constant CROSSING_PATCH] m, cada uno
-## con las UV de [constant ASPHALT_UV].
+## Lo llama el horneador (`tools/build_town.gd`, WP-T4) **después** de
+## [method build] y **antes** de empaquetar la escena. Sin esto las dos mallas
+## viajan dentro de `town_a.tscn` en texto y el archivo se va bastante más allá
+## del tope de 500 KB del plan; con esto el `.tscn` guarda dos rutas.
 ##
-## Se copia la geometría de un [PlaneMesh] en lugar de escribir los triángulos a
-## mano para no tener que adivinar el sentido de giro de las caras frontales; lo
-## único propio son las UV, que no pueden compartirse entre parches (cada uno
-## repite el mismo trozo de atlas) y por eso la malla sale **sin índices**.
-func _build_crossing_mesh(material: Material) -> ArrayMesh:
-	var plane := PlaneMesh.new()
-	plane.size = Vector2(CROSSING_PATCH, CROSSING_PATCH)
-	plane.orientation = PlaneMesh.FACE_Y
-	var arrays := plane.surface_get_arrays(0)
-	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
-	if indices.is_empty():
-		indices = PackedInt32Array()
-		for index: int in vertices.size():
-			indices.append(index)
-
-	var builder := SurfaceTool.new()
-	builder.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var side := CROSSING_PATCH * float(CROSSING_CELLS)
-	for gz: int in CROSSING_CELLS:
-		for gx: int in CROSSING_CELLS:
-			var offset := Vector3(
-					-side * 0.5 + CROSSING_PATCH * (float(gx) + 0.5), 0.0,
-					-side * 0.5 + CROSSING_PATCH * (float(gz) + 0.5))
-			for slot: int in indices.size():
-				var vertex := vertices[indices[slot]]
-				var u := vertex.x / CROSSING_PATCH + 0.5
-				var v := vertex.z / CROSSING_PATCH + 0.5
-				builder.set_normal(Vector3.UP)
-				builder.set_uv(Vector2(
-						ASPHALT_UV.position.x + ASPHALT_UV.size.x * u,
-						ASPHALT_UV.position.y + ASPHALT_UV.size.y * v))
-				builder.add_vertex(vertex + offset)
-	builder.generate_tangents()
-	var mesh := builder.commit()
-	if mesh != null and material != null and mesh.get_surface_count() > 0:
-		mesh.surface_set_material(0, material)
-	return mesh
+## Devuelve `OK` o el primer error.
+func save_street_meshes(dir: String) -> Error:
+	var streets := get_node_or_null(NodePath(STREETS_NODE))
+	if streets == null:
+		push_error("CityGrid: no hay calles que guardar; llamá a build() antes.")
+		return ERR_UNCONFIGURED
+	var err := DirAccess.make_dir_recursive_absolute(dir)
+	if err != OK and err != ERR_ALREADY_EXISTS:
+		return err
+	for entry: Array in [[ASPHALT_NODE, "asphalt.res"], [WALKWAYS_NODE, "walkways.res"]]:
+		var node := streets.get_node_or_null(NodePath(entry[0])) as MeshInstance3D
+		if node == null or node.mesh == null:
+			continue
+		var path := String(dir).path_join(String(entry[1]))
+		err = ResourceSaver.save(node.mesh, path,
+				ResourceSaver.FLAG_COMPRESS | ResourceSaver.FLAG_CHANGE_PATH)
+		if err != OK:
+			push_error("CityGrid: no se pudo guardar '%s': %s" % [path, error_string(err)])
+			return err
+		node.mesh = ResourceLoader.load(path, "ArrayMesh")
+	return OK
 
 
 ## Crea un [MultiMeshInstance3D] con [param mesh] y las [param transforms] dadas.
 func _add_multimesh(parent: Node3D, name: StringName, mesh: Mesh,
-		transforms: Array[Transform3D]) -> void:
+		transforms: Array[Transform3D]) -> MultiMeshInstance3D:
 	if mesh == null or transforms.is_empty():
 		push_error("CityGrid: el MultiMesh '%s' quedaría vacío." % name)
-		return
+		return null
 	var multi_mesh := MultiMesh.new()
 	multi_mesh.transform_format = MultiMesh.TRANSFORM_3D
 	multi_mesh.mesh = mesh
@@ -963,6 +1025,7 @@ func _add_multimesh(parent: Node3D, name: StringName, mesh: Mesh,
 	node.gi_mode = GeometryInstance3D.GI_MODE_STATIC
 	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(node)
+	return node
 
 
 ## Empaqueta [param transforms] en el formato crudo de [member MultiMesh.buffer]:
@@ -970,10 +1033,10 @@ func _add_multimesh(parent: Node3D, name: StringName, mesh: Mesh,
 ##
 ## Se escribe el búfer entero y **no** se usa [method MultiMesh.set_instance_transform]
 ## a propósito: esa vía guarda las transformadas dentro del `RenderingServer`, y
-## el servidor de `--headless` —que es donde corre `tools/build_district.gd`— no
-## las retiene, así que `get_buffer()` devolvería vacío y `district_a.tscn` se
-## guardaría con todas las instancias en el origen. Asignar `buffer` escribe la
-## propiedad del recurso, que sí se serializa.
+## el servidor de `--headless` —que es donde corre `tools/build_town.gd`— no las
+## retiene, así que `get_buffer()` devolvería vacío y `town_a.tscn` se guardaría
+## con todas las instancias en el origen. Asignar `buffer` escribe la propiedad
+## del recurso, que sí se serializa.
 func _multimesh_buffer(transforms: Array[Transform3D]) -> PackedFloat32Array:
 	var data := PackedFloat32Array()
 	data.resize(transforms.size() * 12)
@@ -992,18 +1055,36 @@ func _multimesh_buffer(transforms: Array[Transform3D]) -> PackedFloat32Array:
 ##
 ## Se copia en vez de referenciar `<fbx>::ArrayMesh_xxx` a propósito: el id de
 ## un subrecurso de escena importada lo genera el importador y cambia si se
-## vuelve a importar, con lo que `district_a.tscn` quedaría apuntando a la nada.
-## La copia son 12 a 28 triángulos y viaja dentro del `.tscn`.
+## vuelve a importar, con lo que `town_a.tscn` quedaría apuntando a la nada. La
+## copia son 12 a 28 triángulos y viaja dentro del `.tscn`.
 func _bake_piece_mesh(piece: PackedScene) -> ArrayMesh:
 	if piece == null:
 		return null
 	var root := piece.instantiate()
 	var source: MeshInstance3D = null
+	var meshes := 0
 	for node: Node in _descendants(root):
 		var candidate := node as MeshInstance3D
-		if candidate != null and candidate.mesh != null:
+		if candidate == null or candidate.mesh == null:
+			continue
+		meshes += 1
+		if source == null:
 			source = candidate
-			break
+	# Esta rutina hornea **una** superficie de **una** malla y aplica la
+	# transformada local del nodo, no la cadena hasta la raíz. Sirve para las
+	# piezas de calle y de prop, que son una malla plana colgada de la raíz. Si
+	# alguna vez llega una pieza con varias mallas, varias superficies o la malla
+	# anidada, lo que se hornea es un trozo de la pieza y el resto desaparece sin
+	# decir nada: de ahí el aviso.
+	if meshes > 1:
+		push_error("CityGrid: la pieza '%s' trae %d mallas y sólo se hornea la primera."
+				% [piece.resource_path, meshes])
+	if source != null and source.mesh.get_surface_count() > 1:
+		push_error("CityGrid: la pieza '%s' trae %d superficies y sólo se hornea la 0."
+				% [piece.resource_path, source.mesh.get_surface_count()])
+	if source != null and source.get_parent() != root:
+		push_error("CityGrid: la malla de '%s' está anidada; se hornearía con la"
+				% piece.resource_path + " transformada equivocada.")
 	if source == null:
 		root.free()
 		push_error("CityGrid: la pieza '%s' no tiene malla." % piece.resource_path)
@@ -1036,194 +1117,90 @@ func _bake_piece_mesh(piece: PackedScene) -> ArrayMesh:
 
 # --- Edificios -------------------------------------------------------------
 
-## Siembra los 60 edificios. Elige rol por cercanía al centro, reparte los hitos
-## por el centro y las avenidas, y apoya cada fachada sobre la línea municipal
-## del lado de manzana que le toca.
+## Siembra un [Building] por parcela destructible del plano.
 func _build_buildings() -> void:
 	var container := _container(BUILDINGS_NODE)
-	var cells := building_cells()
-	var ranked := cells.duplicate()
-	# Centro financiero: las `tall_count` celdas más cercanas al centro. El
-	# desempate por índice mantiene el orden determinista.
-	ranked.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
-		var da := cell_position(a).length_squared()
-		var db := cell_position(b).length_squared()
-		if is_equal_approx(da, db):
-			return cells.find(a) < cells.find(b)
-		return da < db)
-
-	var landmarks := _pick_landmarks(ranked)
-	var role_by_cell: Dictionary[Vector2i, int] = {}
-	for index: int in ranked.size():
-		# 0 = hito, 1 = torre media, 2 = bloque bajo.
-		var role := 2
-		if index < tall_count:
-			role = 0 if landmarks.has(ranked[index]) else 1
-		role_by_cell[ranked[index]] = role
-
-	var facing_by_cell := _pick_facings()
-	var mid_pick := 0
-	for cell: Vector2i in cells:
-		var role: int = role_by_cell[cell]
-		var piece: PackedScene = null
-		var profile: BuildingProfile = null
-		var height_scale := 1.0
-		match role:
-			0:
-				piece = _pick(tall_pieces)
-				profile = tall_profile
-				height_scale = _rng.randf_range(LANDMARK_SCALE_MIN, LANDMARK_SCALE_MAX)
-			1:
-				# Alternancia fija entre las dos piezas de torre media: con RNG
-				# podían salir siete iguales y el anillo perdía variedad.
-				piece = mid_tower_pieces[mid_pick % maxi(mid_tower_pieces.size(), 1)] \
-						if not mid_tower_pieces.is_empty() else null
-				mid_pick += 1
-				profile = tall_profile
-				height_scale = _rng.randf_range(MID_TOWER_SCALE_MIN, MID_TOWER_SCALE_MAX)
-			_:
-				piece = _pick(low_pieces)
-				profile = low_profile
-				height_scale = _rng.randf_range(LOW_SCALE_MIN, LOW_SCALE_MAX)
-		var building := _spawn_building(piece, profile, cell,
-				int(facing_by_cell.get(cell, 0)), height_scale)
+	for index: int in plan.parcels.size():
+		var parcel := plan.parcels[index]
+		if not bool(parcel.get("destructible", false)):
+			continue
+		var role := int(parcel.get("role", TownPlan.Role.HOUSE))
+		var profile := house_profile if role == TownPlan.Role.HOUSE else big_profile
+		var building := _spawn_building(_piece_for(parcel), profile, index)
 		if building == null:
 			continue
 		container.add_child(building)
 
 
-## Elige las celdas de los hitos: las más cercanas al centro y a las avenidas,
-## pero **separadas entre sí**, para que la silueta alta no se apelotone en una
-## sola manzana. Si con la separación pedida no entran todos, se relaja de a
-## 8 m hasta que entren.
-func _pick_landmarks(ranked: Array[Vector2i]) -> Dictionary[Vector2i, bool]:
-	var chosen: Dictionary[Vector2i, bool] = {}
-	if tall_primary_count <= 0 or tall_pieces.is_empty():
-		return chosen
-	var crossing := avenue_crossing()
-	var pool := ranked.slice(0, mini(tall_count, ranked.size()))
-	pool.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
-		var da := cell_position(a).distance_to(crossing) + cell_position(a).length() * 0.5
-		var db := cell_position(b).distance_to(crossing) + cell_position(b).length() * 0.5
-		if is_equal_approx(da, db):
-			return ranked.find(a) < ranked.find(b)
-		return da < db)
-
-	var spacing := LANDMARK_SPACING
-	while spacing > 0.0:
-		chosen.clear()
-		var picked: Array[Vector3] = []
-		for cell: Vector2i in pool:
-			if chosen.size() >= tall_primary_count:
-				break
-			var here := cell_position(cell)
-			var far_enough := true
-			for other: Vector3 in picked:
-				if here.distance_to(other) < spacing:
-					far_enough = false
-					break
-			if far_enough:
-				chosen[cell] = true
-				picked.append(here)
-		if chosen.size() >= tall_primary_count:
-			break
-		spacing -= 8.0
-	return chosen
-
-
-## Orientación de la fachada de cada celda, en pasos de 90°: 0 = −Z, 1 = −X,
-## 2 = +Z, 3 = +X. Coincide con `yaw_steps`, porque un giro de 90° lleva el −Z
-## local a −X, el de 180° a +Z y el de 270° a +X.
-##
-## Cada celda de una manzana de 2 × 2 toca **dos** lados de la manzana, así que
-## sólo dos de las cuatro orientaciones son válidas. Los cuatro patrones son los
-## que respetan esa restricción: dos molinetes (un edificio por lado) y dos
-## «peines» (dos edificios sobre el mismo lado, que es lo que da frente continuo
-## de manzana). El patrón se sortea por manzana.
-func _pick_facings() -> Dictionary[Vector2i, int]:
-	var patterns: Array[PackedInt32Array] = [
-		PackedInt32Array([0, 3, 1, 2]),
-		PackedInt32Array([1, 0, 2, 3]),
-		PackedInt32Array([0, 0, 2, 2]),
-		PackedInt32Array([1, 3, 1, 3]),
-	]
-	var facings: Dictionary[Vector2i, int] = {}
-	for block_z: int in block_rows:
-		for block_x: int in block_cols:
-			var pattern := patterns[_rng.randi_range(0, patterns.size() - 1)]
-			for dz: int in block_span:
-				for dx: int in block_span:
-					var cell := block_cell(block_x, block_z, dx, dz)
-					var slot := dz * block_span + dx
-					facings[cell] = pattern[slot % pattern.size()]
-	return facings
-
-
-## Posición del edificio de la celda [param cell] con la fachada [param facing]
-## apoyada en la línea municipal, para una pieza de [param depth] metros de fondo.
-##
-## La fachada se apoya en el borde de la celda que da a la calle; el fondo entra
-## hacia el interior de la manzana y lo que sobra es patio. El frente —el lado
-## largo de la pieza— queda centrado en la celda, y por eso acá sólo hace falta
-## el fondo.
-func _facade_position(cell: Vector2i, facing: int, depth: float) -> Vector3:
-	var x0 := lane_start(0, cell.x)
-	var x1 := x0 + lane_width(0, cell.x)
-	var z0 := lane_start(1, cell.y)
-	var z1 := z0 + lane_width(1, cell.y)
-	var centre := cell_position(cell)
-	# El frente se centra en la celda; el fondo se apoya contra la línea.
-	var half := depth * 0.5
-	match facing:
-		1:
-			return Vector3(x0 + half, SIDEWALK_TOP, centre.z)
-		2:
-			return Vector3(centre.x, SIDEWALK_TOP, z1 - half)
-		3:
-			return Vector3(x1 - half, SIDEWALK_TOP, centre.z)
-		_:
-			return Vector3(centre.x, SIDEWALK_TOP, z0 + half)
+## La pieza de una parcela, por su identificador. Devuelve `null` —y lo dice—
+## si la tabla no la trae: es el aviso de que falta importar algo.
+func _piece_for(parcel: Dictionary) -> PackedScene:
+	var id: StringName = parcel.get("piece", &"")
+	var piece := pieces.get(id, null) as PackedScene
+	if piece == null:
+		push_error("CityGrid: no hay pieza para '%s'." % id)
+	return piece
 
 
 ## Instancia una pieza, le pone el script [Building] y le monta los nodos de
 ## etapa. Devuelve el edificio **fuera del árbol**; quien llama lo cuelga.
-func _spawn_building(piece: PackedScene, profile: BuildingProfile, cell: Vector2i,
-		facing: int, height_scale: float) -> Building:
+##
+## Sirve para las dos familias de pieza que conviven en el pueblo:
+##
+## - las **FBX de VoxelCity**, cuyo origen está en una esquina y cuya forma de
+##   colisión quedó centrada en el AABB por el post-import;
+## - las **GLB de WP-A**, centradas en XZ y con `min.y = 0`.
+##
+## No hace falta distinguirlas: el `rest` se calcula **desde la posición de la
+## forma**, que en el primer caso vale el desplazamiento de la esquina y en el
+## segundo es cero. Una sola fórmula cubre las dos.
+func _spawn_building(piece: PackedScene, profile: BuildingProfile,
+		parcel_index: int) -> Building:
 	if piece == null or profile == null:
-		push_error("CityGrid: falta la pieza o el perfil de la celda %s." % str(cell))
+		push_error("CityGrid: falta la pieza o el perfil de la parcela %d." % parcel_index)
 		return null
 	var root := piece.instantiate() as StaticBody3D
 	if root == null:
 		push_error("CityGrid: la pieza '%s' no tiene raíz StaticBody3D." % piece.resource_path)
 		return null
 
+	var parcel := plan.parcels[parcel_index]
 	var mesh_instance: MeshInstance3D = null
+	var fallback_shape: CollisionShape3D = null
 	for node: Node in root.get_children():
 		if mesh_instance == null and node is MeshInstance3D:
 			mesh_instance = node as MeshInstance3D
+		if fallback_shape == null and node is CollisionShape3D:
+			fallback_shape = node as CollisionShape3D
 		var player := node as AnimationPlayer
 		if player != null:
 			# El pack trae un `AnimationPlayer` vacío por pieza; sin animaciones
 			# no cuesta nada, pero tampoco hace falta que procese.
 			player.process_mode = Node.PROCESS_MODE_DISABLED
 	var shape_node := root.get_node_or_null(NodePath(PIECE_SHAPE)) as CollisionShape3D
+	if shape_node == null:
+		shape_node = fallback_shape
 	if mesh_instance == null or shape_node == null:
-		push_error("CityGrid: la pieza '%s' no trae malla o '%s'." % [piece.resource_path, PIECE_SHAPE])
+		push_error("CityGrid: la pieza '%s' no trae malla o forma de colisión."
+				% piece.resource_path)
 		root.free()
 		return null
 
 	var base_size: Vector3 = root.get_meta(&"base_size", Vector3(20.0, 12.5, 11.0))
-	# El post-import deja la forma en el centro del AABB, y el origen de estas
-	# piezas está en una esquina: ese offset es lo que hay que anular para que
-	# la huella quede centrada sobre la celda y el giro sea en torno a su eje.
+	# El post-import deja la forma en el centro del AABB, y el origen de las
+	# piezas FBX está en una esquina: ese offset es lo que hay que anular para
+	# que la huella quede centrada sobre la parcela y el giro sea en torno a su
+	# eje. En las piezas GLB, ya centradas, el offset es cero y esto no hace
+	# nada.
 	var centre := shape_node.position
 	var rest := Transform3D(Basis.IDENTITY, Vector3(-centre.x, 0.0, -centre.z)) * mesh_instance.transform
 
 	root.set_script(ResourceLoader.load(BUILDING_SCRIPT, "Script"))
 	var building := root as Building
-	building.name = "Building_%d_%d" % [cell.x, cell.y]
-	building.set_meta(&"cell", cell)
-	building.set_meta(&"facing", facing)
+	building.name = String(parcel.get("name", &"Building"))
+	building.set_meta(&"parcel", parcel_index)
+	building.set_meta(&"block", int(parcel.get("block", -1)))
+	building.set_meta(&"role", int(parcel.get("role", -1)))
 	building.set_meta(&"piece", StringName(piece.resource_path.get_file().get_basename()))
 	building.profile = profile
 	building.base_size = base_size
@@ -1239,14 +1216,41 @@ func _spawn_building(piece: PackedScene, profile: BuildingProfile, cell: Vector2
 	building.rubble_shape = _make_rubble_shape(building)
 	_make_rubble_stage(building, profile)
 	building.dust_burst = _make_dust(building, profile)
-	building.props = _make_props(building, base_size)
+	if int(parcel.get("role", -1)) != TownPlan.Role.HOUSE:
+		building.props = _make_props(building, base_size)
 
-	# El frente largo de la pieza (`base_size.x`) va sobre la calle y el fondo
-	# (`base_size.z`) entra en la manzana: por eso la línea municipal se calcula
-	# con el fondo, no con el ancho.
-	building.position = _facade_position(cell, facing, base_size.z)
-	building.apply_variation(height_scale, facing)
+	# Las cincuenta y dos casas **no proyectan sombra**; la escuela, el hito y los
+	# cinco medianos sí. Ver [method _mute_house_shadow].
+	if int(parcel.get("role", -1)) == TownPlan.Role.HOUSE:
+		_mute_house_shadow(building)
+
+	building.position = plan.parcel_position(parcel_index)
+	# `apply_variation()` sólo sabe de cuartos de vuelta, que es todo lo que
+	# necesitaba una rejilla cartesiana; un pueblo de ruta necesita el giro exacto
+	# de la fachada, y para eso WP-C agregó `apply_variation_yaw()`.
+	building.apply_variation_yaw(float(parcel.get("height_scale", 1.0)),
+			_facade_yaw(building, parcel_index))
 	return building
+
+
+## Giro con el que la **fachada** de [param piece_root] queda mirando a la calle
+## de la parcela [param parcel_index]. Ver [constant TOWN_PIECE_META].
+##
+## Al giro de la fachada se le suma el `yaw_jitter` que el resolvedor calculó
+## para esa parcela: un cuarto de grado largo que corre la esquina de la fachada
+## unos diez centímetros sobre la línea municipal. Va **sobre el edificio y no
+## sobre el lote** a propósito —el lote sigue siendo un rectángulo alineado con
+## su cuadra, y es contra él que el check mide solapes y contención—, y es
+## posicional: el giro de la casa 2 de la manzana 7 no cambia si se agrega una
+## casa en la manzana 3. Es la diferencia entre una hilera de casas y una hilera
+## de cajas.
+func _facade_yaw(piece_root: Node3D, parcel_index: int) -> float:
+	var yaw := plan.parcel_yaw(parcel_index)
+	if parcel_index >= 0 and parcel_index < plan.parcels.size():
+		yaw += float(plan.parcels[parcel_index].get("yaw_jitter", 0.0))
+	if piece_root.has_meta(TOWN_PIECE_META):
+		return yaw + TOWN_YAW_OFFSET
+	return yaw
 
 
 ## Caja baja de la ruina, deshabilitada hasta que termina el derrumbe.
@@ -1324,13 +1328,16 @@ func _make_dust(building: Building, profile: BuildingProfile) -> GPUParticles3D:
 	return dust
 
 
-## Props de azotea en el [member prop_chance] de los edificios. No llevan
-## colisión: son decorativos y se desprenden al entrar en `DAMAGED`.
+## Props de azotea en el 30 % de los edificios **grandes**. No llevan colisión:
+## son decorativos y se desprenden al entrar en `DAMAGED`.
+##
+## Las casas no llevan: un cartel de 6 m sobre una casa de 5 no es un cartel, es
+## un error de escala.
 func _make_props(building: Building, base_size: Vector3) -> Node3D:
-	# Reparto por deuda acumulada y no por tirada de dado: con 60 muestras una
-	# Bernoulli de p = 0.30 se va con facilidad al 40 %, y `docs/10` §4.3 pide un
-	# 30 % exacto. Así salen 18 props repartidos de forma pareja por la rejilla.
-	_prop_debt += prop_chance
+	# Reparto por deuda acumulada y no por tirada de dado: con pocas muestras
+	# una Bernoulli de p = 0.30 se va con facilidad al 50 %, y `docs/10` §4.3
+	# pide un 30 % parejo.
+	_prop_debt += PROP_CHANCE
 	if prop_pieces.is_empty() or _prop_debt < 1.0:
 		return null
 	_prop_debt -= 1.0
@@ -1346,20 +1353,12 @@ func _make_props(building: Building, base_size: Vector3) -> Node3D:
 	# Los props son decorativos: se los saca de toda capa en vez de desactivar su
 	# `CollisionShape3D`, porque la capa y la máscara son propiedades de la raíz
 	# de la instancia —y esas sí se guardan al empaquetar—, mientras que tocar un
-	# nodo interno se perdería. Un cuerpo con capa y máscara 0 no participa de
-	# nada, que es lo que se busca: `docs/10` §7 no quiere 18 colisionadores más.
-	#
-	# El desvanecimiento a 180 m no se pone acá: ya lo dejó `import_city_piece.gd`
-	# en las mallas de los cuatro props (`docs/10` §2.4 punto 3).
+	# nodo interno se perdería.
 	var body := prop as PhysicsBody3D
 	if body != null:
 		body.collision_layer = 0
 		body.collision_mask = 0
 
-	# Giro en pasos de 90° y voladizo acotado: el prop tiene que apoyar **entero**
-	# sobre la azotea. Con la antena a 1,8 m y los carteles a 3,4 y 5,9 m (WP-24b
-	# reescaló los `.import`), medio metro de margen alcanza para que no asome por
-	# el borde ni siquiera en la pieza de 20 × 10 m.
 	var steps := _rng.randi_range(0, 3)
 	var prop_size: Vector3 = prop.get_meta(&"base_size", Vector3(2.0, 2.0, 2.0))
 	var footprint := Vector2(prop_size.x, prop_size.z)
@@ -1367,9 +1366,9 @@ func _make_props(building: Building, base_size: Vector3) -> Node3D:
 		footprint = Vector2(prop_size.z, prop_size.x)
 	var margin_x := maxf((base_size.x - footprint.x) * 0.5 - 0.5, 0.0)
 	var margin_z := maxf((base_size.z - footprint.y) * 0.5 - 0.5, 0.0)
-	# Altura **sin** variación: `Building.apply_variation()` (que corre después, en
-	# `_spawn_building`) y `Building.reset()` la escalan con `height_scale` y guardan
-	# la posición de reposo en `Building.PROP_REST_META`.
+	# Altura **sin** variación: `Building.apply_variation()` (que corre después)
+	# y `Building.reset()` la escalan con `height_scale` y guardan la posición de
+	# reposo en `Building.PROP_REST_META`.
 	prop.position = Vector3(
 			_rng.randf_range(-margin_x, margin_x),
 			base_size.y,
@@ -1379,113 +1378,247 @@ func _make_props(building: Building, base_size: Vector3) -> Node3D:
 	return container
 
 
-# --- Oclusores, rocas y apariciones ----------------------------------------
+# --- Afuera del círculo ----------------------------------------------------
 
-## Un [OccluderInstance3D] de caja por manzana, ceñido al **edificio más alto**
-## de esa manzana.
+## Todo lo que vive fuera del círculo de juego: los dos caseríos, las rocas y la
+## maleza.
+func _build_decor() -> void:
+	var decor := _container(DECOR_NODE)
+	_build_decor_houses(decor)
+	_build_rocks(decor)
+	_build_decor_props(decor)
+
+
+## Las doce casas de caserío, una instancia cada una.
 ##
-## `docs/10` §7 pide «uno por bloque de 2 × 2»; ceñirlo a una manzana entera
-## taparía también los huecos entre edificios y haría desaparecer geometría que
-## sí se ve. Ceñirlo al más alto conserva la cuenta de 15 oclusores y es
-## conservador: el volumen siempre está dentro de geometría opaca.
-func _build_occluders() -> void:
-	var container := _container(OCCLUDERS_NODE)
-	for block_z: int in block_rows:
-		for block_x: int in block_cols:
-			var tallest := tallest_in_block(Vector2i(block_x, block_z))
-			if tallest == null:
-				continue
-			var height := tallest.get_height()
-			var box := BoxOccluder3D.new()
-			box.size = Vector3(tallest.base_size.x * 0.88, height * 0.94,
-					tallest.base_size.z * 0.88)
-			var node := OccluderInstance3D.new()
-			node.name = "Occluder_%d_%d" % [block_x, block_z]
-			node.occluder = box
-			node.position = tallest.position + Vector3(0.0, height * 0.47, 0.0)
-			node.rotation = tallest.rotation
-			container.add_child(node)
+## Son paisaje, no juego: no llevan `building.gd`, ni perfil, ni etapas, ni HP.
+## Darles `Building` las metería en el grupo `buildings`, y con eso en
+## `CityIntegrity`, en la elección de blanco del jefe y en la barra EN PIE: doce
+## casas que el jugador no puede defender bajarían la integridad sin que nadie
+## pueda hacer nada.
+##
+## Van en [constant PhysicsLayers.WORLD], como las rocas y el suelo, y **no** en
+## la capa de ciudad en la que las importó WP-A: así el dron no las atraviesa, el
+## rayo del arma se detiene en ellas igual que en el terreno y no hay nada que
+## reciba daño, porque no hay `take_damage` a quien llamar.
+##
+## ## Se intentó fundirlas en una sola malla y salió peor
+##
+## Doce casas son doce [MeshInstance3D], y fundirlas en una parecía ahorrar once
+## lotes por viewport. Medido, **costaba cuatro lotes más**: la malla fundida
+## tiene el AABB de los dos caseríos, o sea que no se descarta nunca y entra en
+## las tres cascadas de sombra del sol, mientras que las doce sueltas se
+## descartan casi siempre. El fundido sirve para geometría junta y chica; para
+## paisaje desparramado en setecientos metros, lo que sirve es el recorte por
+## distancia.
+func _build_decor_houses(parent: Node3D) -> void:
+	for index: int in plan.parcels.size():
+		var parcel := plan.parcels[index]
+		if int(parcel.get("role", -1)) != TownPlan.Role.DECOR:
+			continue
+		var piece := _piece_for(parcel)
+		if piece == null:
+			continue
+		var node := piece.instantiate() as Node3D
+		if node == null:
+			continue
+		node.name = String(parcel.get("name", &"Decor_House"))
+		var body := node as PhysicsBody3D
+		if body != null:
+			body.collision_layer = PhysicsLayers.WORLD
+			body.collision_mask = 0
+		# La `y` sale del plano, que para una casa de caserío es la altura del
+		# terreno bajo ella (`TownPlanner._place_hamlets`): el horneado del
+		# relieve le aplanó un pad debajo para que apoye en sus cuatro esquinas.
+		node.position = plan.parcel_position(index)
+		node.rotation = Vector3(0.0, _facade_yaw(node, index), 0.0)
+		parent.add_child(node)
 
 
 ## Seis rocas de 8 a 18 m en el borde, en el grupo `city_rocks` (`docs/10` §4.4).
 ##
 ## Ninguna cae dentro del cono de [constant SPAWN_CONE_DEG] grados que sale del
-## punto de aparición del dron hacia el centro de la ciudad: en WP-21 una roca de
-## 40 m tapaba media pantalla en el primer fotograma de la ronda. La lista está
-## escrita en múltiplos del semieje del distrito para que siga valiendo si cambia
-## el tamaño de la rejilla.
-func _build_rocks() -> void:
-	var container := _container(ROCKS_NODE)
+## punto de aparición del dron hacia el centro del pueblo: en WP-21 una roca de
+## 40 m tapaba media pantalla en el primer fotograma de la ronda. De eso se
+## ocupa el plano; acá sólo se siembran.
+func _build_rocks(parent: Node3D) -> void:
+	var container := _container(ROCKS_NODE, parent)
 	if rock_scenes.is_empty():
 		return
-	var spots := rock_spots()
+	var spots := plan.rock_spots()
 	for index: int in spots.size():
 		var scene := rock_scenes[index % rock_scenes.size()]
 		var rock := scene.instantiate() as Node3D
 		if rock == null:
 			continue
 		rock.name = "Rock_%d" % index
-		rock.position = spots[index]
+		# Apoyada sobre el relieve y hundida veinte centímetros, que es lo que
+		# la separa de una piedra puesta encima del pasto.
+		rock.position = on_terrain(spots[index]) - Vector3(0.0, ROCK_SINK, 0.0)
 		rock.rotation = Vector3(0.0, _rng.randf() * TAU, 0.0)
 		container.add_child(rock)
 
 
-## Las seis posiciones de roca, en el espacio local del distrito.
-func rock_spots() -> Array[Vector3]:
-	var extent := get_extent()
-	var half := Vector3(extent.x * 0.5, 0.0, extent.y * 0.5)
-	return [
-		Vector3(-half.x - 69.0, 0.0, half.z + 39.0),
-		Vector3(-half.x - 84.0, 0.0, half.z - 76.0),
-		Vector3(-half.x * 0.7, 0.0, half.z + 79.0),
-		Vector3(half.x * 0.83, 0.0, half.z + 129.0),
-		Vector3(half.x + 69.0, 0.0, half.z - 76.0),
-		Vector3(half.x + 84.0, 0.0, half.z + 14.0),
-	]
+## Maleza, basura y barriles, repartidos entre un [MultiMeshInstance3D] por
+## pieza y **sin colisión**: son dos triángulos tirados en el pasto y nadie
+## choca con ellos (`docs/10` §7).
+##
+## El reparto es por turnos y no por sorteo: con noventa y seis manojos y cuatro
+## piezas, un sorteo deja con facilidad una pieza con quince apariciones y otra
+## con cuarenta, y lo que el campo necesita es que las cuatro se vean.
+func _build_decor_props(parent: Node3D) -> void:
+	var spots := plan.decor_spots()
+	if spots.is_empty():
+		return
+	var meshes: Array[Mesh] = []
+	for piece: PackedScene in decor_pieces:
+		var baked := _bake_piece_mesh(piece)
+		if baked != null:
+			meshes.append(baked)
+	if meshes.is_empty():
+		var box := BoxMesh.new()
+		box.size = Vector3(0.9, 1.1, 0.9)
+		if decor_material != null:
+			box.material = decor_material
+		meshes.append(box)
+
+	var groups: Array[Array] = []
+	for _slot: int in meshes.size():
+		groups.append([] as Array[Transform3D])
+	for index: int in spots.size():
+		var mesh := meshes[index % meshes.size()]
+		# La malla puede tener su origen en el centro (una caja de reserva) o en
+		# la base (un prop importado): se la sube justo lo que su AABB baja de
+		# `y = 0`, escalado como la instancia, para que apoye en el suelo en los
+		# dos casos.
+		var lift := -mesh.get_aabb().position.y * spots[index].basis.get_scale().y
+		var origin := on_terrain(spots[index].origin) + Vector3(0.0, lift, 0.0)
+		# Un manojo de maleza sigue la pendiente; el barril y los cajones también,
+		# que es lo que los saca de la postal de «props clavados en la loma». La
+		# inclinación se aplica sobre la base que ya trae el giro y la escala, así
+		# que el prop no cambia de tamaño al inclinarse.
+		groups[index % meshes.size()].append(
+				Transform3D(_tilted(spots[index].basis, origin), origin))
+	for slot: int in meshes.size():
+		var transforms: Array[Transform3D] = groups[slot]
+		_add_multimesh(parent, StringName("%s_%d" % [PROPS_NODE, slot]),
+				meshes[slot], transforms)
 
 
-## Ángulo, en grados, entre la línea que une el punto de aparición del dron con
-## el centro de la ciudad y [param spot]. `city_check` la usa para comprobar el
-## cono; la rejilla, para informarlo.
-func spawn_cone_angle(spot: Vector3) -> float:
-	return _flat_angle(Vector3.ZERO - DRONE_SPAWN, spot - DRONE_SPAWN)
+## [param basis] reorientada para que su `+Y` siga la normal del terreno bajo
+## [param at].
+##
+## Se compone la rotación mínima que lleva `+Y` a la normal **por la izquierda**
+## para no tocar el giro ni la escala que la base ya traía. Con el terreno plano
+## —o sin relieve— la rotación es la identidad y esto no hace nada.
+func _tilted(basis: Basis, at: Vector3) -> Basis:
+	if terrain == null or not terrain.has_method(&"normal_at"):
+		return basis
+	var normal: Vector3 = terrain.call(&"normal_at", at.x, at.z)
+	if normal.length_squared() < 0.000001:
+		return basis
+	normal = normal.normalized()
+	var axis := Vector3.UP.cross(normal)
+	if axis.length_squared() < 0.000001:
+		return basis
+	return Basis(axis.normalized(), Vector3.UP.angle_to(normal)) * basis
 
 
-## Ángulo, en grados, entre el rumbo real del dron al aparecer y [param spot].
-func spawn_view_angle(spot: Vector3) -> float:
-	return _flat_angle(DRONE_FACING, spot - DRONE_SPAWN)
+## Saca a una casa del pase de sombra del sol.
+##
+## Es la palanca que cierra el presupuesto de lotes de `docs/13`, y sale de
+## medir, no de suponer. Con la cámara dentro del pueblo, de 140 lotes por
+## viewport **88 son las casas y 83 de esos son sus sombras**: cincuenta y dos
+## casas entrando en cada cascada del sol. El ojo de pez FAST_WIDE dibuja la
+## escena tres veces, así que son unos 250 lotes de un presupuesto de 900
+## gastados en la sombra de cajas de tres metros.
+##
+## Lo que se pierde y lo que no: los siete edificios grandes —escuela, hito y
+## cinco medianos— **siguen proyectando**, y son los que dan las sombras largas
+## que el atardecer de `docs/13` necesita; las casas siguen **recibiendo** sombra
+## y oclusión de SDFGI y SSAO, así que no flotan. Lo que desaparece es la sombra
+## propia de cada casa sobre su patio.
+##
+## Se probaron antes dos palancas que no alcanzaron: fundir la decoración en una
+## malla (costaba cuatro lotes **más**, porque el AABB fundido no se descarta
+## nunca y entra en toda cascada) y recortar las casas por distancia (no ahorra
+## nada: el pueblo mide 300 m y desde cualquier pose de juego las casas están
+## dentro del rango).
+func _mute_house_shadow(building: Building) -> void:
+	for node: Node in _descendants(building):
+		var geometry := node as GeometryInstance3D
+		if geometry == null:
+			continue
+		geometry.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
-func _flat_angle(reference: Vector3, target: Vector3) -> float:
-	var a := Vector3(reference.x, 0.0, reference.z)
-	var b := Vector3(target.x, 0.0, target.z)
-	if a.length_squared() < 0.01 or b.length_squared() < 0.01:
-		return 0.0
-	return rad_to_deg(a.normalized().angle_to(b.normalized()))
+# --- Marcadores ------------------------------------------------------------
 
-
-## Cuatro `Marker3D` en los accesos del distrito, que es por donde `RoundManager`
-## hace entrar al coloso (`docs/11` §4.2, punto pendiente 13).
+## Cuatro `Marker3D` en los accesos del pueblo, que es por donde `RoundManager`
+## hace entrar al coloso (`docs/11` §4.2).
 func _build_spawns() -> void:
 	var container := _container(SPAWNS_NODE)
-	var extent := get_extent()
-	var half := Vector3(extent.x * 0.5, 0.0, extent.y * 0.5)
-	var spots: Array[Vector3] = [
-		Vector3(0.0, 0.0, -half.z - 40.0),
-		Vector3(0.0, 0.0, half.z + 40.0),
-		Vector3(-half.x - 40.0, 0.0, 0.0),
-		Vector3(half.x + 40.0, 0.0, 0.0),
-	]
+	var spots := plan.spawn_points()
 	for index: int in spots.size():
 		var marker := Marker3D.new()
 		marker.name = "EnemySpawn%d" % index
-		marker.position = spots[index]
-		# Giro calculado a mano y no con `look_at_from_position`: durante el
-		# horneado la rejilla todavía no está en el árbol y `global_transform`
-		# no está definida.
-		var facing := (-spots[index]).normalized()
-		marker.rotation = Vector3(0.0, atan2(-facing.x, -facing.z), 0.0)
+		# Se copia la transformada entera y no sólo el origen: el giro lo
+		# calculó el plano a mano porque durante el horneado la rejilla todavía
+		# no está en el árbol y `global_transform` no está definida. La cota, en
+		# cambio, la pone el relieve: el plano dice «a ras del suelo» y el suelo
+		# ya no es `y = 0`.
+		marker.transform = on_terrain_xform(spots[index])
 		container.add_child(marker)
+
+
+## Ocho `Marker3D` de puesto de pila. Los tres de azotea se **afinan** con la
+## altura real del edificio: el plano los calculó con su tabla de alturas
+## nominales, que es lo que le permite no abrir un solo asset, y la malla puede
+## discrepar medio metro.
+func _build_posts() -> void:
+	var container := _container(POSTS_NODE)
+	var posts := plan.battery_posts()
+	for index: int in posts.size():
+		var marker := Marker3D.new()
+		marker.name = "Post%d" % index
+		marker.position = _refined_post(index, posts[index])
+		container.add_child(marker)
+
+
+func _refined_post(index: int, fallback: Vector3) -> Vector3:
+	if index >= plan.battery_roof_parcels.size():
+		return on_terrain(fallback)
+	var parcel := plan.battery_roof_parcels[index]
+	if parcel < 0:
+		# Puesto de calle: el plano dice a cuántos metros **del suelo** cuelga.
+		return on_terrain(fallback)
+	var building := get_building_at(parcel)
+	if building == null:
+		return fallback
+	return Vector3(building.position.x,
+			building.position.y + building.get_height() + TownPlanner.POST_ROOF_CLEARANCE,
+			building.position.z)
+
+
+## Aparición del dron, centro del pueblo y pose de la cámara fija.
+func _build_markers() -> void:
+	var drone := Marker3D.new()
+	drone.name = DRONE_NODE
+	drone.transform = on_terrain_xform(plan.drone_spawn())
+	add_child(drone)
+
+	var centre := Marker3D.new()
+	centre.name = CENTRE_NODE
+	centre.position = on_terrain(plan.play_centre)
+	# `persistent = true` o el grupo no se guarda en `town_a.tscn` y el jefe se
+	# queda sin centro de pueblo al cargar la escena empaquetada.
+	centre.add_to_group(CENTRE_GROUP, true)
+	add_child(centre)
+
+	var camera := Marker3D.new()
+	camera.name = CAMERA_NODE
+	camera.transform = on_terrain_xform(plan.camera_fixed())
+	add_child(camera)
 
 
 # --- Utilidades ------------------------------------------------------------

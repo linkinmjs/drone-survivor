@@ -173,7 +173,13 @@ func _park_drone(level: BattleLevel, manager: RoundManager) -> void:
 	var city := Vector3.ZERO
 	var grid := level.get_city_grid()
 	if grid != null:
-		city = grid.to_global(grid.avenue_crossing())
+		# `play_centre()` devuelve **local**: hay que transformarlo. Hoy el
+		# distrito vive en el origen y da lo mismo, pero el día que el nivel lo
+		# mueva este plano apuntaría al vacío sin que nada falle.
+		if grid.has_method(&"play_centre"):
+			city = grid.to_global(grid.call(&"play_centre") as Vector3)
+		else:
+			city = grid.global_position
 	var away := city - boss
 	away.y = 0.0
 	away = Vector3.BACK * 100.0 if away.length() < 1.0 else away.normalized()

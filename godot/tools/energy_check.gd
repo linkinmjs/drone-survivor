@@ -229,6 +229,7 @@ func _run() -> void:
 	await _check_hull_attack()
 	await _check_destroy_and_respawn()
 	await _check_spawner()
+	await _check_adopt_markers()
 	_check_no_area_hitbox()
 	_check_restore()
 	_print_measurements()
@@ -1224,6 +1225,124 @@ func _check_spawner() -> void:
 
 	_drive_spawner = false
 	Global.round_seed = _original_seed
+
+
+## 25 spawner_adopt: el barrio le cambia los puestos al spawner (WP-C).
+##
+## Va numerado 25 y no 23 porque los sub-checks 1 a 24 son los de la tabla de
+## `docs/09` §5 y este no está en ella: es de WP-C y la tabla la actualiza el
+## encargo que toca la documentación.
+##
+## Va sobre un [BatterySpawner] **aparte** y no sobre el del banco a propósito: los
+## sub-checks 19 a 22 se miden sobre los ocho puestos del banco —uno de ellos tapado
+## a propósito— y adoptar otros en el medio los dejaría midiendo un spawner distinto
+## del que describen.
+##
+## Los dos puestos propios existen para que la adopción tenga algo que reemplazar:
+## si el spawner arrancara vacío, contar tres al final no probaría que los del nivel
+## se fueron. Y tres puestos adoptados con `active_target` en dos es el caso que
+## importa —el barrio puede traer menos puestos que pilas pide el nivel— y el que
+## comprueba que adoptar **no** toca `active_target`.
+func _check_adopt_markers() -> void:
+	# Primero el caso del nivel de batalla: un spawner **sin puestos propios** que
+	# espera los del barrio. Entrar al árbol así no puede quejarse de nada, que es
+	# justo lo que ensuciaba la consola en cada carga.
+	var pending := BatterySpawner.new()
+	pending.name = "PendingSpawner"
+	pending.energy_system = _energy
+	add_child(pending)
+	# Se lo bombea a mano, como a todo lo que este banco mide: si lo moviera además
+	# el motor, «cuántas veces avisó» dependería de cuántos cuadros de física hayan
+	# entrado entre medio y la fila dejaría de ser determinista.
+	#
+	# Va **después** de `add_child()`: Godot enciende solo el proceso de física al
+	# entrar al árbol cuando el script define `_physics_process`, así que apagarlo
+	# antes no sirve de nada. Lo aprendí de esta misma fila, que fallaba con «avisó
+	# 1 vez al entrar» porque el motor le daba un tick antes de que nadie mirara.
+	pending.set_physics_process(false)
+	await get_tree().physics_frame
+	expect(pending.get_marker_count() == 0,
+			"25 spawner_adopt: el spawner con adopción pendiente arrancó con %d puestos"
+			% pending.get_marker_count())
+	var quiet_on_entry := pending.empty_warnings()
+	expect(quiet_on_entry == 0,
+			"25 spawner_adopt: un spawner con adopción pendiente avisó %d veces al entrar "
+			% quiet_on_entry + "al árbol; tiene que callarse hasta el primer uso")
+	# Y si además lo hacen trabajar sin que nadie le adopte nada, ahí sí avisa, una
+	# sola vez por mucho que se lo bombee.
+	for _i: int in 5:
+		pending._physics_process(PHYSICS_STEP)
+	expect(pending.empty_warnings() == 1,
+			"25 spawner_adopt: tras cinco ticks sin puestos avisó %d veces, esperaba 1"
+			% pending.empty_warnings())
+	_record("25 spawner_empty ........ adopción pendiente: %d avisos al entrar, %d tras usarlo"
+			% [quiet_on_entry, pending.empty_warnings()])
+	pending.queue_free()
+
+	var spawner := BatterySpawner.new()
+	spawner.name = "AdoptSpawner"
+	spawner.active_target = 2
+	spawner.energy_system = _energy
+	for index: int in 2:
+		var own := Marker3D.new()
+		own.name = "LevelMarker%d" % index
+		own.position = Vector3(float(index) * 30.0, 30.0, -300.0)
+		spawner.add_child(own)
+	add_child(spawner)
+	await get_tree().physics_frame
+	var before := spawner.get_marker_count()
+
+	var posts := Node3D.new()
+	posts.name = "BatteryPosts"
+	add_child(posts)
+	for index: int in 3:
+		var post := Marker3D.new()
+		post.name = "Post%d" % index
+		posts.add_child(post)
+		post.global_position = Vector3(float(index) * 30.0 - 30.0, 40.0, -360.0)
+
+	spawner.adopt_markers(posts)
+	expect(before == 2,
+			"25 spawner_adopt: el spawner de prueba arrancó con %d puestos, esperados 2" % before)
+	expect(spawner.get_marker_count() == 3,
+			"25 spawner_adopt: tras adoptar hay %d puestos, esperados 3"
+			% spawner.get_marker_count())
+	expect(spawner.active_target == 2,
+			"25 spawner_adopt: adoptar cambió active_target a %d, esperado 2"
+			% spawner.active_target)
+	expect(spawner.get_active_count() == 0,
+			"25 spawner_adopt: adoptar no dejó el spawner reiniciado (%d encendidas)"
+			% spawner.get_active_count())
+	expect(spawner.get_used_markers().is_empty(),
+			"25 spawner_adopt: adoptar no borró los marcadores ya usados")
+	expect(spawner.empty_warnings() == 0,
+			"25 spawner_adopt: el spawner adoptado avisó %d veces de quedarse sin puestos"
+			% spawner.empty_warnings())
+
+	# Y los puestos nuevos son los que se encienden: dos de los tres del barrio.
+	# Se lo bombea a mano, como a todo lo que este banco mide: [method _tick] sólo
+	# mueve el spawner del banco.
+	for _i: int in int(round(1.0 / PHYSICS_STEP)):
+		spawner._physics_process(PHYSICS_STEP)
+	var active := spawner.get_active_count()
+	var on_posts := true
+	for index: int in spawner.get_marker_count():
+		if not spawner.is_marker_active(index):
+			continue
+		var pickup := spawner.get_pickup(index)
+		var post := posts.get_child(index) as Marker3D
+		if pickup == null or post == null \
+				or pickup.global_position.distance_to(post.global_position) > 0.01:
+			on_posts = false
+	expect(active == 2,
+			"25 spawner_adopt: tras 1 s hay %d pilas encendidas, esperadas 2" % active)
+	expect(on_posts, "25 spawner_adopt: alguna pila no quedó sobre el puesto adoptado")
+	_record("25 spawner_adopt ........ %d puestos del nivel → %d del barrio · %d encendidas"
+			% [before, spawner.get_marker_count(), active])
+
+	spawner.queue_free()
+	posts.queue_free()
+	await get_tree().process_frame
 
 
 ## Recoge hasta [param count] pilas activas emitiendo `body_entered` con el dron.

@@ -4,9 +4,11 @@
 ## Arachnodroid (`docs/06` §16.2).
 ##
 ## Levanta un mundo sintético —llano, rampa de 20° de 130 m, tres escalones de
-## 4 m, una roca, y tres edificios en capa 8— y hace caminar al jefe 120 s
-## simulados por una ronda de puntos de paso que cruza los cinco terrenos, más
-## un giro de 180° en el lugar y un salto. Mientras camina mide, tick a tick:
+## 4 m, una roca, tres edificios en capa 8 y, desde WP-T2, un **parche de
+## relieve** de 128 m de lado sobre un [HeightMapShape3D]— y hace caminar al
+## jefe 120 s simulados por una ronda de puntos de paso que cruza los cinco
+## terrenos, más un giro de 180° en el lugar, un salto y una travesía del
+## relieve. Mientras camina mide, tick a tick:
 ##
 ## | # | Métrica | Umbral | Origen |
 ## |---|---|---|---|
@@ -24,6 +26,20 @@
 ## | 12 | Deslizamiento por pie en un giro de 180° | < 0.25 m | WP-24d |
 ## | 13 | Tibia o pie dentro de un edificio intacto | nunca > 0.20 s | WP-24d |
 ## | 14 | Salto: las 4 patas apoyadas tras tocar el suelo | < 0.60 s | WP-24d |
+##
+## La **cuarta superficie** (WP-T2) se mide aparte, en [method _check_relief]:
+## el jefe cruza de ida y vuelta un heightfield de ruido de ±1,5 m y 30 m de
+## longitud de onda —generado con [method TownTerrain.from_noise], la misma
+## técnica que hornea el terreno del pueblo— y se le exigen los **mismos
+## umbrales que al tramo de rampa** para lo que mide el apoyo: ningún pie
+## flotando más de 0,20 s, ninguna cadena estirada, nunca menos de dos patas
+## apoyadas. El **balanceo de la planta** se mide aparte y con su propio tope
+## ([constant RELIEF_SOLE_SWING]), porque sobre terreno irregular no mide un
+## resbalón sino que el pie pivota alrededor de un tobillo quieto: ahí está la
+## explicación entera. Va en su propio tramo y no dentro de la ronda de 120 s
+## para no correr los kilómetros que las métricas 4 y 10 necesitan sobre la
+## rampa y el llano: las catorce métricas de antes miden exactamente lo mismo
+## que antes.
 ##
 ## Y además, con guion: rompe una rodilla en marcha (trípode, ≥ 60 % de la
 ## velocidad), rompe otra (arrastre ×0.55), salta sobre la roca, comprueba que
@@ -181,6 +197,80 @@ const NEGATIVE_SECONDS: float = 14.0
 ## Segundos simulados que dura el giro de 180° en el lugar.
 const TURN_SECONDS: float = 12.0
 
+## Cuarta superficie (WP-T2): un [HeightMapShape3D] de ruido, generado con la
+## misma técnica que el terreno del pueblo.
+##
+## Va al sur del llano, lejos de la rampa, de los escalones, de la roca y de los
+## edificios: el parche tiene que ser el **único** accidente bajo los pies
+## mientras se lo mide, o el deslizamiento que se anote sería el de otro
+## terreno. Se apoya sobre el llano y se desvanece a cero en sus últimos doce
+## metros, así que el jefe entra y sale sin escalón.
+const RELIEF_CENTRE: Vector3 = Vector3(0.0, 0.0, -150.0)
+const RELIEF_SAMPLES: int = 129
+const RELIEF_CELL: float = 1.0
+const RELIEF_WAVELENGTH: float = 30.0
+const RELIEF_AMPLITUDE: float = 1.5
+const RELIEF_FADE: float = 12.0
+
+## Cuánto se levanta el parche sobre el llano, en metros.
+##
+## Con el valle más hondo en `y = 0` el heightfield queda **coplanar** con la
+## tapa de la caja del llano, y dos superficies coplanares son un empate de
+## raycast esperando a pasar. Se midió si ese empate explicaba el arrastre de la
+## planta —no lo explica: con y sin separación la medida sale idéntica al
+## milímetro— pero la separación se deja igual, porque un banco de pruebas no
+## debe tener dos suelos en el mismo plano.
+const RELIEF_CLEARANCE: float = 2.0
+
+## Tope del balanceo de la planta sobre el relieve, en metros.
+##
+## **No es la tolerancia de la métrica 1 con otro nombre.** Mide otra cosa, y
+## hace falta decir cuál, porque el número asusta.
+##
+## Sobre cajas —llano, rampa de 20°, escalones de 4 m— la planta de un pie
+## apoyado no se mueve ni un milímetro en 120 s. Sobre el heightfield se
+## desplaza hasta 0,43 m. Midiéndolo con detalle: ocurre **en recta** (0,00
+## rad/s de giro), sobre apoyos de **2° de pendiente**, y con la cadena al 78 %,
+## o sea sin estirar. El objetivo del IK es el tobillo, `plant_position +
+## ankle_lift`, y es fijo mientras la pata está apoyada; lo que se mueve es la
+## **geometría del pie**, que cuelga de la tibia con un desfase lateral. Sobre
+## terreno irregular las cuatro patas apoyan a alturas distintas, el cuerpo
+## cabecea y se hunde para acomodarlas (`tilt_blend`, `height_smooth_rate`,
+## `_reach_crouch`), la tibia se reorienta y la planta —que es un punto rígido
+## de esa tibia— barre un arco alrededor de un tobillo que no se movió.
+##
+## O sea: **el apoyo no resbala, el pie pivota**. Es visible igual, y arreglarlo
+## es hacer que el IK apunte a la planta y no al tobillo, en
+## `enemies/locomotion/leg.gd`, que no es un archivo de este WP y que tocaría
+## las catorce métricas anteriores. Queda anotado para el checkpoint. Mientras
+## tanto este umbral es una **guarda de regresión** sobre un límite conocido del
+## rig: si el balanceo crece, algo empeoró.
+const RELIEF_SOLE_SWING: float = 0.50
+const RELIEF_SEED: int = 4711
+
+## Los dos puntos de paso que cruzan el parche, en XZ absolutas.
+const RELIEF_WAYPOINTS: Array[Vector2] = [
+	Vector2(-42.0, -150.0),
+	Vector2(42.0, -150.0),
+]
+
+## Segundos simulados de la travesía del relieve.
+const RELIEF_SECONDS: float = 30.0
+
+## Inclinación máxima del cuerpo tolerada sobre el relieve, en grados. El parche
+## tiene pendientes de hasta unos 17° (`2π · 1,5 / 30`), así que el cuerpo no
+## tiene por qué pasar de la banda alta de la rampa.
+const RELIEF_TILT_MAX: float = 20.0
+
+## Metros que el jefe tiene que recorrer sobre el parche para que la medida
+## valga: sin esto, un jefe que se queda clavado pasaría en verde.
+const RELIEF_MIN_TRAVEL: float = 60.0
+
+## Giro por encima del cual un tick del relieve cuenta como «girando», en rad/s.
+## El coloso vira a unos 0,44 rad/s (25°/s), así que 0,10 separa limpiamente la
+## recta del viraje.
+const RELIEF_TURN_RATE: float = 0.10
+
 
 ## Edificio de prueba: un `StaticBody3D` de capa `city` que apunta cada
 ## aplastamiento. No hereda de `Building` (`docs/10`) a propósito: el rig lo
@@ -244,6 +334,7 @@ class Region extends RefCounted:
 
 var _enemy: EnemyBase = null
 var _rig: ProceduralLegRig = null
+var _relief: TownTerrain = null
 var _buildings: Array[TestBuilding] = []
 var _world: Node3D = null
 var _metrics: Metrics = Metrics.new()
@@ -295,6 +386,7 @@ func _run() -> void:
 
 	_report_walk()
 	_check_building()
+	await _check_relief()
 	await _check_negative()
 
 
@@ -330,6 +422,8 @@ func _build_world() -> void:
 
 	_add_box("Rock", ROCK_SIZE, ROCK_CENTER, Basis.IDENTITY, PhysicsLayers.WORLD)
 
+	_add_relief()
+
 	for index: int in BUILDINGS.size():
 		var building := TestBuilding.new()
 		building.name = "TestBuilding%d" % index
@@ -344,6 +438,44 @@ func _build_world() -> void:
 		building.add_child(shape)
 		_world.add_child(building)
 		_buildings.append(building)
+
+
+## La cuarta superficie: un [HeightMapShape3D] de ruido sobre el llano.
+##
+## La rejilla la genera [method TownTerrain.from_noise], que es la misma técnica
+## —dos [FastNoiseLite] sembrados— con la que `tools/build_terrain.gd` hornea el
+## relieve del pueblo. Que la comparta importa: lo que este tramo mide no es «el
+## rig sobre un heightfield cualquiera» sino el rig sobre **el tipo de suelo que
+## el pueblo va a tener**.
+##
+## Se sube [constant RELIEF_AMPLITUDE] metros antes de desvanecer, para que el
+## valle más hondo del parche quede en `y = 0` y nunca por debajo del llano: si
+## bajara, el rayo de apoyo encontraría primero la caja del llano y el parche
+## dejaría de ser el suelo que se está midiendo.
+func _add_relief() -> void:
+	var half := float(RELIEF_SAMPLES - 1) * RELIEF_CELL * 0.5
+	_relief = TownTerrain.from_noise(RELIEF_SEED, RELIEF_SAMPLES, RELIEF_CELL,
+			Vector2(RELIEF_CENTRE.x - half, RELIEF_CENTRE.z - half),
+			RELIEF_WAVELENGTH, RELIEF_AMPLITUDE,
+			RELIEF_AMPLITUDE + RELIEF_CLEARANCE, RELIEF_FADE)
+
+	var body := StaticBody3D.new()
+	body.name = "Relief"
+	body.collision_layer = PhysicsLayers.WORLD
+	body.collision_mask = 0
+	# El nodo **no se escala**: la forma de altura trabaja en unidades de
+	# rejilla y a un metro por celda, y `docs/03` prohíbe escalar un cuerpo
+	# estático. Sólo se traslada al centro del parche.
+	body.position = Vector3(RELIEF_CENTRE.x, 0.0, RELIEF_CENTRE.z)
+	var shape := CollisionShape3D.new()
+	shape.shape = _relief.build_shape()
+	body.add_child(shape)
+	_world.add_child(body)
+
+	var span := _relief.range_of()
+	print("  cuarta superficie: heightfield %d² a %.0f m, ruido de %.0f m y ±%.1f m, alturas %.2f–%.2f m"
+			% [RELIEF_SAMPLES, RELIEF_CELL, RELIEF_WAVELENGTH, RELIEF_AMPLITUDE,
+			span.x, span.y])
 
 
 ## Un `StaticBody3D` con una caja, en la capa [param layer].
@@ -914,6 +1046,195 @@ func _check_turn() -> void:
 			"deslizamiento en el giro de 180° %.3f m, tope %.2f m" % [worst, MAX_TURN_SLIDE])
 
 
+## Cuarta superficie (WP-T2): el jefe cruza el parche de relieve de ida y
+## vuelta entre los dos puntos de paso, y se le exigen los **mismos umbrales que
+## al tramo de rampa** —deslizamiento de pie apoyado < [constant MAX_SLIDE] y
+## ningún pie flotando más de [constant MAX_FLOAT_TIME]— más una inclinación
+## acotada y un recorrido mínimo, para que un jefe clavado no pase en verde.
+##
+## Es el tramo que responde a la pregunta que abre P2c: si el pueblo deja de ser
+## plano, ¿la marcha procedural sigue apoyando? El parche tiene el mismo tipo de
+## suelo que el terreno horneado (ruido de 30 m y ±1,5 m, o sea pendientes de
+## hasta 17°) y, a diferencia de la rampa, **cambia de pendiente bajo cada
+## pata**: es el caso que un plano inclinado no cubre.
+func _check_relief() -> void:
+	if _relief == null:
+		fail("no se construyó la cuarta superficie")
+		return
+	# Con un jefe **nuevo**, y después de la ronda de 120 s, no dentro de ella.
+	#
+	# El rig es una máquina de fase: meter treinta segundos de marcha en medio
+	# de la ronda corre el ciclo de trote de todas las patas, y la ronda de
+	# después deja de ser la misma. Se comprobó midiéndolo: con la travesía
+	# intercalada antes de `_walk`, la métrica 13 —tibia dentro de un edificio
+	# intacto— saltaba de 0,12 s a 0,96 s sin que nada del rig hubiese cambiado.
+	# El relieve no puede pagar esa factura, así que se mide al final y sobre una
+	# instancia limpia, igual que hace la prueba negativa. Las catorce métricas
+	# anteriores vuelven a medir exactamente lo que medían.
+	var start := RELIEF_WAYPOINTS[0]
+	var ground := Vector3(start.x, _relief.height_at(start.x, start.y), start.y)
+	if not await _respawn(ground):
+		return
+	_enemy.global_basis = Basis.IDENTITY
+	_rig.snap_to_ground()
+	Engine.time_scale = TIME_SCALE
+	await wait_physics(30)
+
+	var anchors: Dictionary[int, Vector3] = {}
+	var ankles: Dictionary[int, Vector3] = {}
+	var floating: Dictionary[int, float] = {}
+	var worst_slide := 0.0
+	var worst_level := 0.0
+	var worst_sloped := 0.0
+	var worst_slope := 0.0
+	var worst_stretched := false
+	var any_stretched := false
+	var worst_straight := 0.0
+	var worst_ankle := 0.0
+	var turning_ticks := 0
+	var last_yaw := _yaw_of(_enemy)
+	var slide_offender: StringName = &""
+	var worst_float := 0.0
+	var float_offender: StringName = &""
+	var worst_tilt := 0.0
+	var min_planted := 99
+	var travelled := 0.0
+	var target := 1
+	var elapsed := 0.0
+	var logged := false
+	var last := _enemy.global_position
+
+	while elapsed < RELIEF_SECONDS:
+		await get_tree().physics_frame
+		var delta := _enemy.get_physics_process_delta_time()
+		elapsed += delta
+
+		var body := _enemy.global_position
+		travelled += Vector2(body.x - last.x, body.z - last.z).length()
+		last = body
+
+		var goal := RELIEF_WAYPOINTS[target]
+		var to_goal := Vector3(goal.x - body.x, 0.0, goal.y - body.z)
+		if to_goal.length() < WAYPOINT_RADIUS:
+			target = (target + 1) % RELIEF_WAYPOINTS.size()
+			goal = RELIEF_WAYPOINTS[target]
+			to_goal = Vector3(goal.x - body.x, 0.0, goal.y - body.z)
+		var direction := to_goal.normalized()
+		_enemy.face_toward(body + direction * 100.0, delta)
+		var facing := -_enemy.global_basis.z
+		facing.y = 0.0
+		var alignment := clampf(facing.normalized().dot(direction), 0.0, 1.0)
+		_enemy.move_body(delta, direction * _enemy.profile.walk_speed * alignment)
+
+		worst_tilt = maxf(worst_tilt,
+				rad_to_deg(_enemy.global_basis.y.angle_to(Vector3.UP)))
+		var yaw := _yaw_of(_enemy)
+		var yaw_rate := absf(wrapf(yaw - last_yaw, -PI, PI)) / maxf(delta, 0.0001)
+		last_yaw = yaw
+		var turning := yaw_rate > RELIEF_TURN_RATE
+		if turning:
+			turning_ticks += 1
+		var planted := 0
+		for leg: Leg in _rig.legs:
+			if leg.broken:
+				continue
+			if leg.is_airborne():
+				var _erased := anchors.erase(leg.index)
+				var _dropped := ankles.erase(leg.index)
+				floating[leg.index] = 0.0
+				continue
+			planted += 1
+			var sole := leg.sole_position()
+			if not anchors.has(leg.index):
+				anchors[leg.index] = sole
+			var slide := Vector3(sole.x - anchors[leg.index].x, 0.0,
+					sole.z - anchors[leg.index].z).length()
+			var plant_slope := rad_to_deg(_relief.slope_at(
+					leg.plant_position.x, leg.plant_position.z))
+			if plant_slope < 3.0:
+				worst_level = maxf(worst_level, slide)
+			else:
+				worst_sloped = maxf(worst_sloped, slide)
+			if slide > worst_slide:
+				worst_slide = slide
+				slide_offender = leg.side
+				worst_slope = plant_slope
+				worst_stretched = leg.stretched
+			any_stretched = any_stretched or leg.stretched
+			if not turning:
+				worst_straight = maxf(worst_straight, slide)
+			# El tobillo es **el apoyo**: si no se mueve, el pie no resbaló,
+			# por mucho que la planta gire alrededor de él.
+			if is_instance_valid(leg.foot):
+				var ankle := leg.foot.global_position
+				if not ankles.has(leg.index):
+					ankles[leg.index] = ankle
+				worst_ankle = maxf(worst_ankle, Vector3(ankle.x - ankles[leg.index].x,
+						0.0, ankle.z - ankles[leg.index].z).length())
+			if slide > MAX_SLIDE and not logged:
+				logged = true
+				print("  primer exceso sobre el relieve (girando %s, %.2f rad/s): %s"
+						% ["sí" if turning else "no", yaw_rate, _snapshot(leg)])
+			if sole.y - leg.plant_position.y > FLOAT_HEIGHT:
+				floating[leg.index] = floating.get(leg.index, 0.0) + delta
+				if floating[leg.index] > worst_float:
+					worst_float = floating[leg.index]
+					float_offender = leg.side
+			else:
+				floating[leg.index] = 0.0
+		min_planted = mini(min_planted, planted)
+
+	var span := _relief.range_of()
+	print("  relieve: %.0f m recorridos en %.1f s simulados sobre un parche de %.2f m de desnivel"
+			% [travelled, elapsed, span.y - span.x])
+	print("  relieve: planta %.3f m (%s) · planta en recta %.3f m · tobillo %.3f m · %d ticks girando"
+			% [worst_slide, slide_offender, worst_straight, worst_ankle, turning_ticks])
+	print("  relieve: apoyos con pendiente < 3° → %.3f m · apoyos en pendiente → %.3f m · peor apoyo a %.1f° (cadena estirada: %s)"
+			% [worst_level, worst_sloped, worst_slope,
+			"sí" if worst_stretched else "no"])
+	print("  relieve: flotación sostenida %.3f s (%s) · inclinación %.2f° · patas apoyadas mínimas %d"
+			% [worst_float, float_offender, worst_tilt, min_planted])
+	expect(travelled >= RELIEF_MIN_TRAVEL,
+			"el jefe sólo recorrió %.0f m sobre el relieve, mínimo %.0f m"
+			% [travelled, RELIEF_MIN_TRAVEL])
+	expect(not any_stretched,
+			"sobre el relieve la cadena de alguna pata llegó estirada al apoyo")
+	expect(worst_slide < RELIEF_SOLE_SWING,
+			"balanceo de la planta sobre el relieve %.3f m, tope %.2f m"
+			% [worst_slide, RELIEF_SOLE_SWING])
+	expect(worst_float <= MAX_FLOAT_TIME,
+			"pie flotando sobre el relieve %.3f s por encima de %.2f m, tope %.2f s"
+			% [worst_float, FLOAT_HEIGHT, MAX_FLOAT_TIME])
+	expect(worst_tilt <= RELIEF_TILT_MAX,
+			"inclinación sobre el relieve %.2f°, tope %.0f°" % [worst_tilt, RELIEF_TILT_MAX])
+	expect(min_planted >= 2,
+			"sobre el relieve hubo un tick con sólo %d patas apoyadas" % min_planted)
+	Engine.time_scale = 1.0
+
+
+## Cambia el jefe por una instancia nueva apoyada en [param ground] y vuelve a
+## cablear el rig. Lo usan la travesía del relieve y la prueba negativa: las dos
+## necesitan un coloso entero después de que la ronda le rompiera dos rodillas.
+func _respawn(ground: Vector3) -> bool:
+	if _enemy != null and is_instance_valid(_enemy):
+		_enemy.queue_free()
+	await wait_frames(2)
+	_anchors.clear()
+	_float_time.clear()
+	_contact_hold.clear()
+	_was_airborne.clear()
+	_inside_time.clear()
+	_enemy = _spawn(ground)
+	if _enemy == null:
+		return false
+	await wait_physics(4)
+	_rig = _enemy.locomotion as ProceduralLegRig
+	if _rig == null:
+		fail("la instancia nueva no trae ProceduralLegRig")
+		return false
+	return true
+
+
 ## Rumbo del cuerpo, leído del eje frontal de la base.
 func _yaw_of(node: Node3D) -> float:
 	var forward := -node.global_basis.z
@@ -974,28 +1295,14 @@ func _on_leap_landed(_position: Vector3) -> void:
 ## las métricas 1 y 2 tienen que dispararse. Si no lo hacen, el check no estaría
 ## midiendo nada.
 func _check_negative() -> void:
-	_enemy.queue_free()
-	await wait_frames(2)
 	_metrics = Metrics.new()
 	_tripod = Metrics.new()
 	_drag = Metrics.new()
-	_anchors.clear()
-	_float_time.clear()
-	_contact_hold.clear()
-	_was_airborne.clear()
-	_inside_time.clear()
 	_waypoint = 0
 	_broken = 0
 	_slide_logged = false
 	_float_logged = false
-
-	_enemy = _spawn(Vector3.ZERO)
-	if _enemy == null:
-		return
-	await wait_physics(4)
-	_rig = _enemy.locomotion as ProceduralLegRig
-	if _rig == null:
-		fail("la instancia de la prueba negativa no tiene rig")
+	if not await _respawn(Vector3.ZERO):
 		return
 	# Se desarman los **dos** disparadores de paso: el de distancia al reposo y
 	# el de alcance de la cadena. Con `reach_trigger` en `stretch_max` la pata

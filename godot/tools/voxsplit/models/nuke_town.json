@@ -1,0 +1,148 @@
+{
+  "name": "nuke_town",
+  "comment": [
+    "Recetas del pueblo de ruta a partir de 'nuke Free Sample.zip' (WP-A).",
+    "El ZIP NO se extrae en el repositorio: objvox lo lee con 'archivo.zip!miembro'.",
+    "Paso del OBJ 0.02 u por voxel x escala 2.5 => 1 voxel = 5 cm, puerta 2.20 m.",
+    "Las familias de paleta son el motivo de que esto entre en presupuesto: el pack",
+    "viene dithered con pares de colores que difieren en 4/255 y eso solo impedia",
+    "fusionar caras. Ver el encabezado de compose.py."
+  ],
+  "source": "../../../assets/_raw/nuke Free Sample.zip",
+  "member_prefix": "Free Sample/",
+  "step": 0.02,
+  "scale": 2.5,
+  "palette_texture": "nuke_town_palette.png",
+  "emissive_texture": "nuke_town_emissive.png",
+
+  "budgets": {"house": 2400, "prop": 300},
+  "budget_note": [
+    "1500 (el numero del brief) no alcanza para house_b: dos bloques angostos apilados",
+    "con la hiedra del pack intacta miden 2254 triangulos a 5 cm. Las palancas medidas",
+    "son: borrar la hiedra con palette_override 6->70 (-648, deja la pared lisa) o",
+    "diezmar el atico a 3 (-448, parapeto de 15 cm). Se conservan las dos y el techo",
+    "se pone en 2400, que sigue mordiendo: la pieza mas cara queda al 94 %.",
+    "Los tipos de una planta van entre 772 y 1474."
+  ],
+
+  "window_note": [
+    "Que 'ventana' aqui quiere decir 'lo que se enciende de la fachada', que es lo",
+    "que Building._apply_window_ration() raciona. El pack NO tiene ventanas de",
+    "vidrio: lo unico claro de la pared son los carteles pegados (indice 7 el papel,",
+    "65 el impreso, 50/13 la hoja mas oscura) y los paneles enmarcados del bloque",
+    "angosto. Se encienden esos, en ambar tibio, porque un pueblo sin un solo punto",
+    "de luz queda como una masa negra al anochecer. Los valores estan medidos contra",
+    "la captura de fachada a 12 m: con (255,198,130) el nucleo saturaba a blanco y",
+    "bloomeaba como las torres de la ciudad antes de WP-24."
+  ],
+  "window_indices": {
+    "7": [198, 152, 100],
+    "50": [74, 57, 37],
+    "13": [32, 24, 16]
+  },
+
+  "palette_families": {
+    "70": [23, 24, 29, 30, 31, 32, 69, 70, 124, 125, 126, 127, 132],
+    "7": [7, 16, 133],
+    "50": [14, 50, 65],
+    "13": [13],
+    "6": [4, 5, 6, 71, 215],
+    "117": [116, 117, 228, 229, 230],
+    "190": [78, 79, 189, 190, 191, 192],
+    "167": [167, 168, 249],
+    "210": [209, 210, 211],
+    "48": [41, 45, 48],
+    "246": [223, 246, 255]
+  },
+
+  "pieces": {
+    "block_square": {"file": "VoxelNuke-2-BuildingBlock-0.obj"},
+    "block_narrow": {"file": "VoxelNuke-3-BuildingBlock-1.obj"},
+    "roof_flat": {"file": "VoxelNuke-16-Rooftop-1.obj"},
+    "roof_attic": {
+      "file": "VoxelNuke-15-Rooftop-0.obj",
+      "crop": {"y_min": 26},
+      "decimate": 2,
+      "allow_fill_mismatches": 1,
+      "mismatch_comment": "La celda (9,30,14) del OBJ original no es estanca: una sola cara de 18759 voxels donde la cascara por normales y el relleno por inundacion discrepan. Es un defecto del pack, no del pipeline, y una celda interior no se ve; se declara para que el guardado siga atrapando un agujero de verdad.",
+      "comment": "El bbox del OBJ baja hasta 0.58 por un canalon de 2 celdas pegado a la cara -X; el atico real arranca en la celda 26 (= 1.10, el techo del bloque angosto). Sin el recorte el canalon quedaria flotando fuera de la huella. El diezmado x2 baja la cota geometrica de 2166 a ~600 triangulos."
+    },
+    "door": {"file": "VoxelNuke-8-Door.obj"},
+    "garage_door": {
+      "file": "VoxelNuke-1-GarageDoor.obj",
+      "palette_override": {"7": 190, "50": 190, "13": 190, "70": 190, "246": 190},
+      "comment": "La persiana tiene manchas de moho del mismo verde palido que el vidrio (indice 7). Sin este override el porton brillaria como una ventana; ademas el grafiti magenta y oxido se lee mejor sobre un gris plano."
+    },
+    "barrel_a": {"file": "VoxelNuke-4-Barrel-0.obj", "palette_override": {"70": 167}, "decimate": 2},
+    "barrel_b": {"file": "VoxelNuke-10-Barrel-1.obj", "palette_override": {"70": 167}, "decimate": 2},
+    "trash_big": {"file": "VoxelNuke-9-TrashPile-0.obj", "decimate": 3},
+    "trash_wide": {"file": "VoxelNuke-11-TrashPile-1.obj"},
+    "trash_small": {"file": "VoxelNuke-12-TrashPile-2.obj"},
+    "trash_wide_b": {"file": "VoxelNuke-22-TrashPile-3.obj"},
+    "trash_small_b": {"file": "VoxelNuke-24-TrashPile-4.obj"},
+    "weeds_flat": {"file": "VoxelNuke-0-Overgrowth-0.obj"},
+    "weeds_clump": {"file": "VoxelNuke-13-Overgrowth-4.obj", "decimate": 2}
+  },
+
+  "houses": {
+    "house_a": {
+      "comment": "Casa de una planta cuadrada con techo plano y puerta al frente (-X).",
+      "variants": [
+        {"id": "house_a", "stack": ["block_square"], "roof": "roof_flat",
+         "attach": [{"piece": "door", "face": "-x", "u": 0.5}]},
+        {"id": "house_a_b", "stack": ["block_square"], "roof": "roof_flat", "trim": 6,
+         "mirror": true, "attach": [{"piece": "door", "face": "-x", "u": 0.24}]}
+      ]
+    },
+    "house_b": {
+      "comment": "Dos bloques angostos apilados con el atico encima: la silueta mas alta y estrecha del pueblo.",
+      "variants": [
+        {"id": "house_b", "stack": ["block_narrow", "block_narrow"], "roof": "roof_attic",
+         "attach": [{"piece": "door", "face": "-x", "u": 0.5}]},
+        {"id": "house_b_b", "stack": ["block_narrow", "block_narrow"], "roof": "roof_attic",
+         "trim": 5, "mirror": true, "attach": [{"piece": "door", "face": "-x", "u": 0.8}]}
+      ]
+    },
+    "house_c": {
+      "comment": "Casa con porton de garaje grafiteado en la cara +Z.",
+      "variants": [
+        {"id": "house_c", "stack": ["block_square"], "roof": "roof_flat",
+         "attach": [{"piece": "garage_door", "face": "+z", "u": 0.5}]},
+        {"id": "house_c_b", "stack": ["block_square"], "roof": "roof_flat", "trim": 2,
+         "mirror": true,
+         "attach": [{"piece": "garage_door", "face": "+z", "u": 0.25},
+                    {"piece": "door", "face": "-x", "u": 0.7}]}
+      ]
+    },
+    "house_d": {
+      "comment": "Dos plantas cuadradas con techo plano: el hito bajo de una manzana.",
+      "variants": [
+        {"id": "house_d", "stack": ["block_square", "block_square"], "roof": "roof_flat",
+         "attach": [{"piece": "door", "face": "-x", "u": 0.4}]},
+        {"id": "house_d_b", "stack": ["block_square", "block_square"], "roof": "roof_flat",
+         "trim": 10, "mirror": true,
+         "attach": [{"piece": "door", "face": "-x", "u": 0.62}]}
+      ]
+    },
+    "shed": {
+      "comment": "Galpon bajo: bloque angosto recortado con el atico de tapa. Sin puerta: la pieza queda por debajo de la altura del marco.",
+      "variants": [
+        {"id": "shed", "stack": ["block_narrow"], "roof": "roof_attic", "trim": 16},
+        {"id": "shed_b", "stack": ["block_narrow"], "roof": "roof_attic", "trim": 10,
+         "mirror": true}
+      ]
+    }
+  },
+
+  "props": {
+    "barrel_a": {"piece": "barrel_a"},
+    "barrel_b": {"piece": "barrel_b"},
+    "trash_0": {"piece": "trash_big"},
+    "trash_1": {"piece": "trash_wide"},
+    "trash_2": {"piece": "trash_small"},
+    "trash_3": {"piece": "trash_wide_b"},
+    "trash_4": {"piece": "trash_small_b"},
+    "overgrowth_a": {"piece": "weeds_flat"},
+    "overgrowth_b": {"piece": "weeds_clump"}
+  }
+}

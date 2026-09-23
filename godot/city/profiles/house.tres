@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="BuildingProfile" format=3]
+
+[ext_resource type="Shader" path="res://city/damage_overlay_palette.gdshader" id="1_1o1w3"]
+[ext_resource type="ArrayMesh" path="res://assets/city/rubble/debris_concrete_small.res" id="2_6jxdx"]
+[ext_resource type="Shape3D" path="res://assets/city/rubble/debris_concrete_small_shape.tres" id="3_ebd5u"]
+[ext_resource type="ArrayMesh" path="res://assets/city/rubble/rubble_pile_low.res" id="4_qg852"]
+[ext_resource type="ArrayMesh" path="res://assets/city/rubble/rubble_pile_mid.res" id="5_nulp8"]
+[ext_resource type="Script" path="res://city/building_profile.gd" id="6_0iido"]
+
+[resource]
+resource_name = "house"
+script = ExtResource("6_0iido")
+id = &"house"
+max_hp = 1300.0
+value = 60
+debris_count_min = 3
+debris_count_max = 6
+debris_mass = 300.0
+dust_scale = 0.7
+collapse_seconds = 1.4
+smoke_seconds = 9.0
+trauma_damaged = 0.4
+trauma_rubble = 0.55
+rubble_meshes = Array[Mesh]([ExtResource("4_qg852"), ExtResource("5_nulp8")])
+debris_mesh = ExtResource("2_6jxdx")
+debris_shape = ExtResource("3_ebd5u")
+damage_shader = ExtResource("1_1o1w3")

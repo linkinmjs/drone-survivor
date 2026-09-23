@@ -211,7 +211,7 @@ const GLOW_LEVELS_LOW: Array[int] = [3, 4, 5]
 
 ## [ReflectionProbe] locales por preset (`docs/13` §3.3 y §3.4). Los crea el nivel
 ## en tiempo de ejecución sobre puntos que le pide a [CityGrid], para no hornearlos
-## en `district_a.tscn`.
+## en la escena del distrito.
 const PRESET_REFLECTION_PROBES: Array[int] = [0, 2, 4, 6]
 
 ## Saturación de los ajustes de color por operador de tonemap (`docs/13` §3.1 y
@@ -866,8 +866,8 @@ func is_headless() -> bool:
 ##   −0,011 ms al apagarla: los 15 oclusores de caja del distrito no llegan a pagar
 ##   el raster de profundidad que hay que hacer por cara del ojo de pez, y con
 ##   `FAST_WIDE` hay **tres**.
-## - **Mentía.** Los oclusores están ceñidos al edificio más alto de cada manzana y
-##   se hornean en `district_a.tscn`: cuando ese edificio se derrumba, el volumen
+## - **Mentía.** Los oclusores estaban ceñidos al edificio más alto de cada manzana y
+##   se horneaban en el distrito rectangular de P2: cuando ese edificio se derrumba, el volumen
 ##   sigue ahí. La cámara que entra en la losa fantasma pierde el cuadro entero, y
 ##   una losa de 75 m de un hito caído tapa al coloso y la ciudad detrás. Con tres
 ##   rasters el resultado es el parpadeo por caras que reportó el piloto.

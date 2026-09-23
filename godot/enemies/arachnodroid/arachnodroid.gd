@@ -98,6 +98,14 @@ const TICK_HZ_RANGE: Vector2 = Vector2(1.0, 6.0)
 ## Energía del emisivo blanco en el valle y en la cresta del pulso.
 const PULSE_ENERGY_RANGE: Vector2 = Vector2(0.6, 6.0)
 
+## Grupo del edificio protegido de la ronda (`Building.GROUP_PROTECTED`). Es el
+## primer candidato a «centro de la ciudad» de [method city_centre].
+const GROUP_PROTECTED: StringName = &"protected"
+
+## Grupo del [Marker3D] que el distrito pone en su centro de juego. Es el segundo
+## candidato de [method city_centre].
+const GROUP_TOWN_CENTRE: StringName = &"town_centre"
+
 var _selfdestruct_left: float = -1.0
 var _selfdestruct_running: bool = false
 var _detonated: bool = false
@@ -215,21 +223,90 @@ func detonate() -> void:
 ## Destino forzado de la marcha (`docs/06` §10.1, clave `march_goal`).
 ##
 ## Devuelve `null` salvo en P5, donde el jefe deja de elegir objetivo y corre al
-## [b]centro de la ciudad[/b] con el reloj encima. El centro se calcula como el
-## baricentro de los edificios vivos, que para la retícula rectangular del
-## `CityGrid` (`docs/10` §4) es su centro exacto y además no obliga a este nodo a
-## conocer al `CityGrid`.
+## [b]centro de la ciudad[/b] con el reloj encima, que es el que resuelve
+## [method city_centre].
 func march_goal() -> Variant:
 	if not _selfdestruct_running:
 		return null
 	return city_centre()
 
 
-## Baricentro de los edificios vivos, o la posición propia si no queda ninguno.
+## Dónde está «la ciudad» para el que le va a caer encima, en tres intentos.
+##
+## [b]1. El edificio protegido[/b] (grupo [constant GROUP_PROTECTED]), [b]si sigue
+## en pie[/b]. Es el mejor destino posible: es el que la ronda declaró que hay que
+## defender, así que correr hacia él es exactamente lo que cuenta la narrativa de
+## P5, y lo elige primero porque es el único punto que el jugador también está
+## mirando. Caído deja de contar, porque un montón de escombros no es un objetivo
+## (ver [method _nearest_in_group]).
+##
+## [b]2. El centro del pueblo[/b] (grupo [constant GROUP_TOWN_CENTRE], el
+## `TownCentre` del distrito). Es adonde va el jefe tanto si la ronda no declaró
+## protegido como si ya lo tiró abajo.
+##
+## [b]3. El baricentro de los edificios vivos[/b], que es lo que hacía este método
+## desde P1. Con el barrio irregular del pueblo ya [b]no[/b] es el centro
+## geométrico —los edificios no están repartidos por una retícula—, pero sigue
+## siendo un punto dentro de la ciudad y a medida que el barrio se derrumba se
+## corre hacia lo que queda en pie, que no es mal destino para un último intento.
+##
+## Los tres son [b]grupos[/b] y no rutas ni referencias al distrito: `docs/11` §3
+## prohíbe que el enemigo busque nodos en la raíz o conozca al `CityGrid`. Un grupo
+## no dice dónde vive el nodo ni de qué clase es; lo pone quien arma la escena —el
+## distrito con su `TownCentre`, `RoundManager` con `Building.mark_protected()`— y
+## el jefe sólo pregunta por él.
 func city_centre() -> Vector3:
 	var tree := get_tree()
 	if tree == null:
 		return global_position
+	var protected := _nearest_in_group(tree, GROUP_PROTECTED)
+	if protected != null:
+		return protected.global_position
+	var centre := _nearest_in_group(tree, GROUP_TOWN_CENTRE)
+	if centre != null:
+		return centre.global_position
+	return _living_barycentre(tree)
+
+
+## El [Node3D] **en pie y más cercano** del grupo [param group], o `null` si no
+## queda ninguno.
+##
+## Dos cosas que no son obvias y que costaron un bug:
+##
+## [b]Se saltean las ruinas.[/b] Un [Building] no sale del grupo `protected` cuando
+## cae: la marca dice «este es el que había que defender», no «este sigue en pie».
+## Sin este filtro, derribar la escuela dejaba al jefe corriendo hacia el montón de
+## escombros en el que ya no queda nada que destruir, que es el peor destino
+## posible para la marcha de P5. Se pregunta por `is_destroyed()` y no por
+## `is_collapsed()` porque lo que importa es que ya cruzó el umbral de ruina,
+## aunque el derrumbe siga en curso; es el mismo criterio que usa
+## [method _living_barycentre].
+##
+## [b]Se elige el más cercano, no el primero.[/b] El orden de un grupo es el de
+## alta en el árbol y no significa nada para quien camina. Con un solo candidato
+## —el caso de hoy— da lo mismo; con varios, el primero del grupo podía estar del
+## otro lado del pueblo.
+##
+## Por `has_method` porque el grupo es heterogéneo a propósito: el protegido es un
+## [Building] y el centro del pueblo, un [Marker3D] que no sabe de ruinas.
+func _nearest_in_group(tree: SceneTree, group: StringName) -> Node3D:
+	var best: Node3D = null
+	var best_distance := INF
+	for node: Node in tree.get_nodes_in_group(group):
+		var spatial := node as Node3D
+		if spatial == null or not is_instance_valid(spatial) or not spatial.is_inside_tree():
+			continue
+		if spatial.has_method(&"is_destroyed") and bool(spatial.call(&"is_destroyed")):
+			continue
+		var distance := spatial.global_position.distance_squared_to(global_position)
+		if distance < best_distance:
+			best_distance = distance
+			best = spatial
+	return best
+
+
+## Baricentro de los edificios vivos, o la posición propia si no queda ninguno.
+func _living_barycentre(tree: SceneTree) -> Vector3:
 	var total := Vector3.ZERO
 	var count := 0
 	for node: Node in tree.get_nodes_in_group(&"buildings"):

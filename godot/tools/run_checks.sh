@@ -80,7 +80,7 @@ done
 # ---------------------------------------------------------------------------
 
 # Checks headless puros: son los que CI corre sin discusion.
-HEADLESS=(project_check loading_check settings_check city_import_check enemy_import_check flight_bench flight_check controls_check pause_check hud_projection_check audio_check enemy_parts_check weapon_check energy_check city_check gait_check round_check ai_check combat_hud_check arachnodroid_check vfx_check overlay_check shake_check)   # WP-01, WP-02, WP-03, WP-13, WP-12b, WP-04, WP-05
+HEADLESS=(project_check loading_check settings_check city_import_check enemy_import_check flight_bench flight_check controls_check pause_check hud_projection_check audio_check enemy_parts_check weapon_check energy_check city_check gait_check round_check ai_check combat_hud_check arachnodroid_check vfx_check overlay_check shake_check town_plan_check town_import_check terrain_check)   # WP-01, WP-02, WP-03, WP-13, WP-12b, WP-04, WP-05
 
 # Checks que necesitan framebuffer real (capturas, docs/15 seccion 3.1). Corren
 # bajo xvfb-run cuando no hay display.

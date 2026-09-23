@@ -1,0 +1,38 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://tools/town_showcase.gd" id="1_showcase"]
+[ext_resource type="Environment" path="res://world/environment_battle.tres" id="2_env"]
+[ext_resource type="CameraAttributesPhysical" path="res://world/camera_attributes_dusk.tres" id="3_camera_attributes"]
+[ext_resource type="Script" path="res://world/sun_light.gd" id="4_sun_light"]
+[ext_resource type="Resource" path="res://world/sun_dusk.tres" id="5_sun_profile"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ground"]
+albedo_color = Color(0.16, 0.17, 0.19, 1)
+roughness = 0.95
+metallic_specular = 0.25
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
+material = SubResource("StandardMaterial3D_ground")
+size = Vector2(300, 300)
+
+[node name="TownShowcase" type="Node3D"]
+script = ExtResource("1_showcase")
+check_name = "town_showcase"
+default_timeout = 40.0
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = ExtResource("2_env")
+camera_attributes = ExtResource("3_camera_attributes")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+script = ExtResource("4_sun_light")
+profile = ExtResource("5_sun_profile")
+shadow_enabled = true
+
+[node name="Ground" type="MeshInstance3D" parent="."]
+mesh = SubResource("PlaneMesh_ground")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8, 30)
+fov = 45.0
+far = 800.0

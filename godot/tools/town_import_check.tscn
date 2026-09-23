@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tools/town_import_check.gd" id="1_town_import_check"]
+
+[node name="TownImportCheck" type="Node"]
+script = ExtResource("1_town_import_check")
+check_name = "town_import_check"
+# 19 piezas instanciadas, 21 `.import` leídos y dos piezas sintéticas: los 60 s por
+# defecto de `CheckRunner` quedaban justos en una máquina cargada.
+default_timeout = 120.0

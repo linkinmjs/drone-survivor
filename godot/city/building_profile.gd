@@ -92,6 +92,15 @@ class_name BuildingProfile extends Resource
 ## Forma de colisión del trozo, a juego con [member debris_mesh].
 @export var debris_shape: Shape3D = null
 
+## Shader de la etapa `DAMAGED` para esta familia de piezas. Si queda en `null`
+## se usa `city/damage_overlay.gdshader`, que es el de la ciudad y muestrea la
+## difusa con filtro lineal y mipmaps. Las piezas del pueblo de ruta
+## (`assets/town/`) llevan en cambio la paleta de 256×1 del pipeline voxel, donde
+## el vecino de un texel es otro color sin relación: para ésas el perfil apunta a
+## `city/damage_overlay_palette.gdshader`, idéntico salvo por
+## `filter_nearest, repeat_disable` (WP-A).
+@export var damage_shader: Shader = null
+
 
 ## Cantidad de trozos de esta transición, sembrada con [param rng] para que dos
 ## corridas con la misma semilla tiren lo mismo.
