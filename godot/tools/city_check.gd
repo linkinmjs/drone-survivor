@@ -181,6 +181,34 @@ const RING_STEP: float = 0.04
 ## Cuánto puede alejarse el extremo de una calle del polígono de su nodo.
 const STUB_TOLERANCE: float = 0.05
 
+## Cuánto pueden alejarse la punta del asfalto y el cierre de un cabo del punto
+## que el diseño declara —`nodo + dir · street_stub_of`—, en metros.
+##
+## Treinta centímetros es el paso de muestreo de la punta más el ancho de un
+## poste de tranquera: lo que la fila tiene que ver no es un milímetro sino el
+## cabo aplicado **dos veces**, que es lo que WP-D4a encontró (hallazgo 1) y que
+## dejaba las catorce tranqueras entre 7,8 y 16,8 m más lejos de su nodo de lo
+## que el diseño dice.
+const STUB_TIP_TOLERANCE: float = 0.30
+
+## Sobre cuántos metros del terreno tiene que estar un vértice de la malla de
+## veredas para contarlo como parte de un cierre de cabo y no del anillo.
+##
+## El anillo de vereda vive a [constant CityGrid.SIDEWALK_TOP] (15 cm) y la
+## tranquera más baja llega a 1,40 m: medio metro separa las dos cosas sin
+## ambigüedad.
+const CLOSURE_MIN_HEIGHT: float = 0.60
+
+## Hasta qué distancia de un cabo declarado se le atribuye un vértice de cierre,
+## en metros.
+##
+## No es un radio de agrupación sino de **pertenencia**: cada vértice alto de la
+## malla de veredas se le asigna al cabo declarado más cercano, y cuarenta metros
+## son a la vez mucho más que el ancho de la tranquera más ancha (11,75 m) o que
+## el error que esta fila busca —un cabo aplicado dos veces desplaza el cierre
+## entre 8 y 17 m— y mucho menos que lo que separa dos cabos vecinos.
+const CLOSURE_REACH: float = 40.0
+
 ## Lado de la celda de la rejilla con la que se indexan los triángulos del
 ## viario, en metros.
 const INDEX_CELL: float = 5.0
@@ -252,6 +280,83 @@ const ROOF_REFINE_MAX: float = 3.0
 ## Tolerancia del cociente entre lo que cuesta el protegido y lo que cuesta un
 ## edificio de su mismo HP.
 const PROTECTED_WEIGHT_TOLERANCE: float = 0.02
+
+## Cuántos lotes de dibujo pueden gastar arboledas, cercos y props **desde un
+## encuadre** (plan P2c, WP-D2).
+## Cuántos **grupos de dibujo** pueden gastar arboledas, cercos y props desde un
+## encuadre (plan P2c, WP-D2).
+##
+## El encargo pedía ocho y el inventario de WP-D1 no entra en ocho: cinco
+## especies de follaje —sauce, sauce grande, arbusto y dos etapas de maíz— y dos
+## clases de cerco ya son siete antes del primer prop. Doce es lo que queda
+## después de fundir en una sola malla toda pieza con menos de
+## [constant CityGrid.PROP_MULTIMESH_MIN] instancias, que es la palanca que de
+## verdad baja el número. La medida que manda sigue siendo `render_check`.
+const DECOR_LOT_BUDGET: int = 12
+
+## Los dos hitos de `docs/17` §2 y las reglas de visibilidad: cuánto tienen que
+## subtender desde cada acceso, desde qué altura se mira, cada cuántos metros se
+## muestrea la visual y desde qué altura un edificio tapa.
+const LANDMARK_PIECES: Array[StringName] = [&"water_tower", &"silo"]
+const LANDMARK_SUBTEND: float = 0.8
+## Desde que altura se mira cada hito.
+##
+## No es la altura de una persona: en este juego nadie mira desde 1,70 m. Quien
+## tiene que ver los hitos es el **coloso** -29 m de alto, la cabeza a unos 25-
+## y el **dron**, que aparece a ras y sube enseguida a su altura de vuelo. Con
+## un ojo de peaton la mitad de las visuales las tapa la primera manzana y la
+## fila mediria una regla que el juego no usa.
+const LANDMARK_EYE_SPAWN: float = 20.0
+## `docs/17` §0.2 dice de dónde se tienen que ver los hitos: «desde los cuatro
+## accesos, desde la ruta y desde **el dron a 40 m de altura**». Ésa es la
+## altura, y no la de la aparición: el dron nace a metro y medio y sube antes de
+## que el jugador termine de leer la pantalla.
+const LANDMARK_EYE_DRONE: float = 40.0
+const LANDMARK_STEP: float = 2.0
+const LANDMARK_BLOCKER: float = 6.0
+
+## Cuántos puestos de pila tienen que estar bajo toldo (`docs/17` §2: los cuatro
+## `battery_1…4` que el diseño declara).
+const AWNING_POSTS_MIN: int = 4
+
+## El vano: cuántas muestras se toman a lo largo, cuánto puede desviarse la
+## calzada de la recta entre sus extremos y cuánto aire tiene que quedar debajo.
+const BRIDGE_APRON: float = 3.0
+const BRIDGE_SAMPLES: int = 40
+const BRIDGE_FLAT_TOLERANCE: float = 0.01
+const BRIDGE_CLEARANCE: float = 1.5
+
+## Cuánto puede apartarse el asfalto de la cara superior del tablero, en metros.
+##
+## Un centímetro es el mismo número con el que se mide que la calzada del vano
+## sea una recta: por debajo no hay escalón que el jugador pueda ver y por encima
+## sí (WP-D4a, hallazgo 8).
+const BRIDGE_DECK_TOLERANCE: float = 0.01
+
+## Que fraccion del vano, medida desde su centro, es el cauce. Fuera de eso
+## estan los estribos, donde el terreno sube a buscar la rasante.
+const BRIDGE_CHANNEL: float = 0.25
+
+## Cada cuántos metros se muestrea el eje del arroyo para medir el agua.
+const CREEK_SAMPLE_STEP: float = 4.0
+
+## Cuánto puede apartarse el espejo de agua de la cota que promete
+## [constant CityGrid.CREEK_WATER_RISE] sobre el fondo del cauce, en metros.
+const CREEK_LEVEL_TOLERANCE: float = 0.30
+
+## Anillos de densidad de `docs/17` §1, y desde qué altura un puesto de pila es
+## de azotea y no de calle.
+const RING_EDGES: Array[float] = [60.0, 140.0, 230.0, 600.0]
+const RING_MIN: Array[int] = [4, 14, 8, 4]
+const RING_MAX: Array[int] = [7, 22, 14, 8]
+const RING_POI_PIECES: Array[StringName] = [
+	&"welcome_sign", &"road_sign_narrow", &"road_sign_speed", &"bus_stop",
+	&"awning_orange", &"monument", &"flag_mast", &"windmill",
+]
+const ROOF_POST_FLOOR: float = 12.0
+
+## Cuántas casas de caserío son **un** caserío (`docs/17` §2).
+const HAMLET_GROUP: int = 6
 
 var _town: CityGrid = null
 var _plan: TownPlan = null
@@ -363,6 +468,7 @@ func _run() -> void:
 	_check_route()
 	_check_street_batching()
 	_check_road_surfaces()
+	_check_stub_tips()
 	_check_road_negative()
 	_check_field_and_rocks()
 	_check_houses_rest()
@@ -377,6 +483,13 @@ func _run() -> void:
 	_check_gi_modes()
 	_check_debris_profiles()
 	_check_markers()
+	_check_town_decor()
+	_check_landmarks_visible()
+	_check_awning_grammar()
+	_check_bridge_span()
+	_check_bridge_deck()
+	_check_creek_water()
+	_check_ring_density()
 	_check_budget()
 
 	await _check_decor_inert()
@@ -562,13 +675,22 @@ func _check_play_circle() -> void:
 	expect(decor.size() == _expected(TownPlan.Role.DECOR),
 			"casas de caserío: %d, esperadas %d" % [decor.size(), _expected(TownPlan.Role.DECOR)])
 	var furthest := 0.0
+	var furthest_name := "nada"
 	var nearest_decor := INF
-	for building: Building in _town.get_buildings():
-		furthest = maxf(furthest, _plan.distance_to_centre(building.position))
+	var flat_centre := Vector2(_plan.play_centre.x, _plan.play_centre.z)
+	for index: int in _plan.parcels.size():
+		if not bool(_plan.parcels[index].get("destructible", false)):
+			continue
+		for corner: Vector2 in _plan.parcel_footprint(index):
+			var radius := flat_centre.distance_to(corner)
+			if radius > furthest:
+				furthest = radius
+				furthest_name = String(_plan.parcels[index].get("name", &"?"))
 	for node: Node3D in decor:
 		nearest_decor = minf(nearest_decor, _plan.distance_to_centre(node.position))
-	print("  círculo: %d edificios dentro de %.0f m (el más lejano a %.1f) · %d casas de caserío"
-			% [_plan.destructible_count(), _plan.play_radius, furthest, decor.size()]
+	print("  círculo: %d edificios con su huella entera dentro de %.0f m (la esquina más lejana"
+			% [_plan.destructible_count(), _plan.play_radius]
+			+ " a %.1f, de '%s') · %d casas de caserío" % [furthest, furthest_name, decor.size()]
 			+ " afuera (la más cerca a %.1f m), ninguna con building.gd" % nearest_decor)
 
 
@@ -578,11 +700,35 @@ func _check_play_circle() -> void:
 ## mismas rutinas sobre un pueblo estropeado a mano y comprobar que las rechazan.
 func _play_circle_problems() -> Array[String]:
 	var found: Array[String] = []
+	# **La huella entera, no el centro** (WP-D4a, hallazgo 9). Medir el origen
+	# del edificio dejaba pasar una estación de servicio de 25,4 × 17,7 m con el
+	# centro a 132 m y dos esquinas a 146: el jugador la ve entera, el jefe la
+	# puede romper y está fuera del círculo que dice qué es el nivel. Se usa
+	# [method TownPlan.parcel_inside], que es la misma cuenta que hace
+	# `tools/town_plan_check.gd` sobre el plano, pero corrida por el desvío real
+	# del nodo respecto de su parcela: así la prueba negativa —que corre un
+	# edificio 300 m— sigue teniendo con qué ponerse roja.
+	var by_name: Dictionary[StringName, Building] = {}
 	for building: Building in _town.get_buildings():
-		var distance := _plan.distance_to_centre(building.position)
-		if distance > _plan.play_radius:
-			found.append("'%s' está a %.1f m del centro, fuera del círculo de %.0f m"
-					% [building.name, distance, _plan.play_radius])
+		by_name[building.name] = building
+	var flat_centre := Vector2(_plan.play_centre.x, _plan.play_centre.z)
+	for index: int in _plan.parcels.size():
+		var parcel := _plan.parcels[index]
+		if not bool(parcel.get("destructible", false)):
+			continue
+		var name := StringName(parcel.get("name", &""))
+		var building: Building = by_name.get(name, null)
+		if building == null:
+			found.append("la parcela '%s' no tiene edificio en la escena" % name)
+			continue
+		var seat := _plan.parcel_position(index)
+		var drift := Vector2(building.position.x - seat.x, building.position.z - seat.z)
+		var worst := 0.0
+		for corner: Vector2 in _plan.parcel_footprint(index):
+			worst = maxf(worst, flat_centre.distance_to(corner + drift))
+		if worst > _plan.play_radius:
+			found.append("'%s' saca una esquina a %.1f m del centro, fuera del círculo de %.0f m"
+					% [building.name, worst, _plan.play_radius])
 	var decor_root := _town.get_node_or_null(NodePath(CityGrid.DECOR_NODE))
 	if decor_root == null:
 		found.append("el pueblo no tiene el nodo '%s'" % CityGrid.DECOR_NODE)
@@ -1001,6 +1147,249 @@ func _check_road_surfaces() -> void:
 	_measure_roads("horneado", _plan, asphalt, walkways)
 
 
+## **Cabos a la distancia declarada** (`docs/17` §2, WP-D4a).
+##
+## Para cada punta con cabo: dónde termina de verdad el asfalto y dónde está de
+## verdad la tranquera, contra el punto que el diseño declara, que es
+## `nodo + dir · street_stub_of`. Las dos cosas se miden sobre la **escena
+## horneada** y no sobre el plano, porque el defecto que esta fila existe para
+## ver no estaba en el plano: el eje ya venía con su cabo y quien lo sumaba otra
+## vez era el horneado de la cinta y del cierre. Con el cabo duplicado las
+## catorce tranqueras quedaban entre 15,6 y 33,6 m del nodo —el doble de los
+## 7,8 a 16,8 declarados— y el asfalto pisaba relieve sin aplanar.
+func _check_stub_tips() -> void:
+	var asphalt := _asphalt_mesh()
+	var walkways := _walkway_mesh()
+	if asphalt == null or walkways == null:
+		fail("faltan las mallas de viario sobre las que medir los cabos")
+		return
+	var road := RoadMesh.flat_triangles(asphalt)
+	var road_index := RoadMesh.index_triangles(road, INDEX_CELL)
+
+	# --- 1. Dónde dice el diseño que está cada cabo -----------------------
+	var cabos: Array[Dictionary] = []
+	for street: int in _plan.graph_street_count():
+		var axis := _plan.street_axis(street)
+		if axis.size() < 2:
+			continue
+		var total := TownPlan.polyline_length(axis)
+		for end: int in 2:
+			# Las mismas dos condiciones que [method CityGrid._emit_closures]:
+			# una punta que muere en un cruce con polígono no lleva cierre, y una
+			# sin clase de cierre declarada tampoco.
+			var seated := _plan.node_of(street, end)
+			if seated >= 0 and _plan.node_polygon(seated).size() >= 3:
+				continue
+			var kind := _plan.street_closure_of(street, end)
+			if not RoadMesh.CLOSURE_KINDS.has(kind) or kind == RoadMesh.KIND_NONE:
+				continue
+			var stub := _plan.street_stub_of(street, end)
+			var what := "calle %d cabo %s" % [street, "a" if end == 0 else "b"]
+			var tip := TownPlan.polyline_point(axis, 0.0 if end == 0 else total)
+			var declared := tip
+			if stub > 0.0:
+				# El nodo del que sale el cabo: la punta con cabo tiene `-1` en
+				# `street_nodes` —el diseño la declara suelta— así que se busca
+				# por geometría, a `stub` metros de la punta sobre el mismo eje.
+				var anchor := TownPlan.polyline_point(axis,
+						stub if end == 0 else total - stub)
+				var node := _nearest_node(anchor)
+				if node < 0:
+					fail("el cabo de la %s no tiene nodo a %.2f m de su punta"
+							% [what, stub])
+					continue
+				var centre := _plan.node_at(node).get("pos", Vector3.ZERO) as Vector3
+				var outward := Vector3(tip.x - centre.x, 0.0, tip.z - centre.z)
+				if outward.length() < 0.001:
+					fail("el cabo de la %s cae sobre su propio nodo" % what)
+					continue
+				declared = centre + outward.normalized() * stub
+			var tangent := TownPlan.polyline_tangent(axis, 0.0 if end == 0 else total)
+			cabos.append({
+				"what": what,
+				"stub": stub,
+				"declared": declared,
+				"inward": tangent if end == 0 else -tangent,
+			})
+	expect(not cabos.is_empty(), "el plano horneado no declara ni un cabo con cierre")
+	if cabos.is_empty():
+		return
+
+	# --- 2. Dónde está de verdad cada cierre horneado ---------------------
+	var declared_points: Array[Vector3] = []
+	for cabo: Dictionary in cabos:
+		declared_points.append(cabo["declared"])
+	var measured := _closure_centres(walkways, declared_points)
+	var centres: Array[Vector3] = measured["centres"]
+	var strays := int(measured["strays"])
+	expect(strays == 0,
+			"la malla de veredas trae %d vértices de cierre a más de %.0f m de todo cabo"
+			% [strays, CLOSURE_REACH])
+
+	# --- 3. La punta del asfalto y el cierre, contra lo declarado ---------
+	var worst_tip := 0.0
+	var worst_tip_what := "nada"
+	var worst_gate := 0.0
+	var worst_gate_what := "nada"
+	var nearest := INF
+	var furthest := 0.0
+	for slot: int in cabos.size():
+		var cabo := cabos[slot]
+		var what := String(cabo["what"])
+		var stub := float(cabo["stub"])
+		var declared: Vector3 = cabo["declared"]
+		var inward: Vector3 = cabo["inward"]
+		nearest = minf(nearest, stub)
+		furthest = maxf(furthest, stub)
+
+		# La punta del asfalto: se camina hacia adentro desde seis metros afuera
+		# hasta que la cinta cubre. Que cubra **antes** de llegar al cabo quiere
+		# decir que el asfalto pasa de largo la tranquera.
+		var reach := INF
+		var probe := -6.0
+		while probe <= stub + 2.0:
+			var p := declared + inward * probe
+			if RoadMesh.coverage_indexed(road, road_index, INDEX_CELL,
+					Vector2(p.x, p.z), COVER_MARGIN) > 0:
+				reach = probe
+				break
+			probe += 0.05
+		if not is_finite(reach):
+			fail("el asfalto de la %s no llega a su cabo declarado en (%.1f, %.1f)"
+					% [what, declared.x, declared.z])
+		else:
+			var gap := absf(reach)
+			if gap > worst_tip:
+				worst_tip = gap
+				worst_tip_what = what
+			if gap > STUB_TIP_TOLERANCE:
+				fail("la punta del asfalto de la %s queda a %.2f m del cabo declarado"
+						% [what, gap] + ", tope %.2f m" % STUB_TIP_TOLERANCE)
+
+		var centre: Vector3 = centres[slot]
+		if not is_finite(centre.x):
+			fail("la %s no tiene cierre horneado" % what)
+			continue
+		var offset := Vector2(centre.x - declared.x, centre.z - declared.z).length()
+		if offset > worst_gate:
+			worst_gate = offset
+			worst_gate_what = what
+		if offset > STUB_TIP_TOLERANCE:
+			fail("el cierre de la %s está a %.2f m del cabo declarado (%.1f, %.1f)"
+					% [what, offset, declared.x, declared.z]
+					+ ", tope %.2f m" % STUB_TIP_TOLERANCE)
+	print("  cabos a la distancia declarada: %d cabos de %.1f a %.1f m · punta del asfalto"
+			% [cabos.size(), nearest, furthest]
+			+ " a %.2f m como mucho (%s) · cierre a %.2f m como mucho (%s) · tope %.2f m"
+			% [worst_tip, worst_tip_what, worst_gate, worst_gate_what, STUB_TIP_TOLERANCE])
+
+
+## El nodo del plano más cercano a [param point], o `-1` si ninguno cae a menos
+## de un metro.
+func _nearest_node(point: Vector3) -> int:
+	var best := 1.0
+	var found := -1
+	for index: int in _plan.nodes.size():
+		var pos := _plan.node_at(index).get("pos", Vector3.ZERO) as Vector3
+		var gap := Vector2(pos.x - point.x, pos.z - point.z).length()
+		if gap < best:
+			best = gap
+			found = index
+	return found
+
+
+## El AABB de [param visual] en el espacio del pueblo, **calculado a mano**.
+##
+## Ni [method VisualInstance3D.get_aabb] ni [method MultiMesh.get_aabb] sirven
+## acá: los dos preguntan al servidor de render y en `--headless` devuelven un
+## AABB vacío, así que la fila de lotes medía todos los grupos con su centro en
+## el origen y daba «se dibujan todos» dijera lo que dijera el recorte por
+## distancia (WP-D4a, hallazgo 7). Para un [MultiMeshInstance3D] se recorren sus
+## instancias y se une el AABB de la malla transformado por cada una; para una
+## [MeshInstance3D] alcanza el de su malla, porque el nodo vive en el origen.
+func _visual_bounds(visual: GeometryInstance3D) -> AABB:
+	var multi := visual as MultiMeshInstance3D
+	if multi != null and multi.multimesh != null and multi.multimesh.mesh != null:
+		var piece := multi.multimesh.mesh.get_aabb()
+		# Se lee el **búfer** y no `get_instance_transform()`: ésa también
+		# pregunta al servidor de render, que en `--headless` no retiene las
+		# instancias, y devolvía la identidad para las mil cuatrocientas. El
+		# búfer es la propiedad del recurso —doce flotantes por instancia, la
+		# matriz 3 × 4 por filas, que es como la escribe
+		# [method CityGrid._multimesh_buffer]— y sí viaja en el `.res`.
+		var data := multi.multimesh.buffer
+		var bounds := AABB()
+		var count := data.size() / 12
+		for index: int in count:
+			var at := index * 12
+			var basis := Basis(
+					Vector3(data[at], data[at + 4], data[at + 8]),
+					Vector3(data[at + 1], data[at + 5], data[at + 9]),
+					Vector3(data[at + 2], data[at + 6], data[at + 10]))
+			var origin := Vector3(data[at + 3], data[at + 7], data[at + 11])
+			var box := Transform3D(basis, origin) * piece
+			bounds = box if index == 0 else bounds.merge(box)
+		return bounds
+	var surface := visual as MeshInstance3D
+	if surface != null and surface.mesh != null:
+		return surface.mesh.get_aabb()
+	return AABB()
+
+
+## El centro del cierre horneado de cada cabo de [param declared].
+##
+## Los cierres viajan en la misma malla que los anillos de vereda —los dos son
+## «lo que no es calzada»— y hay que separarlos por altura: el anillo vive a
+## 15 cm del terreno y una tranquera llega a 1,40 m. Cada vértice alto se le
+## atribuye al cabo declarado **más cercano** y de cada grupo sale su centro en
+## XZ, que es el punto que [method RoadMesh.closure] recibió.
+##
+## Atribuir por cercanía a un ancla y no agrupar por proximidad entre vértices no
+## es un detalle: una tranquera son dos postes a once metros uno del otro y tres
+## travesaños, y cualquier agrupación por radio los parte en dos grupos cuyo
+## centro es un poste —media calzada de error— o los funde con la de al lado. El
+## cabo declarado no se mueve, así que sirve de ancla.
+##
+## Devuelve `{centres, strays}`: un centro por cabo, `Vector3.INF` si ese cabo no
+## tiene ni un vértice, y cuántos vértices quedaron a más de
+## [constant CLOSURE_REACH] de todos los cabos.
+func _closure_centres(walkways: ArrayMesh, declared: Array[Vector3]) -> Dictionary:
+	var height := _town.terrain_height_fn()
+	var sums: Array[Vector3] = []
+	var counts: Array[int] = []
+	for _slot: int in declared.size():
+		sums.append(Vector3.ZERO)
+		counts.append(0)
+	var strays := 0
+	for surface: int in walkways.get_surface_count():
+		var arrays := walkways.surface_get_arrays(surface)
+		if arrays.is_empty():
+			continue
+		var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		for vertex: Vector3 in vertices:
+			if vertex.y - _ground_at(height, Vector2(vertex.x, vertex.z)) \
+					< CLOSURE_MIN_HEIGHT:
+				continue
+			var best := CLOSURE_REACH
+			var slot := -1
+			for index: int in declared.size():
+				var gap := Vector2(declared[index].x - vertex.x,
+						declared[index].z - vertex.z).length()
+				if gap <= best:
+					best = gap
+					slot = index
+			if slot < 0:
+				strays += 1
+				continue
+			sums[slot] = sums[slot] + vertex
+			counts[slot] = counts[slot] + 1
+	var centres: Array[Vector3] = []
+	for index: int in declared.size():
+		centres.append(sums[index] / float(counts[index]) if counts[index] > 0
+				else Vector3(INF, INF, INF))
+	return {"centres": centres, "strays": strays}
+
+
 ## Corre las cuatro filas de viario sobre [param plan] y sus dos mallas.
 func _measure_roads(label: String, plan: TownPlan, asphalt: ArrayMesh,
 		walkways: ArrayMesh) -> void:
@@ -1083,6 +1472,8 @@ func _road_problems(plan: TownPlan, asphalt: ArrayMesh, walkways: ArrayMesh,
 				var ground := 0.0 if height.is_null() or not height.is_valid() \
 						else float(height.call(edge.x, edge.z))
 				var clearance := surface - ground
+				if _over_bridge(plan, edge):
+					continue
 				if clearance < worst_clearance:
 					worst_clearance = clearance
 					worst_at = edge
@@ -1605,9 +1996,15 @@ func _check_houses_rest() -> void:
 
 ## Cota sobre la que apoya la parcela [param parcel]: el terreno que tiene que
 ## haber bajo sus cuatro esquinas.
+## Los caseríos apoyan sobre el pasto y los POI rurales —el silo y el galpón—
+## también: la vereda es de las manzanas, y un lote rural no tiene. Restarles los
+## 18 cm de losa hacía que la fila midiera el terreno contra una cota que no
+## existe y diera verde con el silo flotando (WP-D4a, hallazgo 6).
 func _rest_y(parcel: Dictionary) -> float:
 	var base := float(parcel.get("base_y", TownPlan.SIDEWALK_TOP))
 	if int(parcel.get("role", -1)) == TownPlan.Role.DECOR:
+		return base
+	if bool(parcel.get("rural", false)):
 		return base
 	return base - TownPlan.SIDEWALK_TOP
 
@@ -1807,10 +2204,31 @@ func _route_support_span(plan: TownPlan, asphalt: ArrayMesh,
 			var surface := RoadMesh.surface_y_indexed(triangles, index, INDEX_CELL, flat)
 			if not is_finite(surface):
 				continue
+			if _over_bridge(plan, edge):
+				continue
 			var clearance := surface - terrain.height_at(edge.x, edge.z)
 			low = minf(low, clearance)
 			high = maxf(high, clearance)
 	return Vector2(low, high)
+
+
+## Verdadero si [param point] cae sobre el vano del puente.
+##
+## Ahi la calzada **no** apoya sobre el terreno y no tiene que hacerlo: apoya
+## sobre el tablero, y debajo pasa el arroyo. Las filas de apoyo miden la
+## separacion entre el asfalto y el relieve, y sobre el vano esa separacion es
+## justamente lo que el puente existe para abrir -3,4 m medidos-, asi que sin
+## esta exencion el puente se declara defecto. El margen es el del vano mas el
+## metro de empalme de [method CityGrid.route_height_fn] y medio metro mas.
+func _over_bridge(plan: TownPlan, point: Vector3) -> bool:
+	if not plan.has_bridge():
+		return false
+	var axis := plan.street_axis(0)
+	if axis.size() < 2:
+		return false
+	var at := TownPlan.polyline_closest(axis, point)
+	var centre := TownPlan.polyline_closest(axis, plan.bridge_at)
+	return absf(at - centre) <= plan.bridge_span * 0.5 + BRIDGE_APRON
 
 
 ## Los incumplimientos del apoyo de la ruta. Aparte, para la negativa.
@@ -1831,6 +2249,8 @@ func _route_support_problems(plan: TownPlan, asphalt: ArrayMesh,
 		var point := TownPlan.polyline_point(axis, at)
 		var tangent := TownPlan.polyline_tangent(axis, at)
 		at += EDGE_STEP
+		if _over_bridge(plan, point):
+			continue
 		for sign: float in [1.0, -1.0]:
 			var edge := point + TownPlan.left_of(tangent) * reach * sign
 			var flat := Vector2(edge.x, edge.z)
@@ -2015,7 +2435,14 @@ func _check_windows() -> void:
 			var material := mesh_instance.get_active_material(surface)
 			if material == null:
 				continue
-			materials[material] = true
+			# Solo las **casas**: lo que esta fila defiende es que apagar una
+			# manzana no multiplique los lotes de dibujo, y el racionamiento
+			# toca ventanas de casa. Los cinco materiales propios que WP-D1 le
+			# dio a la estacion, al tanque y al silo son la paleta del pueblo, no
+			# una consecuencia del apagon, y contarlos aca convertia una fila de
+			# racionamiento en un tope de paleta que nadie decidio.
+			if int(building.get_meta(&"role", -1)) == TownPlan.Role.HOUSE:
+				materials[material] = true
 			var standard := material as StandardMaterial3D
 			if standard == null or not standard.emission_enabled:
 				continue
@@ -3142,3 +3569,646 @@ func _all_nodes(root: Node) -> Array[Node]:
 			found.append(child)
 		index += 1
 	return found
+
+
+# --------------------------------------------------------------------------
+# Plaza, arboledas, cercos, props y puente (P2c, WP-D2)
+# --------------------------------------------------------------------------
+
+## Los cinco nodos nuevos existen y traen **los conteos del plano**.
+##
+## Se compara instancia a instancia y no «hay algo»: un [MultiMesh] con la mitad
+## de los árboles se ve bien en una captura y es media arboleda.
+func _check_town_decor() -> void:
+	var plaza := _town.get_node_or_null(NodePath(CityGrid.PLAZA_NODE))
+	expect(plaza != null or not _plan.has_plaza(), "el pueblo horneado no trae plaza")
+	if plaza != null:
+		expect(plaza.get_child_count() >= 1, "la plaza no trae ni una superficie")
+
+	var groves := _town.get_node_or_null(NodePath(CityGrid.GROVES_NODE))
+	expect(groves != null or _plan.grove_total() == 0, "el pueblo horneado no trae arboledas")
+	var planted := 0
+	if groves != null:
+		for index: int in _plan.grove_species.size():
+			var species := StringName(_plan.grove_species[index])
+			var node := groves.get_node_or_null(NodePath(species)) as MultiMeshInstance3D
+			if node == null:
+				fail("la arboleda no trae la especie '%s'" % species)
+				continue
+			expect(node.multimesh != null
+					and node.multimesh.instance_count == _plan.grove_count(index),
+					"'%s' tiene %d instancias y el plano dice %d"
+					% [species, 0 if node.multimesh == null else node.multimesh.instance_count,
+					_plan.grove_count(index)])
+			expect(node.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF,
+					"la arboleda '%s' proyecta sombra" % species)
+			expect(node.gi_mode == GeometryInstance3D.GI_MODE_STATIC,
+					"la arboleda '%s' no está en GI_MODE_STATIC" % species)
+			expect(node.visibility_range_end > 0.0,
+					"la arboleda '%s' no tiene recorte por distancia" % species)
+			planted += node.multimesh.instance_count if node.multimesh != null else 0
+			for child: Node in node.get_children():
+				fail("la arboleda '%s' cuelga un '%s': el follaje no lleva colisión"
+						% [species, child.name])
+
+	var fences := _town.get_node_or_null(NodePath(CityGrid.FENCES_NODE))
+	var fenced := 0
+	if fences != null:
+		for child: Node in fences.get_children():
+			var node := child as MultiMeshInstance3D
+			if node == null or node.multimesh == null:
+				fail("'%s' no es un MultiMesh de cerco" % child.name)
+				continue
+			fenced += node.multimesh.instance_count
+	expect(fenced == _plan.fence_points.size(),
+			"la escena trae %d tramos de cerco y el plano %d"
+			% [fenced, _plan.fence_points.size()])
+
+	var props := _town.get_node_or_null(NodePath(CityGrid.PROPS_NODE))
+	expect(props != null or _plan.prop_placements.is_empty(),
+			"el pueblo horneado no trae props")
+	var prop_groups := 0
+	var prop_instances := 0
+	if props != null:
+		prop_groups = props.get_child_count()
+		for child: Node in props.get_children():
+			var multi := child as MultiMeshInstance3D
+			if multi != null and multi.multimesh != null:
+				prop_instances += multi.multimesh.instance_count
+				expect(multi.multimesh.instance_count
+						== _plan.prop_count_of(StringName(child.name)),
+						"el prop '%s' tiene %d instancias y el plano dice %d"
+						% [child.name, multi.multimesh.instance_count,
+						_plan.prop_count_of(StringName(child.name))])
+
+	var bridge := _town.get_node_or_null(NodePath(CityGrid.BRIDGE_NODE))
+	expect(bridge != null or not _plan.has_bridge(), "el pueblo horneado no trae puente")
+
+	var lots := _decor_lots()
+	expect(int(lots["view"]) <= DECOR_LOT_BUDGET,
+			"arboledas, cercos y props gastan %d lotes desde el peor encuadre (tope %d)"
+			% [int(lots["view"]), DECOR_LOT_BUDGET])
+	print("  decorado: plaza %d superficies · %d árboles en %d especies · %d tramos de cerco"
+			% [0 if plaza == null else plaza.get_child_count(), planted,
+			_plan.grove_species.size(), fenced]
+			+ " · %d props en %d grupos · puente %s · %d grupos de dibujo (%d superficies),"
+			% [prop_instances, prop_groups, "sí" if bridge != null else "no",
+			int(lots["scene"]), int(lots["surfaces"])]
+			+ " %d desde el peor encuadre (%s, tope %d): %s"
+			% [int(lots["view"]), String(lots["eye"]), DECOR_LOT_BUDGET,
+			", ".join(lots["drawn"] as Array[String])])
+
+
+## Cuántos lotes de dibujo gastan arboledas, cercos y props: en la escena y
+## **desde un encuadre**.
+##
+## Los dos números dicen cosas distintas y hacen falta los dos. Un [MultiMesh]
+## nunca se descarta por culling —su AABB cubre todas sus instancias—, así que
+## en la escena cuesta siempre; lo único que lo apaga es el recorte por
+## distancia, y por eso el segundo número se mide desde dos poses reales (el
+## centro del pueblo y la aparición del dron) y se queda con la peor.
+func _decor_lots() -> Dictionary:
+	var groups: Array[Dictionary] = []
+	for name: StringName in [CityGrid.GROVES_NODE, CityGrid.FENCES_NODE,
+			CityGrid.PROPS_NODE]:
+		var parent := _town.get_node_or_null(NodePath(name))
+		if parent == null:
+			continue
+		for child: Node in parent.get_children():
+			var visual := child as GeometryInstance3D
+			if visual == null:
+				continue
+			var multi := visual as MultiMeshInstance3D
+			var aabb := _visual_bounds(visual)
+			# Se cuenta el **grupo**, no sus superficies: lo que el motor puede
+			# descartar de una vez es el nodo, y un MultiMesh de sauces con dos
+			# materiales cuesta dos lotes que van juntos siempre. Las superficies
+			# se informan al lado para que el número no esconda nada.
+			var surfaces := 1
+			var mesh_instance := visual as MeshInstance3D
+			if mesh_instance != null and mesh_instance.mesh != null:
+				surfaces = maxi(mesh_instance.mesh.get_surface_count(), 1)
+			elif multi != null and multi.multimesh != null and multi.multimesh.mesh != null:
+				surfaces = maxi(multi.multimesh.mesh.get_surface_count(), 1)
+			groups.append({"aabb": aabb, "range": visual.visibility_range_end,
+					"margin": visual.visibility_range_end_margin,
+					"name": String(child.name), "surfaces": surfaces})
+	var scene := groups.size()
+	var surfaces := 0
+	for group: Dictionary in groups:
+		surfaces += int(group["surfaces"])
+	# El recorte por distancia es **por nodo entero**: el motor guarda una
+	# `InstanceVisibilityData` por instancia de render con la posición del
+	# **centro de su AABB transformado**, compara esa única distancia contra
+	# `visibility_range_end` y apaga o enciende el nodo completo. No hay medio
+	# MultiMesh dibujado. Hasta WP-D4a esta fila medía el **punto más cercano**
+	# del AABB, que es lo que haría un culling por volumen y no lo que hace el
+	# recorte por distancia: un maizal de 120 × 80 m cuyo borde roza los 300 m se
+	# contaba como dibujado aunque el motor lo apague entero (hallazgo 7).
+	#
+	# El margen de desvanecido cuenta como dibujado: durante esos metros el nodo
+	# se sigue rasterizando, sólo que con alfa.
+	var worst := 0
+	var worst_eye := "plaza"
+	var drawn: Array[String] = []
+	var eyes: Dictionary[String, Vector3] = {
+		"plaza": _plan.play_centre + Vector3(0.0, 60.0, 0.0),
+		"dron": _plan.drone_spawn().origin,
+	}
+	for label: String in eyes:
+		var eye: Vector3 = eyes[label]
+		var seen := 0
+		var names: Array[String] = []
+		for group: Dictionary in groups:
+			var box: AABB = group["aabb"]
+			var reach := float(group["range"])
+			if reach > 0.0:
+				reach += float(group["margin"])
+			if reach <= 0.0 or eye.distance_to(box.get_center()) <= reach:
+				seen += 1
+				names.append(String(group["name"]))
+		if seen > worst:
+			worst = seen
+			worst_eye = label
+			drawn = names
+	return {"scene": scene, "view": worst, "surfaces": surfaces,
+			"eye": worst_eye, "drawn": drawn}
+
+
+## **Hitos visibles** (`docs/17` §2): desde cada aparición del coloso y desde la
+## del dron, el tanque de agua y el silo subtienden 0,8° o más y nada los tapa.
+##
+## La regla es la que sostiene el principio 2 de `docs/17`: dos siluetas
+## distintas que se ven desde los cuatro accesos. Un hito de dieciséis metros
+## tapado por una manzana de casas no es un hito: es una sorpresa.
+##
+## La oclusión se mide **geométricamente** y no con un rayo de física: un rayo
+## se detiene en la primera cosa que toca y habría que interrogar al colisionador
+## para saber si era terreno, una casa de cinco metros —que no tapa nada— o un
+## edificio de veinte. Acá se recorre la visual muestreando el relieve y se
+## prueba contra la huella de cada edificio de más de [constant LANDMARK_BLOCKER]
+## metros, que es exactamente lo que la regla dice.
+func _check_landmarks_visible() -> void:
+	var eyes: Array[Dictionary] = []
+	var spawns := _town.get_node_or_null(NodePath(CityGrid.SPAWNS_NODE))
+	if spawns != null:
+		for child: Node in spawns.get_children():
+			var marker := child as Marker3D
+			if marker != null:
+				eyes.append({"name": marker.name, "at": marker.position,
+						"eye": LANDMARK_EYE_SPAWN})
+	var drone := _town.get_node_or_null(NodePath(CityGrid.DRONE_NODE)) as Marker3D
+	if drone != null:
+		eyes.append({"name": drone.name, "at": drone.position, "eye": LANDMARK_EYE_DRONE})
+	expect(not eyes.is_empty(), "no hay apariciones desde las que mirar los hitos")
+
+	var terrain := _terrain()
+	var worst := INF
+	var worst_label := ""
+	var checked := 0
+	for id: StringName in LANDMARK_PIECES:
+		var building := _building_with_piece(id)
+		if building == null:
+			continue
+		checked += 1
+		var height := building.get_height()
+		var top := building.position + Vector3(0.0, height * 0.83, 0.0)
+		for eye: Dictionary in eyes:
+			var at: Vector3 = eye["at"]
+			var from := at + Vector3(0.0, float(eye["eye"]), 0.0)
+			var reach := Vector2(top.x - from.x, top.z - from.z).length()
+			var subtend := rad_to_deg(atan2(height, maxf(reach, 0.001)))
+			if subtend < worst:
+				worst = subtend
+				worst_label = "%s desde %s" % [id, eye["name"]]
+			expect(subtend >= LANDMARK_SUBTEND,
+					"'%s' subtiende %.2f° desde %s (mínimo %.1f)"
+					% [id, subtend, eye["name"], LANDMARK_SUBTEND])
+			var blocker := _sight_blocker(from, top, building, terrain)
+			expect(blocker.is_empty(),
+					"'%s' queda tapado desde %s por %s" % [id, eye["name"], blocker])
+	expect(checked == LANDMARK_PIECES.size(),
+			"se comprobaron %d hitos de %d: falta alguna pieza de WP-D1"
+			% [checked, LANDMARK_PIECES.size()])
+	print("  hitos visibles: %d hitos × %d ojos · el peor subtiende %.2f° (%s), mínimo %.1f"
+			% [checked, eyes.size(), 0.0 if is_inf(worst) else worst, worst_label,
+			LANDMARK_SUBTEND])
+
+
+## El edificio sembrado cuya pieza es [param id], o `null`.
+func _building_with_piece(id: StringName) -> Building:
+	for building: Building in _town.get_buildings():
+		if StringName(building.get_meta(&"piece", &"")) == id:
+			return building
+	return null
+
+
+## Qué tapa la visual de [param from] a [param to], o `""` si no la tapa nada.
+func _sight_blocker(from: Vector3, to: Vector3, target: Building,
+		terrain: TownTerrain) -> String:
+	var span := Vector2(to.x - from.x, to.z - from.z).length()
+	if span < 0.01:
+		return ""
+	var steps := maxi(int(span / LANDMARK_STEP), 8)
+	for step: int in range(1, steps):
+		var t := float(step) / float(steps)
+		var point := from.lerp(to, t)
+		if terrain != null and terrain.height_at(point.x, point.z) > point.y:
+			return "el terreno a %.0f m" % (span * t)
+	for building: Building in _town.get_buildings():
+		if building == target:
+			continue
+		var height := building.get_height()
+		if height <= LANDMARK_BLOCKER:
+			continue
+		var parcel := int(building.get_meta(&"parcel", -1))
+		var footprint := _plan.parcel_footprint(parcel)
+		if footprint.size() < 3:
+			continue
+		for step: int in range(1, steps):
+			var t := float(step) / float(steps)
+			var point := from.lerp(to, t)
+			if not TownPlan.polygon_contains(footprint, Vector2(point.x, point.z)):
+				continue
+			if point.y <= building.position.y + height:
+				return "'%s' a %.0f m" % [building.name, span * t]
+			break
+	return ""
+
+
+## **Toldo = pila** (`docs/17` §4), sobre la escena horneada.
+##
+## Las dos mitades: ningún puesto de pila declarado sin su toldo, y ningún toldo
+## naranja sin pila. La segunda es la que hace que el toldo signifique algo: sin
+## ella se podría cumplir la regla llenando el pueblo de toldos.
+func _check_awning_grammar() -> void:
+	var posts: Array[Vector3] = []
+	var container := _town.get_node_or_null(NodePath(CityGrid.POSTS_NODE))
+	if container != null:
+		for child: Node in container.get_children():
+			var marker := child as Marker3D
+			if marker != null:
+				posts.append(marker.position)
+	expect(not posts.is_empty(), "el pueblo horneado no trae puestos de pila")
+
+	# **En tres dimensiones** (WP-D4a, hallazgo 5). Medida en planta, la fila
+	# daba verde con el toldo apoyado en el suelo y la pila cinco metros más
+	# arriba: dos cosas que desde la calle no tienen nada que ver una con otra.
+	# El toldo se lleva a su cota de mundo con la misma cuenta que lo siembra
+	# —`on_terrain` suma el relieve y conserva el `lift` como holgura— porque los
+	# puestos vienen de la escena y están en coordenadas de mundo.
+	var awnings: Array[Vector3] = []
+	var exclusive: Array[Vector3] = []
+	for prop: Dictionary in _plan.prop_placements:
+		var piece := StringName(prop.get("piece", &""))
+		var at: Vector3 = prop.get("pos", Vector3.ZERO)
+		if bool(prop.get("on_terrain", true)):
+			at = _town.on_terrain(at)
+		if TownDesign.AWNING_PIECES.has(piece):
+			awnings.append(at)
+		if piece == &"awning_orange":
+			exclusive.append(at)
+	for index: int in _plan.parcels.size():
+		if TownDesign.AWNING_PIECES.has(StringName(_plan.parcels[index].get("piece", &""))):
+			awnings.append(_plan.parcel_position(index))
+
+	var under := 0
+	var worst_under := 0.0
+	for post: Vector3 in posts:
+		var gap := _closest_3d(awnings, post)
+		if gap <= TownDesign.AWNING_REACH:
+			under += 1
+			worst_under = maxf(worst_under, gap)
+	# La segunda mitad de la gramatica mira **solo el toldo naranja**: una parada
+	# de colectivo o una estacion de servicio pueden estar donde no hay pila -la
+	# plaza tiene su parada y ninguna bateria-, pero un toldo naranja sin pila
+	# romperia la convencion que el jugador aprendio en la primera ronda.
+	var orphans := 0
+	for awning: Vector3 in exclusive:
+		if _closest_3d(posts, awning) > TownDesign.AWNING_REACH:
+			orphans += 1
+			fail("hay un toldo o una estación en (%.1f, %.1f, %.1f) sin pila a %.0f m"
+					% [awning.x, awning.y, awning.z, TownDesign.AWNING_REACH])
+	expect(under >= AWNING_POSTS_MIN,
+			"sólo %d puestos de pila están bajo toldo, y la gramática pide %d"
+			% [under, AWNING_POSTS_MIN])
+	print("  toldo = pila: %d toldos/estaciones (%d naranjas) · %d de %d puestos bajo toldo"
+			% [awnings.size(), exclusive.size(), under, posts.size()]
+			+ " · el más lejano a %.2f m en 3D (tope %.0f) · %d naranjas huérfanos"
+			% [worst_under, TownDesign.AWNING_REACH, orphans])
+
+
+## Distancia **en tres dimensiones** de [param point] al más cercano de
+## [param spots], o `INF`. Ver [method _check_awning_grammar].
+func _closest_3d(spots: Array[Vector3], point: Vector3) -> float:
+	var best := INF
+	for spot: Vector3 in spots:
+		best = minf(best, spot.distance_to(point))
+	return best
+
+
+## **La ruta dentro del vano** (`docs/17` §3).
+##
+## Dos cosas y las dos importan: la calzada cruza el arroyo por una **recta**
+## —no baja al cauce siguiendo el relieve— y el terreno queda bien por debajo,
+## que es lo que abre el vano y deja pasar el agua. Sin la primera, la ruta se
+## metía en el agua; sin la segunda, el tablero sería un lomo de burro.
+func _check_bridge_span() -> void:
+	if not _plan.has_bridge():
+		return
+	var asphalt := _asphalt_mesh()
+	if asphalt == null:
+		fail("no hay asfalto sobre el que medir el vano")
+		return
+	var triangles := RoadMesh.flat_triangles(asphalt)
+	var grid := RoadMesh.index_triangles(triangles, INDEX_CELL)
+	var terrain := _terrain()
+	var axis := _plan.street_axis(0)
+	var at := TownPlan.polyline_closest(axis, _plan.bridge_at)
+	var half := _plan.bridge_span * 0.5
+	var head := TownPlan.polyline_point(axis, at - half)
+	var tail := TownPlan.polyline_point(axis, at + half)
+	var y_head := RoadMesh.surface_y_indexed(triangles, grid, INDEX_CELL,
+			Vector2(head.x, head.z))
+	var y_tail := RoadMesh.surface_y_indexed(triangles, grid, INDEX_CELL,
+			Vector2(tail.x, tail.z))
+	var worst_flat := 0.0
+	var worst_gap := INF
+	var samples := 0
+	for step: int in BRIDGE_SAMPLES + 1:
+		var t := float(step) / float(BRIDGE_SAMPLES)
+		var point := head.lerp(tail, t)
+		var y := RoadMesh.surface_y_indexed(triangles, grid, INDEX_CELL,
+				Vector2(point.x, point.z))
+		if not is_finite(y):
+			fail("la calzada no cubre el vano en (%.1f, %.1f)" % [point.x, point.z])
+			continue
+		samples += 1
+		worst_flat = maxf(worst_flat, absf(y - lerpf(y_head, y_tail, t)))
+		# El aire se mide **sobre el cauce** y no en todo el vano: en los
+		# estribos el terreno sube a encontrarse con la rasante, que es lo que
+		# hace que el vano sea un vano y no una zanja de dieciseis metros.
+		if terrain != null and absf(t - 0.5) <= BRIDGE_CHANNEL:
+			worst_gap = minf(worst_gap, y - terrain.height_at(point.x, point.z))
+	expect(worst_flat <= BRIDGE_FLAT_TOLERANCE,
+			"la calzada del vano se desvía %.4f m de la recta (tope %.3f)"
+			% [worst_flat, BRIDGE_FLAT_TOLERANCE])
+	expect(worst_gap >= BRIDGE_CLEARANCE,
+			"bajo el vano quedan %.2f m de aire y hacen falta %.1f"
+			% [0.0 if is_inf(worst_gap) else worst_gap, BRIDGE_CLEARANCE])
+	print("  ruta dentro del vano: %d muestras · %.1f mm de desvío de la recta · %.2f m de aire"
+			% [samples, worst_flat * 1000.0, 0.0 if is_inf(worst_gap) else worst_gap]
+			+ " bajo el tablero (mínimo %.1f)" % BRIDGE_CLEARANCE)
+
+
+## **El tablero coincide con la calzada** (WP-D4a, hallazgo 8).
+##
+## El vano está en pendiente —el terreno del lado oeste y el del este no están a
+## la misma cota— y el tablero se horneaba **horizontal**: la calzada le entraba
+## por debajo en un extremo y le pasaba por encima en el otro. La fila mide la
+## cara superior del tablero contra el asfalto en los dos extremos del vano y en
+## su centro; el tablero se toma de la escena, no de la cuenta que lo puso ahí.
+func _check_bridge_deck() -> void:
+	if not _plan.has_bridge():
+		return
+	var bridge := _town.get_node_or_null(NodePath(CityGrid.BRIDGE_NODE))
+	var deck := bridge.get_node_or_null(^"Deck") as Node3D if bridge != null else null
+	if deck == null:
+		fail("el pueblo horneado no trae 'Bridge/Deck'")
+		return
+	var asphalt := _asphalt_mesh()
+	if asphalt == null:
+		fail("no hay asfalto contra el que medir el tablero")
+		return
+	var triangles := RoadMesh.flat_triangles(asphalt)
+	var grid := RoadMesh.index_triangles(triangles, INDEX_CELL)
+
+	# La cara superior de la pieza es su plano `y = 0` local, así que en el mundo
+	# es el plano que pasa por el origen del nodo con normal su eje `+Y`.
+	var origin := deck.global_position
+	var normal := deck.global_basis.y.normalized()
+	var along := deck.global_basis.x.normalized()
+	if absf(normal.y) < 0.001:
+		fail("el tablero del puente quedó de canto")
+		return
+	var pitch := rad_to_deg(asin(clampf(along.y, -1.0, 1.0)))
+	var half := _plan.bridge_span * 0.5
+	var worst := 0.0
+	var worst_where := "nada"
+	var measured := 0
+	for sample: Array in [[-half, "oeste"], [0.0, "centro"], [half, "este"]]:
+		var offset := float(sample[0])
+		var p := origin + along * offset
+		var y_asphalt := RoadMesh.surface_y_indexed(triangles, grid, INDEX_CELL,
+				Vector2(p.x, p.z))
+		if not is_finite(y_asphalt):
+			fail("no hay asfalto sobre el tablero en el extremo %s" % String(sample[1]))
+			continue
+		var y_deck := origin.y + (normal.x * (origin.x - p.x)
+				+ normal.z * (origin.z - p.z)) / normal.y
+		measured += 1
+		var gap := absf(y_asphalt - y_deck)
+		if gap > worst:
+			worst = gap
+			worst_where = String(sample[1])
+	expect(measured == 3, "sólo se pudieron medir %d de los 3 puntos del tablero" % measured)
+	expect(worst <= BRIDGE_DECK_TOLERANCE,
+			"el asfalto se aparta %.1f mm de la cara del tablero en el %s, tope %.0f mm"
+			% [worst * 1000.0, worst_where, BRIDGE_DECK_TOLERANCE * 1000.0])
+	print("  tablero contra calzada: %d puntos · peor desvío %.1f mm (%s) · cabeceo %.2f°"
+			% [measured, worst * 1000.0, worst_where, pitch]
+			+ " · tope %.0f mm" % (BRIDGE_DECK_TOLERANCE * 1000.0))
+
+
+## **El agua del arroyo** (`docs/17` §4, WP-D3, defecto 5).
+##
+## Hasta WP-D2 el cauce era tierra arenosa. La lámina de agua es la única
+## superficie transparente del pueblo y la única que puede quedar mal de tres
+## maneras distintas, así que se miden las tres sobre la malla horneada:
+##
+## 1. **Está dentro del canal.** El espejo tiene que estar a
+##    [constant CityGrid.CREEK_WATER_RISE] del fondo del cauce, con
+##    [constant CREEK_LEVEL_TOLERANCE] de margen. Más abajo sería una zanja
+##    mojada; más arriba, una cinta flotando.
+## 2. **No desborda.** Ni una muestra del agua puede quedar por encima del
+##    terreno del **banco exterior** —el eje ± `creek.bank`—, que es lo que
+##    distingue un arroyo de una inundación.
+## 3. **Pasa por debajo del puente con aire.** Dentro del vano, entre la lámina
+##    y la calzada tiene que quedar [constant BRIDGE_CLEARANCE] como mínimo: es
+##    el mismo metro y medio que [method _check_bridge_span] le exige al
+##    terreno, y el agua no se lo puede comer.
+func _check_creek_water() -> void:
+	if not _plan.has_creek():
+		return
+	var water := _town.get_node_or_null(^"Creek/Water") as MeshInstance3D
+	if water == null or water.mesh == null:
+		fail("no hay lámina de agua en 'Creek/Water'; el arroyo quedó seco")
+		return
+	expect(water.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF,
+			"la lámina de agua proyecta sombra y no debe")
+	var material := _surface_material(water)
+	expect(material is ShaderMaterial,
+			"la lámina de agua no lleva el ShaderMaterial de 'city/creek_water.gdshader'")
+	var terrain := _terrain()
+	if terrain == null:
+		fail("no hay relieve contra el que medir el agua")
+		return
+	var triangles := RoadMesh.flat_triangles(water.mesh as ArrayMesh)
+	var grid := RoadMesh.index_triangles(triangles, INDEX_CELL)
+	var asphalt := RoadMesh.flat_triangles(_asphalt_mesh())
+	var asphalt_grid := RoadMesh.index_triangles(asphalt, INDEX_CELL)
+
+	var axis := _plan.creek_axis()
+	var total := TownPlan.polyline_length(axis)
+	var bank := maxf(_plan.creek_bank, 1.0)
+	var samples := 0
+	var covered := 0
+	var worst_level := 0.0
+	var worst_bank := INF
+	var worst_air := INF
+	## Muestras del agua que caen bajo la calzada del vano, o sea las unicas en
+	## las que hay tablero contra el que medir el aire.
+	var under_deck := 0
+	var problems := 0
+	var at := 0.0
+	while at <= total:
+		var point := TownPlan.polyline_point(axis, at)
+		at += CREEK_SAMPLE_STEP
+		if Vector2(point.x, point.z).distance_to(
+				Vector2(_plan.play_centre.x, _plan.play_centre.z)) > CityGrid.CREEK_WATER_REACH:
+			continue
+		samples += 1
+		var y := RoadMesh.surface_y_indexed(triangles, grid, INDEX_CELL,
+				Vector2(point.x, point.z))
+		if not is_finite(y):
+			problems += 1
+			continue
+		covered += 1
+		var floor_y := terrain.height_at(point.x, point.z)
+		var under_bridge := _over_bridge(_plan, point)
+		# Bajo el vano la lámina puede estar **más abajo** de lo que promete
+		# —[method CityGrid.creek_height_fn] la recorta contra el tablero— pero
+		# nunca más arriba.
+		var drift := y - (floor_y + CityGrid.CREEK_WATER_RISE)
+		worst_level = maxf(worst_level, absf(drift) if not under_bridge else maxf(drift, 0.0))
+		var tangent := TownPlan.polyline_tangent(axis, minf(at, total))
+		var normal := Vector3(-tangent.z, 0.0, tangent.x).normalized()
+		for side: float in [1.0, -1.0]:
+			var edge := point + normal * bank * side
+			worst_bank = minf(worst_bank, terrain.height_at(edge.x, edge.z) - y)
+		if under_bridge:
+			var road := RoadMesh.surface_y_indexed(asphalt, asphalt_grid, INDEX_CELL,
+					Vector2(point.x, point.z))
+			# El vano se mide **sobre el arco de la ruta** y es mas ancho que la
+			# cinta de asfalto: el arroyo lo cruza en diagonal, asi que sus
+			# muestras de los extremos caen dentro del vano pero fuera de la
+			# calzada, y ahi no hay tablero contra el que medir el aire.
+			if is_finite(road):
+				under_deck += 1
+				worst_air = minf(worst_air, road - y)
+	expect(problems == 0 and covered == samples,
+			"el agua no cubre el cauce en %d de %d muestras" % [problems, samples])
+	expect(worst_level <= CREEK_LEVEL_TOLERANCE,
+			"el espejo de agua se aparta %.2f m de la cota del cauce (tope %.2f)"
+			% [worst_level, CREEK_LEVEL_TOLERANCE])
+	expect(worst_bank > 0.0,
+			"el agua sube %.2f m por encima del banco exterior" % -worst_bank)
+	expect(under_deck > 0,
+			"ni una muestra del agua cayo bajo la calzada del vano: el aire no se midio")
+	expect(not is_finite(worst_air) or worst_air >= BRIDGE_CLEARANCE,
+			"bajo el tablero quedan %.2f m entre el agua y la calzada, hacen falta %.1f"
+			% [0.0 if not is_finite(worst_air) else worst_air, BRIDGE_CLEARANCE])
+	print("  agua del arroyo: %d muestras · desvío máximo %.2f m de la cota del cauce"
+			% [samples, worst_level]
+			+ " · %.2f m por debajo del banco más bajo" % worst_bank
+			+ " · %.2f m de aire bajo el tablero en %d muestras (mínimo %.1f)"
+			% [0.0 if not is_finite(worst_air) else worst_air, under_deck,
+			BRIDGE_CLEARANCE])
+
+
+## **Densidad por anillo** (`docs/17` §1), sobre la escena horneada.
+##
+## Cuenta lo que se ve: cada edificio que no es casa, la plaza, el puente, cada
+## arboleda, cada puesto de pila, cada prop que una persona nombraría al
+## describir el pueblo, cada alambrado de campo y cada caserío. `town_plan_check`
+## mide lo mismo sobre el **diseño**; acá se mide sobre lo que de verdad se
+## horneó, que es lo que caza un elemento declarado y no sembrado.
+func _check_ring_density() -> void:
+	var design := TownDesign.load_json(TownPlanner.DESIGN_PATH)
+	if design == null:
+		fail("no se puede leer el diseño para contar la densidad por anillo")
+		return
+	var tally := PackedInt32Array()
+	tally.resize(RING_EDGES.size())
+	var centre := Vector2(_plan.play_centre.x, _plan.play_centre.z)
+	# Los edificios se cuentan **de la escena**: es lo que separa esta fila de la
+	# de `town_plan_check`, que cuenta lo declarado. Un POI declarado y no
+	# sembrado —una pieza que falta— se ve acá y no allá.
+	for building: Building in _town.get_buildings():
+		if int(building.get_meta(&"role", -1)) == TownPlan.Role.HOUSE:
+			continue
+		_tally_ring(tally, _plan.distance_to_centre(building.position))
+	if _plan.has_plaza():
+		_tally_ring(tally, centre.distance_to(
+				TownPlan.polygon_centroid(_plan.plaza_polygon)))
+	if _plan.has_bridge():
+		_tally_ring(tally, _plan.distance_to_centre(_plan.bridge_at))
+	# Una arboleda es un POI por **mancha** y no por especie: las tres especies
+	# del arroyo son una sola línea oscura cuando se la mira desde la ruta.
+	for index: int in design.groves().size():
+		var polygon := TownDesign.to_vector2_list(
+				(design.groves()[index] as Dictionary).get("polygon", null))
+		if polygon.size() >= 3:
+			_tally_ring(tally, centre.distance_to(TownPlan.polygon_centroid(polygon)))
+	for entry: Variant in design.markers():
+		if StringName(String((entry as Dictionary).get("kind", ""))) != &"battery":
+			continue
+		var pos: Variant = TownDesign.to_vector2((entry as Dictionary).get("pos", null))
+		if pos != null:
+			_tally_ring(tally, centre.distance_to(pos as Vector2))
+	for prop: Dictionary in _plan.prop_placements:
+		if RING_POI_PIECES.has(StringName(prop.get("piece", &""))):
+			_tally_ring(tally, _plan.distance_to_centre(prop.get("pos", Vector3.ZERO)))
+	for entry: Variant in design.fences():
+		var fence: Dictionary = entry
+		if StringName(String(fence.get("kind", ""))) != &"wire":
+			continue
+		var line := TownDesign.to_vector2_list(fence.get("polyline", null))
+		# Un cerco **cerrado** es la quinta de un caserío y ya viaja dentro del
+		# POI de su caserío; el alambrado de campo, que es una línea abierta,
+		# cuenta aparte porque es él quien dibuja el límite del área jugable. La
+		# regla miraba el `kind` —tabla contra alambre— y dejó de servir cuando
+		# las quintas pasaron a alambre (WP-D4a, hallazgos 10 y 28). Es la misma
+		# cuenta que hace `tools/town_plan_check.gd`.
+		if line.size() >= 2 and line[0].distance_to(line[line.size() - 1]) >= 0.01:
+			_tally_ring(tally, centre.distance_to(line[line.size() / 2]))
+	var hamlets := _plan.parcels_of_role(TownPlan.Role.DECOR)
+	var slot := 0
+	while slot < hamlets.size():
+		_tally_ring(tally, _plan.distance_to_centre(_plan.parcel_position(hamlets[slot])))
+		slot += HAMLET_GROUP
+	var rows: PackedStringArray = PackedStringArray()
+	for ring: int in RING_EDGES.size():
+		rows.append("%d: %d" % [ring, tally[ring]])
+		expect(tally[ring] >= RING_MIN[ring] and tally[ring] <= RING_MAX[ring],
+				"el anillo %d tiene %d POI horneados y la banda de docs/17 §1 es [%d, %d]"
+				% [ring, tally[ring], RING_MIN[ring], RING_MAX[ring]])
+	print("  densidad por anillo: %s (bandas 4–7 / 14–22 / 8–14 / 4–8)" % ", ".join(rows))
+
+
+func _tally_ring(tally: PackedInt32Array, reach: float) -> void:
+	for ring: int in RING_EDGES.size():
+		if reach <= RING_EDGES[ring]:
+			tally[ring] += 1
+			return
+
+
+## El polígono de la arboleda [param index] del diseño comiteado.
+func _grove_polygon(index: int) -> PackedVector2Array:
+	var design := TownDesign.load_json(TownPlanner.DESIGN_PATH)
+	if design == null:
+		return PackedVector2Array()
+	var groves := design.groves()
+	if index < 0 or index >= groves.size():
+		return PackedVector2Array()
+	return TownDesign.to_vector2_list((groves[index] as Dictionary).get("polygon", null))

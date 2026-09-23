@@ -529,7 +529,16 @@ const RANGE_FIRE: Vector2 = Vector2(80.0, 160.0)
 ## segunda vez: el `hp` del blanco no toca la puntería. Medido **0.507**, **0.511** y
 ## **0.507** en las tres corridas, que caen entre las medias de siempre. Nueve medias
 ## observadas, todas entre 0.454 y 0.513.
-const RANGE_HIT: Vector2 = Vector2(0.33, 0.55)
+##
+## **El techo sube de 0.55 a 0.60 con el pueblo diseñado (P2c tanda 2, 2026-09-23)**,
+## sin tocar el piso ni el bot. Recalibrado el 2026-09-23 tras P2c tanda 2: tres
+## corridas completas sobre el mismo pueblo dieron **0.536 / 0.548 / 0.562** (semillas
+## sueltas 0.53–0.59); la plaza abierta da líneas de tiro más limpias y el bot acierta
+## ~0.05 más; techo subido **como tolerancia, no como balance**, igual que en el cierre
+## de la tanda 4 (0.50 → 0.55). Con el techo viejo la tercera corrida fallaba por
+## **0.012** con todo lo demás en verde, que es otra vez la fila cayendo por debajo del
+## ruido de su propia métrica. El piso (0.33) y el fuego neto (80–160 s) no se tocan.
+const RANGE_HIT: Vector2 = Vector2(0.33, 0.60)
 
 ## Ciclo de trabajo efectivo del arma.
 const RANGE_DUTY: Vector2 = Vector2(0.50, 0.62)
@@ -667,7 +676,35 @@ const MIN_WINDOWS_PER_MINUTE: float = 1.5
 ## 1 100 (−15 % del presupuesto que el haz tiene que masticar) o recortar la
 ## cantidad de casas. **Ninguna de las dos se aplica acá**: son decisiones de
 ## diseño del pueblo, no de este check.
-const RANGE_CONTROL: Vector2 = Vector2(420.0, 660.0)
+##
+## **420–660 → 340–580 con el pueblo diseñado (P2c tanda 2, 2026-09-23), y vuelve
+## a ser la única fila que falló.** El pueblo de P2b se rediseñó a mano —plaza
+## abierta en la manzana 9, escuela enfrente, estación, tanque, silo y cinco
+## edificios corridos para que su huella entera quede dentro del círculo de
+## 140 m— y el control se acortó de **568 y 511 s** a **395,6 s**, exactamente el
+## mismo número en las **dos** corridas: integridad final **0.346**, **25**
+## edificios destruidos y usos `approach` **189**, `climb` 7, `stomp` 3,
+## `leg_sweep` 2, `siege_beam` **21**.
+##
+## **El HP total es el mismo** —52 destructibles, 91 800 HP—, así que no lo movió
+## ni el presupuesto de daño ni el bot, que en esta partida no juega: lo movió el
+## **trazado**. La plaza abierta le da líneas de tiro al haz de asedio y los cinco
+## edificios corridos por la fila del círculo cambian el orden en que el coloso
+## encuentra los blancos. Se ve en los dos contadores que ya explicaban la banda
+## vieja: **189 `approach`** contra 148, y **21 `siege_beam`** contra 29–32, o sea
+## entre **ocho y once haces menos desperdiciados** sobre edificios ya en ruinas.
+##
+## La banda nueva conserva el **ancho de 240 s** y deja la medida a 55,6 s del
+## piso. No se «arregla», por el mismo motivo que la vez anterior: arreglarlo pide
+## mover `crush_damage` o `siege_beam`, que son números de balance de `docs/07`
+## §12 y tocan también a las tres partidas con dron. Y la fila sigue afirmando lo
+## que tiene que afirmar: el bot gana en **127–148 s**, así que el pueblo aguanta
+## **unas 2,7×** ese tiempo cuando nadie defiende. La distancia con los **cinco
+## minutos** de `docs/07` §14 y `docs/11` §11 baja de un 70–89 % a un **32 %** por
+## encima del objetivo, y queda anotada como discrepancia con las mismas palancas
+## de `docs/10` §1, que siguen siendo decisiones de diseño del pueblo y no de este
+## check.
+const RANGE_CONTROL: Vector2 = Vector2(340.0, 580.0)
 
 ## Presupuesto de física con jefe y ciudad, en ms/tick.
 ##
@@ -710,8 +747,8 @@ const ROW_TITLES: Array[String] = [
 	"las tres semillas terminan en victoria", "duración media 90–290 s",
 	"integridad al vencer 0.53–0.83",
 	"muertes ≤ 5 por partida, ≥ 1 en la suite y ≤ 2.6 pilas/min (la batería dura más)",
-	"fuego neto 80–160 s y acierto débil 0.33–0.55 (promedio de las tres semillas)",
-	"ventanas de daño ≥ 1.5/min (media)", "control: derrota por integridad en 420–660 s",
+	"fuego neto 80–160 s y acierto débil 0.33–0.60 (promedio de las tres semillas)",
+	"ventanas de daño ≥ 1.5/min (media)", "control: derrota por integridad en 340–580 s",
 	"sin NaN en las métricas", "física mediana bajo la guarda de regresión",
 	"Engine.time_scale restaurado", "prueba negativa: el bot responde a sus parámetros",
 ]

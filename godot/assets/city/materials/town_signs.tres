@@ -1,0 +1,21 @@
+[gd_resource type="StandardMaterial3D" load_steps=2 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/town/signs.png" id="1_atlas"]
+
+[resource]
+resource_name = "town_signs"
+albedo_texture = ExtResource("1_atlas")
+roughness = 0.7
+metallic_specular = 0.35
+; Este `.tres` es el unico de las cinco familias que NO lo escribe
+; `tools/build_town_props.gd`: su textura es un PNG **importado**, y en la corrida
+; que genera `signs.png` ese PNG todavia no paso por el importador de Godot, asi
+; que el script no puede resolverlo. Se escribe a mano, se comitea y el script lo
+; carga de disco como carga los otros cuatro.
+; 1 = TEXTURE_FILTER_NEAREST_WITH_MIPMAPS: el atlas es texto pintado pixel a
+; pixel, asi que de cerca tiene que verse el pixel y de lejos no tiene que
+; centellear.
+texture_filter = 1
+; 2 = CULL_DISABLED: el cartel de bienvenida se lee desde los dos sentidos de la
+; ruta y una chapa de 6 cm no tiene espesor que valga.
+cull_mode = 2

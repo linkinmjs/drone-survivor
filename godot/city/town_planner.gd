@@ -128,6 +128,55 @@ const HOUSE_YAW_JITTER: float = 0.10
 const SALT_HOUSE: int = 0x686F7573  # "hous"
 const SALT_DECOR: int = 0x6465636F  # "deco"
 const SALT_POST: int = 0x706F7374   # "post"
+const SALT_GROVE: int = 0x67726F76  # "grov"
+const SALT_FENCE: int = 0x66656E63  # "fenc"
+const SALT_PROP: int = 0x70726F70   # "prop"
+
+# --- Arboledas -------------------------------------------------------------
+
+## Cuánto se corre una instancia de arboleda dentro de su celda, como fracción
+## del lado de la celda.
+##
+## La siembra es una **rejilla con temblor** y no un Poisson por rechazo a
+## propósito: la rejilla da una llave por celda —`(arboleda, ix, iz)`— y por lo
+## tanto determinismo **posicional**, que es lo que permite agrandar el polígono
+## de una arboleda sin que se muevan los árboles que ya estaban. Un Poisson por
+## rechazo recorre las candidatas en orden y una candidata nueva le cambia el
+## estado a todas las de atrás: el mismo problema del contador global que WP-T3
+## sacó de las casas.
+##
+## El temblor se mide en **fracción de celda** y vale 0,28: la instancia se
+## mueve hasta poco más de un cuarto de celda desde su centro, así que dos
+## vecinas nunca se cruzan —haría falta 0,5— y la rejilla deja de leerse como
+## rejilla. El docstring decía 0,42 y la constante 0,28 desde WP-D2 (WP-D4a,
+## hallazgo 16): manda la constante, que es la que sembró los mil cuatrocientos
+## árboles que el orquestador aprobó en las capturas.
+const GROVE_JITTER: float = 0.28
+
+## Escala mínima y máxima de una instancia de arboleda.
+const GROVE_SCALE_MIN: float = 0.82
+const GROVE_SCALE_MAX: float = 1.24
+
+## Cuánto se separa un tramo de cerco de la franja de calle que cruza, además
+## de la media franja, en metros. Es el hueco de la tranquera.
+const FENCE_STREET_GAP: float = 1.5
+
+# --- Props -----------------------------------------------------------------
+
+## A cuántos metros del frente, hacia adentro del lote, va el árbol del patio.
+##
+## El lote mide [constant HOUSE_DEPTH] de fondo y la casa lo ocupa entero, así
+## que el árbol va **detrás** de la casa: es el patio, que es donde está el
+## árbol frutal y el tendedero de `docs/17` §3.
+const GARDEN_TREE_DEPTH: float = 10.0
+
+## Cuánto se corre el cerco del frente **hacia adentro del lote**, en metros.
+##
+## El signo estaba al revés (WP-D4a, hallazgo 17): el código sumaba la normal de
+## frente —que apunta a la calle— así que el cerco se plantaba treinta
+## centímetros **sobre la vereda**, encima del cordón. Va sobre la línea
+## municipal y apenas adentro, que es donde está el cerco de una casa.
+const FRONT_FENCE_OFFSET: float = 0.30
 
 # --- Piezas ----------------------------------------------------------------
 
@@ -149,6 +198,16 @@ const PIECE_HEIGHT: Dictionary[StringName, float] = {
 	&"block_mid": 12.5,
 	&"tower_b": 12.5,
 	&"block_low_c": 8.0,
+	# Los cuatro POI procedurales de WP-D1. Faltaban (WP-D4a, hallazgo 20), así
+	# que `PIECE_HEIGHT.get(piece, 12.5)` les devolvía 12,5 m: el tanque de agua
+	# —que mide 16,5— perdía cuatro metros y el galpón de campo —que mide 6—
+	# ganaba seis y medio. Es la tabla con la que el resolvedor calcula la azotea
+	# de un puesto de pila sin abrir un `.tscn`, y los números son los del
+	# manifiesto de WP-D1.
+	&"water_tower": 16.5,
+	&"silo": 14.0,
+	&"gas_station": 8.0,
+	&"field_shed": 6.0,
 }
 
 ## Qué rol de [TownPlan] es cada rol de POI del diseño.
@@ -158,10 +217,21 @@ const PIECE_HEIGHT: Dictionary[StringName, float] = {
 ## validan, se avisa que no se siembran y se omiten hasta que WP-D1 traiga su
 ## pieza. Sembrar otra cosa en su lugar escondería el hueco debajo de un edificio
 ## que se ve bien y no es el que el diseño pidió.
+## Desde WP-D2 están los cinco: la estación de servicio, el tanque, el silo, el
+## galpón y la capilla entran como `MEDIUM` —3 500 HP, perfil de torre— porque
+## es lo que son de cara al juego: edificios grandes que el coloso tira y que
+## cuentan en la integridad. Lo que decide si se siembran **no** es esta tabla
+## sino la clase de su pieza: mientras el manifiesto de WP-D1 no exista siguen
+## siendo `pending` y se omiten con aviso, igual que antes.
 const POI_ROLE: Dictionary[StringName, int] = {
 	&"school": TownPlan.Role.SCHOOL,
 	&"landmark": TownPlan.Role.LANDMARK,
 	&"medium": TownPlan.Role.MEDIUM,
+	&"gas_station": TownPlan.Role.MEDIUM,
+	&"water_tower": TownPlan.Role.MEDIUM,
+	&"silo": TownPlan.Role.MEDIUM,
+	&"chapel": TownPlan.Role.MEDIUM,
+	&"shed": TownPlan.Role.MEDIUM,
 }
 
 # --- Afuera del círculo ----------------------------------------------------
@@ -186,8 +256,17 @@ const POSTS_STREET: int = 5
 const POSTS_ROOF: int = 3
 
 ## Altura de un puesto de pila de calle, en metros.
-const POST_STREET_Y_MIN: float = 4.0
-const POST_STREET_Y_MAX: float = 6.0
+##
+## **Bajo el toldo, no sobre él** (WP-D4a, hallazgo 5). Cuatro a seis metros
+## venía de P2b, cuando un puesto de calle era una caja flotando sobre un cruce
+## y no tenía nada debajo. Desde WP-D2 la gramática de `docs/17` §4 dice «toldo
+## naranja = pila» y los cuatro primeros puestos cuelgan de un toldo: el toldo
+## arranca a 2,40 m y mide 0,80, así que un puesto a cinco metros está un metro y
+## medio **por encima** del toldo del que tendría que colgar y la regla deja de
+## leerse desde la calle. De 2,80 a 3,20 el puesto queda dentro del volumen del
+## toldo.
+const POST_STREET_Y_MIN: float = 2.8
+const POST_STREET_Y_MAX: float = 3.2
 
 ## Altura de un puesto de azotea sobre el techo, en metros. `BatterySpawner`
 ## comprueba el hueco con una esfera de 2,5 m (`docs/10` §1, nota de WP-24b).
@@ -258,11 +337,20 @@ static func resolve(design: TownDesign, terrain: Object = null) -> TownPlan:
 	var graph := build_graph(design)
 	_apply_graph(plan, design, graph)
 	_carve_blocks(plan, design, terrain)
-	_place_parcels(plan, design)
+	_place_plaza(plan, design)
+	_place_parcels(plan, design, terrain)
 	_place_hamlets(plan, design, terrain)
 	_place_markers(plan, design, graph)
 	_place_rocks(plan, design)
 	_place_decor(plan, design)
+	# Lo de WP-D2 va **al final** porque mira todo lo anterior: las arboledas
+	# esquivan calles, manzanas y huellas; los cercos, las calzadas; los props,
+	# las casas de las que cuelgan.
+	_place_groves(plan, design)
+	_place_fences(plan, design)
+	_place_props(plan, design)
+	_place_creek(plan, design)
+	_place_bridge(plan, design, terrain)
 	return plan
 
 
@@ -564,10 +652,11 @@ static func _frontage_edges(plan: TownPlan) -> Array[Dictionary]:
 ## después las casas. [member TownPlan.battery_roof_parcels] y `city_check`
 ## cuentan con que las tres azoteas con puesto de pila sean las tres primeras
 ## parcelas del plano.
-static func _place_parcels(plan: TownPlan, design: TownDesign) -> void:
+static func _place_parcels(plan: TownPlan, design: TownDesign,
+		terrain: Object = null) -> void:
 	plan.parcels = []
 	var edges := _frontage_edges(plan)
-	_place_poi(plan, design, edges)
+	_place_poi(plan, design, edges, terrain)
 	_place_houses(plan, design, edges)
 
 
@@ -579,7 +668,7 @@ static func _place_parcels(plan: TownPlan, design: TownDesign) -> void:
 ## más cercano; si no hubiera ninguno el POI se siembra igual con `block = -1`, y
 ## `town_plan_check` lo ve en la fila de parcelas.
 static func _place_poi(plan: TownPlan, design: TownDesign,
-		edges: Array[Dictionary]) -> void:
+		edges: Array[Dictionary], terrain: Object = null) -> void:
 	var mediums := 0
 	for entry: Variant in design.poi():
 		var data: Dictionary = entry
@@ -589,7 +678,7 @@ static func _place_poi(plan: TownPlan, design: TownDesign,
 					% [data.get("id", "?"), role_key])
 			continue
 		var piece := StringName(String(data.get("piece", "")))
-		if StringName(TownDesign.PIECE_CLASS.get(piece, &"")) != &"building":
+		if TownDesign.piece_class(piece) != &"building":
 			push_warning("TownPlanner: el POI '%s' pide la pieza '%s', que no se puede sembrar: se omite."
 					% [data.get("id", "?"), piece])
 			continue
@@ -605,7 +694,19 @@ static func _place_poi(plan: TownPlan, design: TownDesign,
 		# [method TownPlan.parcel_yaw].
 		var normal := Vector3(-sin(yaw), 0.0, -cos(yaw))
 		var frontage := Vector3(position.x, 0.0, position.y) + normal * size.y * 0.5
-		var seat := _seat_of(edges, frontage)
+		# Dónde se sienta el POI. Con `block` declarado manda el diseño: el lado
+		# se busca **dentro de esa manzana**, que es lo que evita que la estación
+		# de servicio de la manzana 6 se declare vecina de la 0 porque el lado de
+		# enfrente le quedó dos centímetros más cerca. Con `block: null` el POI es
+		# un lote rural —el silo— y no pertenece a ninguna manzana: toma su cota
+		# del terreno y el check lo mide contra el campo, no contra una vereda.
+		var rural := data.has("block") and data["block"] == null
+		var wanted_block := -1
+		if data.has("block") and data["block"] != null:
+			wanted_block = design.block_index(StringName(String(data["block"])))
+		var seat := {"block": -1, "street": -1}
+		if not rural:
+			seat = _seat_of(edges, frontage, wanted_block)
 		var node_name := TownPlan.SCHOOL_NODE
 		if role == TownPlan.Role.LANDMARK:
 			node_name = TownPlan.LANDMARK_NODE
@@ -626,7 +727,14 @@ static func _place_poi(plan: TownPlan, design: TownDesign,
 			"name": node_name,
 			"hp": float(TownPlan.ROLE_HP.get(role, 0.0)),
 			"street": int(seat["street"]),
-			"base_y": _base_y(plan, int(seat["block"])),
+			# En un lote rural **no hay vereda**: el silo y el galpón se apoyan
+			# sobre el pasto. Sumarles [constant TownPlan.SIDEWALK_TOP] —los
+			# 18 cm de losa con los que apoya una casa del pueblo— los dejaba
+			# flotando esos mismos 18 cm sobre el campo, que desde el aire se lee
+			# como una sombra despegada (WP-D4a, hallazgo 6).
+			"base_y": _ground_y(terrain, position) if rural \
+					else _base_y(plan, int(seat["block"])),
+			"rural": rural,
 			"color": int(data.get("color", 0)),
 			"design_id": StringName(String(data.get("id", ""))),
 			"name_key": StringName(String(data.get("name_key", ""))),
@@ -636,11 +744,18 @@ static func _place_poi(plan: TownPlan, design: TownDesign,
 
 ## Sobre qué frente se apoya el punto [param frontage]: la manzana y la calle del
 ## lado de manzana más cercano.
-static func _seat_of(edges: Array[Dictionary], frontage: Vector3) -> Dictionary:
+##
+## Con [param only_block] mayor o igual que cero la búsqueda se limita a los
+## lados de esa manzana: el diseño ya dijo en cuál va, y lo único que queda por
+## averiguar es a qué calle da.
+static func _seat_of(edges: Array[Dictionary], frontage: Vector3,
+		only_block: int = -1) -> Dictionary:
 	var flat := Vector2(frontage.x, frontage.z)
 	var best := INF
-	var found := {"block": -1, "street": -1}
+	var found := {"block": only_block, "street": -1}
 	for edge: Dictionary in edges:
+		if only_block >= 0 and int(edge["block"]) != only_block:
+			continue
 		var a: Vector2 = edge["a"]
 		var b: Vector2 = edge["b"]
 		var delta := b - a
@@ -680,7 +795,7 @@ static func _place_houses(plan: TownPlan, design: TownDesign,
 						% [entry["id"], street])
 				continue
 			var piece := StringName(house["piece"])
-			if StringName(TownDesign.PIECE_CLASS.get(piece, &"")) != &"building":
+			if TownDesign.piece_class(piece) != &"building":
 				push_warning("TownPlanner: la casa %d de '%s' pide la pieza '%s': se omite."
 						% [slot, entry["id"], piece])
 				continue
@@ -754,7 +869,7 @@ static func _place_hamlets(plan: TownPlan, design: TownDesign, terrain: Object =
 	for entry: Variant in design.decor_houses():
 		var data: Dictionary = entry
 		var piece := StringName(String(data.get("piece", "")))
-		if StringName(TownDesign.PIECE_CLASS.get(piece, &"")) != &"building":
+		if TownDesign.piece_class(piece) != &"building":
 			push_warning("TownPlanner: la casa de caserío %d pide la pieza '%s': se omite."
 					% [index, piece])
 			continue
@@ -822,6 +937,10 @@ static func _place_markers(plan: TownPlan, design: TownDesign, graph: Dictionary
 		centre + left * radius,
 		centre - left * radius,
 	]
+	var declared_enemy := _declared_markers(design, &"enemy")
+	for index: int in mini(declared_enemy.size(), spots.size()):
+		var flat: Vector2 = declared_enemy[index]["pos"]
+		spots[index] = Vector3(flat.x, 0.0, flat.y)
 	plan.spawns = []
 	for spot: Vector3 in spots:
 		var facing := (centre - spot).normalized()
@@ -836,6 +955,10 @@ static func _place_markers(plan: TownPlan, design: TownDesign, graph: Dictionary
 	# mirándose.
 	var drone_at := _route_distance_at(plan, route_centre, DRONE_DISTANCE, 1.0)
 	var drone_point := plan.route_point(drone_at)
+	var declared_drone := _declared_markers(design, &"drone")
+	if not declared_drone.is_empty():
+		var flat: Vector2 = declared_drone[0]["pos"]
+		drone_point = Vector3(flat.x, 0.0, flat.y)
 	var to_town := (centre - drone_point).normalized()
 	plan.drone = Transform3D(
 			Basis.from_euler(Vector3(0.0, atan2(-to_town.x, -to_town.z), 0.0)),
@@ -844,13 +967,33 @@ static func _place_markers(plan: TownPlan, design: TownDesign, graph: Dictionary
 	# --- Cámara fija ------------------------------------------------------
 	var camera_dir := (along * 0.55 + left * 0.84).normalized()
 	var camera_at := centre + camera_dir * CAMERA_DISTANCE + Vector3.UP * CAMERA_HEIGHT
+	var declared_camera := _declared_markers(design, &"camera")
+	if not declared_camera.is_empty():
+		var flat: Vector2 = declared_camera[0]["pos"]
+		camera_at = Vector3(flat.x, CAMERA_HEIGHT, flat.y)
 	var look := (centre - camera_at).normalized()
 	plan.camera = Transform3D(Basis.looking_at(look, Vector3.UP), camera_at)
 
 	# --- Puestos de pila --------------------------------------------------
+	#
+	# Los puestos declarados van **primero** y los sorteados rellenan lo que
+	# falte hasta [constant POSTS_STREET]. Que reemplacen y no se sumen es lo que
+	# mantiene los ocho puestos de `docs/09` —cinco de calle y tres de azotea—
+	# mientras la gramática «toldo naranja = pila» de `docs/17` §4 decide dónde
+	# están los primeros: un sorteo sobre los cruces del grafo no sabe dónde hay
+	# un toldo, y sumarlos daría doce pilas y una ronda regalada.
 	plan.battery = PackedVector3Array()
 	plan.battery_roof_parcels = PackedInt32Array()
-	var street_posts := _street_posts(plan, graph)
+	var street_posts: Array[Vector3] = []
+	for marker: Dictionary in _declared_markers(design, &"battery"):
+		if street_posts.size() >= POSTS_STREET:
+			break
+		var flat: Vector2 = marker["pos"]
+		street_posts.append(Vector3(flat.x, 0.0, flat.y))
+	for point: Vector3 in _street_posts(plan, graph):
+		if street_posts.size() >= POSTS_STREET:
+			break
+		street_posts.append(point)
 	for slot: int in mini(POSTS_STREET, street_posts.size()):
 		var point: Vector3 = street_posts[slot]
 		plan.battery.append(Vector3(point.x,
@@ -867,6 +1010,24 @@ static func _place_markers(plan: TownPlan, design: TownDesign, graph: Dictionary
 		plan.battery.append(Vector3(position.x, position.y + height + POST_ROOF_CLEARANCE,
 				position.z))
 		plan.battery_roof_parcels.append(parcel)
+
+
+## Los marcadores de clase [param kind] que declara el diseño, en orden y ya con
+## la posición normalizada a [Vector2].
+static func _declared_markers(design: TownDesign, kind: StringName) -> Array[Dictionary]:
+	var found: Array[Dictionary] = []
+	for entry: Variant in design.markers():
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		var data: Dictionary = entry
+		if StringName(String(data.get("kind", ""))) != kind:
+			continue
+		var flat: Variant = TownDesign.to_vector2(data.get("pos", null))
+		if flat == null:
+			continue
+		found.append({"pos": flat as Vector2,
+				"yaw": deg_to_rad(float(data.get("yaw_deg", 0.0)))})
+	return found
 
 
 ## Distancia sobre la ruta a la que ésta corta el círculo de [param radius],
@@ -958,7 +1119,7 @@ static func _place_rocks(plan: TownPlan, design: TownDesign) -> void:
 	for index: int in list.size():
 		var data: Dictionary = list[index]
 		var piece := StringName(String(data.get("piece", "")))
-		if StringName(TownDesign.PIECE_CLASS.get(piece, &"")) != &"rock":
+		if TownDesign.piece_class(piece) != &"rock":
 			push_warning("TownPlanner: la roca %d pide la pieza '%s': se omite." % [index, piece])
 			continue
 		var flat: Variant = TownDesign.to_vector2(data.get("pos", null))
@@ -1017,3 +1178,446 @@ static func _unit(design: TownDesign, keys: Array[int]) -> float:
 	var mixed: Array[int] = [design.variation_seed()]
 	mixed.append_array(keys)
 	return TownPlan.mix_unit(TownPlan.mix_all(mixed))
+
+
+# --------------------------------------------------------------------------
+# 8. Plaza (P2c, WP-D2)
+# --------------------------------------------------------------------------
+
+## La plaza: una manzana sin casas con su propio piso.
+##
+## No es una parcela ni un edificio: es un **polígono** y una lista de props. El
+## plano la guarda aparte de [member TownPlan.blocks] porque la manzana sigue
+## existiendo —tiene vereda, cordón y cota civil como cualquier otra— y lo que
+## cambia es que adentro no hay lotes sino piso, canteros y bancos.
+##
+## `plaza_block` sale de buscar qué manzana contiene su baricentro y no de
+## creerle al diseño: es lo que permite a `town_plan_check` afirmar «la plaza no
+## tiene casas» sin que el diseño pueda mentir sobre en qué manzana está.
+static func _place_plaza(plan: TownPlan, design: TownDesign) -> void:
+	plan.plaza_polygon = PackedVector2Array()
+	plan.plaza_block = -1
+	plan.plaza_datum = 0.0
+	var plaza := design.plaza()
+	if plaza.is_empty():
+		return
+	var polygon := TownDesign.to_vector2_list(plaza.get("polygon", null))
+	if polygon.size() < 3:
+		return
+	plan.plaza_polygon = polygon
+	var centre := TownPlan.polygon_centroid(polygon)
+	for index: int in plan.block_count():
+		if TownPlan.polygon_contains(plan.block_polygon(index), centre):
+			plan.plaza_block = index
+			break
+	var datum: Variant = plaza.get("datum", "auto")
+	if typeof(datum) == TYPE_FLOAT or typeof(datum) == TYPE_INT:
+		plan.plaza_datum = float(datum)
+	else:
+		plan.plaza_datum = plan.block_datum_of(plan.plaza_block)
+
+
+# --------------------------------------------------------------------------
+# 9. Arboledas
+# --------------------------------------------------------------------------
+
+## Siembra las arboledas declaradas: rejilla con temblor dentro del polígono,
+## respetando las holguras a calles, manzanas, huellas y ruta.
+##
+## El resultado se agrupa **por especie** y no por arboleda porque es lo que
+## [CityGrid] necesita: un [MultiMesh] lleva una malla, así que dos arboledas que
+## comparten el sauce comparten el lote de dibujo. De qué arboleda salió cada
+## instancia se conserva en [member TownPlan.grove_source] para que el check
+## pueda contar por arboleda.
+##
+## ## Determinismo posicional
+##
+## La llave de una celda es `(variation_seed, SALT_GROVE, arboleda, ix, iz)` y
+## los índices de celda son **absolutos sobre el mundo**, no relativos al
+## polígono: agrandar la arboleda agrega celdas y no mueve ni una de las que ya
+## estaban, y dos arboledas distintas nunca comparten llave aunque se toquen. Es
+## la misma propiedad que WP-T3 le dio a las casas, y por el mismo motivo: sin
+## ella, agregar un árbol volvería a barajar el bosque y el `diff` del pueblo
+## horneado dejaría de decir qué cambió.
+static func _place_groves(plan: TownPlan, design: TownDesign) -> void:
+	plan.grove_species = PackedStringArray()
+	plan.grove_points = []
+	plan.grove_yaws = []
+	plan.grove_scales = []
+	plan.grove_source = []
+	var groves := design.groves()
+	if groves.is_empty():
+		return
+
+	var footprints: Array[PackedVector2Array] = []
+	for index: int in plan.parcels.size():
+		footprints.append(plan.parcel_footprint(index))
+
+	for index: int in groves.size():
+		var grove: Dictionary = groves[index]
+		var polygon := TownDesign.to_vector2_list(grove.get("polygon", null))
+		var density := float(grove.get("density", 0.0))
+		var species := design.grove_species(index)
+		if polygon.size() < 3 or density <= 0.0 or species.is_empty():
+			continue
+		var clear := design.grove_clear(index)
+		# Una instancia por celda: el lado de la celda es el inverso de la raíz de
+		# la densidad, que es lo que hace que «0,018 por metro cuadrado» dé 0,018
+		# por metro cuadrado.
+		var cell := 1.0 / sqrt(density)
+		var spacing := float(grove.get("min_spacing", 0.0))
+		var low := polygon[0]
+		var high := polygon[0]
+		for point: Vector2 in polygon:
+			low = Vector2(minf(low.x, point.x), minf(low.y, point.y))
+			high = Vector2(maxf(high.x, point.x), maxf(high.y, point.y))
+		var weight_total := 0.0
+		for choice: Dictionary in species:
+			weight_total += maxf(float(choice["weight"]), 0.0)
+		if weight_total <= 0.0:
+			continue
+
+		for iz: int in range(floori(low.y / cell), ceili(high.y / cell) + 1):
+			for ix: int in range(floori(low.x / cell), ceili(high.x / cell) + 1):
+				var jitter_x := (_unit(design, [SALT_GROVE, index, ix, iz, 0]) - 0.5) \
+						* 2.0 * GROVE_JITTER
+				var jitter_z := (_unit(design, [SALT_GROVE, index, ix, iz, 1]) - 0.5) \
+						* 2.0 * GROVE_JITTER
+				var spot := Vector2((float(ix) + 0.5 + jitter_x) * cell,
+						(float(iz) + 0.5 + jitter_z) * cell)
+				if not Geometry2D.is_point_in_polygon(spot, polygon):
+					continue
+				if not _grove_spot_free(plan, footprints, spot, clear):
+					continue
+				var roll := _unit(design, [SALT_GROVE, index, ix, iz, 2]) * weight_total
+				var slot := species.size() - 1
+				for choice: int in species.size():
+					roll -= maxf(float(species[choice]["weight"]), 0.0)
+					if roll <= 0.0:
+						slot = choice
+						break
+				var piece := StringName(species[slot]["piece"])
+				if spacing > 0.0 and _grove_crowded(design, index, ix, iz, cell, spacing,
+						polygon):
+					continue
+				var bucket := _grove_bucket(plan, piece)
+				plan.grove_points[bucket].append(Vector3(spot.x, 0.0, spot.y))
+				plan.grove_yaws[bucket].append(
+						_unit(design, [SALT_GROVE, index, ix, iz, 3]) * TAU)
+				plan.grove_scales[bucket].append(lerpf(GROVE_SCALE_MIN, GROVE_SCALE_MAX,
+						_unit(design, [SALT_GROVE, index, ix, iz, 4])))
+				plan.grove_source[bucket].append(index)
+
+
+## Verdadero si la celda `(ix, iz)` tiene un vecino **ya decidido** a menos de
+## [param spacing] metros.
+##
+## «Ya decidido» quiere decir con orden lexicográfico `(iz, ix)` menor: la celda
+## que cede es siempre la segunda, y cuál es la segunda no depende de en qué
+## orden se recorra la rejilla sino de los dos índices. Eso es lo que conserva el
+## determinismo posicional: la decisión de una celda mira sólo a sus ocho
+## vecinas, y las ocho se calculan con la misma fórmula pura que ella.
+##
+## Existe porque las copas importan: los sauces de WP-D1 miden 5,25 × 4,5 m de
+## huella y 8,5 m de alto, y dos a metro y medio no son dos árboles sino un
+## borrón. La rejilla con temblor sola no lo garantiza —dos celdas vecinas pueden
+## acercarse el doble del temblor— y bajar el temblor hasta que lo garantizara
+## habría devuelto la rejilla a la vista.
+## [param design] es de quien salen las llaves del temblor; [param grove] es el
+## índice de la arboleda, `(ix, iz)` la celda que pregunta, [param cell] el lado
+## de celda en metros, [param spacing] la separación mínima entre instancias y
+## [param polygon] el contorno de la arboleda, que hace falta porque una vecina
+## que cayó fuera del polígono no existe y por lo tanto no aprieta.
+static func _grove_crowded(design: TownDesign, grove: int, ix: int, iz: int,
+		cell: float, spacing: float, polygon: PackedVector2Array) -> bool:
+	var mine := _grove_point(design, grove, ix, iz, cell)
+	for dz: int in [-1, 0, 1]:
+		for dx: int in [-1, 0, 1]:
+			if dz > 0 or (dz == 0 and dx >= 0):
+				continue
+			var other := _grove_point(design, grove, ix + dx, iz + dz, cell)
+			if not Geometry2D.is_point_in_polygon(other, polygon):
+				continue
+			if mine.distance_to(other) < spacing:
+				return true
+	return false
+
+
+## Dónde cae la instancia de la celda `(ix, iz)`, sin mirar nada más que sus
+## índices. Es la función pura de la que depende todo el determinismo posicional
+## de las arboledas.
+static func _grove_point(design: TownDesign, grove: int, ix: int, iz: int,
+		cell: float) -> Vector2:
+	var jitter_x := (_unit(design, [SALT_GROVE, grove, ix, iz, 0]) - 0.5) * 2.0 * GROVE_JITTER
+	var jitter_z := (_unit(design, [SALT_GROVE, grove, ix, iz, 1]) - 0.5) * 2.0 * GROVE_JITTER
+	return Vector2((float(ix) + 0.5 + jitter_x) * cell, (float(iz) + 0.5 + jitter_z) * cell)
+
+
+## El cajón de la especie [param piece], creándolo si hace falta.
+static func _grove_bucket(plan: TownPlan, piece: StringName) -> int:
+	for index: int in plan.grove_species.size():
+		if StringName(plan.grove_species[index]) == piece:
+			return index
+	plan.grove_species.append(String(piece))
+	plan.grove_points.append(PackedVector3Array())
+	plan.grove_yaws.append(PackedFloat32Array())
+	plan.grove_scales.append(PackedFloat32Array())
+	plan.grove_source.append(PackedInt32Array())
+	return plan.grove_species.size() - 1
+
+
+## Verdadero si en [param spot] se puede plantar: fuera de toda franja de calle,
+## fuera de las manzanas, lejos de las huellas y lejos del eje de la ruta.
+##
+## Las holguras se miden **desde el borde de la cosa**, no desde su eje: a la
+## calle se le suma su media franja, a la manzana su polígono y a la casa su
+## huella. Un número que dijera «seis metros del eje» significaría cosas
+## distintas en una calle de nueve metros y en la ruta de dieciséis.
+static func _grove_spot_free(plan: TownPlan, footprints: Array[PackedVector2Array],
+		spot: Vector2, clear: Dictionary[StringName, float]) -> bool:
+	for street: int in plan.graph_street_count():
+		var axis := plan.street_axis(street)
+		if axis.size() < 2:
+			continue
+		var margin := plan.street_half_of(street) + (
+				float(clear.get(&"route", 0.0)) if street == 0
+				else float(clear.get(&"streets", 0.0)))
+		if TownPlan.polyline_distance(axis, spot) < margin:
+			return false
+	var block_clear := float(clear.get(&"blocks", 0.0))
+	for block: int in plan.block_count():
+		if TownPlan.polygon_inset(plan.block_polygon(block), spot) > -block_clear:
+			return false
+	var house_clear := float(clear.get(&"houses", 0.0))
+	for footprint: PackedVector2Array in footprints:
+		if footprint.size() < 3:
+			continue
+		if TownPlan.polygon_inset(footprint, spot) > -house_clear:
+			return false
+	return true
+
+
+# --------------------------------------------------------------------------
+# 10. Cercos de línea
+# --------------------------------------------------------------------------
+
+## Convierte cada polilínea de cerco en tramos de pieza entera, con hueco donde
+## cruza una calzada.
+##
+## Un tramo es un punto y un rumbo: las piezas de WP-D1 corren a lo largo de `+X`
+## desde su origen, así que un cerco de ciento veinte metros son veinte tramos
+## seguidos y no una malla a medida. El resto de la polilínea —lo que sobra
+## después del último tramo entero— se deja sin cerco: un poste a medio metro
+## del siguiente se lee como un error, y medio tramo estirado rompe la escala
+## del alambre.
+##
+## El hueco en las calles no es cosmético: un alambrado que cruza la calzada es
+## lo primero que delata que el pueblo lo dibujó un programa.
+static func _place_fences(plan: TownPlan, design: TownDesign) -> void:
+	plan.fence_points = PackedVector3Array()
+	plan.fence_yaws = PackedFloat32Array()
+	plan.fence_kinds = PackedInt32Array()
+	for index: int in design.fences().size():
+		var fence: Dictionary = design.fences()[index]
+		var line := TownDesign.to_vector2_list(fence.get("polyline", null))
+		var kind := StringName(String(fence.get("kind", "")))
+		var slot := TownDesign.FENCE_LINE_KINDS.find(kind)
+		if line.size() < 2 or slot < 0:
+			continue
+		var span := float(TownDesign.FENCE_SPAN.get(kind, 0.0))
+		if span <= 0.0:
+			continue
+		var gap := bool(fence.get("gap_at_streets", true))
+		for segment: int in line.size() - 1:
+			var a := line[segment]
+			var b := line[segment + 1]
+			var length := a.distance_to(b)
+			if length < span:
+				continue
+			var direction := (b - a) / length
+			var yaw := atan2(-direction.y, direction.x)
+			for piece: int in floori(length / span):
+				var start := a + direction * (float(piece) * span)
+				var middle := start + direction * (span * 0.5)
+				if gap and _crosses_street(plan, middle):
+					continue
+				plan.fence_points.append(Vector3(start.x, 0.0, start.y))
+				plan.fence_yaws.append(yaw)
+				plan.fence_kinds.append(slot)
+
+
+## Verdadero si [param point] cae dentro de la franja de alguna calle, con el
+## hueco de [constant FENCE_STREET_GAP] metros de más a cada lado.
+static func _crosses_street(plan: TownPlan, point: Vector2) -> bool:
+	for street: int in plan.graph_street_count():
+		var axis := plan.street_axis(street)
+		if axis.size() < 2:
+			continue
+		if TownPlan.polyline_distance(axis, point) \
+				< plan.street_half_of(street) + FENCE_STREET_GAP:
+			return true
+	return false
+
+
+# --------------------------------------------------------------------------
+# 11. Props posicionales
+# --------------------------------------------------------------------------
+
+## Los props: los que el diseño declara sueltos, los de la plaza y los que
+## cuelgan de cada casa (el árbol del patio y el cerco del frente).
+##
+## Los tres caminos terminan en la misma lista porque son la misma cosa —una
+## pieza, un punto y un rumbo— y separarlos habría obligado a [CityGrid] a
+## recorrer tres listas para juntar las instancias de la misma pieza en un
+## [MultiMesh].
+##
+## El cerco del frente **no** entra en la lista de props sino en los tramos de
+## cerco: un cerco de doce metros son cuatro piezas de tres, y ponerlas acá las
+## dejaría fuera del [MultiMesh] del alambrado por el que ya pagamos.
+static func _place_props(plan: TownPlan, design: TownDesign) -> void:
+	plan.prop_placements = []
+	for index: int in design.props().size():
+		var data: Dictionary = design.props()[index]
+		_append_prop(plan, data, &"design")
+	for index: int in design.plaza_props().size():
+		var data: Dictionary = design.plaza_props()[index]
+		_append_prop(plan, data, &"plaza")
+	_place_house_props(plan, design)
+
+
+## Una entrada de prop del diseño, ya normalizada.
+static func _append_prop(plan: TownPlan, data: Dictionary, source: StringName) -> void:
+	var piece := StringName(String(data.get("piece", "")))
+	if piece == &"" or TownDesign.piece_class(piece) == &"":
+		push_warning("TownPlanner: el prop '%s' de '%s' no nombra una pieza conocida: se omite."
+				% [piece, source])
+		return
+	var flat: Variant = TownDesign.to_vector2(data.get("pos", null))
+	if flat == null:
+		return
+	var point: Vector2 = flat
+	plan.prop_placements.append({
+		"piece": piece,
+		"pos": Vector3(point.x, float(data.get("lift", 0.0)), point.y),
+		"yaw": deg_to_rad(float(data.get("yaw_deg", 0.0))),
+		"on_terrain": bool(data.get("on_terrain", true)),
+		"align": bool(data.get("align_to_slope", false)),
+		"source": source,
+	})
+
+
+## El árbol del patio de cada casa que lo declara, y el cerco de su frente.
+##
+## El árbol va **detrás** de la casa, a [constant GARDEN_TREE_DEPTH] metros de la
+## línea municipal: el lote mide 5,4 m de fondo y la casa lo ocupa entero, así
+## que el patio es lo que queda entre la casa y el corazón de la manzana. El
+## giro es posicional: la casa 2 de la manzana 7 tiene siempre su árbol torcido
+## igual.
+static func _place_house_props(plan: TownPlan, design: TownDesign) -> void:
+	for index: int in plan.parcels.size():
+		var parcel := plan.parcels[index]
+		if int(parcel.get("role", -1)) != TownPlan.Role.HOUSE:
+			continue
+		var block := int(parcel.get("block", -1))
+		var normal: Vector3 = parcel.get("frontage_normal", Vector3.FORWARD)
+		var front: Vector3 = parcel.get("frontage_point", Vector3.ZERO)
+		var width := float(parcel.get("width", 0.0))
+		var along := Vector3(-normal.z, 0.0, normal.x)
+
+		var tree := StringName(parcel.get("tree", &""))
+		if tree != &"" and bool(parcel.get("garden", false)):
+			var side := _unit(design, [SALT_PROP, block, index, 0]) - 0.5
+			var spot := front - normal * GARDEN_TREE_DEPTH + along * (side * width * 0.5)
+			plan.prop_placements.append({
+				"piece": tree,
+				"pos": Vector3(spot.x, 0.0, spot.z),
+				"yaw": _unit(design, [SALT_PROP, block, index, 1]) * TAU,
+				"on_terrain": true,
+				"align": false,
+				"source": StringName(parcel.get("name", &"")),
+			})
+
+		var fence := StringName(parcel.get("fence", &""))
+		var slot := TownDesign.FENCE_LINE_KINDS.find(fence)
+		if slot < 0 or width <= 0.0:
+			continue
+		var span := float(TownDesign.FENCE_SPAN.get(fence, 0.0))
+		if span <= 0.0:
+			continue
+		# El cerco corre sobre el frente del lote, corrido unos centímetros hacia
+		# adentro para no pisar el cordón. Se cuentan piezas enteras: un cerco de
+		# 11,9 m con piezas de 3 m lleva tres y deja el hueco del portón.
+		var yaw := atan2(-along.z, along.x)
+		# `- normal`: la normal de frente apunta **a la calle**, así que restarla
+		# es meterse en el lote (WP-D4a, hallazgo 17).
+		var start := front - normal * FRONT_FENCE_OFFSET - along * (width * 0.5)
+		for piece: int in floori(width / span):
+			var at := start + along * (float(piece) * span)
+			plan.fence_points.append(Vector3(at.x, 0.0, at.z))
+			plan.fence_yaws.append(yaw)
+			plan.fence_kinds.append(slot)
+
+
+# --------------------------------------------------------------------------
+# 12. Arroyo y puente
+# --------------------------------------------------------------------------
+
+## Copia el eje del arroyo del diseño al plano.
+##
+## No hay nada que resolver: el cauce ya está tallado en el relieve horneado con
+## **estos mismos** puntos (`tools/build_terrain.gd` los anota en
+## `TownTerrain.params`), así que resolverlo otra vez acá sería abrir la puerta a
+## que el agua corra por un lado y el pozo esté por otro. Lo único que hace falta
+## es que [CityGrid] pueda leerlos sin abrir el `.res` del terreno.
+static func _place_creek(plan: TownPlan, design: TownDesign) -> void:
+	plan.creek_points = PackedVector2Array()
+	plan.creek_width = 0.0
+	plan.creek_depth = 0.0
+	plan.creek_bank = 0.0
+	var creek := design.creek()
+	if creek.is_empty():
+		return
+	var line := TownDesign.to_vector2_list(creek.get("polyline", null))
+	if line.size() < 2:
+		return
+	plan.creek_points = line
+	plan.creek_width = float(creek.get("width", 0.0))
+	plan.creek_depth = float(creek.get("depth", 0.0))
+	plan.creek_bank = float(creek.get("bank", 0.0))
+
+
+## El tablero del puente: dónde va, con qué rumbo y a qué cota.
+##
+## La cota no es la del terreno —bajo el puente el terreno **baja**, que para eso
+## está el vano— sino la de la **recta entre los dos extremos del vano**, que es
+## la que la calzada sigue al cruzar. Es el mismo número que [CityGrid] usa para
+## levantar la cinta de la ruta dentro del vano, y vive acá para que los dos lo
+## saquen del mismo sitio.
+static func _place_bridge(plan: TownPlan, design: TownDesign, terrain: Object) -> void:
+	plan.bridge_at = Vector3.ZERO
+	plan.bridge_span = 0.0
+	plan.bridge_deck_width = 0.0
+	plan.bridge_yaw = 0.0
+	plan.bridge_piece = &""
+	var bridge := design.bridge()
+	if bridge.is_empty():
+		return
+	var flat: Variant = TownDesign.to_vector2(bridge.get("at", null))
+	var span := float(bridge.get("span", 0.0))
+	var deck := float(bridge.get("deck_width", 0.0))
+	if flat == null or span <= 0.0 or deck <= 0.0:
+		return
+	var at: Vector2 = flat
+	var axis := plan.street_axis(0)
+	var along := TownPlan.polyline_closest(axis, Vector3(at.x, 0.0, at.y))
+	var tangent := TownPlan.polyline_tangent(axis, along)
+	var half := span * 0.5 + 1.0
+	var head := TownPlan.polyline_point(axis, along - half)
+	var tail := TownPlan.polyline_point(axis, along + half)
+	var y := (_ground_y(terrain, Vector2(head.x, head.z))
+			+ _ground_y(terrain, Vector2(tail.x, tail.z))) * 0.5
+	plan.bridge_at = Vector3(at.x, y, at.y)
+	plan.bridge_span = span
+	plan.bridge_deck_width = deck
+	plan.bridge_yaw = atan2(-tangent.z, tangent.x)
+	plan.bridge_piece = StringName(String(bridge.get("piece", "bridge_deck")))

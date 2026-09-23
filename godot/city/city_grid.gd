@@ -39,11 +39,138 @@ const BUILDINGS_NODE: StringName = &"Buildings"
 const STREETS_NODE: StringName = &"Streets"
 const DECOR_NODE: StringName = &"Decor"
 const ROCKS_NODE: StringName = &"Rocks"
+
+## El contenedor de props, **uno solo**.
+##
+## Nombra tres cosas que son la misma idea: el contenedor de props posicionales
+## que cuelga de la rejilla, el prefijo de los [MultiMesh] de maleza de campo y
+## el nodo de props de azotea de un [Building]. Hasta WP-D4a había dos constantes
+## —`PROPS_NODE` y `TOWN_PROPS_NODE`— con exactamente el mismo valor, y dos
+## nombres para una cosa invitan a que un día digan cosas distintas (hallazgo 25).
 const PROPS_NODE: StringName = &"Props"
 
 const SPAWNS_NODE: StringName = &"Spawns"
 const POSTS_NODE: StringName = &"BatteryPosts"
 const GROUND_NODE: StringName = &"Ground"
+
+## Los cinco contenedores que estrena WP-D2 (`docs/17` §2 y §3).
+##
+## - [constant PLAZA_NODE] — el piso de la plaza y sus canteros.
+## - [constant GROVES_NODE] — un [MultiMeshInstance3D] por especie de follaje.
+## - [constant FENCES_NODE] — un [MultiMeshInstance3D] por clase de cerco.
+## - [constant PROPS_NODE] — los props posicionales, agrupados por pieza.
+## - [constant BRIDGE_NODE] — el tablero sobre el arroyo.
+## - [constant CREEK_NODE] — la lámina de agua del arroyo.
+const PLAZA_NODE: StringName = &"Plaza"
+const GROVES_NODE: StringName = &"Groves"
+const FENCES_NODE: StringName = &"Fences"
+const BRIDGE_NODE: StringName = &"Bridge"
+const CREEK_NODE: StringName = &"Creek"
+
+## Piezas que no entran en el pase de sombra. Ver [method _casts_shadow].
+##
+## Vive con las demás constantes y no enterrada a mil setecientas líneas junto a
+## su único lector (WP-D4a, hallazgo 25): es una tabla de datos de nivel, como
+## [constant TownPlanner.PIECE_HEIGHT], y quien la busca la busca acá.
+const NO_SHADOW_PIECES: Array[StringName] = [
+	&"gas_station", &"field_shed", &"block_mid", &"block_low_c",
+]
+
+## Cuánto sube el espejo de agua sobre el fondo del cauce, en metros.
+##
+## El canal del relieve tiene 2,4 m de profundidad (`creek.depth` del diseño), así
+## que 0,6 m de agua dejan 1,8 m de talud a la vista: un arroyo de campo con la
+## orilla seca, que es lo que pide `docs/17` §3, y no un canal lleno hasta el
+## borde. Es además lo que mantiene el aire bajo el tablero por encima del metro
+## y medio que verifica `city_check`.
+const CREEK_WATER_RISE: float = 0.60
+
+## Aire mínimo entre el espejo de agua y la cara de abajo del tablero, en metros.
+## Es el mismo número que `city_check.BRIDGE_CLEARANCE` mide contra el terreno:
+## el agua no puede comérselo.
+const CREEK_BRIDGE_CLEARANCE: float = 1.50
+
+## Hasta dónde llega el agua, medido desde el centro del pueblo.
+##
+## El relieve esculpido se desvanece entre 230 y 256 m (`terrain.fade` del
+## diseño) y con él se desvanece el canal: más allá de unos 245 m el fondo del
+## cauce ya está a cero y los bancos también, así que una lámina a `fondo + 0,6`
+## sería una cinta de agua **flotando** sobre el campo llano. El eje del arroyo
+## se recorta a este radio, que deja el agua entera dentro del canal tallado y
+## un poco más adentro que el corte de las arboledas del arroyo (r 250 m del
+## diseño), así que el agua termina debajo de los sauces y no a la vista.
+##
+## Medido con la sonda de WP-D3 sobre el relieve horneado: a r 249,1 m el eje
+## está a −0,678 m y el banco exterior a −0,711 —o sea **por debajo** del eje,
+## que es el canal ya invertido por el desvanecido—; a r 240 el canal todavía
+## tiene su forma.
+const CREEK_WATER_REACH: float = 240.0
+
+## Cuánto se subdivide la cinta de agua a lo largo, en metros. El eje del arroyo
+## tiene vértices cada 25–60 m y el fondo del cauce ondula: sin subdividir, el
+## espejo cortaría el talud entre vértice y vértice.
+const CREEK_STEP: float = 4.0
+
+## A cuántos metros dejan de dibujarse el follaje, los cercos y los props.
+##
+## No es un recorte por distancia de los de P2b —aquél no ahorraba nada porque
+## el pueblo mide trescientos metros—: acá lo que se recorta está **afuera**. Los
+## maizales viven entre 260 y 450 m del centro y el alambrado de la ruta llega a
+## 560 m, así que desde la plaza no se dibujan, y desde el maizal no se dibuja el
+## alambrado del otro extremo.
+##
+## ## Es por nodo, no por instancia
+##
+## El docstring decía que un [MultiMesh] «nunca se descarta por culling porque su
+## AABB cubre todas sus instancias», y lo daba a entender como si el recorte por
+## distancia sí fuera fino. No lo es: el motor mide **una** distancia por nodo
+## —del ojo al centro del AABB transformado del nodo— y apaga o enciende el nodo
+## entero. Las mil cuatrocientas instancias de sauce son un solo `sí` o un solo
+## `no`, y por eso el tamaño del AABB de cada grupo importa tanto como el
+## número: un [MultiMesh] que abarca los dos maizales tiene su centro en el medio
+## de los dos y se apaga —o se enciende— para los dos a la vez. Lo mismo mide
+## `tools/city_check.gd._decor_lots()` desde WP-D4a (hallazgo 7).
+const GROVE_RANGE: float = 300.0
+const FENCE_RANGE: float = 300.0
+const PROP_RANGE: float = 170.0
+
+## Sobre cuántos metros se desvanece un grupo de decorado antes de apagarse.
+##
+## Con `visibility_range_end_margin` en cero —que es lo que quedaba— el modo
+## [constant GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF] no tiene sobre qué
+## desvanecer y el nodo **parpadea**: mil cuatrocientos árboles aparecen y
+## desaparecen de golpe en cuanto el dron cruza la cota. Veinte metros son menos
+## de un segundo de vuelo a la velocidad de crucero y el doble del jitter que
+## mete el centro del AABB de un grupo (WP-D4a, hallazgo 7).
+const VISIBILITY_FADE_MARGIN: float = 20.0
+
+## Desde cuántas instancias una pieza de prop merece su propio
+## [MultiMeshInstance3D].
+##
+## Por debajo de eso se funde con las demás en una malla estática: un MultiMesh
+## para dos bancos cuesta el mismo lote de dibujo que uno para doce farolas y
+## compra mucho menos. Los props son geometría chica y quieta, así que fundirlos
+## no pierde nada —es la misma decisión que tomó el viario en WP-T1.
+const PROP_MULTIMESH_MIN: int = 8
+
+## Cuánto se mete hacia adentro el piso de la plaza respecto de su polígono, y
+## dónde empiezan los canteros de pasto del centro, en metros.
+const PLAZA_INSET: float = 1.0
+## El cantero central se mete **catorce** metros y no ocho: con ocho, el pasto
+## cubría casi toda la plaza y al anochecer la manzana 9 se leía desde el aire
+## como un pozo negro con un marco claro, que es lo contrario de lo que la losa
+## viene a hacer. Con catorce queda un cantero de diez o quince metros alrededor
+## del mástil y del monumento, y la losa es la que manda.
+const PLAZA_LAWN_INSET: float = 14.0
+
+## Cuánto sobresale del vano la corrección de cota de la calzada, a cada lado y
+## en metros. Ver [method route_height_fn].
+const BRIDGE_MARGIN: float = 1.0
+
+## Espesor y sobreancho de la losa de colisión del tablero, en metros. La pieza
+## de WP-D1 no trae cuerpo: ver [method _add_bridge_collision].
+const BRIDGE_DECK_THICKNESS: float = 0.8
+const BRIDGE_DECK_MARGIN: float = 4.0
 
 ## Marcadores sueltos que cuelgan de la raíz.
 const DRONE_NODE: StringName = &"DroneSpawn"
@@ -251,11 +378,42 @@ const PROP_CHANCE: float = 0.30
 ## Material del suelo del campo.
 @export var ground_material: Material = null
 
+## Material del cantero de la plaza (WP-D3). Si falta, el cantero cae en
+## [member ground_material], que es lo que hacía antes y lo que dejaba el
+## cantero negro contra la losa.
+@export var lawn_material: Material = null
+
+## Material del espejo de agua del arroyo (WP-D3). Sin él no se construye el
+## agua: un arroyo pintado con el material del campo es un arroyo seco con otro
+## color.
+@export var water_material: Material = null
+
 ## Pool de escombros del nivel. `town_a` lo deja vacío: cada [Building] lo
 ## resuelve con [method DebrisPool.resolve] (grupo `debris_pool`).
 @export var debris_pool: DebrisPool = null
 
-var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
+## Sales del sorteo **posicional** de lo poco que la rejilla decide y el plano
+## no: la pieza, el giro y el corrimiento de un prop de azotea, y el giro de una
+## roca de campo.
+##
+## Hasta WP-D4a esto salía de un [RandomNumberGenerator] sembrado una vez en
+## [method build] y consumido en orden, o sea un **flujo secuencial**: agregar un
+## POI al diseño corría la numeración de las parcelas y re-sorteaba el cartel de
+## todas las azoteas de atrás y el giro de las seis rocas, y el `diff` del
+## `.tscn` horneado dejaba de decir qué se había tocado. Es exactamente el
+## barajado global que WP-T3 sacó del resolvedor; acá se saca del constructor,
+## con la misma herramienta: [method TownPlan.mix_all] sobre `(sal, índice,
+## canal)`.
+const SALT_ROOF_PROP: int = 0x50524F50
+const SALT_ROCK: int = 0x524F434B
+
+## Canales del sorteo posicional: qué pregunta contesta cada tirada.
+const CHANNEL_PIECE: int = 0
+const CHANNEL_STEPS: int = 1
+const CHANNEL_OFFSET_X: int = 2
+const CHANNEL_OFFSET_Z: int = 3
+const CHANNEL_YAW: int = 4
+
 var _prop_debt: float = 0.0
 
 
@@ -302,7 +460,8 @@ func _ground_decor_bodies() -> void:
 		body.collision_mask = 0
 
 
-## Recorre las casas y la decoración ya sembradas y las saca del pase de sombra.
+## Recorre los edificios y la decoración ya sembrados y saca del pase de sombra
+## a los que [method _casts_shadow] deja fuera.
 ##
 ## La decoración se apaga entera —doce casas de caserío y seis rocas— porque vive
 ## a 165–260 m del centro, **fuera** del círculo de juego: su sombra cae sobre
@@ -310,7 +469,8 @@ func _ground_decor_bodies() -> void:
 ## cascadas del sol.
 func _mute_house_shadows() -> void:
 	for building: Building in get_buildings():
-		if int(building.get_meta(&"role", -1)) != TownPlan.Role.HOUSE:
+		if _casts_shadow(int(building.get_meta(&"role", -1)),
+				StringName(building.get_meta(&"piece", &""))):
 			continue
 		_mute_house_shadow(building)
 	var decor := get_node_or_null(NodePath(DECOR_NODE))
@@ -481,13 +641,19 @@ func build() -> void:
 	if plan == null:
 		push_error("CityGrid: no hay plano que construir.")
 		return
-	_rng.seed = plan.seed
 	_prop_debt = 0.0
+	_missing_pieces = {}
 
 	_build_ground()
 	_build_streets()
+	_build_plaza()
+	_build_creek_water()
+	_build_bridge()
 	_build_buildings()
 	_build_decor()
+	_build_groves()
+	_build_fences()
+	_build_props()
 	_build_spawns()
 	_build_posts()
 	_build_markers()
@@ -511,7 +677,9 @@ func claim_ownership(scene_root: Node) -> void:
 
 func _clear_generated() -> void:
 	for name: StringName in [BUILDINGS_NODE, STREETS_NODE, DECOR_NODE, SPAWNS_NODE,
-			POSTS_NODE, GROUND_NODE, DRONE_NODE, CENTRE_NODE, CAMERA_NODE]:
+			POSTS_NODE, GROUND_NODE, DRONE_NODE, CENTRE_NODE, CAMERA_NODE,
+			PLAZA_NODE, GROVES_NODE, FENCES_NODE, PROPS_NODE, BRIDGE_NODE,
+			CREEK_NODE]:
 		var existing := get_node_or_null(NodePath(name))
 		if existing != null:
 			remove_child(existing)
@@ -817,6 +985,47 @@ func terrain_height_fn() -> Callable:
 	return Callable()
 
 
+## Función de altura **de la ruta**: la del terreno salvo dentro del vano del
+## puente, donde es la recta que une los dos extremos del vano.
+##
+## Es la corrección que hace que la calzada cruce el arroyo en vez de bajar al
+## cauce. Hasta WP-D2 el perfil de la ruta y el relieve eran la misma cosa, y con
+## el vano abierto por WP-D1 —el terreno baja dos metros y pico bajo el tablero—
+## la cinta habría seguido al terreno y la ruta habría entrado al agua.
+##
+## La corrección se aplica al vano más un metro a cada lado
+## ([constant BRIDGE_MARGIN]) para que el empalme con el terreno caiga sobre el
+## estribo y no sobre el borde del tablero, donde un escalón de un centímetro se
+## ve desde el dron.
+##
+## Sin puente declarado devuelve exactamente [method terrain_height_fn]: un
+## pueblo sin arroyo no paga nada por esto.
+func route_height_fn() -> Callable:
+	var height := terrain_height_fn()
+	if plan == null or not plan.has_bridge():
+		return height
+	var axis := plan.street_axis(0)
+	if axis.size() < 2:
+		return height
+	var at := TownPlan.polyline_closest(axis, plan.bridge_at)
+	var half := plan.bridge_span * 0.5 + BRIDGE_MARGIN
+	var head := TownPlan.polyline_point(axis, at - half)
+	var tail := TownPlan.polyline_point(axis, at + half)
+	var y_head := ground_y(head.x, head.z)
+	var y_tail := ground_y(tail.x, tail.z)
+	var from := Vector2(head.x, head.z)
+	var to := Vector2(tail.x, tail.z)
+	var delta := to - from
+	var span := delta.length_squared()
+	if span < 0.000001:
+		return height
+	return func(x: float, z: float) -> float:
+		var t := (Vector2(x, z) - from).dot(delta) / span
+		if t <= 0.0 or t >= 1.0:
+			return height.call(x, z) if height.is_valid() else 0.0
+		return lerpf(y_head, y_tail, t)
+
+
 ## Altura del terreno en `(x, z)`, o `0` sin relieve conectado.
 func ground_y(x: float, z: float) -> float:
 	if terrain == null or not terrain.has_method(&"height_at"):
@@ -857,10 +1066,21 @@ func _emit_roadways(asphalt: Array, height: Callable) -> void:
 		# período regular: son los dientes que WP-T5 midió en `plaza_60`.
 		var marked := plan.street_kind_of(street) == TownPlan.StreetKind.ROUTE
 		var uv_rect := RoadMesh.ROAD_UV if marked else RoadMesh.ROAD_SMOOTH_UV
+		# La ruta usa la altura **con el vano del puente corregido**: adentro del
+		# vano el terreno baja al cauce y la calzada no puede seguirlo.
+		var lift := route_height_fn() if marked else height
+		# Cabos **cero**: el eje que `TownPlanner.build_graph()` hornea ya sale
+		# prolongado por sus dos cabos (`from = a − dir·stub_a`,
+		# `to = b + dir·stub_b`), así que volver a pasarle `street_stub_of` a
+		# `clip_ribbon_at_nodes` —que estira `head = −stub_a` y
+		# `tail = total + stub_b` sobre ese eje— aplicaba el cabo **dos veces**:
+		# las catorce tranqueras quedaban al doble de su distancia declarada
+		# (15,6 a 33,6 m) y el último tramo de asfalto apoyaba sobre relieve que
+		# `build_terrain` nunca aplanó, porque el corredor del terreno se calcula
+		# con el eje 1×.
 		for piece: PackedVector3Array in RoadMesh.clip_ribbon_at_nodes(axis,
-				_street_cuts(street, axis), plan.street_stub_of(street, 0),
-				plan.street_stub_of(street, 1)):
-			var mesh := RoadMesh.ribbon(piece, half, height, ROAD_TOP,
+				_street_cuts(street, axis), 0.0, 0.0):
+			var mesh := RoadMesh.ribbon(piece, half, lift, ROAD_TOP,
 					RoadMesh.ROAD_U_SCALE, uv_rect)
 			if mesh != null:
 				asphalt.append(mesh)
@@ -950,8 +1170,12 @@ func _emit_closures(walkways: Array, height: Callable) -> void:
 			var kind := plan.street_closure_of(street, end)
 			if not RoadMesh.CLOSURE_KINDS.has(kind) or kind == RoadMesh.KIND_NONE:
 				continue
-			var stub := plan.street_stub_of(street, end)
-			var at := -stub if end == 0 else total + stub
+			# El cierre va **sobre la punta del eje**, no más allá: el cabo ya
+			# está horneado dentro de `street_axis` (ver [method _emit_roadways]),
+			# así que sumarle otra vez `street_stub_of` dejaba la tranquera al
+			# doble de la distancia que el diseño declara y el asfalto terminaba
+			# metros antes que ella.
+			var at := 0.0 if end == 0 else total
 			var point := TownPlan.polyline_point(axis, at)
 			var facing := TownPlan.polyline_tangent(axis, clampf(at, 0.0, total))
 			if end == 0:
@@ -1004,6 +1228,49 @@ func save_street_meshes(dir: String) -> Error:
 			push_error("CityGrid: no se pudo guardar '%s': %s" % [path, error_string(err)])
 			return err
 		node.mesh = ResourceLoader.load(path, "ArrayMesh")
+	return _save_decor_resources(dir)
+
+
+## Saca de la escena la geometría de plaza, arboledas, cercos y props.
+##
+## Por el mismo motivo que las dos mallas de calle: mil cuatrocientas instancias
+## de follaje son diecisiete mil flotantes, y escritos en el `.tscn` en texto el
+## pueblo pasaba de 310 KB a **1 843 KB** contra un tope de 500. Cada
+## [MultiMesh] y cada malla fundida se guardan en un `.res` binario comprimido y
+## el nodo queda apuntando al archivo.
+##
+## Se guarda el [MultiMesh] entero —no sólo su malla— porque el búfer de
+## transformadas vive **en el recurso**: dejarlo adentro del `.tscn` no habría
+## ahorrado nada.
+func _save_decor_resources(dir: String) -> Error:
+	for name: StringName in [PLAZA_NODE, GROVES_NODE, FENCES_NODE, PROPS_NODE,
+			CREEK_NODE]:
+		var group := get_node_or_null(NodePath(name))
+		if group == null:
+			continue
+		for child: Node in group.get_children():
+			var slug := "%s_%s" % [String(name).to_lower(), String(child.name).to_lower()]
+			var multi := child as MultiMeshInstance3D
+			if multi != null and multi.multimesh != null:
+				var path := String(dir).path_join("%s.res" % slug)
+				var err := ResourceSaver.save(multi.multimesh, path,
+						ResourceSaver.FLAG_COMPRESS | ResourceSaver.FLAG_CHANGE_PATH)
+				if err != OK:
+					push_error("CityGrid: no se pudo guardar '%s': %s" % [path, error_string(err)])
+					return err
+				multi.multimesh = ResourceLoader.load(path, "MultiMesh")
+				continue
+			var surface := child as MeshInstance3D
+			if surface == null or surface.mesh == null:
+				continue
+			var mesh_path := String(dir).path_join("%s.res" % slug)
+			var mesh_err := ResourceSaver.save(surface.mesh, mesh_path,
+					ResourceSaver.FLAG_COMPRESS | ResourceSaver.FLAG_CHANGE_PATH)
+			if mesh_err != OK:
+				push_error("CityGrid: no se pudo guardar '%s': %s"
+						% [mesh_path, error_string(mesh_err)])
+				return mesh_err
+			surface.mesh = ResourceLoader.load(mesh_path, "ArrayMesh")
 	return OK
 
 
@@ -1079,9 +1346,6 @@ func _bake_piece_mesh(piece: PackedScene) -> ArrayMesh:
 	if meshes > 1:
 		push_error("CityGrid: la pieza '%s' trae %d mallas y sólo se hornea la primera."
 				% [piece.resource_path, meshes])
-	if source != null and source.mesh.get_surface_count() > 1:
-		push_error("CityGrid: la pieza '%s' trae %d superficies y sólo se hornea la 0."
-				% [piece.resource_path, source.mesh.get_surface_count()])
 	if source != null and source.get_parent() != root:
 		push_error("CityGrid: la malla de '%s' está anidada; se hornearía con la"
 				% piece.resource_path + " transformada equivocada.")
@@ -1090,28 +1354,37 @@ func _bake_piece_mesh(piece: PackedScene) -> ArrayMesh:
 		push_error("CityGrid: la pieza '%s' no tiene malla." % piece.resource_path)
 		return null
 
+	# **Todas** las superficies, no sólo la 0.
+	#
+	# Hasta WP-D1 las piezas horneables eran baldosas de calle y matas de campo:
+	# una malla, un material. Las piezas procedurales del pueblo traen dos o tres
+	# —el cartel lleva chapa, poste y el atlas de texto—, y quedarse con la
+	# primera dejaba el cartel sin cartel y el banco sin patas, en silencio y
+	# después de un `push_error` que nadie iba a leer en medio del horneado.
 	var xform := source.transform
-	var arrays := source.mesh.surface_get_arrays(0)
-	var material := source.mesh.surface_get_material(0)
-	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-	var moved := PackedVector3Array()
-	moved.resize(vertices.size())
-	for index: int in vertices.size():
-		moved[index] = xform * vertices[index]
-	arrays[Mesh.ARRAY_VERTEX] = moved
-	if arrays[Mesh.ARRAY_NORMAL] != null:
-		var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
-		var turned := PackedVector3Array()
-		turned.resize(normals.size())
-		for index: int in normals.size():
-			turned[index] = (xform.basis * normals[index]).normalized()
-		arrays[Mesh.ARRAY_NORMAL] = turned
-	root.free()
-
 	var mesh := ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	if material != null:
-		mesh.surface_set_material(0, material)
+	for surface: int in source.mesh.get_surface_count():
+		var arrays := source.mesh.surface_get_arrays(surface)
+		if arrays.is_empty():
+			continue
+		var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var moved := PackedVector3Array()
+		moved.resize(vertices.size())
+		for index: int in vertices.size():
+			moved[index] = xform * vertices[index]
+		arrays[Mesh.ARRAY_VERTEX] = moved
+		if arrays[Mesh.ARRAY_NORMAL] != null:
+			var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+			var turned := PackedVector3Array()
+			turned.resize(normals.size())
+			for index: int in normals.size():
+				turned[index] = (xform.basis * normals[index]).normalized()
+			arrays[Mesh.ARRAY_NORMAL] = turned
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+		var material := source.mesh.surface_get_material(surface)
+		if material != null:
+			mesh.surface_set_material(mesh.get_surface_count() - 1, material)
+	root.free()
 	return mesh
 
 
@@ -1217,11 +1490,14 @@ func _spawn_building(piece: PackedScene, profile: BuildingProfile,
 	_make_rubble_stage(building, profile)
 	building.dust_burst = _make_dust(building, profile)
 	if int(parcel.get("role", -1)) != TownPlan.Role.HOUSE:
-		building.props = _make_props(building, base_size)
+		building.props = _make_props(building, base_size, parcel_index)
 
-	# Las cincuenta y dos casas **no proyectan sombra**; la escuela, el hito y los
-	# cinco medianos sí. Ver [method _mute_house_shadow].
-	if int(parcel.get("role", -1)) == TownPlan.Role.HOUSE:
+	# Quién proyecta sombra y quién no lo decide [method _casts_shadow]. Se
+	# aplica acá —al hornear— y otra vez en [method _mute_house_shadows] al
+	# cargar la escena, porque `cast_shadow` es una propiedad de nodo que viaja
+	# dentro del `.tscn` y las dos vías tienen que decir lo mismo.
+	if not _casts_shadow(int(parcel.get("role", -1)),
+			StringName(piece.resource_path.get_file().get_basename())):
 		_mute_house_shadow(building)
 
 	building.position = plan.parcel_position(parcel_index)
@@ -1333,7 +1609,7 @@ func _make_dust(building: Building, profile: BuildingProfile) -> GPUParticles3D:
 ##
 ## Las casas no llevan: un cartel de 6 m sobre una casa de 5 no es un cartel, es
 ## un error de escala.
-func _make_props(building: Building, base_size: Vector3) -> Node3D:
+func _make_props(building: Building, base_size: Vector3, parcel: int) -> Node3D:
 	# Reparto por deuda acumulada y no por tirada de dado: con pocas muestras
 	# una Bernoulli de p = 0.30 se va con facilidad al 50 %, y `docs/10` §4.3
 	# pide un 30 % parejo.
@@ -1342,10 +1618,10 @@ func _make_props(building: Building, base_size: Vector3) -> Node3D:
 		return null
 	_prop_debt -= 1.0
 	var container := Node3D.new()
-	container.name = "Props"
+	container.name = PROPS_NODE
 	building.add_child(container)
 
-	var prop_scene := _pick(prop_pieces)
+	var prop_scene := _pick(prop_pieces, SALT_ROOF_PROP, parcel, CHANNEL_PIECE)
 	var prop := prop_scene.instantiate() as Node3D
 	if prop == null:
 		container.free()
@@ -1359,7 +1635,7 @@ func _make_props(building: Building, base_size: Vector3) -> Node3D:
 		body.collision_layer = 0
 		body.collision_mask = 0
 
-	var steps := _rng.randi_range(0, 3)
+	var steps := mini(int(_unit(SALT_ROOF_PROP, parcel, CHANNEL_STEPS) * 4.0), 3)
 	var prop_size: Vector3 = prop.get_meta(&"base_size", Vector3(2.0, 2.0, 2.0))
 	var footprint := Vector2(prop_size.x, prop_size.z)
 	if steps % 2 == 1:
@@ -1370,9 +1646,9 @@ func _make_props(building: Building, base_size: Vector3) -> Node3D:
 	# y `Building.reset()` la escalan con `height_scale` y guardan la posición de
 	# reposo en `Building.PROP_REST_META`.
 	prop.position = Vector3(
-			_rng.randf_range(-margin_x, margin_x),
+			lerpf(-margin_x, margin_x, _unit(SALT_ROOF_PROP, parcel, CHANNEL_OFFSET_X)),
 			base_size.y,
-			_rng.randf_range(-margin_z, margin_z))
+			lerpf(-margin_z, margin_z, _unit(SALT_ROOF_PROP, parcel, CHANNEL_OFFSET_Z)))
 	prop.rotation = Vector3(0.0, float(steps) * (PI * 0.5), 0.0)
 	container.add_child(prop)
 	return container
@@ -1455,7 +1731,7 @@ func _build_rocks(parent: Node3D) -> void:
 		# Apoyada sobre el relieve y hundida veinte centímetros, que es lo que
 		# la separa de una piedra puesta encima del pasto.
 		rock.position = on_terrain(spots[index]) - Vector3(0.0, ROCK_SINK, 0.0)
-		rock.rotation = Vector3(0.0, _rng.randf() * TAU, 0.0)
+		rock.rotation = Vector3(0.0, _unit(SALT_ROCK, index, CHANNEL_YAW) * TAU, 0.0)
 		container.add_child(rock)
 
 
@@ -1544,6 +1820,39 @@ func _tilted(basis: Basis, at: Vector3) -> Basis:
 ## nunca y entra en toda cascada) y recortar las casas por distancia (no ahorra
 ## nada: el pueblo mide 300 m y desde cualquier pose de juego las casas están
 ## dentro del rango).
+## Si un edificio de rol [param role] y pieza [param piece] entra en el pase de
+## sombra del sol.
+##
+## ## Por qué se recorta (WP-D3, defecto 6)
+##
+## El presupuesto de `docs/13` §10.1 son 900 lotes de dibujo y el pueblo de
+## WP-D2 medía **857 de máximo** en el preset HIGH: quedaban cuarenta y tres de
+## margen para todo lo que falta. Una malla que proyecta sombra se dibuja una
+## vez por cascada del sol —cuatro en HIGH— además de su pase de color, así que
+## sacar un edificio del pase de sombra devuelve hasta cuatro lotes, y hacerlo
+## es más barato que cualquier otra cosa que se pueda tocar sin que se note.
+##
+## La regla es de **silueta**, no de presupuesto: proyecta sombra lo que hace
+## de hito y lo que el jugador usa para orientarse.
+##
+## - Las **casas** ya estaban fuera desde WP-T4: son cincuenta y dos volúmenes
+##   de tres metros y su sombra es un rectángulo más sobre la vereda.
+## - La **estación de servicio** y el **galpón de campo** son las dos piezas de
+##   POI por debajo de los ocho metros: su sombra no dice nada que su volumen no
+##   diga ya, y la marquesina de la estación además la tapa entera.
+## - Los **medianos de perfil bajo** —`block_mid` y `block_low_c`, once y nueve
+##   metros— quedan fuera por lo mismo: a la hora del anochecer su sombra cae
+##   sobre la manzana de al lado y se confunde con la de la manzana entera.
+## - El **tanque de agua** y el **silo** se quedan con la suya, y el `tower_b`
+##   de la escuela y del hito también: son los cuatro volúmenes altos del
+##   pueblo, los que se ven desde la ruta a 500 m, y la sombra larga del sol
+##   rasante es justamente lo que los apoya en el suelo (`docs/17` §4).
+static func _casts_shadow(role: int, piece: StringName) -> bool:
+	if role == TownPlan.Role.HOUSE:
+		return false
+	return not NO_SHADOW_PIECES.has(piece)
+
+
 func _mute_house_shadow(building: Building) -> void:
 	for node: Node in _descendants(building):
 		var geometry := node as GeometryInstance3D
@@ -1629,10 +1938,20 @@ const _DUST_QUAD: Mesh = preload("res://assets/city/rubble/dust_quad.tres")
 const _SMOKE_QUAD: Mesh = preload("res://assets/city/rubble/smoke_quad.tres")
 
 
-func _pick(options: Array[PackedScene]) -> PackedScene:
+## Tirada determinista en `[0, 1)` para el índice [param index] y el canal
+## [param channel] de la sal [param salt]. Ver [constant SALT_ROOF_PROP].
+func _unit(salt: int, index: int, channel: int) -> float:
+	return TownPlan.mix_unit(TownPlan.mix_all([salt, index, channel]))
+
+
+## Una de [param options], elegida **posicionalmente**: la misma parcela elige
+## siempre la misma pieza, aunque el diseño haya crecido por delante de ella.
+func _pick(options: Array[PackedScene], salt: int, index: int,
+		channel: int) -> PackedScene:
 	if options.is_empty():
 		return null
-	return options[_rng.randi_range(0, options.size() - 1)]
+	return options[mini(int(_unit(salt, index, channel) * float(options.size())),
+			options.size() - 1)]
 
 
 ## Recorre la jerarquía completa en profundidad, incluida la raíz.
@@ -1644,3 +1963,484 @@ func _descendants(root: Node) -> Array[Node]:
 			found.append(child)
 		index += 1
 	return found
+
+
+# --------------------------------------------------------------------------
+# Plaza, puente, arboledas, cercos y props (P2c, WP-D2)
+# --------------------------------------------------------------------------
+
+## Piezas que el plano nombró y la tabla no tiene, con cuántas veces pasó.
+##
+## No es un error: mientras el manifiesto de WP-D1 no exista, el pueblo hornea
+## sin tanque de agua, sin sauces y sin farolas, y lo que hace falta es **contar
+## el hueco**, no taparlo con otra pieza. `tools/build_town.gd` lo imprime al
+## final y los checks lo miran para saber si una pieza que falta es trabajo
+## pendiente o una regresión.
+var _missing_pieces: Dictionary[StringName, int] = {}
+
+
+## Las piezas que faltaron en el último [method build], con su cuenta.
+func missing_pieces() -> Dictionary[StringName, int]:
+	return _missing_pieces
+
+
+## La escena de [param id], o `null` anotándola en [member _missing_pieces].
+##
+## A diferencia de [method _piece_for] **no** hace ruido por cada instancia: una
+## arboleda de trescientos sauces sin pieza llenaría el log con trescientas
+## líneas iguales. Se cuenta y se informa una vez.
+func _decor_piece(id: StringName) -> PackedScene:
+	var piece := pieces.get(id, null) as PackedScene
+	if piece == null:
+		_missing_pieces[id] = int(_missing_pieces.get(id, 0)) + 1
+	return piece
+
+
+## El piso de la plaza: la losa y los canteros de pasto del centro.
+##
+## La plaza es la única manzana sin casas (`docs/17` §3), y lo que la hace
+## legible desde el aire no es que le falten edificios sino que **tenga piso**:
+## sin la losa, el jugador ve un hueco de pasto entre cuatro cuadras y lo lee
+## como un baldío. La losa va con el material de vereda —es la misma cosa que
+## una vereda, sólo que de cuarenta metros— metida un metro hacia adentro del
+## polígono para que el cordón de la manzana siga leyéndose, y los canteros del
+## centro con el material de campo: son los que dejan que el mástil, el
+## monumento y los bancos se apoyen sobre algo que no es asfalto.
+func _build_plaza() -> void:
+	if plan == null or not plan.has_plaza():
+		return
+	var plaza := _container(PLAZA_NODE)
+	var height := terrain_height_fn()
+	var floor_polygon := TownPlan.polygon_shrink(plan.plaza_polygon, PLAZA_INSET)
+	if floor_polygon.size() >= 3:
+		var slab := RoadMesh.polygon_mesh(floor_polygon, height, SIDEWALK_TOP)
+		if slab != null:
+			var _floor := _add_surface(plaza, &"Floor",
+					RoadMesh.paint(slab, walkway_material))
+	var lawn_polygon := TownPlan.polygon_shrink(plan.plaza_polygon, PLAZA_LAWN_INSET)
+	if lawn_polygon.size() >= 3:
+		# Un centímetro por encima de la losa: coplanar con ella sería z-fighting
+		# y es exactamente el defecto que P2c vino a borrar del viario.
+		var lawn := RoadMesh.polygon_mesh(lawn_polygon, height, SIDEWALK_TOP + 0.01)
+		if lawn != null:
+			# El cantero lleva **su** material y no el del campo: es la única
+			# superficie regada del pueblo y con el pasto seco del campo se leía
+			# como un pozo negro en el medio de la losa (WP-D3, defecto 2).
+			var paint: Material = lawn_material if lawn_material != null else ground_material
+			var _lawn := _add_surface(plaza, &"Lawn", RoadMesh.paint(lawn, paint))
+
+
+## La lámina de agua del arroyo (`docs/17` §4, WP-D3).
+##
+## Una sola cinta a lo largo de `creek_points`, de `creek_width` de ancho, un
+## lote de dibujo y sin colisión: el dron la atraviesa igual que atraviesa el
+## follaje, y lo que lo frena en el cauce es el terreno, que sigue estando ahí
+## abajo.
+##
+## ## Por qué la cota sale del **eje** y no de cada vértice
+##
+## [method RoadMesh.ribbon] pregunta la altura del terreno en cada vértice, y en
+## el arroyo eso es exactamente lo que no hay que hacer: los vértices de los
+## bordes caen sobre el **talud**, así que el espejo subiría por la orilla y el
+## agua quedaría en forma de V. La función de altura que se le pasa proyecta
+## primero el punto sobre el eje del cauce y devuelve la cota de **ahí**: el
+## agua queda horizontal a lo ancho y sigue el fondo a lo largo, que es lo que
+## hace un arroyo.
+##
+## ## El vano
+##
+## Dentro del vano el terreno baja a propósito y el tablero pasa por encima. El
+## agua se recorta contra la cara de abajo del tablero menos
+## [constant CREEK_BRIDGE_CLEARANCE]: con el cauce de este diseño el recorte no
+## llega a actuar —sobra aire de largo—, pero deja el invariante escrito en el
+## código en vez de confiado a que nadie suba nunca el nivel del agua.
+func _build_creek_water() -> void:
+	if plan == null or not plan.has_creek() or water_material == null:
+		return
+	var axis := plan.creek_axis()
+	if axis.size() < 2:
+		return
+	var line := _within_reach(_densified(axis, CREEK_STEP),
+			Vector2(plan.play_centre.x, plan.play_centre.z), CREEK_WATER_REACH)
+	if line.size() < 2:
+		return
+	var creek := _container(CREEK_NODE)
+	var mesh := RoadMesh.ribbon(line, plan.creek_width * 0.5, creek_height_fn(), 0.0)
+	if mesh == null:
+		return
+	var surface := _add_surface(creek, &"Water", RoadMesh.paint(mesh, water_material))
+	if surface == null:
+		return
+	# Sin sombra: una lámina horizontal transparente no proyecta nada que se vea
+	# y el mapa de sombras del sol es el recurso más escaso del cuadro.
+	surface.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+## Altura del espejo de agua en `(x, z)`: la del terreno bajo el **eje** del
+## arroyo más [constant CREEK_WATER_RISE], recortada contra el tablero.
+func creek_height_fn() -> Callable:
+	var axis := plan.creek_axis()
+	var terrain_at := terrain_height_fn()
+	var ceiling := INF
+	var bridge_at := Vector2.ZERO
+	var bridge_reach := 0.0
+	if plan.has_bridge():
+		ceiling = plan.bridge_at.y - BRIDGE_DECK_THICKNESS - CREEK_BRIDGE_CLEARANCE
+		bridge_at = Vector2(plan.bridge_at.x, plan.bridge_at.z)
+		bridge_reach = plan.bridge_span * 0.5 + BRIDGE_DECK_MARGIN
+	return func(x: float, z: float) -> float:
+		var point := Vector3(x, 0.0, z)
+		var along := TownPlan.polyline_closest(axis, point)
+		var on_axis := TownPlan.polyline_point(axis, along)
+		var y := float(terrain_at.call(on_axis.x, on_axis.z)) + CREEK_WATER_RISE
+		if bridge_reach > 0.0 and Vector2(x, z).distance_to(bridge_at) <= bridge_reach:
+			y = minf(y, ceiling)
+		return y
+
+
+## El tramo contiguo de [param line] que queda a [param reach] metros o menos de
+## [param centre], **más un vértice de sobra en cada punta**. El arroyo entra al
+## disco por un extremo y sale por el otro, así que el tramo es uno solo y basta
+## con recortar las dos puntas.
+##
+## ## Por qué sobra un vértice (WP-D3b)
+##
+## Recortando justo en el último vértice de dentro, la cinta termina **antes**
+## del borde del alcance: entre ese vértice y el punto en que el eje cruza el
+## círculo queda hasta un paso de densificado de cauce sin agua. `city_check`
+## muestrea el eje crudo con su propio paso y cae ahí: a r 238,4 m de 240, en
+## (−236,1; 33,1), el arroyo estaba seco. Con un vértice de sobra la cinta
+## cruza el borde y tapa el hueco; cuesta dos cuadriláteros y ni un lote de
+## dibujo, porque la lámina entera es una sola superficie.
+##
+## [param line] es la polilínea del eje del arroyo ya densificada, en XZ con la
+## `y` sin usar; [param centre] es el centro del disco en planta —el
+## `play_centre` del plano— y [param reach] su radio en metros. Devuelve una
+## polilínea vacía si ningún vértice cae dentro o si el tramo se reduce a un
+## punto, que es la forma de decir «acá no hay agua que dibujar».
+static func _within_reach(line: PackedVector3Array, centre: Vector2,
+		reach: float) -> PackedVector3Array:
+	var first := -1
+	var last := -1
+	for index: int in line.size():
+		if Vector2(line[index].x, line[index].z).distance_to(centre) > reach:
+			continue
+		if first < 0:
+			first = index
+		last = index
+	if first < 0 or last <= first:
+		return PackedVector3Array()
+	return line.slice(maxi(first - 1, 0), mini(last + 2, line.size()))
+
+
+## [param line] con un vértice cada [param step] metros como mucho.
+##
+## La cinta de agua no puede heredar los tramos de 25–60 m del eje del arroyo:
+## la cota sale del fondo del cauce, que ondula, y entre dos vértices lejanos la
+## cuerda se hundiría bajo la arena o saldría por encima del banco.
+static func _densified(line: PackedVector3Array, step: float) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	if line.size() < 2:
+		return line
+	for index: int in line.size() - 1:
+		var a := line[index]
+		var b := line[index + 1]
+		var cuts := maxi(ceili(a.distance_to(b) / maxf(step, 0.01)), 1)
+		for cut: int in cuts:
+			out.append(a.lerp(b, float(cut) / float(cuts)))
+	out.append(line[line.size() - 1])
+	return out
+
+
+## El tablero del puente, con el rumbo de la ruta y la cota del perfil.
+##
+## La pieza de WP-D1 tiene la cara superior en `y = 0` y corre a lo largo de
+## `+X`, así que se cuelga en la cota de la calzada: el tablero **es** el suelo
+## de la ruta sobre el vano, y la cinta de asfalto apoya encima con sus tres
+## centímetros de siempre.
+func _build_bridge() -> void:
+	if plan == null or not plan.has_bridge():
+		return
+	var piece := _decor_piece(plan.bridge_piece)
+	if piece == null:
+		return
+	var node := piece.instantiate() as Node3D
+	if node == null:
+		return
+	var bridge := _container(BRIDGE_NODE)
+	node.name = "Deck"
+	# El tablero **cabecea con el vano**. La calzada cruza el arroyo por una
+	# recta, y esa recta está en pendiente: el terreno del lado oeste y el del
+	# lado este no están a la misma cota. Un tablero horizontal bajo una calzada
+	# en rampa deja el asfalto hundido en un extremo y volando en el otro —que es
+	# lo que la aérea de WP-D3 mostraba— así que el `Deck` toma el cabeceo del
+	# vano y su cota sale de la **misma** función que levanta la cinta de la ruta
+	# (WP-D4a, hallazgo 8).
+	node.transform = bridge_deck_xform()
+	# **Siempre visible, sin sombra y estático para la GI** (WP-D4a, hallazgo 12).
+	# La pieza viene del molde de props de WP-D1 y trae `visibility_range_end`
+	# 180 m, que es un número pensado para un banco de plaza: el puente es lo
+	# primero que se ve entrando por la ruta —`docs/17` §0.5 lo pone a 250 m del
+	# pueblo— y a 180 m desaparecía justo cuando el revelado lo necesita. La
+	# sombra sí se apaga: es un prop bajo y su sombra cae sobre el cauce, donde
+	# no dice nada y cuesta tres cascadas.
+	for child: Node in _descendants(node):
+		var visual := child as GeometryInstance3D
+		if visual == null:
+			continue
+		visual.visibility_range_end = 0.0
+		visual.visibility_range_end_margin = 0.0
+		visual.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
+		visual.gi_mode = GeometryInstance3D.GI_MODE_STATIC
+		visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	bridge.add_child(node)
+	_add_bridge_collision(bridge, node)
+
+
+## La transformada del tablero: dónde, con qué rumbo y con qué cabeceo.
+##
+## Vive aparte de [method _build_bridge] para que `tools/city_check.gd` pueda
+## pedir lo mismo que la escena horneada tiene y medir el asfalto contra la cara
+## superior del tablero sin copiar la cuenta.
+##
+## La cota es `route_height_fn()` más [constant ROAD_TOP] —la cara superior de la
+## pieza está en su `y = 0` local y la cinta de la ruta se dibuja tres
+## centímetros por encima de su función de altura— y el cabeceo es el arco
+## tangente de la pendiente del vano medida entre sus dos extremos.
+func bridge_deck_xform() -> Transform3D:
+	var lift := route_height_fn()
+	var span := maxf(plan.bridge_span, 0.001)
+	var along := Vector3(cos(plan.bridge_yaw), 0.0, -sin(plan.bridge_yaw))
+	var centre := Vector3(plan.bridge_at.x, 0.0, plan.bridge_at.z)
+	var head := centre - along * (span * 0.5)
+	var tail := centre + along * (span * 0.5)
+	var y_head := float(lift.call(head.x, head.z))
+	var y_tail := float(lift.call(tail.x, tail.z))
+	var pitch := atan2(y_tail - y_head, span)
+	var basis := Basis.from_euler(Vector3(0.0, plan.bridge_yaw, 0.0)) \
+			* Basis.from_euler(Vector3(0.0, 0.0, pitch))
+	var y := float(lift.call(centre.x, centre.z)) + ROAD_TOP
+	return Transform3D(basis, Vector3(centre.x, y, centre.z))
+
+
+## La losa de colisión del tablero.
+##
+## La pieza de WP-D1 viene **sin cuerpo** (`shape: "none"` en el manifiesto):
+## es geometría de decorado, y el decorado del pueblo no choca con nada. El
+## tablero es la excepción y tiene que serlo: el dron vuela a ras de la ruta y
+## el coloso la cruza, y un puente que se atraviesa como una cortina convierte
+## el único cruce del arroyo en un agujero. Se le pone una caja —no la malla—
+## porque lo que hace falta es el piso, no las barandas.
+func _add_bridge_collision(parent: Node3D, deck: Node3D) -> void:
+	var box := BoxShape3D.new()
+	box.size = Vector3(plan.bridge_span + BRIDGE_DECK_MARGIN, BRIDGE_DECK_THICKNESS,
+			plan.bridge_deck_width)
+	var shape := CollisionShape3D.new()
+	shape.name = "DeckShape"
+	shape.shape = box
+	# La cara superior de la pieza está en `y = 0` local, así que la caja cuelga
+	# media altura por debajo: el dron apoya sobre el tablero, no dentro.
+	shape.position = Vector3(0.0, -BRIDGE_DECK_THICKNESS * 0.5, 0.0)
+	var body := StaticBody3D.new()
+	body.name = "DeckBody"
+	body.collision_layer = PhysicsLayers.WORLD
+	body.collision_mask = 0
+	body.transform = deck.transform
+	body.add_child(shape)
+	parent.add_child(body)
+
+
+## Un [MultiMeshInstance3D] por especie de follaje.
+##
+## Sin colisión, sin sombra propia y con recorte por distancia. Las tres cosas
+## por el mismo motivo: son miles de instancias de una malla de cien triángulos.
+## Una colisión por árbol llenaría el espacio de fase de Jolt con geometría que
+## nadie toca —el dron vuela y el coloso pisa, y ninguno de los dos se detiene en
+## un arbusto—; una sombra por árbol metería cada arboleda en las tres cascadas
+## del sol, que es la palanca que ya costó cerrar el presupuesto en P2b; y sin
+## recorte, el maizal del sur se dibujaría desde la plaza.
+func _build_groves() -> void:
+	if plan == null or plan.grove_species.is_empty():
+		return
+	var groves := _container(GROVES_NODE)
+	for index: int in plan.grove_species.size():
+		var species := StringName(plan.grove_species[index])
+		var points := plan.grove_points[index]
+		if points.is_empty():
+			continue
+		var piece := _decor_piece(species)
+		if piece == null:
+			continue
+		var mesh := _bake_piece_mesh(piece)
+		if mesh == null:
+			continue
+		var transforms: Array[Transform3D] = []
+		for slot: int in points.size():
+			var scale := plan.grove_scales[index][slot] if slot < plan.grove_scales[index].size() \
+					else 1.0
+			var yaw := plan.grove_yaws[index][slot] if slot < plan.grove_yaws[index].size() \
+					else 0.0
+			var basis := Basis.from_euler(Vector3(0.0, yaw, 0.0)) \
+					* Basis.from_scale(Vector3(scale, scale, scale))
+			transforms.append(Transform3D(basis, on_terrain(points[slot])))
+		var node := _add_multimesh(groves, species, mesh, transforms)
+		if node != null:
+			node.visibility_range_end = GROVE_RANGE
+			node.visibility_range_end_margin = VISIBILITY_FADE_MARGIN
+			node.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+
+
+## Un [MultiMeshInstance3D] por clase de cerco.
+##
+## Los tramos ya vienen resueltos del plano —punto y rumbo, con el hueco de cada
+## calle ya abierto—, así que acá sólo se apoyan sobre el relieve.
+func _build_fences() -> void:
+	if plan == null or plan.fence_points.is_empty():
+		return
+	var fences := _container(FENCES_NODE)
+	for kind: int in TownDesign.FENCE_LINE_KINDS.size():
+		var name := TownDesign.FENCE_LINE_KINDS[kind]
+		var piece := _decor_piece(StringName(TownDesign.FENCE_PIECE.get(name, &"")))
+		if piece == null:
+			continue
+		var mesh := _bake_piece_mesh(piece)
+		if mesh == null:
+			continue
+		var transforms: Array[Transform3D] = []
+		for index: int in plan.fence_points.size():
+			if plan.fence_kinds[index] != kind:
+				continue
+			var yaw := plan.fence_yaws[index] if index < plan.fence_yaws.size() else 0.0
+			transforms.append(Transform3D(Basis.from_euler(Vector3(0.0, yaw, 0.0)),
+					on_terrain(plan.fence_points[index])))
+		if transforms.is_empty():
+			continue
+		var node := _add_multimesh(fences, name, mesh, transforms)
+		if node != null:
+			node.visibility_range_end = FENCE_RANGE
+			node.visibility_range_end_margin = VISIBILITY_FADE_MARGIN
+			node.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+
+
+## Los props posicionales, agrupados por pieza.
+##
+## Una pieza con [constant PROP_MULTIMESH_MIN] instancias o más se lleva su
+## propio [MultiMesh]; las demás se funden en una sola malla estática. Es la
+## misma cuenta que hizo el viario en WP-T1 y el mismo motivo: un lote de dibujo
+## por dos bancos es un lote de dibujo mal gastado, y los props son geometría
+## chica que nunca se mueve.
+##
+## Nada de esto lleva colisión. Un banco, un farol o un cartel que frenaran al
+## dron convertirían el vuelo a ras de calle —que es donde el juego pasa— en una
+## carrera de obstáculos invisibles: lo que frena al dron son el terreno, los
+## edificios y las casas de caserío, y eso ya está resuelto.
+func _build_props() -> void:
+	if plan == null or plan.prop_placements.is_empty():
+		return
+	var props := _container(PROPS_NODE)
+	var by_piece: Dictionary[StringName, Array] = {}
+	var order: Array[StringName] = []
+	for placement: Dictionary in plan.prop_placements:
+		var piece := StringName(placement.get("piece", &""))
+		if not by_piece.has(piece):
+			by_piece[piece] = []
+			order.append(piece)
+		(by_piece[piece] as Array).append(placement)
+
+	var merged: Array = []
+	for piece: StringName in order:
+		var scene := _decor_piece(piece)
+		if scene == null:
+			continue
+		var mesh := _bake_piece_mesh(scene)
+		if mesh == null:
+			continue
+		var placements: Array = by_piece[piece]
+		var transforms: Array[Transform3D] = []
+		for placement: Variant in placements:
+			transforms.append(_prop_transform(placement as Dictionary))
+		if transforms.size() >= PROP_MULTIMESH_MIN:
+			var node := _add_multimesh(props, piece, mesh, transforms)
+			if node != null:
+				node.visibility_range_end = PROP_RANGE
+				node.visibility_range_end_margin = VISIBILITY_FADE_MARGIN
+				node.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+			continue
+		for xform: Transform3D in transforms:
+			merged.append(_transformed_mesh(mesh, xform))
+	if merged.is_empty():
+		return
+	var node := _add_surface(props, &"Merged", RoadMesh.merge(merged))
+	if node != null:
+		node.visibility_range_end = PROP_RANGE
+		node.visibility_range_end_margin = VISIBILITY_FADE_MARGIN
+		node.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+
+
+## La transformada de un prop: apoyado sobre el relieve, girado como dice el
+## diseño y, si lo pide, inclinado con la pendiente.
+##
+## `align_to_slope` es una decisión por prop y no una regla: un barril tirado en
+## la banquina sigue la pendiente y una farola **no** —una farola inclinada se
+## lee como una farola chocada—, así que quien lo decide es quien escribe el
+## diseño.
+func _prop_transform(placement: Dictionary) -> Transform3D:
+	var point: Vector3 = placement.get("pos", Vector3.ZERO)
+	var origin := on_terrain(point) if bool(placement.get("on_terrain", true)) else point
+	var basis := Basis.from_euler(Vector3(0.0,
+			float(placement.get("yaw", 0.0))
+			+ _piece_yaw_offset(StringName(placement.get("piece", &""))), 0.0))
+	if bool(placement.get("align", false)):
+		basis = _tilted(basis, origin)
+	return Transform3D(basis, origin)
+
+
+## Cuarto de vuelta que hay que sumarle al giro de [param piece] para que su
+## frente mire adonde el diseño dice.
+##
+## Es la misma corrección que [method _facade_yaw] le hace a los edificios por
+## el metadato [constant TOWN_PIECE_META], dicha para piezas que se siembran por
+## [MultiMesh] y por lo tanto no conservan metadatos: quién la contesta es el
+## manifiesto de WP-D1 con su campo `front`.
+##
+## Las piezas que corren **a lo largo** de su eje —los tramos de cerco, el
+## tablero del puente— no entran acá: su giro se calcula desde el rumbo del
+## tramo, que ya es el de su `+X`, y sumarles un cuarto de vuelta las pondría de
+## costado. Eso hasta WP-D4a era una regla que sólo vivía en este comentario y en
+## que nadie las sembrara como props; ahora el manifiesto las declara con
+## `front: "+X-run"` y esta función contesta cero para ellas (hallazgo 19), así
+## que un diseño que ponga un `fence_wire_6m` suelto en `props[]` lo pone
+## derecho.
+func _piece_yaw_offset(piece: StringName) -> float:
+	return TOWN_YAW_OFFSET if TownDesign.piece_front(piece) == &"-X" else 0.0
+
+
+## Copia de [param mesh] con [param xform] horneada en sus vértices.
+##
+## Hace falta para fundir props: [method RoadMesh.merge] junta mallas por
+## material y no sabe de transformadas, porque las cintas de calle ya vienen en
+## coordenadas de mundo.
+func _transformed_mesh(mesh: ArrayMesh, xform: Transform3D) -> ArrayMesh:
+	var out := ArrayMesh.new()
+	for surface: int in mesh.get_surface_count():
+		var arrays := mesh.surface_get_arrays(surface)
+		if arrays.is_empty():
+			continue
+		var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var moved := PackedVector3Array()
+		moved.resize(vertices.size())
+		for index: int in vertices.size():
+			moved[index] = xform * vertices[index]
+		arrays[Mesh.ARRAY_VERTEX] = moved
+		if arrays[Mesh.ARRAY_NORMAL] != null:
+			var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+			var turned := PackedVector3Array()
+			turned.resize(normals.size())
+			for index: int in normals.size():
+				turned[index] = (xform.basis * normals[index]).normalized()
+			arrays[Mesh.ARRAY_NORMAL] = turned
+		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+		var material := mesh.surface_get_material(surface)
+		if material != null:
+			out.surface_set_material(out.get_surface_count() - 1, material)
+	return out

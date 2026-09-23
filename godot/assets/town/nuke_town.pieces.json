@@ -8,6 +8,7 @@
   "palette_texture": "nuke_town_palette.png",
   "emissive_texture": "nuke_town_emissive.png",
   "window_indices": {"7": [198, 152, 100], "13": [32, 24, 16], "50": [74, 57, 37]},
+  "materials": {},
   "palette_families": {
     "6": [4, 5, 6, 71, 215],
     "7": [7, 16, 133],
@@ -141,6 +142,9 @@
       "aabb_max": [2.5, 3, 2.5],
       "size": [5, 3, 5],
       "window_voxels": 732,
+      "origin": "centre",
+      "scale": 1,
+      "voxel_size": 0.05,
       "scene": "res://city/pieces/town/house_a.tscn"
     },
     "house_a_b": {
@@ -155,6 +159,9 @@
       "aabb_max": [2.5, 2.7, 2.5],
       "size": [5, 2.7, 5],
       "window_voxels": 748,
+      "origin": "centre",
+      "scale": 1,
+      "voxel_size": 0.05,
       "scene": "res://city/pieces/town/house_a_b.tscn"
     },
     "house_b": {
@@ -169,6 +176,9 @@
       "aabb_max": [2.55, 5.55, 1.325],
       "size": [5.1, 5.55, 2.65],
       "window_voxels": 924,
+      "origin": "centre",
+      "scale": 1,
+      "voxel_size": 0.05,
       "scene": "res://city/pieces/town/house_b.tscn"
     },
     "house_b_b": {
@@ -183,6 +193,9 @@
       "aabb_max": [2.55, 5.3, 1.325],
       "size": [5.1, 5.3, 2.65],
       "window_voxels": 932,
+      "origin": "centre",
+      "scale": 1,
+      "voxel_size": 0.05,
       "scene": "res://city/pieces/town/house_b_b.tscn"
     },
     "house_c": {
@@ -197,6 +210,9 @@
       "aabb_max": [2.5, 3, 2.5],
       "size": [5, 3, 5],
       "window_voxels": 480,
+      "origin": "centre",
+      "scale": 1,
+      "voxel_size": 0.05,
       "scene": "res://city/pieces/town/house_c.tscn"
     },
     "house_c_b": {
@@ -211,6 +227,9 @@
       "aabb_max": [2.5, 2.9, 2.5],
       "size": [5, 2.9, 5],
       "window_voxels": 708,
+      "origin": "centre",
+      "scale": 1,
+      "voxel_size": 0.05,
       "scene": "res://city/pieces/town/house_c_b.tscn"
     },
     "house_d": {
@@ -225,6 +244,9 @@
       "aabb_max": [2.5, 5.5, 2.5],
       "size": [5, 5.5, 5],
       "window_voxels": 1238,
+      "origin": "centre",
+      "scale": 1,
+      "voxel_size": 0.05,
       "scene": "res://city/pieces/town/house_d.tscn"
     },
     "house_d_b": {
@@ -239,6 +261,9 @@
       "aabb_max": [2.5, 5, 2.5],
       "size": [5, 5, 5],
       "window_voxels": 1217,
+      "origin": "centre",
+      "scale": 1,
+      "voxel_size": 0.05,
       "scene": "res://city/pieces/town/house_d_b.tscn"
     },
     "shed": {
@@ -253,6 +278,9 @@
       "aabb_max": [2.55, 2.25, 1.325],
       "size": [5.1, 2.25, 2.65],
       "window_voxels": 320,
+      "origin": "centre",
+      "scale": 1,
+      "voxel_size": 0.05,
       "scene": "res://city/pieces/town/shed.tscn"
     },
     "shed_b": {
@@ -267,6 +295,9 @@
       "aabb_max": [2.55, 2.55, 1.325],
       "size": [5.1, 2.55, 2.65],
       "window_voxels": 320,
+      "origin": "centre",
+      "scale": 1,
+      "voxel_size": 0.05,
       "scene": "res://city/pieces/town/shed_b.tscn"
     },
     "barrel_a": {
@@ -281,6 +312,9 @@
       "aabb_max": [0.325, 0.85, 0.325],
       "size": [0.65, 0.85, 0.65],
       "window_voxels": 0,
+      "origin": "centre",
+      "scale": 1,
+      "voxel_size": 0.05,
       "scene": "res://city/pieces/town/props/barrel_a.tscn"
     },
     "barrel_b": {
@@ -295,6 +329,9 @@
       "aabb_max": [0.325, 0.65, 0.425],
       "size": [0.65, 0.65, 0.85],
       "window_voxels": 0,
+      "origin": "centre",
+      "scale": 1,
+      "voxel_size": 0.05,
       "scene": "res://city/pieces/town/props/barrel_b.tscn"
     },
     "trash_0": {
@@ -309,6 +346,9 @@
       "aabb_max": [0.6, 0.75, 0.675],
       "size": [1.2, 0.75, 1.35],
       "window_voxels": 0,
+      "origin": "centre",
+      "scale": 1,
+      "voxel_size": 0.05,
       "scene": "res://city/pieces/town/props/trash_0.tscn"
     },
     "trash_1": {
@@ -323,6 +363,9 @@
       "aabb_max": [0.975, 0.2, 0.45],
       "size": [1.95, 0.2, 0.9],
       "window_voxels": 0,
+      "origin": "centre",
+      "scale": 1,
+      "voxel_size": 0.05,
       "scene": "res://city/pieces/town/props/trash_1.tscn"
     },
     "trash_2": {
@@ -337,6 +380,9 @@
       "aabb_max": [0.5, 0.3, 0.45],
       "size": [1, 0.3, 0.9],
       "window_voxels": 0,
+      "origin": "centre",
+      "scale": 1,
+      "voxel_size": 0.05,
       "scene": "res://city/pieces/town/props/trash_2.tscn"
     },
     "trash_3": {
@@ -351,6 +397,9 @@
       "aabb_max": [0.975, 0.2, 0.45],
       "size": [1.95, 0.2, 0.9],
       "window_voxels": 0,
+      "origin": "centre",
+      "scale": 1,
+      "voxel_size": 0.05,
       "scene": "res://city/pieces/town/props/trash_3.tscn"
     },
     "trash_4": {
@@ -365,6 +414,9 @@
       "aabb_max": [0.5, 0.3, 0.45],
       "size": [1, 0.3, 0.9],
       "window_voxels": 0,
+      "origin": "centre",
+      "scale": 1,
+      "voxel_size": 0.05,
       "scene": "res://city/pieces/town/props/trash_4.tscn"
     },
     "overgrowth_a": {
@@ -379,6 +431,9 @@
       "aabb_max": [0.8, 0.05, 0.325],
       "size": [1.6, 0.05, 0.65],
       "window_voxels": 0,
+      "origin": "centre",
+      "scale": 1,
+      "voxel_size": 0.05,
       "scene": "res://city/pieces/town/props/overgrowth_a.tscn"
     },
     "overgrowth_b": {
@@ -393,6 +448,9 @@
       "aabb_max": [0.7, 0.2, 0.15],
       "size": [1.4, 0.2, 0.3],
       "window_voxels": 0,
+      "origin": "centre",
+      "scale": 1,
+      "voxel_size": 0.05,
       "scene": "res://city/pieces/town/props/overgrowth_b.tscn"
     }
   }

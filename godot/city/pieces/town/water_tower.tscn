@@ -1,0 +1,24 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/city/props/water_tower.res" id="1_mesh"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_intact"]
+size = Vector3(7.2, 16.5, 7.0195)
+
+[node name="water_tower" type="StaticBody3D"]
+collision_layer = 128
+collision_mask = 311
+metadata/piece_id = &"water_tower"
+metadata/base_size = Vector3(7.2, 16.5, 7.0195)
+metadata/town_kind = "building"
+metadata/triangle_count = 622
+metadata/window_voxels = 0
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+gi_mode = 1
+cast_shadow = 1
+mesh = ExtResource("1_mesh")
+
+[node name="IntactShape" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 8.25, 0.0)
+shape = SubResource("BoxShape3D_intact")

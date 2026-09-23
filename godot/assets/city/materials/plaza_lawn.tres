@@ -1,0 +1,25 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[sub_resource type="Gradient" id="Gradient_v3j4t"]
+offsets = PackedFloat32Array(0, 1, 0.55)
+colors = PackedColorArray(0.238, 0.263, 0.148, 1, 0.437, 0.507, 0.276, 1, 0.327, 0.385, 0.205, 1)
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_p8xoe"]
+seed = 20260923
+frequency = 0.02
+fractal_octaves = 4
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_q321b"]
+width = 256
+height = 256
+noise = SubResource("FastNoiseLite_p8xoe")
+color_ramp = SubResource("Gradient_v3j4t")
+seamless = true
+
+[resource]
+resource_name = "town_plaza_lawn"
+albedo_texture = SubResource("NoiseTexture2D_q321b")
+metallic_specular = 0.1
+roughness = 0.96
+uv1_scale = Vector3(0.06, 0.06, 0.06)
+uv1_triplanar = true

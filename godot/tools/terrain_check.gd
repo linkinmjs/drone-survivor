@@ -135,6 +135,24 @@ var _creek_bank: float = 9.0
 var _creek_width: float = 6.0
 var _bridge_at: Vector2 = Vector2.ZERO
 var _bridge_span: float = 16.0
+var _bridge_fade: float = 2.0
+var _bridge_datum: float = 0.0
+
+## Pads de POI rural que el horneado resolvió, leídos de `params`.
+var _poi_pads: Array = []
+
+## Cuántos POI declara el diseño como rurales (`block: null`).
+##
+## La fila de pads se ata a este número (WP-D4a, hallazgo 15): sin él «ningún
+## pad» pasaba en verde tanto cuando el diseño no declara ninguno como cuando
+## declara dos y el horneado se los comió, que es justamente el defecto que la
+## fila existe para ver.
+var _rural_poi: int = 0
+
+## La prueba negativa invierte el bobinado de los chunks en memoria: es la única
+## forma de que la fila «los chunks miran al cielo» tenga con qué ponerse roja
+## sin escribir un `.res` estropeado en disco.
+var _flip_chunks: bool = false
 
 ## Filas que se pusieron en rojo, para que la prueba negativa sepa cuáles.
 var _fired: Dictionary[String, bool] = {}
@@ -158,11 +176,14 @@ func _run() -> void:
 	_row("manzanas planas", _check_block_flat())
 	_row("cota constante por manzana", _check_block_datum())
 	_row("el arroyo respeta ruta, calles y manzanas", _check_creek())
+	_row("el vano del puente", _check_bridge_gap())
+	_row("pads de POI rural planos", _check_poi_pads())
 	_row("rejilla contra HeightMapShape3D", _check_shape())
 	_row("borde a cero", _check_edge())
 	_row("firma", _check_signature())
 	await _check_raycast()
 	_row("chunks visibles", _check_chunks())
+	_row("los chunks miran al cielo", _check_chunk_facing())
 
 	if _negative:
 		_report_negative()
@@ -208,9 +229,13 @@ func _load_all() -> bool:
 		_creek.append(Vector2(float(pair[0]), float(pair[1])))
 	var bridge: Dictionary = _terrain.params.get("bridge", {})
 	_bridge_span = float(bridge.get("span", 16.0))
+	_bridge_fade = float(bridge.get("fade", 2.0))
+	_bridge_datum = float(bridge.get("gap_datum", 0.0))
 	var at: Array = bridge.get("at", [])
 	if at.size() == 2:
 		_bridge_at = Vector2(float(at[0]), float(at[1]))
+	_poi_pads = _terrain.params.get("poi_pads", []) as Array
+	_rural_poi = _count_rural_poi()
 
 	print("  terreno %d² a %.2f m desde %s · semilla %d · arroyo de %d vértices"
 			% [_terrain.size, _terrain.cell, _terrain.origin, _terrain.seed,
@@ -263,8 +288,36 @@ func _corrupt() -> void:
 		var on_route := _plan.route_point(arc)
 		_creek[index] = Vector2(on_route.x, on_route.z)
 
+	# 6. El vano tapado: el terreno del puente sube hasta la rasante y el arroyo
+	#    deja de pasar por debajo (fila «el vano del puente»).
+	var gap := _bridge_span * 0.5 + _bridge_fade
+	for iz: int in size:
+		for ix: int in size:
+			var p := _point_of(ix, iz)
+			if p.distance_to(_bridge_at) <= gap + 4.0:
+				heights[iz * size + ix] = _bridge_datum
+
+	# 7. Los pads de POI rural, en pendiente (fila «pads de POI rural planos»).
+	for entry: Variant in _poi_pads:
+		var pad: Dictionary = entry
+		var position: Array = pad.get("pos", [])
+		if position.size() != 2:
+			continue
+		var pad_centre := Vector2(float(position[0]), float(position[1]))
+		for iz: int in size:
+			for ix: int in size:
+				var p := _point_of(ix, iz)
+				if p.distance_to(pad_centre) > 18.0:
+					continue
+				heights[iz * size + ix] += 0.40 * (p.x - pad_centre.x) / 18.0
+
+	# 8. Y los cuatro chunks cosidos al revés (fila «los chunks miran al cielo»).
+	#    No se tocan en disco: se invierten al leerlos, que es lo que hace
+	#    [member _flip_chunks].
+	_flip_chunks = true
+
 	_terrain.heights = heights
-	print("  NEGATIVA: rejilla estropeada con cinco defectos a propósito")
+	print("  NEGATIVA: rejilla estropeada con ocho defectos a propósito")
 
 
 # --------------------------------------------------------------------------
@@ -329,7 +382,7 @@ func _check_continuity() -> PackedStringArray:
 			# La distancia al arroyo se calcula acá y no para las 263 169
 			# muestras: sólo hace falta donde algo es candidato a récord.
 			var p := _point_of(ix, iz)
-			if _creek_distance(p) <= _creek_bank + CREEK_EXEMPT:
+			if _creek_distance(p) <= _creek_bank + CREEK_EXEMPT or _bridge_mouth(p):
 				exempt += 1
 				continue
 			if step >= STEEP_GRADE:
@@ -373,8 +426,12 @@ func _check_street_grade() -> PackedStringArray:
 	var worst := 0.0
 	var worst_name := ""
 	for index: int in range(0, _plan.street_count() + 1):
-		var grade := _axis_grade(_plan.street_axis(index))
-		var label := "ruta" if index == 0 else "calle %d" % (index - 1)
+		# La ruta se mide **fuera del vano del puente**: ahí dentro el terreno se
+		# va tres metros por debajo de la rasante a propósito —es lo que hace que
+		# el puente sea un puente— y lo que sostiene la calzada es el tablero.
+		# Medirlo todo junto daba un 52 % que no es una pendiente sino un arroyo.
+		var grade := _axis_grade(_plan.street_axis(index), index == 0)
+		var label := "ruta (fuera del vano)" if index == 0 else "calle %d" % (index - 1)
 		if grade > worst:
 			worst = grade
 			worst_name = label
@@ -477,9 +534,15 @@ func _check_creek() -> PackedStringArray:
 	return problems
 
 
-## Eje de la calle [param index] estirado por sus dos cabos, y la distancia de
-## [param p] a él. Un cabo se estira `street_stub_of` metros más allá del último
-## vértice, en la dirección de su tramo final.
+## Eje de la calle [param index] y la distancia de [param p] a él.
+##
+## El eje **ya trae el cabo**: [method TownPlanner.build_graph] hornea cada calle
+## de nodo a nodo prolongada `stub_a` metros antes y `stub_b` después, y
+## `street_axis` devuelve eso. Esta rutina estiraba otra vez el primer y el
+## último vértice por `street_stub_of`, así que el corredor contra el que se mide
+## la holgura del arroyo salía **al doble de cabo** —hasta diecisiete metros más
+## largo por punta— y no coincidía con el que `build_terrain._street_corridor()`
+## aplana. Las dos rutinas miden ahora el mismo corredor 1× (WP-D4a, hallazgo 1).
 func _corridor_distance(index: int, p: Vector2) -> float:
 	var axis := _plan.street_axis(index + 1)
 	if axis.size() < 2:
@@ -487,18 +550,7 @@ func _corridor_distance(index: int, p: Vector2) -> float:
 	var flat := PackedVector2Array()
 	for point: Vector3 in axis:
 		flat.append(Vector2(point.x, point.z))
-	# El `+ 1` es el mismo de `street_axis`: `street_stub_of` indexa el grafo,
-	# donde la `0` es la ruta y la calle `k` de `streets` es la `k + 1`. Sin él
-	# cada calle se estiraba con los cabos de su **vecina anterior** —y la 0 con
-	# los de la ruta, que no tiene—, así que el corredor terminaba en el lugar
-	# equivocado y la holgura del arroyo salía mal medida.
-	var head := _plan.street_stub_of(index + 1, 0)
-	if head > 0.0:
-		flat[0] = flat[0] + (flat[0] - flat[1]).normalized() * head
 	var last := flat.size() - 1
-	var tail := _plan.street_stub_of(index + 1, 1)
-	if tail > 0.0:
-		flat[last] = flat[last] + (flat[last] - flat[last - 1]).normalized() * tail
 	var best := INF
 	for i: int in last:
 		var a := flat[i]
@@ -511,7 +563,187 @@ func _corridor_distance(index: int, p: Vector2) -> float:
 	return best
 
 
-## 7. La rejilla y el `HeightMapShape3D` dicen lo mismo. Se reconstruye la
+## Cuánto tiene que bajar el terreno bajo la rasante de la ruta dentro del vano,
+## en metros.
+##
+## Metro y medio no es una cifra estética: el tablero de hormigón mide 0,80 m y
+## sus vigas otros 0,60, así que con menos de 1,4 m de luz el puente no tiene
+## dónde existir y el cauce le pasa por dentro. Se redondea a 1,5.
+const BRIDGE_DROP_MIN: float = 1.5
+
+## Cuánto puede desnivelarse la **sección transversal** del corredor de ruta
+## fuera del vano, en metros.
+##
+## Es la medida que dice que el corredor sigue siendo civil: donde la máscara
+## vale 1 la cota es la del perfil y no depende de la distancia al eje, así que
+## el eje y los dos bordes de calzada están a la misma altura al centímetro. Si
+## el vano se abriera de más, el cauce le mordería un lado y el peralte saltaría.
+const BRIDGE_CIVIL_TOLERANCE: float = 0.05
+
+## Desvío máximo de la cota dentro de un pad de POI rural, en metros. Es el mismo
+## milímetro que se le exige a una manzana: una estación de servicio de 26 × 18 m
+## apoya en sus cuatro esquinas o no apoya.
+const POI_PAD_SPREAD: float = 0.02
+
+
+## 7. El vano del puente.
+##
+## Dos mitades de la misma condición. **Adentro**: el terreno se va al menos
+## [constant BRIDGE_DROP_MIN] metros por debajo de la rasante de la ruta, que es
+## lo que deja al cauce pasar por abajo y al tablero ser un tablero. **Afuera**:
+## el corredor sigue siendo civil, o sea que el suelo sigue el perfil de la ruta
+## con [constant BRIDGE_CIVIL_TOLERANCE] metros de holgura, porque el resto de la
+## calzada apoya en él.
+##
+## La rasante se lee de `params.bridge.gap_datum`, que es la cota que el horneado
+## le dio al perfil en el arco del cruce; el perfil es plano en el vano a menos
+## del 2 %, así que un solo número alcanza para dieciséis metros.
+func _check_bridge_gap() -> PackedStringArray:
+	var problems := PackedStringArray()
+	if _bridge_span <= 0.0 or _bridge_at == Vector2.ZERO:
+		problems.append("el terreno no declara ningún vano de puente en sus params")
+		return problems
+	var axis := _plan.street_axis(0)
+	var arc := _plan.route_closest(Vector3(_bridge_at.x, 0.0, _bridge_at.y))
+	var half := _bridge_span * 0.5
+
+	# Adentro: no basta con que el terreno baje en **un** punto, porque un pozo de
+	# medio metro de ancho pasaría. Lo que se mide es cuántos metros del vano
+	# están de verdad por debajo de la rasante, y se exige que cubran al menos el
+	# ancho del cauce: eso es lo que quiere decir «el arroyo pasa por debajo».
+	var deepest := 0.0
+	var covered := 0.0
+	var step := 0.25
+	var offset := -half
+	while offset <= half:
+		var point := _plan.route_point(arc + offset)
+		var drop := _bridge_datum - _terrain.height_at(point.x, point.z)
+		deepest = maxf(deepest, drop)
+		if drop >= BRIDGE_DROP_MIN:
+			covered += step
+		offset += step
+	if deepest < BRIDGE_DROP_MIN:
+		problems.append("dentro del vano el terreno sólo baja %.2f m bajo la rasante, mínimo %.1f m"
+				% [deepest, BRIDGE_DROP_MIN])
+	elif covered < _creek_width:
+		problems.append("el canal pasa bajo la rasante sólo %.1f m del vano, y el cauce mide %.1f m de ancho"
+				% [covered, _creek_width])
+
+	# Afuera: la sección transversal del corredor sigue siendo plana, que es lo
+	# que dice que la máscara civil no se abrió de más.
+	var worst_outside := 0.0
+	var worst_at := 0.0
+	var corridor := _plan.route_width * 0.5
+	for side: float in [-1.0, 1.0]:
+		for reach: float in [4.0, 8.0, 14.0, 22.0, 36.0, 60.0]:
+			var at := arc + side * (half + _bridge_fade + reach)
+			var point := _plan.route_point(at)
+			var tangent := _plan.route_tangent(at)
+			var normal := Vector3(tangent.z, 0.0, -tangent.x).normalized()
+			var middle := _terrain.height_at(point.x, point.z)
+			for lateral: float in [-corridor, corridor]:
+				var edge := point + normal * lateral
+				var gap := absf(_terrain.height_at(edge.x, edge.z) - middle)
+				if gap > worst_outside:
+					worst_outside = gap
+					worst_at = at
+	if worst_outside > BRIDGE_CIVIL_TOLERANCE:
+		problems.append("fuera del vano la calzada tiene %.3f m de peralte en el arco %.1f, tope %.2f m"
+				% [worst_outside, worst_at, BRIDGE_CIVIL_TOLERANCE])
+	print("  vano: luz %.1f m en (%.1f, %.1f) · el canal baja hasta %.2f m bajo la rasante en %.1f m de los %.1f (cauce de %.1f m) · fuera del vano la calzada tiene %.3f m de peralte (tope %.2f)"
+			% [_bridge_span, _bridge_at.x, _bridge_at.y, deepest, covered,
+			_bridge_span, _creek_width, worst_outside, BRIDGE_CIVIL_TOLERANCE])
+	# `axis` queda leído para que el fallo de un plano sin ruta salga acá y no en
+	# una división por cero más abajo.
+	if axis.size() < 2:
+		problems.append("el plano no declara ninguna ruta")
+	return problems
+
+
+## 8. Los pads de POI rural quedan planos.
+##
+## Un POI que cae fuera de las manzanas no tiene cota municipal de la que
+## colgarse y `build_terrain` le aplana un rectángulo debajo. La fila mide la
+## huella declarada —sin el margen, que es talud— en sus cuatro esquinas y en el
+## centro: si el POI no apoya en las cuatro, se ve.
+func _check_poi_pads() -> PackedStringArray:
+	var problems := PackedStringArray()
+	if _poi_pads.size() != _rural_poi:
+		problems.append("el relieve trae %d pads de POI rural y el diseño declara %d POI con"
+				% [_poi_pads.size(), _rural_poi] + " `block: null`")
+	if _poi_pads.is_empty():
+		print("  pads de POI rural: ninguno, y el diseño declara %d POI rurales" % _rural_poi)
+		return problems
+	var worst := 0.0
+	var worst_id := ""
+	for entry: Variant in _poi_pads:
+		var pad: Dictionary = entry
+		var position: Array = pad.get("pos", [])
+		var half_list: Array = pad.get("half", [])
+		if position.size() != 2 or half_list.size() != 2:
+			problems.append("el pad de POI '%s' no declara pos y half"
+					% String(pad.get("id", "?")))
+			continue
+		var centre := Vector2(float(position[0]), float(position[1]))
+		var yaw := deg_to_rad(float(pad.get("yaw_deg", 0.0)))
+		# `-sin(yaw)`: el giro de Godot alrededor de `+Y` es horario visto desde
+		# arriba y el eje del ancho de una huella con rumbo `yaw` es
+		# `(cos yaw, −sin yaw)`, que es lo que calcula
+		# [method TownPlan.parcel_footprint]. Esta fila llevaba el signo cambiado
+		# igual que lo llevaba `build_terrain._setup_poi_pads()` —el mismo error,
+		# copiado— así que las dos mentiras se cancelaban y la fila daba verde
+		# sobre un pad espejado. WP-D3 arregla las dos.
+		var axis := Vector2(cos(yaw), -sin(yaw))
+		var across := Vector2(-axis.y, axis.x)
+		# El margen es talud, no huella: se mide un metro adentro del núcleo,
+		# que es donde de verdad se apoya el edificio.
+		var half := Vector2(maxf(float(half_list[0]) - 1.0, 0.5),
+				maxf(float(half_list[1]) - 1.0, 0.5))
+		var low := INF
+		var high := -INF
+		for corner: Array in [[1.0, 1.0], [1.0, -1.0], [-1.0, 1.0], [-1.0, -1.0], [0.0, 0.0]]:
+			var p := centre + axis * (half.x * float(corner[0])) \
+					+ across * (half.y * float(corner[1]))
+			var height := _terrain.height_at(p.x, p.y)
+			low = minf(low, height)
+			high = maxf(high, height)
+		var spread := high - low
+		if spread > worst:
+			worst = spread
+			worst_id = String(pad.get("id", "?"))
+		if spread > POI_PAD_SPREAD:
+			problems.append("el pad del POI '%s' varía %.1f mm bajo su huella, tope %.0f mm"
+					% [String(pad.get("id", "?")), spread * 1000.0,
+					POI_PAD_SPREAD * 1000.0])
+	print("  pads de POI rural: %d de los %d que declara el diseño · el peor deja la huella"
+			% [_poi_pads.size(), _rural_poi]
+			+ " a ±%.1f mm (%s), tope %.0f mm"
+			% [worst * 1000.0, worst_id, POI_PAD_SPREAD * 1000.0])
+	return problems
+
+
+## Cuántos POI del diseño comiteado llevan `block: null`.
+##
+## Se lee el JSON y no el plano resuelto porque «rural» es un dato **declarado**:
+## es la misma pregunta que hacen [method TownPlanner._place_parcels] y
+## `tools/build_terrain.gd._setup_poi_pads()`, y las tres tienen que contestarla
+## igual (WP-D4a, hallazgos 14 y 15).
+func _count_rural_poi() -> int:
+	var design := TownDesign.load_json(TownPlanner.DESIGN_PATH)
+	if design == null:
+		push_error("terrain_check: '%s' no carga" % TownPlanner.DESIGN_PATH)
+		return 0
+	var found := 0
+	for entry: Variant in design.raw_data().get("poi", []) as Array:
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		var poi: Dictionary = entry
+		if poi.has("block") and poi["block"] == null:
+			found += 1
+	return found
+
+
+## 9. La rejilla y el `HeightMapShape3D` dicen lo mismo. Se reconstruye la
 ## interpolación bilineal **a mano** sobre `map_data` en vez de comparar los dos
 ## arreglos elemento a elemento: así se verifica también que el orden de filas
 ## y columnas sea el que Jolt espera, que es donde de verdad se equivoca uno.
@@ -689,6 +921,68 @@ func _check_chunks() -> PackedStringArray:
 	print("  chunks: %d vértices · %d triángulos · %d posiciones de borde compartidas · error máximo %.5f m"
 			% [vertices, triangles, seams.size(), worst])
 	return problems
+
+
+## 12. Los 115 200 triángulos del relieve miran al cielo.
+##
+## Ésta es la fila que WP-T4 no tenía y que costó una captura entera: los seis
+## índices de cada celda iban al revés, los cuatro chunks se descartaban por
+## `cull_back` y en la aérea no se veía el terreno sino el `ground_color` del
+## cielo por el agujero. El defecto es **invisible en cualquier medida
+## numérica** del relieve —las alturas, las pendientes y las costuras estaban
+## todas bien— y sólo se ve mirando el bobinado.
+##
+## La regla es la de `CityGrid._field_quad`: con `cull_back`, una cara que mira
+## al cielo necesita `(v1 − v0) × (v2 − v0) · UP` **negativo**. Se miden todos
+## los triángulos, no una muestra: un chunk mal cosido de los cuatro es el caso
+## que importa y una muestra al azar lo puede perder.
+func _check_chunk_facing() -> PackedStringArray:
+	var problems := PackedStringArray()
+	var wrong := 0
+	var total := 0
+	var flat := 0
+	var worst := Vector3.ZERO
+	for index: int in 4:
+		var mesh := ResourceLoader.load(CHUNK_PATH % index, "ArrayMesh",
+				ResourceLoader.CACHE_MODE_IGNORE) as ArrayMesh
+		if mesh == null:
+			problems.append("no se pudo cargar el chunk %d" % index)
+			continue
+		var arrays := mesh.surface_get_arrays(0)
+		var points: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+		if _flip_chunks:
+			indices = _reversed(indices)
+		for slot: int in range(0, indices.size() - 2, 3):
+			var v0 := points[indices[slot]]
+			var v1 := points[indices[slot + 1]]
+			var v2 := points[indices[slot + 2]]
+			var facing := (v1 - v0).cross(v2 - v0).y
+			total += 1
+			if absf(facing) < 1e-9:
+				flat += 1
+				continue
+			if facing >= 0.0:
+				wrong += 1
+				if worst == Vector3.ZERO:
+					worst = v0
+	if wrong > 0:
+		problems.append("%d de %d triángulos del relieve miran al suelo; el primero en %s"
+				% [wrong, total, str(worst.round())])
+	if flat > 0:
+		problems.append("%d triángulos del relieve son degenerados (área nula)" % flat)
+	print("  bobinado: %d triángulos medidos · %d mirando al suelo · %d degenerados"
+			% [total, wrong, flat])
+	return problems
+
+
+## Invierte el orden de cada triángulo de una lista de índices.
+func _reversed(indices: PackedInt32Array) -> PackedInt32Array:
+	var out := PackedInt32Array()
+	for slot: int in range(0, indices.size() - 2, 3):
+		out.append_array(PackedInt32Array([indices[slot], indices[slot + 2],
+				indices[slot + 1]]))
+	return out
 
 
 # --------------------------------------------------------------------------
@@ -952,7 +1246,14 @@ func _report_negative() -> void:
 		"cota constante por manzana",
 		"el arroyo respeta ruta, calles y manzanas",
 		"borde a cero",
+		"el vano del puente",
+		"los chunks miran al cielo",
 	])
+	# La fila de los pads sólo se exige cuando hay pads que estropear: con el
+	# diseño de hoy podría no haber ninguno fuera de las manzanas, y una fila que
+	# no tiene nada que mirar no puede ponerse roja.
+	if not _poi_pads.is_empty():
+		expected.append("pads de POI rural planos")
 	for label: String in expected:
 		expect(bool(_fired.get(label, false)),
 				"la fila «%s» no vio el defecto que le tocaba" % label)
@@ -998,6 +1299,29 @@ func _shape_height(p: Vector2) -> float:
 			tz)
 
 
+## `true` si [param p] cae en la **boca del vano**: la franja del corredor de
+## ruta donde la máscara civil se apaga para dejar pasar el arroyo.
+##
+## Ahí el terreno pasa de la rasante al lecho en los dos metros de fundido que
+## declara el horneado, o sea unos 35°, y eso no es una costura sino la barranca
+## del puente — la misma excepción que ya tiene el cauce. La franja se acota por
+## las dos coordenadas de la ruta (arco y distancia al eje) y no por un disco:
+## un disco de veinte metros alrededor del cruce taparía también el campo de los
+## costados, que sí tiene que cumplir la continuidad.
+func _bridge_mouth(p: Vector2) -> bool:
+	if _bridge_span <= 0.0:
+		return false
+	var arc := _plan.route_closest(Vector3(p.x, 0.0, p.y))
+	var bridge_arc := _plan.route_closest(Vector3(_bridge_at.x, 0.0, _bridge_at.y))
+	if absf(arc - bridge_arc) > _bridge_span * 0.5 + _bridge_fade + 1.0:
+		return false
+	var point := _plan.route_point(arc)
+	# Media calzada, más banquina, más el margen y el fundido de la máscara: el
+	# ancho completo de la banda que el vano apaga.
+	var reach := _plan.route_width * 0.5 + _plan.route_shoulder + 4.0 + 12.0
+	return Vector2(point.x, point.z).distance_to(p) <= reach
+
+
 func _creek_distance(p: Vector2) -> float:
 	if _creek.size() < 2:
 		return INF
@@ -1041,9 +1365,10 @@ func _axis_distance(axis: PackedVector3Array, p: Vector2) -> float:
 
 
 ## Pendiente máxima bajo un eje, cada dos metros y sólo dentro de la rejilla.
-func _axis_grade(axis: PackedVector3Array) -> float:
+func _axis_grade(axis: PackedVector3Array, skip_bridge: bool = false) -> float:
 	var half := float(_terrain.size - 1) * _terrain.cell * 0.5
 	var centre := Vector2(_plan.play_centre.x, _plan.play_centre.z)
+	var gap := _bridge_span * 0.5 + _bridge_fade
 	var worst := 0.0
 	for index: int in maxi(axis.size() - 1, 0):
 		var a := Vector2(axis[index].x, axis[index].z)
@@ -1055,6 +1380,9 @@ func _axis_grade(axis: PackedVector3Array) -> float:
 			if absf(p.x - centre.x) > half or absf(p.y - centre.y) > half:
 				continue
 			if absf(q.x - centre.x) > half or absf(q.y - centre.y) > half:
+				continue
+			if skip_bridge and (p.distance_to(_bridge_at) <= gap
+					or q.distance_to(_bridge_at) <= gap):
 				continue
 			worst = maxf(worst, absf(_terrain.height_at(q.x, q.y)
 					- _terrain.height_at(p.x, p.y)) / maxf(p.distance_to(q), 0.0001))

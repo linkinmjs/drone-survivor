@@ -1,0 +1,17 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://city/creek_water.gdshader" id="1_p4qd2"]
+
+[resource]
+resource_name = "creek_water"
+render_priority = 0
+shader = ExtResource("1_p4qd2")
+shader_parameter/water_color = Color(0.043, 0.078, 0.082, 1)
+shader_parameter/sky_tint = Color(0.18, 0.235, 0.33, 1)
+shader_parameter/fresnel_power = 3.0
+shader_parameter/fresnel_strength = 0.55
+shader_parameter/water_roughness = 0.15
+shader_parameter/water_alpha = 0.85
+shader_parameter/wave_scale = 0.65
+shader_parameter/wave_speed = 0.35
+shader_parameter/wave_amplitude = 0.06

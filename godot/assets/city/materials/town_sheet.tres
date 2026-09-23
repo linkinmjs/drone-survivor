@@ -1,0 +1,25 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[sub_resource type="Gradient" id="Gradient_ljtn8"]
+colors = PackedColorArray(0.36, 0.355, 0.345, 1, 0.66, 0.65, 0.635, 1)
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_3dxg2"]
+seed = 20260923
+frequency = 0.0390625
+fractal_octaves = 3
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_88k2h"]
+width = 256
+height = 256
+noise = SubResource("FastNoiseLite_3dxg2")
+color_ramp = SubResource("Gradient_ljtn8")
+seamless = true
+
+[resource]
+resource_name = "town_sheet"
+vertex_color_use_as_albedo = true
+albedo_texture = SubResource("NoiseTexture2D_88k2h")
+metallic_specular = 0.45
+roughness = 0.62
+uv1_scale = Vector3(0.22, 0.22, 0.22)
+uv1_triplanar = true

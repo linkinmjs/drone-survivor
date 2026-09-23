@@ -1,0 +1,17 @@
+[gd_resource type="StandardMaterial3D" load_steps=2 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/town/foliage_palette.png" id="1_albedo"]
+
+[resource]
+resource_name = "town_foliage"
+albedo_texture = ExtResource("1_albedo")
+metallic_specular = 0.15
+roughness = 0.95
+; Paleta de 256x1: cualquier filtro que no sea NEAREST sangra al indice vecino y
+; una hoja verde se tinta del marron del tronco de al lado. `docs/02` §7.3.
+; 0 = TEXTURE_FILTER_NEAREST.
+texture_filter = 0
+; El follaje se siembra con `MultiMeshInstance3D` y se ve desde los dos lados de
+; cada rama de una celda de espesor: con `cull_back` una masa de copa se lee
+; agujereada desde abajo. 2 = CULL_DISABLED.
+cull_mode = 2

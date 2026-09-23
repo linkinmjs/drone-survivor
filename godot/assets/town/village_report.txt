@@ -1,0 +1,39 @@
+voxsplit 1.0.0 — pueblo «village»
+origen              : VoxelVillagePack.zip
+paso del OBJ        : 0.1 u · escala ×1.0 · vóxel 0.1 m
+
+piezas del pack (tras familias de paleta, recorte y diezmado):
+  pieza          celdas           metros                      vox  OBJ tris
+  --------------------------------------------------------------------------
+  lamp           6×30×6           0.60 × 3.00 × 0.60          332        76
+  fence          12×8×2           1.20 × 0.80 × 0.20           96       128
+  barrel         8×8×8            0.80 × 0.80 × 0.80          384       612
+  box_empty      9×5×7            0.90 × 0.50 × 0.70          127       148
+
+diagnóstico de la voxelización (cáscara por normales frente a relleno por inundación):
+  una pieza de casa con más desajustes que su 'allow_fill_mismatches' es un fallo;
+  en un prop es sólo un aviso, porque los montones del pack son mallas abiertas.
+  sin desajustes: las piezas son estancas y ninguna celda recibió dos colores
+
+piezas compuestas:
+  pieza            clase    tris  presup  OBJ tris      vox  AABB (m)                 vent.
+  ------------------------------------------------------------------------------------------------
+  lantern          prop       76     300        76      332  0.60 × 3.00 × 0.60       60
+      partes: lamp
+      AABB   : min [-0.3, 0.0, -0.3]  max [0.3, 3.0, 0.3]
+  fence_picket_3m  prop      240     300       128      288  3.60 × 0.80 × 0.20       0
+      partes: fence
+      AABB   : min [0.0, 0.0, -0.1]  max [3.6, 0.8, 0.1]
+  barrel_c         prop       94     300       612      384  0.80 × 0.80 × 0.80       0
+      partes: barrel
+      AABB   : min [-0.4, 0.0, -0.4]  max [0.4, 0.8, 0.4]
+  crate            prop      132     300       148      127  0.90 × 0.50 × 0.70       0
+      partes: box_empty
+      AABB   : min [-0.45, 0.0, -0.35]  max [0.45, 0.5, 0.35]
+
+familias de paleta (representante ← miembros):
+
+índices de ventana de la máscara emisiva:
+    6 → RGB (214, 150, 52)
+
+CHECK compose: OK

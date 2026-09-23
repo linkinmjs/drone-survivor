@@ -108,7 +108,142 @@ func _run() -> void:
 	await wait_frames(3)
 	await shot("props")
 
+	await _run_wpd1()
 	await wait_frames(2)
+
+
+# --------------------------------------------------------------------------
+# Las piezas nuevas de WP-D1
+# --------------------------------------------------------------------------
+
+## Manifiesto de todo el pueblo: de ahí salen los nombres, las escenas y las
+## huellas con las que se reparten las filas.
+const MANIFEST_PATH: String = "res://assets/town/pieces_manifest.json"
+
+## Cada fila nueva: dónde se pone, qué piezas lleva y con cuánto aire entre
+## ellas. La primera de cada fila es `house_a`, que es la referencia de escala:
+## una casa de 5 × 5 × 3 m que el orquestador ya tiene medida de WP-A.
+const WPD1_ROWS: Array[Dictionary] = [
+	{"name": "edificios", "z": -60.0, "gap": 6.0, "pieces": [
+		"house_a", "gas_station", "water_tower", "silo", "field_shed"]},
+	{"name": "props_altos", "z": 26.0, "gap": 2.2, "pieces": [
+		"house_a", "lamp_post", "flag_mast", "monument", "welcome_sign",
+		"road_sign_narrow", "road_sign_speed", "lantern", "bench", "fence_post"]},
+	{"name": "props_bajos", "z": 54.0, "gap": 2.4, "pieces": [
+		"house_a", "bus_stop", "awning_orange", "crate", "barrel_c",
+		"fence_picket_3m", "fence_wire_6m", "bridge_deck"]},
+	{"name": "vehiculos", "z": 84.0, "gap": 2.6, "pieces": [
+		"house_a", "car_a", "car_b", "pickup", "truck"]},
+	{"name": "follaje", "z": 104.0, "gap": 1.6, "pieces": [
+		"house_a", "tree_xl", "tree_large", "tree_medium", "tree_small",
+		"tree_stump", "bush_a", "bush_b", "grass_a", "flowers_a",
+		"corn_a", "corn_b"]},
+]
+
+## Piezas que **no** se giran un cuarto de vuelta para la foto.
+##
+## La regla general es girarlas: las piezas del pueblo tienen el frente en −X y
+## un cuarto de vuelta lo lleva al +Z, que es donde está la cámara (sin eso la
+## fila muestra medianeras y carteles de canto). Las de esta lista son largas a
+## lo largo de su propio +X —tramos de cerco, el tablero del puente— o se leen
+## mejor de perfil —los cuatro vehículos—, y girarlas las manda hacia el fondo.
+const WPD1_UNROTATED: PackedStringArray = [
+	"fence_wire_6m", "fence_picket_3m", "bridge_deck",
+	"car_a", "car_b", "pickup", "truck",
+]
+
+var _manifest: Dictionary = {}
+
+
+## Cinco filas más y cinco capturas más, una por familia de pieza nueva.
+##
+## Todas se arman **desde el manifiesto**: la huella de cada pieza decide cuánto
+## ocupa, el reparto sale solo y la cámara se aleja lo que haga falta para que la
+## fila entre entera. Si WP-D1 agrega una pieza, se la nombra en
+## [constant WPD1_ROWS] y el resto no cambia.
+##
+## La primera de cada fila es siempre `house_a`: una casa de 5 × 5 × 3 m medida
+## en WP-A, que es la única forma de juzgar a ojo si un tanque de agua de 16,5 m
+## está a escala del pueblo o parece un juguete.
+func _run_wpd1() -> void:
+	_manifest = _read_manifest()
+	if _manifest.is_empty():
+		fail("falta '%s'; corré tools/build_town_props.gd" % MANIFEST_PATH)
+		return
+	for row: Dictionary in WPD1_ROWS:
+		var measured := _lay_row(row)
+		await wait_frames(6)
+		await _shoot_row(row, measured)
+
+
+## Reparte una fila a lo largo de X, con las piezas apoyadas en `z` y separadas
+## por su ancho aparente más [code]gap[/code] metros. Devuelve el ancho y el alto
+## de la fila, que es lo que necesita la cámara.
+func _lay_row(row: Dictionary) -> Vector2:
+	var container := Node3D.new()
+	container.name = "WPD1_%s" % String(row["name"])
+	add_child(container)
+	var gap := float(row["gap"])
+	var names: Array = row["pieces"]
+	# Primera pasada: anchos aparentes, para centrar la fila en el origen. El
+	# ancho de una pieza girada es su profundidad, no su frente.
+	var widths: Array[float] = []
+	var tallest := 0.0
+	var total := 0.0
+	for name: Variant in names:
+		var entry := _manifest.get(String(name), {}) as Dictionary
+		var footprint: Array = entry.get("footprint", [1.0, 1.0])
+		var rotated := not WPD1_UNROTATED.has(String(name))
+		widths.append(maxf(float(footprint[1] if rotated else footprint[0]), 0.2))
+		tallest = maxf(tallest, float(entry.get("height", 0.0)))
+		total += widths[widths.size() - 1] + gap
+	var cursor := -total * 0.5
+	var report := PackedStringArray()
+	for index: int in names.size():
+		var name := String(names[index])
+		var entry := _manifest.get(name, {}) as Dictionary
+		var piece := _instance(String(entry.get("scene", "")))
+		cursor += widths[index] * 0.5
+		if piece != null:
+			if not WPD1_UNROTATED.has(name):
+				piece.rotation.y = PI * 0.5
+			piece.position = Vector3(cursor, 0.0, float(row["z"]))
+			container.add_child(piece)
+			var footprint: Array = entry.get("footprint", [0.0, 0.0])
+			report.append("%s %.1f×%.1f×%.1f m %d tris"
+					% [name, float(footprint[0]), float(footprint[1]),
+					float(entry.get("height", 0.0)), int(entry.get("tris", 0))])
+		cursor += widths[index] * 0.5 + gap
+	print("  fila «%s»: %.1f m de largo, %.1f m de alto · %s"
+			% [String(row["name"]), total, tallest, ", ".join(report)])
+	return Vector2(total, tallest)
+
+
+## Encuadra una fila entera y la captura.
+##
+## La distancia sale del ancho de la fila y del campo de visión, no de un número
+## a ojo: una fila de setenta metros y otra de veinte necesitan cámaras muy
+## distintas, y con una sola distancia la primera se corta —que fue el primer
+## intento: `house_a`, la referencia de escala, quedaba fuera de cuadro.
+func _shoot_row(row: Dictionary, measured: Vector2) -> void:
+	var fov := 55.0
+	var margin := measured.x * 0.5 + 3.0
+	var distance := margin / tan(deg_to_rad(fov) * 0.5) * 0.62
+	var z := float(row["z"])
+	var height := maxf(measured.y * 0.75, 4.0)
+	_frame(Vector3(0.0, height, z + distance), Vector3(0.0, measured.y * 0.45, z), fov)
+	await wait_frames(3)
+	await shot("wpd1_%s" % String(row["name"]))
+
+
+func _read_manifest() -> Dictionary:
+	if not FileAccess.file_exists(MANIFEST_PATH):
+		return {}
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(MANIFEST_PATH))
+	var document := parsed as Dictionary
+	if document == null:
+		return {}
+	return document.get("pieces", {}) as Dictionary
 
 
 ## Coloca la cámara en [param from] mirando a [param at], con [param fov] grados.

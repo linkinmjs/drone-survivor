@@ -372,6 +372,63 @@ el OBJ de MagicaVoxel ya sale Y-arriba, a diferencia del `.vox`, que es Z-arriba
 
 ---
 
+## 5ter. Cuatro packs, una receta cada uno (WP-D1)
+
+Desde WP-D1 el subcomando `town` no es «el pueblo» sino «un pack del pueblo»: toma una
+receta cualquiera y escribe sus piezas en la misma carpeta. Hay cuatro:
+
+| Receta | Origen | Vóxel | Piezas | Paleta |
+|---|---|---|---|---|
+| `models/nuke_town.json` | `nuke Free Sample.zip` | 5 cm (0,02 × 2,5) | 10 casas + 9 props | `nuke_town_palette.png` + máscara |
+| `models/foliage.json` | `Foliage.rar` | 10 cm (0,1 × 1) | 11 de follaje | `foliage_palette.png` |
+| `models/village.json` | `VoxelVillagePack.zip` | 10 cm | 4 props | `village_palette.png` |
+| `models/city_sample.json` | `city-Free Sample.zip` | 5 cm | 2 props | `city_sample_palette.png` |
+
+```powershell
+cd godot\tools
+python -m voxsplit town voxsplit\models\nuke_town.json   --out ..\assets\town
+python -m voxsplit town voxsplit\models\foliage.json     --out ..\assets\town
+python -m voxsplit town voxsplit\models\village.json     --out ..\assets\town
+python -m voxsplit town voxsplit\models\city_sample.json --out ..\assets\town
+```
+
+Lo que hizo falta agregar, y por qué:
+
+- **`archivo.rar!miembro`.** `Foliage.rar` es el único pack del catálogo que no viene en
+  ZIP y `assets/_raw/` no se puede extraer dentro del repositorio (`docs/05` §1). Python no
+  trae lector de RAR y `rarfile` está fuera de las dependencias, así que `objvox` vuelca el
+  miembro con `UnRAR p -inul` **por tubería**: nada toca el disco. El ejecutable se busca en
+  el `PATH`, en las dos rutas de WinRAR y en la variable de entorno `UNRAR`.
+- **Clases de pieza y presupuesto por clase.** `budgets` es ahora un diccionario libre, y
+  un prop declara su clase con `kind`. La clase nueva es `foliage`: sin colisión, pensada
+  para `MultiMesh`, con presupuesto propio (500) porque su coste se multiplica por el
+  número de instancias.
+- **Máscara emisiva opcional.** Un pack sin ventanas —follaje, mobiliario— declara
+  `"emissive_texture": ""` y no se escribe ningún PNG. Escribir una máscara negra por pack
+  sería una textura y un material de más por nada.
+- **`materials`.** Cada receta declara qué material de Godot le toca a cada clase de pieza.
+  Va al sidecar, y `asset_import/import_town_piece.gd` lo lee de ahí: así el importador no
+  tiene una tabla de packs que mantener.
+- **`repeat` y `origin`.** `repeat` encadena copias de una pieza a lo largo de un eje (el
+  módulo de cerco de 1,2 m del VillagePack se vuelve un tramo de 3,6 m en una sola malla y
+  un solo lote); `origin: "start_x"` pone el origen en el extremo inicial en vez de en el
+  centro, que es lo que necesita quien siembra tramos encadenados sobre una polilínea.
+- **`palette_paint`.** Repinta índices de la paleta emitida. Lo usa el toldo: el pack
+  `city` lo trae en rojo y en amarillo y la gramática de `docs/17` §4 dice que **el toldo
+  naranja es la pila**.
+
+Las recetas nuevas **no declaran familias de paleta**: esos tres packs no están *dithered*
+y sus piezas usan entre 1 y 9 índices, así que no hay nada que fusionar. La única palanca
+que hizo falta es `decimate`, en cuatro piezas (el árbol XL, el barril, la parada y el
+toldo), y cada una lo dice en su comentario del JSON.
+
+**Limitación conocida**: una receta admite **una sola paleta de 256×1**, compartida por
+todas sus piezas. El `VoxelVillagePack` trae dos (una para `buildings/`, `trees/` y
+`rocks/`, otra para `objects/`), así que `village.json` toma sólo `objects/`; el candidato a
+capilla de `buildings/building3` queda fuera hasta que alguien funda las dos paletas.
+
+---
+
 ## 6. Qué NO hace este paquete
 
 El import en Godot (`asset_import/import_voxel_enemy.gd`, `asset_import/import_drone.gd` y

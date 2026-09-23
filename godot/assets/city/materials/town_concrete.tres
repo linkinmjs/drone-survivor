@@ -1,0 +1,25 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[sub_resource type="Gradient" id="Gradient_e54fh"]
+colors = PackedColorArray(0.389, 0.379, 0.356, 1, 0.621, 0.606, 0.574, 1)
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_ygtcn"]
+seed = 20260923
+frequency = 0.0859375
+fractal_octaves = 3
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_aulqj"]
+width = 256
+height = 256
+noise = SubResource("FastNoiseLite_ygtcn")
+color_ramp = SubResource("Gradient_e54fh")
+seamless = true
+
+[resource]
+resource_name = "town_concrete"
+vertex_color_use_as_albedo = true
+albedo_texture = SubResource("NoiseTexture2D_aulqj")
+metallic_specular = 0.2
+roughness = 0.94
+uv1_scale = Vector3(0.1, 0.1, 0.1)
+uv1_triplanar = true

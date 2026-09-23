@@ -1,0 +1,5 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="PackedScene" path="res://assets/town/awning_orange.glb" id="1_base"]
+
+[node name="awning_orange" instance=ExtResource("1_base")]

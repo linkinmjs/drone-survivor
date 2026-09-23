@@ -1,0 +1,85 @@
+{
+  "name": "village",
+  "comment": [
+    "Mobiliario de aldea a partir de 'VoxelVillagePack.zip' (WP-D1).",
+    "Paso del OBJ 0.1 u por voxel x escala 1.0 => 1 voxel = 10 cm, medidas en metros:",
+    "el farol mide 3,00 m tal como sale del pack.",
+    "El pack trae DOS paletas de 256x1 distintas: una la comparten buildings/, trees/",
+    "y rocks/ (14 archivos) y otra objects/, market_stands/ y personas/ (22). El",
+    "compositor exige una sola paleta por receta, asi que esta receta toma solo",
+    "objects/. Consecuencia registrada: el candidato a capilla (buildings/building3,",
+    "4 x 4 x 6 m) queda fuera de WP-D1; ver assets/town/LICENSE-PENDING.md y el informe.",
+    "Las 12 personas del pack no se usan: el pueblo esta evacuado (docs/17 §7.3)."
+  ],
+  "source": "../../../assets/_raw/VoxelVillagePack.zip",
+  "member_prefix": "objects/",
+  "step": 0.1,
+  "scale": 1.0,
+  "palette_texture": "village_palette.png",
+  "emissive_texture": "village_emissive.png",
+
+  "budgets": {"prop": 300},
+  "budget_note": [
+    "Los mismos 300 del pack nuke. Solo el barril no entraba (530 a 10 cm por el",
+    "cilindro escalonado); diezmado x2 lo deja en 94 sin cambiar la silueta de 0,8 m.",
+    "El farol sale en 76 y el cajon en 132 sin tocarlos."
+  ],
+
+  "materials": {"prop": "res://assets/town/materials/town_village.tres"},
+
+  "palette_families": {},
+
+  "palette_paint": {
+    "96": [118, 104, 86]
+  },
+  "palette_paint_note": [
+    "WP-D4a, hallazgo 10. El indice 96 es la madera del cerco -lo usan",
+    "`fence_picket_3m` y el farol- y venia en (153,88,62): un terracota saturado",
+    "que desde el aire competia con el NARANJA de los toldos, que es el unico",
+    "color del pueblo con significado (docs/17 SS4: toldo naranja = pila). Un",
+    "cerco de tabla no es un cartel: pasa a (118,104,86), la madera gris",
+    "envejecida de un cerco que lleva anos a la intemperie, que se lee como",
+    "madera de cerca y desaparece en el mosaico de arriba.",
+    "Nota: los cercos de las quintas del caserio pasan ademas a ALAMBRE en el",
+    "mismo hallazgo, asi que la tabla queda para los frentes de casa del pueblo."
+  ],
+
+  "window_indices": {
+    "6": [214, 150, 52]
+  },
+  "window_indices_note": [
+    "WP-D3, defecto 9. El indice 6 (255,187,0) es el vidrio del farol de plaza y",
+    "NO lo usa ninguna otra pieza de la receta (verificado sobre las UV de los",
+    "cuatro GLB: `lantern` usa 6 y 96, `fence_picket_3m` solo 96, `barrel_c` 95,",
+    "96, 104 y 251, `crate` solo 95). Encenderlo cuesta un PNG de 256x1 -la",
+    "mascara- y tres lineas en `town_village.tres`: ni un material nuevo ni un",
+    "lote de dibujo nuevo, porque los props se funden por material y el farol ya",
+    "estaba en la superficie de `town_village`.",
+    "",
+    "El valor de la mascara no es (255,187,0) sino (214,150,52): con",
+    "`emission_operator` MULTIPLY la mascara ES el color y el brillo, y la ventana",
+    "Nuke -que usa (198,152,100) con energia 0,65- ya salia casi blanca a 100 m",
+    "(medido en WP-D3). Un ambar mas saturado y algo mas oscuro, con energia 0,50,",
+    "deja cuatro puntos de luz en la plaza sin sumar un quinto foco que queme."
+  ],
+
+  "pieces": {
+    "lamp": {"file": "lamp/lamp.vox.obj",
+      "comment": "Farol de plaza de 3,00 m. El indice 6 (255,187,0) es el vidrio ambar: se deja como albedo y no como emisivo porque este pack no lleva mascara (nota para D3)."},
+    "fence": {"file": "fence/fence.vox.obj",
+      "comment": "Modulo de cerco de madera de 1,20 x 0,80 x 0,20 m: dos postes en x=1 y x=9 y dos travesanos que cruzan la celda 0 a la 11, asi que se puede encadenar con paso 12 sin costura."},
+    "barrel": {"file": "barrel/barrel.vox.obj", "decimate": 2},
+    "box_empty": {"file": "box/box_empty/box_empty.vox.obj"}
+  },
+
+  "houses": {},
+
+  "props": {
+    "lantern": {"piece": "lamp"},
+    "fence_picket_3m": {"piece": "fence", "repeat": {"axis": "x", "count": 3, "pitch": 12},
+      "origin": "start_x",
+      "comment": "Tres modulos de 1,20 m: 3,60 m reales a lo largo de +X con el origen en el extremo inicial, que es lo que necesita quien encadena tramos sobre una linea de cerco."},
+    "barrel_c": {"piece": "barrel"},
+    "crate": {"piece": "box_empty"}
+  }
+}

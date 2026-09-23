@@ -1,0 +1,77 @@
+voxsplit 1.0.0 — pueblo «foliage»
+origen              : Foliage.rar
+paso del OBJ        : 0.1 u · escala ×1.0 · vóxel 0.1 m
+
+piezas del pack (tras familias de paleta, recorte y diezmado):
+  pieza          celdas           metros                      vox  OBJ tris
+  --------------------------------------------------------------------------
+  tree_xl        26×47×14         2.60 × 4.70 × 1.40         6532       728
+  tree_large     21×34×18         2.10 × 3.40 × 1.80         5728       374
+  tree_medium    14×44×14         1.40 × 4.40 × 1.40         4844       254
+  tree_small     10×12×10         1.00 × 1.20 × 1.00         1032        68
+  tree_stump     11×4×11          1.10 × 0.40 × 1.10          239       400
+  bush_a         6×6×6            0.60 × 0.60 × 0.60           84       148
+  bush_b         4×9×4            0.40 × 0.90 × 0.40          132        28
+  grass_a        7×7×7            0.70 × 0.70 × 0.70           40       260
+  flowers_a      3×4×3            0.30 × 0.40 × 0.30           12        92
+  corn_a         5×7×5            0.50 × 0.70 × 0.50           29       204
+  corn_b         5×11×5           0.50 × 1.10 × 0.50           48       324
+
+diagnóstico de la voxelización (cáscara por normales frente a relleno por inundación):
+  una pieza de casa con más desajustes que su 'allow_fill_mismatches' es un fallo;
+  en un prop es sólo un aviso, porque los montones del pack son mallas abiertas.
+  sin desajustes: las piezas son estancas y ninguna celda recibió dos colores
+
+piezas compuestas:
+  pieza            clase    tris  presup  OBJ tris      vox  AABB (m)                 vent.
+  ------------------------------------------------------------------------------------------------
+  tree_xl          foliage    416     500       728     6532  6.50 × 11.75 × 3.50      0
+      escala : ×2.5 sobre el vóxel del pack (10 cm → 25 cm)
+      partes: tree_xl
+      AABB   : min [-3.25, 0.0, -1.75]  max [3.25, 11.75, 1.75]
+  tree_large       foliage    352     500       374     5728  5.25 × 8.50 × 4.50       0
+      escala : ×2.5 sobre el vóxel del pack (10 cm → 25 cm)
+      partes: tree_large
+      AABB   : min [-2.625, 0.0, -2.25]  max [2.625, 8.5, 2.25]
+  tree_medium      foliage    236     500       254     4844  3.50 × 11.00 × 3.50      0
+      escala : ×2.5 sobre el vóxel del pack (10 cm → 25 cm)
+      partes: tree_medium
+      AABB   : min [-1.75, 0.0, -1.75]  max [1.75, 11.0, 1.75]
+  tree_small       foliage     68     500        68     1032  2.50 × 3.00 × 2.50       0
+      escala : ×2.5 sobre el vóxel del pack (10 cm → 25 cm)
+      partes: tree_small
+      AABB   : min [-1.25, 0.0, -1.25]  max [1.25, 3.0, 1.25]
+  tree_stump       foliage    340     500       400      239  2.75 × 1.00 × 2.75       0
+      escala : ×2.5 sobre el vóxel del pack (10 cm → 25 cm)
+      partes: tree_stump
+      AABB   : min [-1.375, 0.0, -1.375]  max [1.375, 1.0, 1.375]
+  bush_a           foliage    120     500       148       84  1.20 × 1.20 × 1.20       0
+      escala : ×2 sobre el vóxel del pack (10 cm → 20 cm)
+      partes: bush_a
+      AABB   : min [-0.6, 0.0, -0.6]  max [0.6, 1.2, 0.6]
+  bush_b           foliage     28     500        28      132  0.80 × 1.80 × 0.80       0
+      escala : ×2 sobre el vóxel del pack (10 cm → 20 cm)
+      partes: bush_b
+      AABB   : min [-0.4, 0.0, -0.4]  max [0.4, 1.8, 0.4]
+  grass_a          foliage    260     500       260       40  1.05 × 1.05 × 1.05       0
+      escala : ×1.5 sobre el vóxel del pack (10 cm → 15 cm)
+      partes: grass_a
+      AABB   : min [-0.525, 0.0, -0.525]  max [0.525, 1.05, 0.525]
+  flowers_a        foliage     92     500        92       12  0.45 × 0.60 × 0.45       0
+      escala : ×1.5 sobre el vóxel del pack (10 cm → 15 cm)
+      partes: flowers_a
+      AABB   : min [-0.225, 0.0, -0.225]  max [0.225, 0.6, 0.225]
+  corn_a           foliage    204     500       204       29  1.00 × 1.40 × 1.00       0
+      escala : ×2 sobre el vóxel del pack (10 cm → 20 cm)
+      partes: corn_a
+      AABB   : min [-0.5, 0.0, -0.5]  max [0.5, 1.4, 0.5]
+  corn_b           foliage    324     500       324       48  1.00 × 2.20 × 1.00       0
+      escala : ×2 sobre el vóxel del pack (10 cm → 20 cm)
+      partes: corn_b
+      AABB   : min [-0.5, 0.0, -0.5]  max [0.5, 2.2, 0.5]
+
+familias de paleta (representante ← miembros):
+
+índices de ventana de la máscara emisiva:
+
+CHECK compose: OK

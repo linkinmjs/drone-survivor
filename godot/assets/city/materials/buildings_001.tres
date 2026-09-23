@@ -9,7 +9,22 @@ albedo_texture = ExtResource("1_albedo")
 metallic_specular = 0.25
 roughness = 0.85
 emission_enabled = true
-emission = Color(1, 1, 1, 1)
+; WP-D3, defecto 4. `emission` era blanco puro, asi que con MULTIPLY el color
+; que salia era **el del bake** sin corregir y el nucleo de cada ventana llegaba
+; a (0,955 0,955 0,955): blanco, no ambar. Medido con la sonda de WP-D3 sobre el
+; mediano `Mid_0` de frente a 100 m, el 2 % mas brillante de su caja daba
+; (0,794 0,750 0,659), saturacion **0,17**: una ventana que a cien metros no se
+; lee como luz de gente sino como un reflejo. Y en `street_4`, volando pegado, el
+; 0,27 % del cuadro estaba por encima de 0,95 -blanco puro-.
+;
+; La correccion va por el **color** y no por la energia: `emission_energy_multiplier`
+; es el 0,65 calibrado en el checkpoint 4 contra el halo y el velo del glow, y
+; bajarlo otra vez volveria a apagar la ciudad de lejos, que es lo que aquel
+; ajuste se cuido de no hacer. Tintar el emisivo de ambar (1,00 0,72 0,35) baja la
+; luminancia del nucleo al 0,75 de lo que era -0,2126 + 0,7152 x 0,72 + 0,0722 x
+; 0,35- y de paso le devuelve el tono: ambar es gente en `docs/13` §2, y una
+; ventana blanca es una mentira de la gramatica.
+emission = Color(1, 0.72, 0.35, 1)
 ; `emission_operator` 1 es MULTIPLY. Con el ADD de fábrica el shader hace
 ; `EMISSION = (emission + textura) * energía`, así que un `emission` blanco
 ; enciende la **fachada entera** a 1000 nits y no sólo las ventanas del bake:

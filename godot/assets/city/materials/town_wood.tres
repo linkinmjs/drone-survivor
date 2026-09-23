@@ -1,0 +1,21 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_e5fkf"]
+seed = 20260923
+frequency = 0.04296875
+fractal_octaves = 3
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_tuu2v"]
+width = 256
+height = 256
+noise = SubResource("FastNoiseLite_e5fkf")
+seamless = true
+
+[resource]
+resource_name = "town_wood"
+vertex_color_use_as_albedo = true
+albedo_texture = SubResource("NoiseTexture2D_tuu2v")
+metallic_specular = 0.25
+roughness = 0.88
+uv1_scale = Vector3(0.16, 0.16, 0.16)
+uv1_triplanar = true

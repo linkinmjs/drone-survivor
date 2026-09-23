@@ -153,6 +153,16 @@ const CHUNK_REFINE_MARGIN: float = 40.0
 const CHUNK_REACH: float = 260.0
 
 ## Pendientes, en radianes, entre las que la capa de roca sube de 0 a 1.
+## Metros de fundido a cada lado del vano del puente. Dos: es el ancho con el
+## que la máscara del corredor pasa de 1 a 0 sin dejar un escalón en la banquina
+## y sin comerse el vano declarado.
+const BRIDGE_FADE: float = 2.0
+
+## Cuánto sobresale de la huella el pad plano de un POI rural, en metros, y
+## cuánto talud le sigue. El margen es el del encargo de WP-D1; el desvanecido
+## sale del desnivel real, igual que en los caseríos.
+const POI_PAD_MARGIN: float = 3.0
+
 ## Rol `TownPlan.Role.DECOR`, escrito como literal.
 ##
 ## `tools/build_terrain.gd` corre con `-s` y no puede nombrar a [TownPlan]: el
@@ -233,7 +243,13 @@ const DIRT_SLOPE_MIN: float = 0.12  # ~7°
 const DIRT_SLOPE_MAX: float = 0.30  # ~17°
 
 ## Peso de tierra que aporta la máscara de lo urbanizado. Ver [method _layer_color].
-const CIVIL_DIRT: float = 0.33
+##
+## WP-D3 lo sube de 0,33 a 0,42. El patio de manzana seguía leyéndose como el
+## campo de afuera —un tercio de tierra sobre un pasto oscuro casi no se nota— y
+## desde el aire las manzanas quedaban huecas. Con 0,42, y con la tierra 37 % más
+## clara en `city/terrain.gdshader`, el patio pasa a ser pasto gastado de fondo de
+## casa: más claro y más cálido que el campo, que es de lo que se trata.
+const CIVIL_DIRT: float = 0.42
 
 
 # --------------------------------------------------------------------------
@@ -287,6 +303,19 @@ class Composer extends RefCounted:
 	var creek_width: float = 6.0
 	var creek_depth: float = 2.4
 	var creek_bank: float = 9.0
+
+	## Vano del puente, en **arco de la ruta**: dentro de él la máscara civil del
+	## corredor de ruta no se aplica y el cauce pasa por debajo.
+	##
+	## El vano se mide a lo largo del eje y no en línea recta a propósito. Con un
+	## disco alrededor de `bridge.at` la abertura sería más angosta en los bordes
+	## de la calzada que en el medio —el disco corta la banda en una lente— y el
+	## borde del corredor quedaría festoneado justo donde el jugador mira el
+	## puente de costado. Medido sobre el arco, el corte es una franja recta
+	## perpendicular a la ruta.
+	var bridge_arc: float = -1.0
+	var bridge_span: float = 0.0
+	var bridge_fade: float = BRIDGE_FADE
 
 	## Pads de las casas de caserío, uno por casa y en el mismo orden: centro,
 	## dirección de su frente, medias medidas del núcleo plano (a lo largo y a
@@ -415,6 +444,27 @@ class Composer extends RefCounted:
 		return lerpf(base, block_datum[index], weight)
 
 
+	## Fija el vano del puente a partir del punto y la luz que el spec ya resolvió.
+	func set_bridge(at: Vector2, span: float) -> void:
+		bridge_span = maxf(span, 0.0)
+		bridge_arc = _arc_of(route, route_arcs, at) if bridge_span > 0.0 else -1.0
+
+
+	## Cuánto vale la banda de ruta en [param p]: 0 dentro del vano, 1 fuera, con
+	## [member bridge_fade] metros de fundido. Es lo que deja que el cauce pase
+	## por debajo de la calzada sin un caso especial en la altura.
+	func bridge_gate(p: Vector2) -> float:
+		if bridge_span <= 0.0 or bridge_arc < 0.0:
+			return 1.0
+		var reach := absf(_arc_of(route, route_arcs, p) - bridge_arc)
+		var inner := bridge_span * 0.5
+		if reach <= inner:
+			return 0.0
+		if reach >= inner + bridge_fade:
+			return 1.0
+		return smoothstep(inner, inner + bridge_fade, reach)
+
+
 	## Máscara civil en [param p]: 1 sobre la ruta, las calles y las manzanas,
 	## desvanecida con un `smoothstep` de [member feather] metros hacia afuera.
 	##
@@ -427,7 +477,8 @@ class Composer extends RefCounted:
 	## probabilística es derivable donde lo son sus términos, así que el empalme
 	## entre lo urbanizado y el campo sale liso.
 	func mask(p: Vector2, block: Vector2) -> float:
-		var value := _band(_distance(route, p), route_half + ROUTE_MARGIN, feather)
+		var value := _band(_distance(route, p), route_half + ROUTE_MARGIN, feather) \
+				* bridge_gate(p)
 		if value >= 1.0:
 			return 1.0
 		for index: int in streets.size():
@@ -705,6 +756,11 @@ var _datum_grid: PackedFloat32Array = PackedFloat32Array()
 ## [method _merge_pads] y lo lee el informe.
 var _pad_group: PackedInt32Array = PackedInt32Array()
 
+## Pads de POI rural resueltos, en el orden en que se declararon. Se copian al
+## `params` del `.res` para que `tools/terrain_check.gd` pueda medirlos sin
+## volver a leer el diseño.
+var _poi_pads: Array = []
+
 ## Geometría intocable para los pads: bordes de calzada y lados de manzana
 ## ([member _no_flat]), ejes del viario y lados de manzana ([member _keep_level]).
 var _no_flat: PackedVector2Array = PackedVector2Array()
@@ -714,6 +770,8 @@ var _keep_level: PackedVector2Array = PackedVector2Array()
 func _initialize() -> void:
 	var args := _user_args()
 	_spec = _load_spec(String(args.get("design", "")))
+	if _spec.is_empty():
+		return
 
 	var planner: Variant = load(PLANNER_SCRIPT)
 	if planner == null:
@@ -728,6 +786,14 @@ func _initialize() -> void:
 		return
 	_composer.setup(_plan, _spec)
 	_resolve_creek()
+	# Después del arroyo, porque el vano se ancla en el cruce que acaba de
+	# resolverse, y **antes** de los pads, porque la cota de un pad es la altura
+	# que ese punto ya tenía y el vano la cambia.
+	var bridge_spec: Dictionary = _spec["bridge"]
+	var bridge_at: Array = bridge_spec.get("at", [])
+	if bridge_at.size() == 2:
+		_composer.set_bridge(Vector2(float(bridge_at[0]), float(bridge_at[1])),
+				float(bridge_spec.get("span", 16.0)))
 	# Después del arroyo: la cota de un pad es la altura que ese punto ya tenía,
 	# y el cauce forma parte de ella.
 	_setup_pads()
@@ -771,19 +837,26 @@ func _initialize() -> void:
 ## Spec por defecto, o el del JSON de diseño si se pasó `--design=`. Del archivo
 ## se leen sólo las tres claves que le tocan a este script; el resto lo usa
 ## `city/town_design.gd` (WP-T3).
+## ## Por qué falla fuerte (WP-D1)
+##
+## Hasta acá, un diseño que no existiera o que no parseara dejaba un
+## `push_error` y **seguía** con el spec de reserva. Eso ya costó un horneado
+## entero: el primer comentario `//` del archivo rompía el parseo, el terreno
+## salía con el arroyo del andamio y el puente quedaba sobre tierra firme, y
+## nadie se enteró hasta mirar una captura. Un terreno horneado con otro diseño
+## que el del plano no es un terreno degradado: es un terreno equivocado, y
+## encima uno que se comitea. Cualquier problema al leer el diseño corta la
+## corrida con código 1.
 func _load_spec(path: String) -> Dictionary:
 	var spec := DEFAULT_SPEC.duplicate(true)
 	var source := path if not path.is_empty() else DEFAULT_DESIGN
 	if not FileAccess.file_exists(source):
-		if not path.is_empty():
-			push_error("build_terrain: no existe '%s'" % source)
-		else:
-			print("  sin diseño en %s: se hornea con el spec de reserva" % source)
-		return spec
+		_die("no existe el diseño '%s'" % source)
+		return {}
 	var text := FileAccess.get_file_as_string(source)
 	if text.is_empty():
-		push_error("build_terrain: no se pudo leer '%s'" % source)
-		return spec
+		_die("no se pudo leer '%s' (o está vacío)" % source)
+		return {}
 	# El diseño admite comentarios `//` y `/* */` (`TownDesign` §1) y acá se
 	# leía crudo: el primer comentario del archivo rompía el parseo, se caía al
 	# spec de reserva **sin fallar** y el terreno salía horneado con otro arroyo.
@@ -791,18 +864,34 @@ func _load_spec(path: String) -> Dictionary:
 	# que es la regla de este script— para que los dos lean exactamente igual.
 	var design_script: Variant = load(DESIGN_SCRIPT)
 	var clean := text if design_script == null else String(design_script._strip_comments(text))
-	var parsed: Variant = JSON.parse_string(clean)
+	var json := JSON.new()
+	if json.parse(clean) != OK:
+		_die("'%s' no es JSON válido: línea %d, %s"
+				% [source, json.get_error_line(), json.get_error_message()])
+		return {}
+	var parsed: Variant = json.data
 	if not (parsed is Dictionary):
-		push_error("build_terrain: '%s' no contiene un objeto JSON" % source)
-		return spec
+		_die("'%s' no contiene un objeto JSON" % source)
+		return {}
 	var design: Dictionary = parsed
 	for key: String in ["terrain", "creek", "bridge"]:
 		if design.has(key) and design[key] is Dictionary:
 			var section: Dictionary = spec[key]
 			section.merge(design[key] as Dictionary, true)
 			spec[key] = section
-	print("  spec leído de %s" % source)
+	# Los POI se copian tal cual: el terreno sólo mira los que caen **fuera** de
+	# las manzanas, que son los que no tienen cota municipal de la que colgarse.
+	var poi: Array = design.get("poi", []) if design.get("poi", []) is Array else []
+	spec["poi"] = poi
+	print("  spec leído de %s (%d POI declarados)" % [source, poi.size()])
 	return spec
+
+
+## Corta la corrida con un mensaje. Devuelve para que quien la llame pueda salir
+## sin dejar a medio construir lo que ya escribió.
+func _die(message: String) -> void:
+	push_error("build_terrain: %s" % message)
+	quit(1)
 
 
 # --------------------------------------------------------------------------
@@ -884,8 +973,88 @@ func _setup_pads() -> void:
 		var margin := clampf(_pad_reach(slot, _no_flat), PAD_MARGIN_MIN, PAD_MARGIN)
 		_composer.pad_half[slot] = _composer.pad_half[slot] + Vector2(margin, margin)
 		base.append(_composer.base_height(centre))
+	_setup_poi_pads(base)
 	_pad_group = _merge_pads(base)
 	_settle_pads(base)
+
+
+## Un pad plano bajo cada POI **rural**, o sea cada uno que el diseño declara con
+## `block: null`.
+##
+## Los POI de dentro de una manzana ya apoyan: la manzana es plana al milímetro
+## y a una sola cota. Los de afuera —el silo y el galpón del lote rural— están
+## sobre el ruido, y un galpón de 18 × 10 m sobre lomas de ±3,5 m apoya en dos
+## esquinas y flota en las otras dos.
+##
+## Los POI se leen del **JSON del diseño** y no del plano resuelto: lo único que
+## hace falta acá es el rectángulo (`pos`, `footprint`, `yaw_deg`), que es dato
+## de diseño.
+##
+## ## «Rural» es lo que el diseño declara, no dónde cae el punto
+##
+## Hasta WP-D4a esta rutina decidía por geometría —`_inside_any_block(centre)`—
+## y [method TownPlanner._place_parcels] por el dato —`block == null`—, así que
+## las dos podían discrepar: un POI declarado en una manzana pero con el centro
+## dos centímetros afuera se llevaba un pad que nadie esperaba, y uno declarado
+## rural que cayera dentro del polígono de una manzana se quedaba sin él y
+## flotaba. Manda el dato, que es el que el diseñador escribe (hallazgo 14).
+##
+## Hoy el diseño declara dos POI rurales —el silo y el galpón— y
+## `tools/terrain_check.gd` ata su fila a esa cuenta (hallazgo 15).
+func _setup_poi_pads(base: PackedFloat32Array) -> void:
+	_poi_pads.clear()
+	var declared: Array = _spec.get("poi", [])
+	for entry: Variant in declared:
+		if not (entry is Dictionary):
+			continue
+		var poi: Dictionary = entry
+		var position: Array = poi.get("pos", [])
+		if position.size() != 2:
+			push_error("build_terrain: el POI '%s' no declara 'pos'"
+					% String(poi.get("id", "?")))
+			continue
+		if not (poi.has("block") and poi["block"] == null):
+			continue
+		var centre := Vector2(float(position[0]), float(position[1]))
+		var footprint: Array = poi.get("footprint", [])
+		var size := Vector2(float(footprint[0]) if footprint.size() == 2 else 8.0,
+				float(footprint[1]) if footprint.size() == 2 else 8.0)
+		var yaw := deg_to_rad(float(poi.get("yaw_deg", 0.0)))
+		var slot := _composer.pad_centre.size()
+		_composer.pad_centre.append(centre)
+		# `-sin(yaw)` y no `+sin(yaw)`: el giro de Godot alrededor de `+Y` es
+		# horario visto desde arriba, así que el eje del ancho de una huella con
+		# rumbo `yaw` es `(cos yaw, −sin yaw)`. Es exactamente lo que calcula
+		# [method TownPlan.parcel_footprint] (`along = (-normal.z, normal.x)` con
+		# `normal = (-sin yaw, −cos yaw)`) y lo que ya hacía [method _setup_pads]
+		# para los caseríos. Con el signo cambiado, el rectángulo del pad salía
+		# **espejado** respecto de la huella en cuanto el POI tenía giro ≠ 0: el
+		# galpón de campo se apoyaba sobre una plataforma girada +17° mientras él
+		# se sentaba a −17°, y las dos esquinas de la diagonal larga quedaban en
+		# el aire. WP-D1 lo introdujo y WP-D2 lo tapó poniendo el `yaw_deg` del
+		# galpón en cero; acá se arregla la causa y el galpón vuelve al rumbo de
+		# la ruta.
+		_composer.pad_axis.append(Vector2(cos(yaw), -sin(yaw)))
+		_composer.pad_half.append(size * 0.5)
+		_composer.pad_feather.append(PAD_FEATHER_MIN)
+		_composer.pad_datum.append(0.0)
+		# El margen del encargo son tres metros, pero se recorta contra lo que no
+		# se puede aplanar: un POI declarado al borde de la banquina no puede
+		# llevarse la calzada por delante, y una plataforma que muerde el asfalto
+		# es un defecto que `city_check` ve y el diseñador no.
+		var margin := clampf(_pad_reach(slot, _no_flat), PAD_MARGIN_MIN, POI_PAD_MARGIN)
+		_composer.pad_half[slot] = _composer.pad_half[slot] + Vector2(margin, margin)
+		base.append(_composer.base_height(centre))
+		_poi_pads.append({
+			"id": String(poi.get("id", "?")),
+			"pos": [snappedf(centre.x, 0.001), snappedf(centre.y, 0.001)],
+			"half": [snappedf(_composer.pad_half[slot].x, 0.001),
+					snappedf(_composer.pad_half[slot].y, 0.001)],
+			"yaw_deg": snappedf(float(poi.get("yaw_deg", 0.0)), 0.001),
+			"slot": slot,
+		})
+	if not _poi_pads.is_empty():
+		print("  pads de POI rural: %d" % _poi_pads.size())
 
 
 ## Reparte los pads en plataformas y devuelve el grupo de cada uno.
@@ -1349,6 +1518,15 @@ func _bake_grid() -> void:
 	_terrain.size = GRID_SIZE
 	_terrain.heights = data
 	_terrain.seed = int((_spec["terrain"] as Dictionary).get("seed", 0))
+	# Lo que el check tiene que poder medir sin volver a leer el diseño: los pads
+	# de POI rural que este horneado resolvió y el vano con el que se abrió la
+	# máscara. Van dentro del `.res` porque el `.res` es lo que se comitea.
+	var bridge_spec: Dictionary = _spec["bridge"]
+	bridge_spec["fade"] = BRIDGE_FADE
+	bridge_spec["gap_datum"] = snappedf(_composer.profile(_composer.bridge_arc), 0.0001) \
+			if _composer.bridge_arc >= 0.0 else 0.0
+	_spec["bridge"] = bridge_spec
+	_spec["poi_pads"] = _poi_pads
 	_terrain.params = _spec
 
 
@@ -1546,7 +1724,12 @@ func _report() -> void:
 	print("  perfil de ruta: amplitud %.3f m · gradiente máximo %.2f %%"
 			% [_composer.profile_amplitude, _max_profile_grade() * 100.0])
 
-	print("  pendiente máxima bajo la ruta %.2f %%" % (_axis_grade(_composer.route) * 100.0))
+	# La ruta se mide **fuera del vano**: dentro del vano el terreno se va a
+	# propósito tres metros por debajo de la rasante y lo que sostiene la calzada
+	# es el tablero, no el suelo. Medirlo todo junto daba un 52 % que sólo decía
+	# «hay un puente».
+	print("  pendiente máxima bajo la ruta %.2f %% (fuera del vano)"
+			% (_axis_grade(_composer.route, true) * 100.0))
 	var worst_street := 0.0
 	var worst_index := -1
 	for index: int in _composer.streets.size():
@@ -1572,6 +1755,7 @@ func _report() -> void:
 	print("  arroyo: %d vértices · banda r %.1f–%.1f m · cruce en (%.1f, %.1f)"
 			% [_composer.creek.size(), _creek_radius(false), _creek_radius(true),
 			float(bridge[0]), float(bridge[1])])
+	_report_bridge()
 	var clearance := _bank_clearance()
 	print("  arroyo: eje a %.1f m del eje de la ruta fuera del vano" % _creek_clearance_route())
 	print("  arroyo: holgura mínima del borde del banco %.2f m contra %s, en (%.1f, %.1f)%s"
@@ -1604,6 +1788,53 @@ func _report() -> void:
 	print("  recursos: terreno %d KB · colisión %d KB"
 			% [_file_size(TERRAIN_PATH) / 1024, _file_size(COLLISION_PATH) / 1024])
 	print("  firma: %s" % _terrain.signature())
+
+
+## Qué tan hondo queda el vano bajo la rasante de la ruta y qué tan pegado al
+## perfil sigue el corredor justo afuera.
+##
+## Son las dos mitades de la misma condición: adentro el terreno tiene que
+## **irse** para que el puente sea un puente y no una alcantarilla pintada;
+## afuera tiene que seguir siendo calle, porque el resto de la ruta apoya ahí.
+func _report_bridge() -> void:
+	if _composer.bridge_arc < 0.0:
+		print("  vano: el diseño no declara puente")
+		return
+	var axis := _composer.route
+	var arcs := _composer.route_arcs
+	var half := _composer.bridge_span * 0.5
+	var inside := 0.0
+	var outside := 0.0
+	var step := -half
+	while step <= half:
+		var p := _point_on_route(axis, arcs, _composer.bridge_arc + step)
+		inside = maxf(inside, _composer.profile(_composer.bridge_arc + step)
+				- _terrain.height_at(p.x, p.y))
+		step += 0.5
+	for side: float in [-1.0, 1.0]:
+		for offset: float in [6.0, 10.0, 16.0, 24.0]:
+			var arc := _composer.bridge_arc + side * (half + BRIDGE_FADE + offset)
+			var p := _point_on_route(axis, arcs, arc)
+			outside = maxf(outside, absf(_terrain.height_at(p.x, p.y)
+					- _composer.profile(arc)))
+	print("  vano: luz %.1f m centrada en el arco %.1f · el terreno baja %.2f m bajo la "
+			% [_composer.bridge_span, _composer.bridge_arc, inside]
+			+ "rasante · fuera del vano el corredor se aparta %.3f m del perfil" % outside)
+
+
+## Punto de la polilínea [param line] al arco [param arc].
+func _point_on_route(line: PackedVector2Array, arcs: PackedFloat32Array,
+		arc: float) -> Vector2:
+	if line.size() < 2:
+		return Vector2.ZERO
+	var target := clampf(arc, 0.0, arcs[arcs.size() - 1])
+	for index: int in maxi(line.size() - 1, 0):
+		if target > arcs[index + 1]:
+			continue
+		var span := arcs[index + 1] - arcs[index]
+		var t := 0.0 if span <= 0.0 else (target - arcs[index]) / span
+		return line[index].lerp(line[index + 1], t)
+	return line[line.size() - 1]
 
 
 ## Metros de campo que quedan entre el pad [param index] y el núcleo del pad de
@@ -1705,7 +1936,7 @@ func _max_profile_grade() -> float:
 
 ## Pendiente máxima del terreno bajo un eje, muestreado cada dos metros y sólo
 ## dentro de la rejilla: fuera de ella la altura es cero por definición.
-func _axis_grade(axis: PackedVector2Array) -> float:
+func _axis_grade(axis: PackedVector2Array, skip_bridge: bool = false) -> float:
 	var worst := 0.0
 	var half := float(GRID_SIZE - 1) * GRID_CELL * 0.5
 	var samples := _samples_of(axis, 2.0)
@@ -1715,6 +1946,8 @@ func _axis_grade(axis: PackedVector2Array) -> float:
 		if absf(p.x - _composer.centre.x) > half or absf(p.y - _composer.centre.y) > half:
 			continue
 		if absf(q.x - _composer.centre.x) > half or absf(q.y - _composer.centre.y) > half:
+			continue
+		if skip_bridge and (_composer.bridge_gate(p) < 1.0 or _composer.bridge_gate(q) < 1.0):
 			continue
 		var rise := absf(_terrain.height_at(q.x, q.y) - _terrain.height_at(p.x, p.y))
 		worst = maxf(worst, rise / maxf(p.distance_to(q), 0.0001))
@@ -1809,23 +2042,17 @@ func _note_gap(store: Dictionary, what: String, gap: float, at: Vector2) -> void
 		store[what] = {"gap": gap, "at": at}
 
 
-## Eje de la calle [param index] **estirado por sus dos cabos**, en XZ.
+## Eje de la calle [param index], en XZ, **con su cabo ya incluido**.
+##
+## No estira nada y no tiene que hacerlo: `_composer.streets[index]` es la calle
+## `index + 1` del grafo y [method TownPlanner.build_graph] ya la horneó de nodo
+## a nodo prolongada `stub_a` metros antes y `stub_b` después. Sumarle otra vez
+## `street_stub_of` —que es lo que hacía hasta WP-D4a— dejaba el corredor del
+## terreno al doble de cabo y en desacuerdo con el que mide
+## `tools/terrain_check.gd._corridor_distance()`. Las dos rutinas miden ahora el
+## mismo corredor (hallazgo 1).
 func _street_corridor(index: int) -> PackedVector2Array:
-	var axis := _composer.streets[index].duplicate()
-	if axis.size() < 2:
-		return axis
-	# `_composer.streets[index]` es la calle `index + 1` **del grafo** (la `0` es
-	# la ruta), y `street_stub_of` indexa el grafo. Sin el `+ 1` cada calle se
-	# estiraba con los cabos de la anterior y la holgura del arroyo se medía
-	# contra un corredor que no existe.
-	var head: float = float(_plan.street_stub_of(index + 1, 0))
-	var tail: float = float(_plan.street_stub_of(index + 1, 1))
-	if head > 0.0:
-		axis[0] = axis[0] + (axis[0] - axis[1]).normalized() * head
-	if tail > 0.0:
-		var last := axis.size() - 1
-		axis[last] = axis[last] + (axis[last] - axis[last - 1]).normalized() * tail
-	return axis
+	return _composer.streets[index].duplicate()
 
 
 ## Distancia mínima del **eje** del arroyo al eje de la ruta, fuera del vano.

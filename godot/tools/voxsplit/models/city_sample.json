@@ -1,0 +1,61 @@
+{
+  "name": "city_sample",
+  "comment": [
+    "Mobiliario urbano a partir de 'city-Free Sample.zip' (WP-D1).",
+    "Paso del OBJ 0.05 u por voxel x escala 1.0 => 1 voxel = 5 cm, el mismo grano que",
+    "las casas del pack nuke, y las medidas del OBJ son ya metros.",
+    "Las once piezas del pack comparten una sola paleta de 256x1 y ninguna esta",
+    "centrada: cada una conserva su posicion en la escena original (la parada esta en",
+    "x=-40, z=+11). objvox.normalize las recentra, que es lo que pedia docs/17 §7.1.",
+    "De las once se usan dos: la parada de colectivo y el toldo rojo. Las cuatro",
+    "esquinas de vereda y los tres bloques apilables no hacen falta (el viario de",
+    "cintas de WP-T1 resuelve vereda y cordon) y el toldo grande de 5,4 x 5,4 m es una",
+    "cubierta de mercado, no un toldo de puerta."
+  ],
+  "source": "../../../assets/_raw/city-Free Sample.zip",
+  "member_prefix": "Free Sample/",
+  "step": 0.05,
+  "scale": 1.0,
+  "palette_texture": "city_sample_palette.png",
+  "emissive_texture": "",
+
+  "budgets": {"prop": 800},
+  "budget_note": [
+    "800 y no 300: la parada de colectivo es un refugio de 4 m con banco y techo, y a",
+    "5 cm por voxel son 1 714 triangulos. Diezmado x2 (bloques de 10 cm) la deja en",
+    "728 con la silueta intacta; x3 la destruye (48 triangulos: el voto por bloque se",
+    "come las chapas de 2 celdas). El toldo va en 452. Son dos piezas sueltas y no",
+    "instanciadas en masa, asi que el techo se pone donde cabe la parada."
+  ],
+
+  "materials": {"prop": "res://assets/town/materials/town_city_props.tres"},
+
+  "palette_families": {},
+  "window_indices": {},
+
+  "palette_paint": {
+    "62": [179, 79, 15],
+    "63": [217, 99, 20],
+    "64": [242, 115, 26]
+  },
+  "palette_paint_note": [
+    "El pack trae el toldo de puerta en rojo (62/63/64) y el de mercado en amarillo",
+    "(74..79), y ninguno en naranja. La gramatica de docs/17 §4 dice que el toldo",
+    "naranja ES la pila: un toldo de otro color al lado de un marcador de bateria",
+    "seria una mentira legible. Los tres indices del toldo rojo no los usa ninguna",
+    "otra pieza del pack (verificado en el reporte), asi que repintarlos a los tres",
+    "tonos de (0.95, 0.45, 0.10) no toca nada mas."
+  ],
+
+  "pieces": {
+    "bus_stop": {"file": "Voxel City-7-Bus Stop.obj", "decimate": 2},
+    "awning": {"file": "Voxel City-9-Fabric Roof_Red-1.obj", "decimate": 2}
+  },
+
+  "houses": {},
+
+  "props": {
+    "bus_stop": {"piece": "bus_stop"},
+    "awning_orange": {"piece": "awning"}
+  }
+}

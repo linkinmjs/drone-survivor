@@ -91,6 +91,9 @@ class PieceResult:
     budget: int = 0
     glb_bytes: int = 0
     window_voxels: int = 0
+    origin: str = "centre"
+    #: Factor propio de la pieza sobre el vóxel del pack. 1.0 es «el del pack».
+    scale: float = 1.0
 
     @property
     def size_metres(self) -> tuple[float, float, float]:
@@ -144,7 +147,9 @@ class TownSpec:
         """Ruta completa de un OBJ del pack, con la forma ``archivo.zip!miembro``."""
         prefix = str(self.raw.get("member_prefix", ""))
         base = self.source()
-        if base.lower().endswith(".zip"):
+        # `.rar` además de `.zip` desde WP-D1: `Foliage.rar` es el único pack del
+        # catálogo que no viene en ZIP y `objvox` lo lee por tubería de UnRAR.
+        if base.lower().endswith((".zip", ".rar")):
             return f"{base}{objvox.ZIP_SEPARATOR}{prefix}{file_name}"
         return str(Path(base) / prefix / file_name)
 
@@ -158,9 +163,16 @@ def load_spec(path: str | Path) -> TownSpec:
         raise ComposeError(f"no se pudo leer '{file_path}': {exc}") from exc
     except json.JSONDecodeError as exc:
         raise ComposeError(f"'{file_path}' no es JSON válido: {exc}") from exc
-    for key in ("pieces", "houses", "props", "palette_families"):
-        if key not in data:
-            raise ComposeError(f"'{file_path}' no declara '{key}'")
+    if "pieces" not in data:
+        raise ComposeError(f"'{file_path}' no declara 'pieces'")
+    # `houses`, `props` y `palette_families` son opcionales desde WP-D1: los packs de
+    # follaje y de mobiliario que entran ahí no componen casas y no están *dithered*, así
+    # que no necesitan familias. Lo que **no** puede faltar es que el spec emita algo.
+    for key in ("houses", "props", "palette_families"):
+        data.setdefault(key, {})
+    if not data["houses"] and not data["props"]:
+        raise ComposeError(f"'{file_path}' no declara ni 'houses' ni 'props': "
+                           f"no emitiría ninguna pieza")
     return TownSpec(raw=data, path=file_path)
 
 
@@ -494,12 +506,28 @@ def _attach(spec: TownSpec, pieces: dict[str, Piece],
 # --------------------------------------------------------------------------- #
 
 
+#: Dónde cae el origen de la pieza dentro de su huella.
+#:
+#: `centre` es la convención del pueblo —centro de la base, `y = 0`— y la que exige
+#: `CityGrid`. `start_x` la rompe **a propósito** para los tramos de cerco: un tramo se
+#: siembra encadenando copias a lo largo de su eje, y para eso el origen tiene que estar
+#: en el extremo inicial, no en el medio. Queda declarado en el manifiesto para que quien
+#: lo siembre no tenga que adivinarlo.
+ORIGIN_MODES = ("centre", "start_x")
+
+
 def _spec_for(voxels: dict[tuple[int, int, int], int], piece_id: str,
               voxel_size: float, palette_texture: str,
-              emissive_indices: Iterable[int]) -> parts_module.PartsSpec:
-    """`PartsSpec` de una pieza de una sola parte, centrada en XZ y apoyada en `y = 0`."""
+              emissive_indices: Iterable[int],
+              origin_mode: str = "centre") -> parts_module.PartsSpec:
+    """`PartsSpec` de una pieza de una sola parte, apoyada en `y = 0`."""
     size = tuple(max(c[i] for c in voxels) + 1 for i in range(3))
+    if origin_mode not in ORIGIN_MODES:
+        raise ComposeError(f"'{piece_id}': origen '{origin_mode}' desconocido; "
+                           f"se esperaba uno de {list(ORIGIN_MODES)}")
     origin = objvox.origin_for(size)
+    if origin_mode == "start_x":
+        origin = (0.0, origin[1], origin[2])
     header = {
         "voxel_size": voxel_size,
         "origin_voxel": list(origin),
@@ -525,15 +553,84 @@ def _pascal(name: str) -> str:
     return "".join(chunk[:1].upper() + chunk[1:] for chunk in name.split("_") if chunk)
 
 
+def _repeat(prop_id: str, voxels: dict[tuple[int, int, int], int],
+            size: Sequence[int], recipe: Any) -> dict[tuple[int, int, int], int]:
+    """Encadena `count` copias de la pieza a lo largo de un eje, pegadas por su huella.
+
+    Es lo que convierte el cerco de 1,2 m del pack en el tramo de 3,6 m que siembra el
+    plano: repetir en el sembrado costaría un nodo por poste, y repetir acá cuesta una
+    malla más grande y **un solo** lote de dibujo por tramo.
+    """
+    if not recipe:
+        return voxels
+    entry: dict[str, Any] = recipe
+    axis_name = str(entry.get("axis", "x"))
+    if axis_name not in ("x", "z"):
+        raise ComposeError(f"'{prop_id}': 'repeat.axis' es '{axis_name}'; sólo 'x' o 'z'")
+    axis = 0 if axis_name == "x" else 2
+    count = int(entry.get("count", 1))
+    if count < 1:
+        raise ComposeError(f"'{prop_id}': 'repeat.count' = {count}")
+    pitch = int(entry.get("pitch", size[axis]))
+    if pitch < 1:
+        raise ComposeError(f"'{prop_id}': 'repeat.pitch' = {pitch}")
+    out: dict[tuple[int, int, int], int] = {}
+    for copy in range(count):
+        offset = [0, 0, 0]
+        offset[axis] = copy * pitch
+        _blit(out, voxels, offset)
+    return out
+
+
+def _paint_palette(spec: TownSpec, palette: list[tuple[int, int, int, int]]
+                   ) -> list[tuple[int, int, int, int]]:
+    """Repinta índices de la paleta emitida según `palette_paint` del spec.
+
+    El pack `city` trae el mismo toldo en rojo y en amarillo y ninguno en naranja, y la
+    gramática de `docs/17` §4 dice que **el toldo naranja es la pila**: un toldo de otro
+    color junto a un marcador de batería es una mentira. Repintar los tres índices del
+    toldo rojo —que no usa ninguna otra pieza del pack, verificado en el reporte— cuesta
+    tres píxeles de la paleta y no toca la geometría.
+    """
+    paint = spec.raw.get("palette_paint") or {}
+    if not paint:
+        return palette
+    out = list(palette)
+    for key, colour in paint.items():
+        index = int(key)
+        if not 1 <= index <= objvox.PALETTE_WIDTH:
+            raise ComposeError(f"'palette_paint': el índice {index} está fuera de "
+                               f"1..{objvox.PALETTE_WIDTH}")
+        values = [int(c) for c in list(colour)[:3]]
+        if len(values) != 3 or any(not 0 <= c <= 255 for c in values):
+            raise ComposeError(f"'palette_paint[{index}]': {list(colour)} no es un RGB "
+                               f"de tres componentes en 0..255")
+        out[index - 1] = (values[0], values[1], values[2], 255)
+    return out
+
+
 def _emit(piece_id: str, kind: str, voxels: dict[tuple[int, int, int], int],
           spec: TownSpec, out_dir: Path, palette_texture: str, budget: int,
           source_triangles: int, used: list[str],
-          window_indices: set[int]) -> PieceResult:
-    """Malla, escribe y valida el GLB de una pieza compuesta."""
+          window_indices: set[int], origin_mode: str = "centre",
+          piece_scale: float = 1.0) -> PieceResult:
+    """Malla, escribe y valida el GLB de una pieza compuesta.
+
+    `piece_scale` multiplica el vóxel **de esa pieza** sobre el del pack. Es la
+    única palanca de escala que no cuesta ni un triángulo: la rejilla no cambia,
+    cambia cuánto mide cada celda, así que un árbol de 4,70 m pasa a 11,75 sin
+    remallar nada. Hace falta porque un pack de vegetación viene a su propia
+    escala y no a la del pueblo: los árboles de `Foliage.rar` salen entre 1,2 y
+    4,7 m y al lado de una casa de 3 m no son árboles, son arbustos (`docs/17`
+    §3 pide sauces que tapen las casas).
+    """
     if not voxels:
         raise ComposeError(f"'{piece_id}': no hay ningún vóxel que mallar")
+    if piece_scale <= 0.0:
+        raise ComposeError(f"'{piece_id}': 'scale' = {piece_scale}")
     voxels, _size, _offset = objvox.normalize(voxels)
-    parts_spec = _spec_for(voxels, piece_id, spec.voxel_size, palette_texture, ())
+    parts_spec = _spec_for(voxels, piece_id, spec.voxel_size * piece_scale,
+                           palette_texture, (), origin_mode=origin_mode)
     part = parts_spec.parts[0]
     mesh = mesher.build_part(voxels, parts_spec, part)
     if mesher.EMISSIVE in mesh.surfaces:
@@ -555,6 +652,8 @@ def _emit(piece_id: str, kind: str, voxels: dict[tuple[int, int, int], int],
         budget=budget,
         glb_bytes=info.byte_length,
         window_voxels=sum(1 for i in voxels.values() if i in window_indices),
+        origin=origin_mode,
+        scale=piece_scale,
     )
 
 
@@ -569,17 +668,24 @@ def build_town(spec_path: str | Path, out_dir: str | Path,
         print(f"voxsplit {VERSION} · compose «{spec.name}» · vóxel {spec.voxel_size * 100:.0f} cm")
     pieces, palette = load_pieces(spec, palette_map, verbose=verbose)
 
+    palette = _paint_palette(spec, palette)
     palette_texture = str(spec.raw.get("palette_texture", f"{spec.name}_palette.png"))
     glbwriter.write_palette_png(out / palette_texture, palette)
     windows = {int(k): v for k, v in (spec.raw.get("window_indices") or {}).items()}
-    emissive_texture = str(spec.raw.get("emissive_texture", f"{spec.name}_emissive.png"))
-    write_emissive_png(out / emissive_texture, windows)
+    # Un pack sin ventanas —el follaje, el mobiliario de aldea— no lleva máscara: escribir
+    # un PNG negro de 256×1 por pack sería una textura y un material de más por nada.
+    emissive_texture = str(spec.raw.get("emissive_texture", "")) if "emissive_texture" in \
+        spec.raw else (f"{spec.name}_emissive.png" if windows else "")
+    if emissive_texture:
+        write_emissive_png(out / emissive_texture, windows)
 
-    budgets = spec.raw.get("budgets", {})
+    budgets = {str(k): int(v) for k, v in (spec.raw.get("budgets") or {}).items()}
     # Los 2 400 son los de `tools/town_import_check.gd`: `house_b` mide 2 254 con la
     # hiedra del pack intacta y el 1 500 del plan no era alcanzable a 5 cm por vóxel.
-    house_budget = int(budgets.get("house", 2400))
-    prop_budget = int(budgets.get("prop", 300))
+    budgets.setdefault("house", 2400)
+    budgets.setdefault("prop", 300)
+    budgets.setdefault("foliage", budgets["prop"])
+    house_budget = budgets["house"]
 
     results: list[PieceResult] = []
     failures: list[str] = []
@@ -609,12 +715,19 @@ def build_town(spec_path: str | Path, out_dir: str | Path,
         piece = pieces.get(str(entry["piece"]))
         if piece is None:
             raise ComposeError(f"prop '{prop_id}' usa la pieza desconocida '{entry['piece']}'")
+        kind = str(entry.get("kind", "prop"))
+        if kind not in budgets:
+            raise ComposeError(f"prop '{prop_id}' declara la clase '{kind}', que no tiene "
+                               f"presupuesto en 'budgets' {sorted(budgets)}")
         voxels = piece.copy()
         if bool(entry.get("mirror", False)):
             voxels = objvox.mirror_x(voxels)
-        result = _emit(claim(str(prop_id), "props"), "prop", voxels, spec, out,
-                       palette_texture, prop_budget, piece.source_triangles,
-                       [piece.id], window_set)
+        voxels = _repeat(prop_id, voxels, piece.size, entry.get("repeat"))
+        result = _emit(claim(str(prop_id), "props"), kind, voxels, spec, out,
+                       palette_texture, budgets[kind], piece.source_triangles,
+                       [piece.id], window_set,
+                       origin_mode=str(entry.get("origin", "centre")),
+                       piece_scale=float(entry.get("scale", 1.0)))
         results.append(result)
 
     # Mallas no estancas: la cáscara por normales y el relleno por inundación discrepan.
@@ -642,6 +755,12 @@ def build_town(spec_path: str | Path, out_dir: str | Path,
                             f"> presupuesto {result.budget}")
         centre = [(result.aabb_min[i] + result.aabb_max[i]) * 0.5 for i in range(3)]
         for i in (0, 2):
+            if i == 0 and result.origin == "start_x":
+                if abs(result.aabb_min[0]) > 1e-3:
+                    failures.append(f"{result.piece_id}: arranca en x = "
+                                    f"{result.aabb_min[0]:.4f} m y declara origen "
+                                    f"'start_x'")
+                continue
             if abs(centre[i]) > 1e-3:
                 failures.append(f"{result.piece_id}: centro {'xz'[i // 2]} = {centre[i]:.4f} m")
         if abs(result.aabb_min[1]) > 1e-3:
@@ -665,6 +784,12 @@ def build_town(spec_path: str | Path, out_dir: str | Path,
     return results, failures, inventory
 
 
+def _scene_path(result: PieceResult) -> str:
+    """Dónde vive la escena heredada de una pieza: las casas arriba, lo demás en `props/`."""
+    folder = "town" if result.kind in ("house", "building") else "town/props"
+    return f"res://city/pieces/{folder}/{result.piece_id}.tscn"
+
+
 def _inventory(spec: TownSpec, pieces: dict[str, Piece], results: list[PieceResult],
                windows: dict[int, Sequence[int]], palette_map: dict[int, int],
                palette_texture: str, emissive_texture: str) -> dict[str, Any]:
@@ -679,6 +804,11 @@ def _inventory(spec: TownSpec, pieces: dict[str, Piece], results: list[PieceResu
         "palette_texture": palette_texture,
         "emissive_texture": emissive_texture,
         "window_indices": {str(k): list(v) for k, v in sorted(windows.items())},
+        # Qué material de Godot le toca a cada clase de pieza de este pack. Vive en el
+        # sidecar y no en una tabla de `import_town_piece.gd` por la misma razón que la
+        # clase: el importador no tiene que saber qué packs existen.
+        "materials": {str(k): str(v) for k, v in
+                      sorted((spec.raw.get("materials") or {}).items())},
         "palette_families": {str(rep): sorted(i for i, r in palette_map.items() if r == rep)
                              for rep in sorted(set(palette_map.values()))},
         "sources": {
@@ -703,9 +833,12 @@ def _inventory(spec: TownSpec, pieces: dict[str, Piece], results: list[PieceResu
                 "aabb_max": [round(c, 4) for c in result.aabb_max],
                 "size": [round(c, 4) for c in result.size_metres],
                 "window_voxels": result.window_voxels,
-                "scene": f"res://city/pieces/town/{result.piece_id}.tscn"
-                if result.kind == "house" else
-                f"res://city/pieces/town/props/{result.piece_id}.tscn",
+                "origin": result.origin,
+                # Factor propio sobre el vóxel del pack: el vóxel real de esta
+                # pieza es `voxel_size * scale`. 1.0 quiere decir «el del pack».
+                "scale": round(result.scale, 4),
+                "voxel_size": round(spec.voxel_size * result.scale, 6),
+                "scene": _scene_path(result),
             } for result in results
         },
     }
@@ -757,6 +890,9 @@ def _report(spec: TownSpec, pieces: dict[str, Piece], results: list[PieceResult]
         add(f"  {result.piece_id:<16} {result.kind:<6} {result.triangle_count:>6} "
             f"{result.budget:>7} {result.source_triangles:>9} {result.voxel_count:>8}  "
             f"{box:<24} {result.window_voxels}")
+        if abs(result.scale - 1.0) > 1e-6:
+            add(f"      escala : ×{result.scale:g} sobre el vóxel del pack "
+                f"({spec.voxel_size * 100:.0f} cm → {spec.voxel_size * result.scale * 100:.0f} cm)")
         add(f"      partes: {', '.join(result.parts)}")
         add(f"      AABB   : min {[round(c, 4) for c in result.aabb_min]}  "
             f"max {[round(c, 4) for c in result.aabb_max]}")

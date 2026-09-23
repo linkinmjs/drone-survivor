@@ -28,8 +28,16 @@ render_mode cull_back, diffuse_burley, specular_schlick_ggx;
 // —que el horneado pinta de tierra— como un agujero. Con la tierra y la arena
 // por encima del pasto, la pendiente se lee seca, el cauce se lee arenoso y
 // el relieve se sigue con el ojo desde el dron.
+//
+// WP-D3 vuelve a subir **sólo la tierra**, de (0.196, 0.152, 0.104) a
+// (0.268, 0.214, 0.146): un 37 % más clara, mismo tono. El pasto no se toca
+// porque es el que empalma con `field.tres` en el anillo lejano y moverlo
+// mostraría la costura a 256 m. Lo que se busca es el **patio**: con
+// `CIVIL_DIRT` en 0,42 el interior de cada manzana pasa a ser 42 % tierra, y
+// entre las dos palancas la luminancia del patio sube sin que el campo abierto
+// cambie un punto.
 uniform vec3 grass_color : source_color = vec3(0.152, 0.158, 0.104);
-uniform vec3 dirt_color : source_color = vec3(0.196, 0.152, 0.104);
+uniform vec3 dirt_color : source_color = vec3(0.268, 0.214, 0.146);
 uniform vec3 rock_color : source_color = vec3(0.186, 0.184, 0.176);
 uniform vec3 sand_color : source_color = vec3(0.285, 0.252, 0.182);
 

@@ -9,7 +9,14 @@ albedo_texture = ExtResource("1_albedo")
 metallic_specular = 0.25
 roughness = 0.85
 emission_enabled = true
-emission = Color(1, 1, 1, 1)
+; WP-D3, defecto 4, ver `assets/city/materials/buildings_001.tres`. El tinte es
+; mas suave que el de la ciudad -(1,00 0,82 0,58) y no (1,00 0,72 0,35)- porque
+; la mascara del pack Nuke **ya** sale tibia: `nuke_town.json` pinta el indice 7
+; en (198,152,100), el 50 en (74,57,37) y el 13 en (32,24,16). Multiplicar eso
+; por el ambar entero lo llevaba al naranja y las casas quedaban con ventanas de
+; fogata. Con este tinte la luminancia del nucleo baja al 0,84 de lo que era y el
+; tono se queda del lado del ambar sin pasarse.
+emission = Color(1, 0.82, 0.58, 1)
 ; `emission_operator` 1 es MULTIPLY, igual que en `assets/city/materials/*.tres`
 ; (nota de WP-24). Con el ADD de fabrica un `emission` blanco enciende la casa
 ; entera; con MULTIPLY el pixel de la mascara **es** el color y el brillo, y la

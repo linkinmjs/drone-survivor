@@ -1,0 +1,130 @@
+{
+  "name": "foliage",
+  "comment": [
+    "Follaje del pueblo de ruta a partir de 'Foliage.rar' (WP-D1).",
+    "El RAR NO se extrae en el repositorio: objvox lo lee con 'archivo.rar!miembro'",
+    "por tuberia de UnRAR, igual que lee un miembro de ZIP con zipfile.",
+    "Paso del OBJ 0.1 u por voxel x escala 1.0 => 1 voxel = 10 cm y las medidas del",
+    "OBJ son ya metros: el arbol XL mide 4,70 m de alto tal como sale del pack. No se",
+    "revoxeliza a 5 cm: objvox admite el factor pero el paso del OBJ es 0,1, asi que",
+    "bajarlo no agrega detalle, solo multiplica por ocho las celdas del relleno. El",
+    "choque de resolucion con las casas (5 cm) se acepta como estilo (docs/17 §7.3).",
+    "Las 32 piezas comparten una sola paleta de 256x1 (md5 identico en las 32), asi",
+    "que no hace falta ni fusionarlas ni declarar familias: el pack no esta dithered",
+    "y las piezas usan entre 2 y 4 indices cada una."
+  ],
+  "source": "../../../assets/_raw/Foliage.rar",
+  "member_prefix": "obj/",
+  "step": 0.1,
+  "scale": 1.0,
+  "palette_texture": "foliage_palette.png",
+  "emissive_texture": "",
+
+  "budgets": {"foliage": 500},
+  "budget_note": [
+    "500 triangulos por pieza porque el follaje se dibuja con MultiMesh y el coste se",
+    "multiplica por el numero de instancias. Solo una pieza no entraba: el arbol XL,",
+    "662 triangulos a 10 cm. Diezmado x2 baja a 416 conservando los 2,6 x 4,7 x 1,4 m",
+    "de silueta; es ademas la pieza que mas se instancia (la arboleda del arroyo), asi",
+    "que es donde el diezmado se paga mejor. Las demas van entre 28 y 352."
+  ],
+
+  "materials": {"foliage": "res://assets/town/materials/town_foliage.tres"},
+
+  "palette_families": {},
+  "window_indices": {},
+
+  "palette_paint": {
+    "1":  [76, 58, 30],
+    "2":  [84, 64, 34],
+    "9":  [53, 75, 43],
+    "10": [60, 85, 48],
+    "42": [196, 178, 108],
+    "43": [158, 146, 82]
+  },
+  "palette_paint_note": [
+    "WP-D3, defecto 1. El pack viene con verdes de dibujo animado: (38,116,60) y",
+    "(42,130,67), saturacion 0,67 y tono 137 grados. Al anochecer, contra fachadas",
+    "Nuke de beige apagado y calles lavanda, los arboles de la plaza y de la",
+    "arboleda se leian de juguete. Medido con la sonda de WP-D3 a 40 m y con el sol",
+    "de `sun_dusk`: luminancia media de la copa de `tree_large` 0,512 contra 0,498",
+    "de la fachada de `house_a`, o sea **1,03x**, cuando la copa de un arbol al",
+    "anochecer tiene que estar por debajo de una pared que da al sol (criterio de",
+    "WP-D3: entre 0,60x y 0,90x).",
+    "",
+    "Los seis indices se repintan sobre la paleta emitida, que es lo unico que",
+    "comparten las once piezas; la geometria no se toca y los GLB salen identicos",
+    "salvo por que el PNG de 256x1 al que apuntan cambio.",
+    "",
+    "- 9 y 10 (hoja): saturacion x0,63 (0,67 -> 0,43), tono de 137 a 102 grados -mas",
+    "  amarillo, o sea mas calido- y valor bajado hasta dejar la luminancia LINEAL",
+    "  en 0,58x-0,60x de la que tenian. Queda un verde oliva de campo seco, que es",
+    "  el que pide la paleta de `docs/13` §2.",
+    "  WP-D3b baja la hoja otro 12 % de valor -de (60,85,49) y (68,97,55) a",
+    "  (53,75,43) y (60,85,48), sin tocar ni el tono ni la saturacion-. Con",
+    "  los valores de WP-D3 la copa de `tree_large` a 40 m media 0,4261 contra",
+    "  el 0,4735 de la fachada de `house_a`: **0,900x**, justo sobre el borde",
+    "  de la banda 0,60-0,90 y sin un punto de margen. Con este escalon queda",
+    "  en 0,84x, que es donde un arbol al anochecer tiene que estar.",
+    "- 1 y 2 (tronco): x0,76 de valor, un punto menos de saturacion. El tronco salia",
+    "  en (0,529 0,316 0,114) -naranja, mas saturado que el toldo de la pila, que es",
+    "  el unico naranja que docs/17 §4 deja hablar-.",
+    "- 42 y 43 (maiz): 42 era (255,240,147), el pixel mas claro de todo el pack. Con",
+    "  los verdes bajados habria pasado a ser el nuevo ofensor: el maizal del sur se",
+    "  habria leido como una playa. Baja a (196,178,108), que sigue siendo lo mas",
+    "  claro del follaje -un maizal maduro contra pasto seco- sin quemar."
+  ],
+
+  "pieces": {
+    "tree_xl": {"file": "Trees/XL/tree_XL.obj", "decimate": 2,
+      "comment": "662 triangulos sin diezmar; x2 lo deja en 416 sin perder la silueta."},
+    "tree_large": {"file": "Trees/Large/tree_large.obj"},
+    "tree_medium": {"file": "Trees/Medium/tree_medium.obj"},
+    "tree_small": {"file": "Trees/Small/tree_small.obj"},
+    "tree_stump": {"file": "Trees/Stump/tree_stump.obj"},
+    "bush_a": {"file": "Bushes/Bush 1/bush_1.obj"},
+    "bush_b": {"file": "Bushes/Bush 3/bush_3.obj"},
+    "grass_a": {"file": "Grass/Tall/grass_tall.obj"},
+    "flowers_a": {"file": "Flowers/Red/flower_red.obj"},
+    "corn_a": {"file": "Corn/Medium/corn_medium.obj",
+      "comment": "Etapa 2 de las cuatro del pack (sprout, medium, small, full)."},
+    "corn_b": {"file": "Corn/Full/corn_full.obj", "comment": "Etapa 4: la cosecha hecha."}
+  },
+
+  "houses": {},
+
+  "scale_note": [
+    "El pack viene a SU escala, no a la del pueblo: el arbol XL sale en 4,70 m y",
+    "al lado de una casa de 3 m no es un arbol, es un arbusto. docs/17 §3 pide lo",
+    "contrario: sauces que tapan las casas en la arboleda del arroyo y arboles",
+    "medianos en el perimetro de la plaza. La clave 'scale' de cada prop multiplica",
+    "el voxel DE ESA PIEZA y no cuesta un solo triangulo: la rejilla no cambia,",
+    "cambia cuanto mide cada celda.",
+    "x2,5 a los cinco arboles, que es el mismo factor con el que las casas Nuke",
+    "llegaron a escala del pueblo, y deja el XL en 11,75 m, el grande en 8,50 y el",
+    "mediano en 11,00: la banda de 8-12 m que pide el documento. El chico queda en",
+    "3,00 m (un frutal de patio) y el tocon en 1,00.",
+    "x2,0 a arbustos y maiz: el maiz sale en 1,40 (etapa 2) y 2,20 m (etapa 4), que",
+    "es un maizal por el que no se ve el horizonte a ras de suelo pero si desde el",
+    "dron. x1,5 al pasto y a las flores, que son detalle de borde de vereda y a x2",
+    "se leian como matorral.",
+    "El grano del voxel crece con la pieza: el arbol XL pasa a celdas de 25 cm, que",
+    "es cinco veces el grano de la arquitectura. Es a proposito y es la misma",
+    "decision de estilo de docs/17 §7.3, sostenida: una masa de copa a 200 m no",
+    "necesita detalle, necesita silueta."
+  ],
+
+  "props": {
+    "tree_xl": {"piece": "tree_xl", "kind": "foliage", "scale": 2.5},
+    "tree_large": {"piece": "tree_large", "kind": "foliage", "scale": 2.5},
+    "tree_medium": {"piece": "tree_medium", "kind": "foliage", "scale": 2.5},
+    "tree_small": {"piece": "tree_small", "kind": "foliage", "scale": 2.5},
+    "tree_stump": {"piece": "tree_stump", "kind": "foliage", "scale": 2.5},
+    "bush_a": {"piece": "bush_a", "kind": "foliage", "scale": 2.0},
+    "bush_b": {"piece": "bush_b", "kind": "foliage", "scale": 2.0},
+    "grass_a": {"piece": "grass_a", "kind": "foliage", "scale": 1.5},
+    "flowers_a": {"piece": "flowers_a", "kind": "foliage", "scale": 1.5},
+    "corn_a": {"piece": "corn_a", "kind": "foliage", "scale": 2.0},
+    "corn_b": {"piece": "corn_b", "kind": "foliage", "scale": 2.0}
+  }
+}

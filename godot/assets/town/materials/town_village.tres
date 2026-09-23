@@ -1,0 +1,29 @@
+[gd_resource type="StandardMaterial3D" load_steps=3 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/town/village_palette.png" id="1_albedo"]
+[ext_resource type="Texture2D" path="res://assets/town/village_emissive.png" id="2_emission"]
+
+[resource]
+resource_name = "town_village"
+albedo_texture = ExtResource("1_albedo")
+metallic_specular = 0.25
+roughness = 0.9
+; El farol de la plaza (WP-D3, defecto 9). `village_emissive.png` es negro en
+; los 255 indices que no son el vidrio del farol -el 6- y ambar (214,150,52) en
+; ese, asi que con `emission_operator` 1 (MULTIPLY) lo unico que se enciende de
+; esta familia son los cuatro faroles: el cerco de tabla, el barril y el cajon
+; comparten el material y siguen apagados. No cuesta un material ni un lote de
+; dibujo: los props se funden por material y el farol ya vivia en esta
+; superficie; cuesta un PNG de 256x1.
+;
+; La energia es 0,50 y no el 0,65 de las fachadas: un farol de plaza es un punto
+; de luz de sesenta voxeles y a la misma energia que una ventana de casa
+; quemaba (criterio de WP-D3: <= 2 % de pixeles por encima de 0,95).
+emission_enabled = true
+emission = Color(1, 1, 1, 1)
+emission_operator = 1
+emission_energy_multiplier = 0.5
+emission_texture = ExtResource("2_emission")
+; Ver `town_houses_opaque.tres`: la paleta de 256x1 no admite filtrado.
+; 0 = TEXTURE_FILTER_NEAREST.
+texture_filter = 0

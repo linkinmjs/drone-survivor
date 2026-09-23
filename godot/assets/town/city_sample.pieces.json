@@ -1,0 +1,65 @@
+{
+  "name": "city_sample",
+  "voxsplit_version": "1.0.0",
+  "source": "city-Free Sample.zip",
+  "step": 0.05,
+  "scale": 1,
+  "voxel_size": 0.05,
+  "palette_texture": "city_sample_palette.png",
+  "emissive_texture": "",
+  "window_indices": {},
+  "materials": {"prop": "res://assets/town/materials/town_city_props.tres"},
+  "palette_families": {},
+  "sources": {
+    "bus_stop": {
+      "file": "Voxel City-7-Bus Stop.obj",
+      "cells": [18, 45, 80],
+      "metres": [0.9, 2.25, 4],
+      "voxels": 15952,
+      "obj_triangles": 2288
+    },
+    "awning": {
+      "file": "Voxel City-9-Fabric Roof_Red-1.obj",
+      "cells": [82, 16, 11],
+      "metres": [4.1, 0.8, 0.55],
+      "voxels": 4676,
+      "obj_triangles": 1400
+    }
+  },
+  "pieces": {
+    "bus_stop": {
+      "kind": "prop",
+      "parts": ["bus_stop"],
+      "triangles": 728,
+      "obj_triangles": 2288,
+      "budget": 800,
+      "voxels": 15952,
+      "cells": [18, 45, 80],
+      "aabb_min": [-0.45, 0, -2],
+      "aabb_max": [0.45, 2.25, 2],
+      "size": [0.9, 2.25, 4],
+      "window_voxels": 0,
+      "origin": "centre",
+      "scale": 1,
+      "voxel_size": 0.05,
+      "scene": "res://city/pieces/town/props/bus_stop.tscn"
+    },
+    "awning_orange": {
+      "kind": "prop",
+      "parts": ["awning"],
+      "triangles": 452,
+      "obj_triangles": 1400,
+      "budget": 800,
+      "voxels": 4676,
+      "cells": [82, 16, 11],
+      "aabb_min": [-2.05, 0, -0.275],
+      "aabb_max": [2.05, 0.8, 0.275],
+      "size": [4.1, 0.8, 0.55],
+      "window_voxels": 0,
+      "origin": "centre",
+      "scale": 1,
+      "voxel_size": 0.05,
+      "scene": "res://city/pieces/town/props/awning_orange.tscn"
+    }
+  }
+}

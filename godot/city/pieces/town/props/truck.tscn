@@ -1,0 +1,26 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/city/props/truck.res" id="1_mesh"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_intact"]
+size = Vector3(8.07, 2.6944, 2.45)
+
+[node name="truck" type="StaticBody3D"]
+collision_layer = 128
+collision_mask = 311
+metadata/piece_id = &"truck"
+metadata/base_size = Vector3(8.07, 2.6944, 2.45)
+metadata/town_kind = "prop"
+metadata/triangle_count = 168
+metadata/window_voxels = 0
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+gi_mode = 1
+cast_shadow = 1
+visibility_range_end = 180.0
+visibility_range_fade_mode = 1
+mesh = ExtResource("1_mesh")
+
+[node name="IntactShape" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 1.3472, 0.0)
+shape = SubResource("BoxShape3D_intact")

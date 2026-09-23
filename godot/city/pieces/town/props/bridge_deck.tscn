@@ -1,0 +1,19 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/city/props/bridge_deck.res" id="1_mesh"]
+
+[node name="bridge_deck" type="StaticBody3D"]
+collision_layer = 0
+collision_mask = 0
+metadata/piece_id = &"bridge_deck"
+metadata/base_size = Vector3(20.0, 4.8, 12.0)
+metadata/town_kind = "prop"
+metadata/triangle_count = 276
+metadata/window_voxels = 0
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+gi_mode = 1
+cast_shadow = 1
+visibility_range_end = 180.0
+visibility_range_fade_mode = 1
+mesh = ExtResource("1_mesh")

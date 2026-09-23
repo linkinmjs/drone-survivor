@@ -52,6 +52,9 @@ Sólo stdlib más Pillow (para leer el PNG de paleta), como fija `docs/05` §1.
 
 from __future__ import annotations
 
+import os
+import shutil
+import subprocess
 import zipfile
 from collections import Counter, deque
 from dataclasses import dataclass, field
@@ -67,6 +70,7 @@ __all__ = [
     "read_obj",
     "read_palette",
     "read_source_bytes",
+    "find_unrar",
     "voxelize",
     "load",
     "normalize",
@@ -91,6 +95,16 @@ NORMAL_TOLERANCE = 1e-4
 #: Separador de rutas «dentro de un ZIP», igual que en `voxreader`.
 ZIP_SEPARATOR = "!"
 
+#: Candidatos para el ejecutable de UnRAR, en orden. `Foliage.rar` es el único pack del
+#: catálogo que no viene en ZIP y `assets/_raw/` no se puede extraer dentro del repo
+#: (`docs/05` §1), así que el miembro se lee por tubería igual que un miembro de ZIP.
+#: `UNRAR` en el entorno tiene prioridad sobre los dos caminos fijos.
+UNRAR_CANDIDATES = (
+    "unrar",
+    r"C:\Program Files\WinRAR\UnRAR.exe",
+    r"C:\Program Files (x86)\WinRAR\UnRAR.exe",
+)
+
 #: Las seis normales de eje, en el orden en que MagicaVoxel las escribe.
 _AXIS_OF_NORMAL = {
     (-1.0, 0.0, 0.0): (0, -1), (1.0, 0.0, 0.0): (0, 1),
@@ -109,7 +123,7 @@ class ObjVoxError(Exception):
 
 
 def read_source_bytes(path: str | Path) -> bytes:
-    """Lee un archivo de disco o un miembro de un ZIP (``archivo.zip!miembro``)."""
+    """Lee un archivo de disco o un miembro de un ZIP o un RAR (``archivo.zip!miembro``)."""
     text = str(path)
     zip_path, sep, member = text.partition(ZIP_SEPARATOR)
     if not sep:
@@ -119,12 +133,53 @@ def read_source_bytes(path: str | Path) -> bytes:
             raise ObjVoxError(f"no se pudo leer '{text}': {exc}") from exc
     if not member:
         raise ObjVoxError(f"{text}: falta el miembro después de '{ZIP_SEPARATOR}'")
+    if zip_path.lower().endswith(".rar"):
+        return _read_rar_member(zip_path, member)
     normalized = _normalize_member(member)
     try:
         with zipfile.ZipFile(zip_path) as archive:
             return archive.read(normalized)
     except (OSError, KeyError, zipfile.BadZipFile) as exc:
         raise ObjVoxError(f"no se pudo leer '{normalized}' de '{zip_path}': {exc}") from exc
+
+
+def find_unrar() -> str | None:
+    """Ruta al ejecutable de UnRAR, o `None` si no está."""
+    override = os.environ.get("UNRAR", "").strip()
+    candidates = (override,) + UNRAR_CANDIDATES if override else UNRAR_CANDIDATES
+    for candidate in candidates:
+        found = shutil.which(candidate) if os.sep not in candidate else (
+            candidate if Path(candidate).is_file() else None)
+        if found:
+            return found
+    return None
+
+
+def _read_rar_member(archive: str, member: str) -> bytes:
+    """Vuelca un miembro de un `.rar` a memoria con `UnRAR p`.
+
+    Python no trae lector de RAR y `numpy`/`rarfile` están fuera de las dependencias que
+    fija `docs/05` §1, así que se usa el binario. `p` escribe el miembro **por stdout** y
+    `-inul` calla el banner y la barra de progreso, de modo que nada toca el disco y se
+    respeta la regla de no extraer `assets/_raw/` dentro del repositorio. El nombre del
+    miembro va con barras invertidas porque es como el RAR guarda las rutas.
+    """
+    binary = find_unrar()
+    if binary is None:
+        raise ObjVoxError(
+            f"no se encontró UnRAR para leer '{member}' de '{archive}': instalá WinRAR o "
+            f"poné la ruta del ejecutable en la variable de entorno UNRAR")
+    inside = "\\".join(chunk for chunk in _normalize_member(member).split("/") if chunk)
+    try:
+        finished = subprocess.run([binary, "p", "-inul", "-y", archive, inside],
+                                  capture_output=True, check=False)
+    except OSError as exc:
+        raise ObjVoxError(f"no se pudo ejecutar '{binary}': {exc}") from exc
+    if finished.returncode != 0 or not finished.stdout:
+        detail = finished.stderr.decode("utf-8", errors="replace").strip()
+        raise ObjVoxError(f"no se pudo leer '{inside}' de '{archive}' "
+                          f"(UnRAR devolvió {finished.returncode}): {detail}")
+    return finished.stdout
 
 
 def _normalize_member(member: str) -> str:

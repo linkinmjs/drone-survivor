@@ -5,7 +5,7 @@
 
 [resource]
 resource_name = "town_walkway"
-albedo_color = Color(1.34, 1.27, 1.14, 1)
+albedo_color = Color(1, 0.97, 0.9, 1)
 albedo_texture = ExtResource("1_o3746")
 metallic_specular = 0.25
 roughness = 0.88

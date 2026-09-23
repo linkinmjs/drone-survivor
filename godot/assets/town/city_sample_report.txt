@@ -1,0 +1,30 @@
+voxsplit 1.0.0 — pueblo «city_sample»
+origen              : city-Free Sample.zip
+paso del OBJ        : 0.05 u · escala ×1.0 · vóxel 0.05 m
+
+piezas del pack (tras familias de paleta, recorte y diezmado):
+  pieza          celdas           metros                      vox  OBJ tris
+  --------------------------------------------------------------------------
+  bus_stop       18×45×80         0.90 × 2.25 × 4.00        15952      2288
+  awning         82×16×11         4.10 × 0.80 × 0.55         4676      1400
+
+diagnóstico de la voxelización (cáscara por normales frente a relleno por inundación):
+  una pieza de casa con más desajustes que su 'allow_fill_mismatches' es un fallo;
+  en un prop es sólo un aviso, porque los montones del pack son mallas abiertas.
+  sin desajustes: las piezas son estancas y ninguna celda recibió dos colores
+
+piezas compuestas:
+  pieza            clase    tris  presup  OBJ tris      vox  AABB (m)                 vent.
+  ------------------------------------------------------------------------------------------------
+  bus_stop         prop      728     800      2288    15952  0.90 × 2.25 × 4.00       0
+      partes: bus_stop
+      AABB   : min [-0.45, 0.0, -2.0]  max [0.45, 2.25, 2.0]
+  awning_orange    prop      452     800      1400     4676  4.10 × 0.80 × 0.55       0
+      partes: awning
+      AABB   : min [-2.05, 0.0, -0.275]  max [2.05, 0.8, 0.275]
+
+familias de paleta (representante ← miembros):
+
+índices de ventana de la máscara emisiva:
+
+CHECK compose: OK

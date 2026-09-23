@@ -14,11 +14,25 @@
 ## 1. El GLB lo escribe `voxsplit` y trae su propio nodo raíz (`HouseARoot`), así
 ##    que hay que **fundirlo**: Godot añade otro por encima y, sin fundir, la
 ##    malla quedaría dos niveles por debajo de la raíz y `CityGrid` no la vería.
-## 2. La familia de material no sale de una tabla de nombres sino del sidecar
-##    `nuke_town.pieces.json` que emite `voxsplit town`: las casas llevan el
-##    material con la máscara de ventanas y los props el opaco.
+## 2. La familia de material no sale de una tabla de nombres sino del **sidecar**
+##    del pack (`<pack>.pieces.json`, que emite `voxsplit town`): las casas
+##    llevan el material con la máscara de ventanas y los props el opaco.
 ## 3. La paleta es de 256×1 y **no admite filtrado**, así que se fuerza
 ##    `TEXTURE_FILTER_NEAREST` igual que en `import_drone.gd` (`docs/02` §7.3).
+##
+## ## Cuatro packs, un importador (WP-D1)
+##
+## Desde WP-D1 `assets/town/` no es un pack sino cuatro, cada uno con su paleta
+## de 256×1 y su material: `nuke_town` (casas y props), `foliage`, `village` y
+## `city_sample`. El importador **no conoce ninguno**: busca la pieza en todos
+## los `*.pieces.json` del directorio y saca de ahí su clase y la ruta de su
+## material (bloque `materials` del sidecar). Agregar un pack es escribir una
+## receta y un `.tres`, y no tocar este archivo.
+##
+## La clase `foliage` es la única que rompe el contrato de `CityGrid`: se siembra
+## con `MultiMeshInstance3D`, no tiene colisión y por lo tanto **no tiene cuerpo**
+## —su raíz es un `Node3D` pelado. Un `StaticBody3D` sin formas sería un cuerpo
+## de física por árbol para nada.
 ##
 ## Como en los otros dos importadores, **no añade ningún script** a ningún nodo y
 ## el fallo es ruidoso.
@@ -28,15 +42,21 @@ extends EditorScenePostImport
 ## Nombre del nodo de colisión, el mismo que espera `Building.intact_shape`.
 const SHAPE_NAME: StringName = &"IntactShape"
 
-## Sidecar que escribe `python -m voxsplit town`: clase, medidas y presupuesto de
-## cada pieza. Es la fuente de verdad de qué es casa y qué es prop.
-const INVENTORY_PATH: String = "res://assets/town/nuke_town.pieces.json"
+## Directorio donde viven los sidecars de todos los packs del pueblo.
+const TOWN_DIR: String = "res://assets/town"
 
-## Material de las casas: una sola superficie con la máscara emisiva de ventanas.
-const HOUSE_MATERIAL: String = "res://assets/town/materials/town_houses_windows.tres"
+## Sufijo de los sidecars que escribe `python -m voxsplit town`: clase, medidas,
+## presupuesto y material de cada pieza. Son la fuente de verdad de qué es casa,
+## qué es prop y qué es follaje.
+const INVENTORY_SUFFIX: String = ".pieces.json"
 
-## Material de los props: la misma paleta, con la máscara a cero en sus índices.
-const PROP_MATERIAL: String = "res://assets/town/materials/town_houses_opaque.tres"
+## Material por clase cuando el sidecar no declara su bloque `materials`. Es el
+## caso de `nuke_town.pieces.json`, que se escribió antes de que el bloque
+## existiera y cuyos materiales son los originales de WP-A.
+const DEFAULT_MATERIALS: Dictionary[String, String] = {
+	"house": "res://assets/town/materials/town_houses_windows.tres",
+	"prop": "res://assets/town/materials/town_houses_opaque.tres",
+}
 
 ## Distancia a la que los props se desvanecen, igual que en `import_city_piece.gd`.
 const PROP_VISIBILITY_RANGE_END: float = 180.0
@@ -45,6 +65,11 @@ const PROP_VISIBILITY_RANGE_END: float = 180.0
 ## Punto de entrada del importador. Devuelve la misma escena, modificada.
 func _post_import(scene: Node) -> Object:
 	var piece_id := StringName(get_source_file().get_file().get_basename())
+	var entry := _inventory_entry(piece_id)
+	var kind := String(entry.get("kind", "house"))
+	if kind == "foliage":
+		return _import_foliage(scene, piece_id, entry)
+
 	var body := _ensure_static_body(scene)
 	body.collision_layer = PhysicsLayers.CITY
 	body.collision_mask = PhysicsLayers.WORLD | PhysicsLayers.DRONE \
@@ -58,22 +83,62 @@ func _post_import(scene: Node) -> Object:
 		push_error("import_town_piece: '%s' no tiene ningún MeshInstance3D." % piece_id)
 		return body
 
-	var entry := _inventory_entry(piece_id)
-	var kind := String(entry.get("kind", "house"))
 	var is_prop := kind == "prop"
-	var material := _resolve_material(PROP_MATERIAL if is_prop else HOUSE_MATERIAL, piece_id)
+	var material := _resolve_material(_material_path(entry, kind), piece_id)
 	for mesh_instance: MeshInstance3D in meshes:
 		_configure_mesh(mesh_instance, material, is_prop, piece_id)
 
 	var bounds := _aggregate_aabb(meshes, body)
 	_add_collision_shape(body, meshes, bounds, is_prop, piece_id)
 
-	body.set_meta(&"piece_id", piece_id)
-	body.set_meta(&"base_size", bounds.size)
-	body.set_meta(&"town_kind", kind)
-	body.set_meta(&"triangle_count", int(entry.get("triangles", 0)))
-	body.set_meta(&"window_voxels", int(entry.get("window_voxels", 0)))
+	_stamp_meta(body, piece_id, kind, bounds, entry)
 	return body
+
+
+## Pieza de follaje: sin cuerpo, sin colisión, material opaco del pack y la malla
+## como hija directa de un `Node3D`.
+##
+## No lleva cuerpo porque no lo usa nadie: el follaje se dibuja con
+## `MultiMeshInstance3D`, que sólo mira la malla, y un árbol con el que el dron
+## choca sería además un accidente de juego (un sauce no para un dron de dos
+## kilos). Los metadatos son los mismos que en las otras clases, así que el
+## sembrador y el check no tienen que distinguirlas para leerlos.
+func _import_foliage(scene: Node, piece_id: StringName, entry: Dictionary) -> Object:
+	var root := scene as Node3D
+	if root == null:
+		push_error("import_town_piece: la raíz de '%s' no es un Node3D." % piece_id)
+		return scene
+	_flatten(root)
+	var meshes := _collect_meshes(root)
+	if meshes.is_empty():
+		push_error("import_town_piece: '%s' no tiene ningún MeshInstance3D." % piece_id)
+		return root
+	var material := _resolve_material(_material_path(entry, "foliage"), piece_id)
+	for mesh_instance: MeshInstance3D in meshes:
+		_configure_mesh(mesh_instance, material, true, piece_id)
+	_stamp_meta(root, piece_id, "foliage", _aggregate_aabb(meshes, root), entry)
+	return root
+
+
+## Metadatos comunes a las tres clases.
+func _stamp_meta(root: Node3D, piece_id: StringName, kind: String, bounds: AABB,
+		entry: Dictionary) -> void:
+	root.set_meta(&"piece_id", piece_id)
+	root.set_meta(&"base_size", bounds.size)
+	root.set_meta(&"town_kind", kind)
+	root.set_meta(&"triangle_count", int(entry.get("triangles", 0)))
+	root.set_meta(&"window_voxels", int(entry.get("window_voxels", 0)))
+
+
+## Ruta del material de [param kind] según el sidecar, o el de la tabla por
+## defecto. Un pack que declare `materials` manda; uno que no —`nuke_town`—
+## cae en los dos materiales de WP-A.
+func _material_path(entry: Dictionary, kind: String) -> String:
+	var declared := entry.get("_materials", {}) as Dictionary
+	var path := String(declared.get(kind, ""))
+	if not path.is_empty():
+		return path
+	return String(DEFAULT_MATERIALS.get(kind, DEFAULT_MATERIALS["prop"]))
 
 
 ## Garantiza que la raíz sea un `StaticBody3D`. Con `nodes/root_type` ya lo es.
@@ -102,7 +167,7 @@ func _ensure_static_body(scene: Node) -> StaticBody3D:
 ## (`<Pieza>Root`) y Godot añade otro por encima: sin aplanar, la jerarquía sería
 ## `StaticBody3D → Node3D → MeshInstance3D` y `CityGrid._spawn_building()`, que
 ## sólo mira los hijos directos, no encontraría la malla.
-func _flatten(body: StaticBody3D) -> void:
+func _flatten(body: Node3D) -> void:
 	for node: Node in _descendants(body):
 		var mesh_instance := node as MeshInstance3D
 		if mesh_instance == null or mesh_instance.get_parent() == body:
@@ -188,7 +253,7 @@ func _aggregate_aabb(meshes: Array[MeshInstance3D], root: Node3D) -> AABB:
 ## `MultiMeshInstance3D` —que ignora la forma— conviene que la escena suelta
 ## sirva también como cuerpo, y así el check tiene una sola regla («todo nodo del
 ## pueblo trae un `IntactShape`»).
-func _add_collision_shape(body: StaticBody3D, meshes: Array[MeshInstance3D],
+func _add_collision_shape(body: Node3D, meshes: Array[MeshInstance3D],
 		bounds: AABB, is_prop: bool, piece_id: StringName) -> void:
 	var shape_node := CollisionShape3D.new()
 	shape_node.name = SHAPE_NAME
@@ -217,22 +282,52 @@ func _build_convex_shape(meshes: Array[MeshInstance3D], bounds: AABB,
 	return box
 
 
-## Entrada de [param piece_id] en el sidecar del pueblo. Devuelve un diccionario
-## vacío —y avisa— si el sidecar falta o no la declara.
+## Entrada de [param piece_id] en el sidecar del pack que la declare, con el
+## bloque `materials` de ese pack añadido bajo `_materials`.
+##
+## Se recorren **todos** los `*.pieces.json` de `assets/town/` porque el pueblo
+## son cuatro packs (WP-D1) y una pieza vive en uno solo. Si dos packs
+## declarasen el mismo nombre serían además dos GLB con el mismo archivo, así que
+## la colisión es imposible por construcción: el primero que la tenga gana y el
+## caso queda avisado.
 func _inventory_entry(piece_id: StringName) -> Dictionary:
-	if not FileAccess.file_exists(INVENTORY_PATH):
-		push_error("import_town_piece: no existe el sidecar '%s'." % INVENTORY_PATH)
-		return {}
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(INVENTORY_PATH))
-	var sidecar := parsed as Dictionary
-	if sidecar == null:
-		push_error("import_town_piece: '%s' no es un objeto JSON válido." % INVENTORY_PATH)
-		return {}
-	var pieces := sidecar.get("pieces", {}) as Dictionary
-	if not pieces.has(String(piece_id)):
-		push_error("import_town_piece: '%s' no figura en '%s'." % [piece_id, INVENTORY_PATH])
-		return {}
-	return pieces[String(piece_id)] as Dictionary
+	var found: Dictionary = {}
+	var owner_sidecar := ""
+	for path: String in _sidecar_paths():
+		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+		var sidecar := parsed as Dictionary
+		if sidecar == null:
+			push_error("import_town_piece: '%s' no es un objeto JSON válido." % path)
+			continue
+		var pieces := sidecar.get("pieces", {}) as Dictionary
+		if not pieces.has(String(piece_id)):
+			continue
+		if not owner_sidecar.is_empty():
+			push_error("import_town_piece: '%s' figura en '%s' y en '%s'."
+					% [piece_id, owner_sidecar, path])
+			continue
+		found = (pieces[String(piece_id)] as Dictionary).duplicate()
+		found["_materials"] = sidecar.get("materials", {})
+		owner_sidecar = path
+	if owner_sidecar.is_empty():
+		push_error("import_town_piece: '%s' no figura en ningún sidecar de '%s'."
+				% [piece_id, TOWN_DIR])
+	return found
+
+
+## Los sidecars de `assets/town/`, en orden alfabético para que el resultado no
+## dependa del orden en que el sistema de archivos liste el directorio.
+func _sidecar_paths() -> PackedStringArray:
+	var found := PackedStringArray()
+	var dir := DirAccess.open(TOWN_DIR)
+	if dir == null:
+		push_error("import_town_piece: no se pudo abrir '%s'." % TOWN_DIR)
+		return found
+	for file_name: String in dir.get_files():
+		if file_name.ends_with(INVENTORY_SUFFIX):
+			found.append("%s/%s" % [TOWN_DIR, file_name])
+	found.sort()
+	return found
 
 
 ## Carga un material del pueblo.

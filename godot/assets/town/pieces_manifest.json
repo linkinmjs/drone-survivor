@@ -1,0 +1,881 @@
+{
+	"comment": [
+		"Indice de todas las piezas del pueblo de ruta (WP-D1).",
+		"Lo escribe tools/build_town_props.gd fundiendo sus piezas procedurales",
+		"con los sidecars <pack>.pieces.json de assets/town/.",
+		"front '-X' es la convencion REAL del pueblo: la puerta de house_a esta",
+		"en su cara -X y CityGrid le suma TOWN_YAW_OFFSET = -90 grados a toda",
+		"pieza con el metadato town_kind. El encargo pedia -Z; manda la real.",
+		"front '+X-run' es una pieza de TRAMO -cercos y tablero de puente-: no",
+		"tiene frente, corre a lo largo de su +X, y CityGrid no le suma nada.",
+		"origin 'base_centre' es centro de la base a y=0; 'start_x' es extremo",
+		"inicial del tramo; 'deck_top_centre' deja la cara superior en y=0."
+	],
+	"pieces": {
+		"awning_orange": {
+			"class": "prop",
+			"footprint": [
+				4.1,
+				0.55
+			],
+			"front": "-X",
+			"height": 0.8,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/awning_orange.tscn",
+			"shape": "convex",
+			"source": "city_sample",
+			"surfaces": 1,
+			"tris": 452
+		},
+		"barrel_a": {
+			"class": "prop",
+			"footprint": [
+				0.65,
+				0.65
+			],
+			"front": "-X",
+			"height": 0.85,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/barrel_a.tscn",
+			"shape": "convex",
+			"source": "nuke_town",
+			"surfaces": 1,
+			"tris": 186
+		},
+		"barrel_b": {
+			"class": "prop",
+			"footprint": [
+				0.65,
+				0.85
+			],
+			"front": "-X",
+			"height": 0.65,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/barrel_b.tscn",
+			"shape": "convex",
+			"source": "nuke_town",
+			"surfaces": 1,
+			"tris": 178
+		},
+		"barrel_c": {
+			"class": "prop",
+			"footprint": [
+				0.8,
+				0.8
+			],
+			"front": "-X",
+			"height": 0.8,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/barrel_c.tscn",
+			"shape": "convex",
+			"source": "village",
+			"surfaces": 1,
+			"tris": 94
+		},
+		"bench": {
+			"class": "prop",
+			"footprint": [
+				0.57,
+				1.8
+			],
+			"front": "-X",
+			"height": 0.93,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/bench.tscn",
+			"shape": "box",
+			"source": "procedural",
+			"surfaces": 2,
+			"tris": 108
+		},
+		"bridge_deck": {
+			"class": "prop",
+			"footprint": [
+				20.0,
+				12.0
+			],
+			"front": "+X-run",
+			"height": 4.8,
+			"origin": "deck_top_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/bridge_deck.tscn",
+			"shape": "none",
+			"source": "procedural",
+			"surfaces": 2,
+			"tris": 276
+		},
+		"bus_stop": {
+			"class": "prop",
+			"footprint": [
+				0.9,
+				4.0
+			],
+			"front": "-X",
+			"height": 2.25,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/bus_stop.tscn",
+			"shape": "convex",
+			"source": "city_sample",
+			"surfaces": 1,
+			"tris": 728
+		},
+		"bush_a": {
+			"class": "foliage",
+			"footprint": [
+				1.2,
+				1.2
+			],
+			"front": "-X",
+			"height": 1.2,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/bush_a.tscn",
+			"shape": "none",
+			"source": "foliage",
+			"surfaces": 1,
+			"tris": 120
+		},
+		"bush_b": {
+			"class": "foliage",
+			"footprint": [
+				0.8,
+				0.8
+			],
+			"front": "-X",
+			"height": 1.8,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/bush_b.tscn",
+			"shape": "none",
+			"source": "foliage",
+			"surfaces": 1,
+			"tris": 28
+		},
+		"car_a": {
+			"class": "prop",
+			"footprint": [
+				4.27,
+				1.72
+			],
+			"front": "-X",
+			"height": 1.614,
+			"origin": "base_centre",
+			"placeholder": true,
+			"scene": "res://city/pieces/town/props/car_a.tscn",
+			"shape": "box",
+			"source": "procedural",
+			"surfaces": 1,
+			"tris": 168
+		},
+		"car_b": {
+			"class": "prop",
+			"footprint": [
+				4.47,
+				1.78
+			],
+			"front": "-X",
+			"height": 1.614,
+			"origin": "base_centre",
+			"placeholder": true,
+			"scene": "res://city/pieces/town/props/car_b.tscn",
+			"shape": "box",
+			"source": "procedural",
+			"surfaces": 1,
+			"tris": 168
+		},
+		"corn_a": {
+			"class": "foliage",
+			"footprint": [
+				1.0,
+				1.0
+			],
+			"front": "-X",
+			"height": 1.4,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/corn_a.tscn",
+			"shape": "none",
+			"source": "foliage",
+			"surfaces": 1,
+			"tris": 204
+		},
+		"corn_b": {
+			"class": "foliage",
+			"footprint": [
+				1.0,
+				1.0
+			],
+			"front": "-X",
+			"height": 2.2,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/corn_b.tscn",
+			"shape": "none",
+			"source": "foliage",
+			"surfaces": 1,
+			"tris": 324
+		},
+		"crate": {
+			"class": "prop",
+			"footprint": [
+				0.9,
+				0.7
+			],
+			"front": "-X",
+			"height": 0.5,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/crate.tscn",
+			"shape": "convex",
+			"source": "village",
+			"surfaces": 1,
+			"tris": 132
+		},
+		"fence_picket_3m": {
+			"class": "prop",
+			"footprint": [
+				3.6,
+				0.2
+			],
+			"front": "+X-run",
+			"height": 0.8,
+			"origin": "start_x",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/fence_picket_3m.tscn",
+			"shape": "convex",
+			"source": "village",
+			"surfaces": 1,
+			"tris": 240
+		},
+		"fence_post": {
+			"class": "prop",
+			"footprint": [
+				0.12,
+				0.12
+			],
+			"front": "+X-run",
+			"height": 1.3,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/fence_post.tscn",
+			"shape": "box",
+			"source": "procedural",
+			"surfaces": 1,
+			"tris": 12
+		},
+		"fence_wire_6m": {
+			"class": "prop",
+			"footprint": [
+				6.0,
+				0.12
+			],
+			"front": "+X-run",
+			"height": 1.2,
+			"origin": "start_x",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/fence_wire_6m.tscn",
+			"shape": "box",
+			"source": "procedural",
+			"surfaces": 2,
+			"tris": 60
+		},
+		"field_shed": {
+			"class": "building",
+			"footprint": [
+				10.6,
+				18.6
+			],
+			"front": "-X",
+			"height": 6.0,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/field_shed.tscn",
+			"shape": "box",
+			"source": "procedural",
+			"surfaces": 3,
+			"tris": 92
+		},
+		"flag_mast": {
+			"class": "prop",
+			"footprint": [
+				0.8,
+				2.28
+			],
+			"front": "-X",
+			"height": 9.95,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/flag_mast.tscn",
+			"shape": "box",
+			"source": "procedural",
+			"surfaces": 3,
+			"tris": 28
+		},
+		"flowers_a": {
+			"class": "foliage",
+			"footprint": [
+				0.45,
+				0.45
+			],
+			"front": "-X",
+			"height": 0.6,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/flowers_a.tscn",
+			"shape": "none",
+			"source": "foliage",
+			"surfaces": 1,
+			"tris": 92
+		},
+		"gas_station": {
+			"class": "building",
+			"footprint": [
+				17.7,
+				25.4
+			],
+			"front": "-X",
+			"height": 8.0,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/gas_station.tscn",
+			"shape": "box",
+			"source": "procedural",
+			"surfaces": 5,
+			"tris": 256
+		},
+		"grass_a": {
+			"class": "foliage",
+			"footprint": [
+				1.05,
+				1.05
+			],
+			"front": "-X",
+			"height": 1.05,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/grass_a.tscn",
+			"shape": "none",
+			"source": "foliage",
+			"surfaces": 1,
+			"tris": 260
+		},
+		"house_a": {
+			"class": "building",
+			"footprint": [
+				5.0,
+				5.0
+			],
+			"front": "-X",
+			"height": 3.0,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/house_a.tscn",
+			"shape": "box",
+			"source": "nuke_town",
+			"surfaces": 1,
+			"tris": 876
+		},
+		"house_a_b": {
+			"class": "building",
+			"footprint": [
+				5.0,
+				5.0
+			],
+			"front": "-X",
+			"height": 2.7,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/house_a_b.tscn",
+			"shape": "box",
+			"source": "nuke_town",
+			"surfaces": 1,
+			"tris": 884
+		},
+		"house_b": {
+			"class": "building",
+			"footprint": [
+				5.1,
+				2.65
+			],
+			"front": "-X",
+			"height": 5.55,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/house_b.tscn",
+			"shape": "box",
+			"source": "nuke_town",
+			"surfaces": 1,
+			"tris": 2254
+		},
+		"house_b_b": {
+			"class": "building",
+			"footprint": [
+				5.1,
+				2.65
+			],
+			"front": "-X",
+			"height": 5.3,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/house_b_b.tscn",
+			"shape": "box",
+			"source": "nuke_town",
+			"surfaces": 1,
+			"tris": 2246
+		},
+		"house_c": {
+			"class": "building",
+			"footprint": [
+				5.0,
+				5.0
+			],
+			"front": "-X",
+			"height": 3.0,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/house_c.tscn",
+			"shape": "box",
+			"source": "nuke_town",
+			"surfaces": 1,
+			"tris": 772
+		},
+		"house_c_b": {
+			"class": "building",
+			"footprint": [
+				5.0,
+				5.0
+			],
+			"front": "-X",
+			"height": 2.9,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/house_c_b.tscn",
+			"shape": "box",
+			"source": "nuke_town",
+			"surfaces": 1,
+			"tris": 886
+		},
+		"house_d": {
+			"class": "building",
+			"footprint": [
+				5.0,
+				5.0
+			],
+			"front": "-X",
+			"height": 5.5,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/house_d.tscn",
+			"shape": "box",
+			"source": "nuke_town",
+			"surfaces": 1,
+			"tris": 1204
+		},
+		"house_d_b": {
+			"class": "building",
+			"footprint": [
+				5.0,
+				5.0
+			],
+			"front": "-X",
+			"height": 5.0,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/house_d_b.tscn",
+			"shape": "box",
+			"source": "nuke_town",
+			"surfaces": 1,
+			"tris": 1188
+		},
+		"lamp_post": {
+			"class": "prop",
+			"footprint": [
+				2.6,
+				0.5
+			],
+			"front": "-X",
+			"height": 8.157,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/lamp_post.tscn",
+			"shape": "box",
+			"source": "procedural",
+			"surfaces": 2,
+			"tris": 60
+		},
+		"lantern": {
+			"class": "prop",
+			"footprint": [
+				0.6,
+				0.6
+			],
+			"front": "-X",
+			"height": 3.0,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/lantern.tscn",
+			"shape": "convex",
+			"source": "village",
+			"surfaces": 1,
+			"tris": 76
+		},
+		"monument": {
+			"class": "prop",
+			"footprint": [
+				2.6,
+				2.6
+			],
+			"front": "-X",
+			"height": 5.5,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/monument.tscn",
+			"shape": "box",
+			"source": "procedural",
+			"surfaces": 2,
+			"tris": 38
+		},
+		"overgrowth_a": {
+			"class": "prop",
+			"footprint": [
+				1.6,
+				0.65
+			],
+			"front": "-X",
+			"height": 0.05,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/overgrowth_a.tscn",
+			"shape": "convex",
+			"source": "nuke_town",
+			"surfaces": 1,
+			"tris": 276
+		},
+		"overgrowth_b": {
+			"class": "prop",
+			"footprint": [
+				1.4,
+				0.3
+			],
+			"front": "-X",
+			"height": 0.2,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/overgrowth_b.tscn",
+			"shape": "convex",
+			"source": "nuke_town",
+			"surfaces": 1,
+			"tris": 112
+		},
+		"pickup": {
+			"class": "prop",
+			"footprint": [
+				5.27,
+				1.92
+			],
+			"front": "-X",
+			"height": 1.934,
+			"origin": "base_centre",
+			"placeholder": true,
+			"scene": "res://city/pieces/town/props/pickup.tscn",
+			"shape": "box",
+			"source": "procedural",
+			"surfaces": 1,
+			"tris": 168
+		},
+		"road_sign_narrow": {
+			"class": "prop",
+			"footprint": [
+				0.1,
+				1.273
+			],
+			"front": "-X",
+			"height": 3.386,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/road_sign_narrow.tscn",
+			"shape": "box",
+			"source": "procedural",
+			"surfaces": 2,
+			"tris": 28
+		},
+		"road_sign_speed": {
+			"class": "prop",
+			"footprint": [
+				0.1,
+				0.8
+			],
+			"front": "-X",
+			"height": 3.1,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/road_sign_speed.tscn",
+			"shape": "box",
+			"source": "procedural",
+			"surfaces": 2,
+			"tris": 28
+		},
+		"shed": {
+			"class": "building",
+			"footprint": [
+				5.1,
+				2.65
+			],
+			"front": "-X",
+			"height": 2.25,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/shed.tscn",
+			"shape": "box",
+			"source": "nuke_town",
+			"surfaces": 1,
+			"tris": 1462
+		},
+		"shed_b": {
+			"class": "building",
+			"footprint": [
+				5.1,
+				2.65
+			],
+			"front": "-X",
+			"height": 2.55,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/shed_b.tscn",
+			"shape": "box",
+			"source": "nuke_town",
+			"surfaces": 1,
+			"tris": 1474
+		},
+		"silo": {
+			"class": "building",
+			"footprint": [
+				7.0,
+				7.0
+			],
+			"front": "-X",
+			"height": 14.0,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/silo.tscn",
+			"shape": "box",
+			"source": "procedural",
+			"surfaces": 3,
+			"tris": 544
+		},
+		"trash_0": {
+			"class": "prop",
+			"footprint": [
+				1.2,
+				1.35
+			],
+			"front": "-X",
+			"height": 0.75,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/trash_0.tscn",
+			"shape": "convex",
+			"source": "nuke_town",
+			"surfaces": 1,
+			"tris": 206
+		},
+		"trash_1": {
+			"class": "prop",
+			"footprint": [
+				1.95,
+				0.9
+			],
+			"front": "-X",
+			"height": 0.2,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/trash_1.tscn",
+			"shape": "convex",
+			"source": "nuke_town",
+			"surfaces": 1,
+			"tris": 192
+		},
+		"trash_2": {
+			"class": "prop",
+			"footprint": [
+				1.0,
+				0.9
+			],
+			"front": "-X",
+			"height": 0.3,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/trash_2.tscn",
+			"shape": "convex",
+			"source": "nuke_town",
+			"surfaces": 1,
+			"tris": 284
+		},
+		"trash_3": {
+			"class": "prop",
+			"footprint": [
+				1.95,
+				0.9
+			],
+			"front": "-X",
+			"height": 0.2,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/trash_3.tscn",
+			"shape": "convex",
+			"source": "nuke_town",
+			"surfaces": 1,
+			"tris": 192
+		},
+		"trash_4": {
+			"class": "prop",
+			"footprint": [
+				1.0,
+				0.9
+			],
+			"front": "-X",
+			"height": 0.3,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/trash_4.tscn",
+			"shape": "convex",
+			"source": "nuke_town",
+			"surfaces": 1,
+			"tris": 284
+		},
+		"tree_large": {
+			"class": "foliage",
+			"footprint": [
+				5.25,
+				4.5
+			],
+			"front": "-X",
+			"height": 8.5,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/tree_large.tscn",
+			"shape": "none",
+			"source": "foliage",
+			"surfaces": 1,
+			"tris": 352
+		},
+		"tree_medium": {
+			"class": "foliage",
+			"footprint": [
+				3.5,
+				3.5
+			],
+			"front": "-X",
+			"height": 11.0,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/tree_medium.tscn",
+			"shape": "none",
+			"source": "foliage",
+			"surfaces": 1,
+			"tris": 236
+		},
+		"tree_small": {
+			"class": "foliage",
+			"footprint": [
+				2.5,
+				2.5
+			],
+			"front": "-X",
+			"height": 3.0,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/tree_small.tscn",
+			"shape": "none",
+			"source": "foliage",
+			"surfaces": 1,
+			"tris": 68
+		},
+		"tree_stump": {
+			"class": "foliage",
+			"footprint": [
+				2.75,
+				2.75
+			],
+			"front": "-X",
+			"height": 1.0,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/tree_stump.tscn",
+			"shape": "none",
+			"source": "foliage",
+			"surfaces": 1,
+			"tris": 340
+		},
+		"tree_xl": {
+			"class": "foliage",
+			"footprint": [
+				6.5,
+				3.5
+			],
+			"front": "-X",
+			"height": 11.75,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/tree_xl.tscn",
+			"shape": "none",
+			"source": "foliage",
+			"surfaces": 1,
+			"tris": 416
+		},
+		"truck": {
+			"class": "prop",
+			"footprint": [
+				8.07,
+				2.45
+			],
+			"front": "-X",
+			"height": 2.694,
+			"origin": "base_centre",
+			"placeholder": true,
+			"scene": "res://city/pieces/town/props/truck.tscn",
+			"shape": "box",
+			"source": "procedural",
+			"surfaces": 1,
+			"tris": 168
+		},
+		"water_tower": {
+			"class": "building",
+			"footprint": [
+				7.2,
+				7.019
+			],
+			"front": "-X",
+			"height": 16.5,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/water_tower.tscn",
+			"shape": "box",
+			"source": "procedural",
+			"surfaces": 3,
+			"tris": 622
+		},
+		"welcome_sign": {
+			"class": "prop",
+			"footprint": [
+				0.18,
+				4.0
+			],
+			"front": "-X",
+			"height": 3.03,
+			"origin": "base_centre",
+			"placeholder": false,
+			"scene": "res://city/pieces/town/props/welcome_sign.tscn",
+			"shape": "box",
+			"source": "procedural",
+			"surfaces": 3,
+			"tris": 44
+		}
+	},
+	"version": 1
+}

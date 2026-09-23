@@ -1,0 +1,12 @@
+[gd_resource type="StandardMaterial3D" load_steps=2 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/town/city_sample_palette.png" id="1_albedo"]
+
+[resource]
+resource_name = "town_city_props"
+albedo_texture = ExtResource("1_albedo")
+metallic_specular = 0.25
+roughness = 0.85
+; Ver `town_houses_opaque.tres`: la paleta de 256x1 no admite filtrado.
+; 0 = TEXTURE_FILTER_NEAREST.
+texture_filter = 0

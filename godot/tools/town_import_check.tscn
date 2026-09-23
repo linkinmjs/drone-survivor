@@ -5,6 +5,7 @@
 [node name="TownImportCheck" type="Node"]
 script = ExtResource("1_town_import_check")
 check_name = "town_import_check"
-# 19 piezas instanciadas, 21 `.import` leídos y dos piezas sintéticas: los 60 s por
-# defecto de `CheckRunner` quedaban justos en una máquina cargada.
-default_timeout = 120.0
+# 54 piezas instanciadas, 42 `.import` leídos y dos piezas sintéticas: los 60 s por
+# defecto de `CheckRunner` quedaban justos ya con las 19 de WP-A, y WP-D1 casi
+# triplicó la cuenta.
+default_timeout = 180.0

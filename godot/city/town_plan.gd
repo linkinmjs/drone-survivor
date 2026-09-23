@@ -240,6 +240,93 @@ const GRAPH_CROSS_TOLERANCE: float = 2.0
 ## sin mover la manzana ni las parcelas que ya se apoyan en ella.
 @export var block_rings: Array[PackedVector2Array] = []
 
+# --------------------------------------------------------------------------
+# Plaza, puente, arboledas, cercos y props (P2c, WP-D2)
+# --------------------------------------------------------------------------
+#
+# Todo este bloque es **geometría resuelta**: el diseño declara un polígono, una
+# densidad y una polilínea, y acá viaja ya convertido en las cosas concretas que
+# [CityGrid] tiene que poner en el mundo. La razón es la misma que la del resto
+# del plano: el check del plano tiene que poder contar los árboles de una
+# arboleda y medir a qué distancia del eje de la ruta cayó cada uno **sin abrir
+# un solo asset**, y el constructor tiene que poder sembrarlos sin repetir la
+# cuenta.
+
+## Polígono de la plaza, en XZ. Vacío quiere decir «este pueblo no tiene plaza».
+@export var plaza_polygon: PackedVector2Array = PackedVector2Array()
+
+## Manzana que ocupa la plaza, o `-1` si el polígono no cae en ninguna.
+@export var plaza_block: int = -1
+
+## Cota civil de la plaza, en metros.
+@export var plaza_datum: float = 0.0
+
+## Dónde está el puente, en el espacio del distrito y con `y` = cota de la
+## calzada sobre el vano.
+@export var bridge_at: Vector3 = Vector3.ZERO
+
+## Luz del vano y ancho del tablero, en metros. `0` quiere decir «sin puente».
+@export var bridge_span: float = 0.0
+@export var bridge_deck_width: float = 0.0
+
+## Rumbo del tablero, en radianes: el de la ruta en el cruce.
+@export var bridge_yaw: float = 0.0
+
+## Pieza del tablero.
+@export var bridge_piece: StringName = &""
+
+## Eje del arroyo, tal como lo declara el diseño y lo hornea el relieve.
+##
+## Hasta WP-D2 el arroyo vivía sólo en `tools/build_terrain.gd`: el relieve le
+## tallaba el cauce y nadie más sabía dónde estaba. WP-D3 le pone agua encima y
+## el agua la construye [CityGrid], así que el eje tiene que llegar al plano.
+## Son los mismos puntos del diseño, sin resolver: el cauce es dato de diseño
+## como lo es la polilínea de la ruta.
+@export var creek_points: PackedVector2Array = PackedVector2Array()
+
+## Ancho del espejo de agua, profundidad del canal y ancho de los bancos, en
+## metros. `0` de ancho quiere decir «sin arroyo».
+@export var creek_width: float = 0.0
+@export var creek_depth: float = 0.0
+@export var creek_bank: float = 0.0
+
+## Nombre de cada especie de arboleda, en el orden en que se resolvieron.
+##
+## Las tres listas de arboleda van **en paralelo** y no como una lista de
+## diccionarios porque son miles de entradas: un diccionario por árbol costaría
+## cinco veces más memoria y el `.tres` del plano cinco veces más texto.
+@export var grove_species: PackedStringArray = PackedStringArray()
+
+## Posiciones de cada especie, con `y = 0` (la cota la pone el terreno).
+@export var grove_points: Array[PackedVector3Array] = []
+
+## Giro de cada instancia, en radianes.
+@export var grove_yaws: Array[PackedFloat32Array] = []
+
+## Escala de cada instancia.
+@export var grove_scales: Array[PackedFloat32Array] = []
+
+## A qué arboleda del diseño pertenece cada instancia. Es lo que permite al
+## check contar por arboleda y no sólo por especie.
+@export var grove_source: Array[PackedInt32Array] = []
+
+## Arranque de cada tramo de cerco, con `y = 0`. La pieza de WP-D1 corre a lo
+## largo de `+X` desde su origen, así que un tramo es un punto y un rumbo.
+@export var fence_points: PackedVector3Array = PackedVector3Array()
+
+## Rumbo de cada tramo, en radianes.
+@export var fence_yaws: PackedFloat32Array = PackedFloat32Array()
+
+## Clase de cada tramo: índice dentro de [constant TownDesign.FENCE_LINE_KINDS].
+@export var fence_kinds: PackedInt32Array = PackedInt32Array()
+
+## Props posicionales: los que el diseño declara, los de la plaza, el árbol del
+## patio y el cerco del frente de cada casa.
+##
+## Cada entrada es `{piece: StringName, pos: Vector3, yaw: float,
+## on_terrain: bool, align: bool, source: StringName}`.
+@export var prop_placements: Array[Dictionary] = []
+
 ## Huella del diseño del que salió este plano (`city/designs/town_a.json`, WP-T3).
 ##
 ## Entra en [method signature] para que cambiar una línea del JSON cambie la
@@ -327,6 +414,51 @@ func signature() -> String:
 	parts.append("graph=%s|%s|%s|%s" % [_ints(street_nodes), _floats(street_stubs),
 			_ints(street_kind), "|".join(street_closures)])
 	parts.append("design=%d" % design_hash)
+	parts.append("plaza=%s|%d|%.3f" % [_v2_list(plaza_polygon), plaza_block,
+			_zero(plaza_datum)])
+	parts.append("bridge=%s|%.3f|%.3f|%.4f|%s" % [_v3(bridge_at), _zero(bridge_span),
+			_zero(bridge_deck_width), _zero(bridge_yaw), bridge_piece])
+	parts.append("creek=%s|%.3f|%.3f|%.3f" % [_v2_list(creek_points),
+			_zero(creek_width), _zero(creek_depth), _zero(creek_bank)])
+	# Las arboledas entran por **conteo y resumen** y no vértice a vértice: son
+	# miles de instancias y escribirlas enteras haría de la firma un archivo de
+	# medio megabyte que nadie puede leer en un `diff`. El resumen es un
+	# splitmix64 sobre las posiciones a milímetros, así que mover un árbol un
+	# centímetro cambia la línea igual que cambiaría la lista entera.
+	#
+	# El giro y la escala van con el mismo resumen que los puntos y por el mismo
+	# motivo: la firma tiene que ver **cómo** está plantado cada árbol y no sólo
+	# dónde. Hasta WP-D4a sólo entraban los puntos, así que girar o encoger la
+	# arboleda entera dejaba la firma idéntica (hallazgo 2).
+	for index: int in grove_species.size():
+		parts.append("gr%d=%s|%d|%d|%d|%d" % [index, grove_species[index],
+				grove_points[index].size() if index < grove_points.size() else 0,
+				_points_digest(grove_points[index] if index < grove_points.size()
+				else PackedVector3Array()),
+				_floats_digest(grove_yaws[index] if index < grove_yaws.size()
+				else PackedFloat32Array()),
+				_floats_digest(grove_scales[index] if index < grove_scales.size()
+				else PackedFloat32Array())])
+	parts.append("fences=%d|%d|%s|%d" % [fence_points.size(),
+			_points_digest(fence_points), _ints(fence_kinds),
+			_floats_digest(fence_yaws)])
+	# El prop lleva **de quién es** en su línea de firma. No es decoración del
+	# formato: es lo que permite a la fila de determinismo posicional distinguir
+	# «mover la casa 0 movió su propio árbol» —que es lo correcto— de «mover la
+	# casa 0 movió un banco de la plaza», que sería el barajado global que WP-T3
+	# vino a borrar.
+	for index: int in prop_placements.size():
+		var prop := prop_placements[index]
+		# `on_terrain` y `align` deciden la transformada tanto como el punto: un
+		# toldo con `on_terrain` apagado se queda a su cota absoluta y uno con
+		# `align` encendido se inclina con la pendiente. Los dos entran en la
+		# firma desde WP-D4a (hallazgo 2).
+		parts.append("pr%d=%s|%s|%s|%.4f|%s%s" % [index, prop.get("piece", &""),
+				prop.get("source", &""),
+				_v3(prop.get("pos", Vector3.ZERO)),
+				_zero(float(prop.get("yaw", 0.0))),
+				"1" if bool(prop.get("on_terrain", true)) else "0",
+				"1" if bool(prop.get("align", false)) else "0"])
 	for index: int in parcels.size():
 		var parcel := parcels[index]
 		parts.append("pa%d=%d|%s|%s|%s|%.3f|%.3f|%.3f|%d|%s|%.3f|%.1f|%s|%d" % [index,
@@ -614,6 +746,126 @@ func block_ring(i: int) -> PackedVector2Array:
 	if i >= 0 and i < block_rings.size() and block_rings[i].size() >= 3:
 		return block_rings[i]
 	return block_polygon(i)
+
+
+## Resumen determinista de una lista de puntos, a milímetros.
+##
+## Existe para que la firma pueda hablar de miles de árboles en una línea. No es
+## criptografía: es splitmix64 sobre los enteros de milímetro, que es lo mismo
+## que ya mezcla el resto del plano.
+static func _points_digest(points: PackedVector3Array) -> int:
+	var acc := mix(points.size())
+	for point: Vector3 in points:
+		acc = mix(acc ^ mix(roundi(point.x * 1000.0)))
+		acc = mix(acc ^ mix(roundi(point.z * 1000.0)))
+	return acc
+
+
+## Resumen determinista de una lista de flotantes, a la diezmilésima.
+##
+## El hermano de [method _points_digest] para lo que no es un punto: el giro y
+## la escala de cada instancia de arboleda y el rumbo de cada tramo de cerco. Sin
+## él la firma decía **dónde** está cada árbol y no **cómo**, así que girar los
+## mil cuatrocientos árboles del pueblo dejaba la firma intacta y la fila de
+## determinismo de `tools/town_plan_check.gd` no veía nada (WP-D4a, hallazgo 2).
+## La diezmilésima de radián son 0,006°: por debajo de lo que cualquier cambio de
+## diseño produce y muy por encima de la resolución de un `float32`.
+static func _floats_digest(values: PackedFloat32Array) -> int:
+	var acc := mix(values.size())
+	for value: float in values:
+		acc = mix(acc ^ mix(roundi(value * 10000.0)))
+	return acc
+
+
+# --------------------------------------------------------------------------
+# Plaza, arboledas, cercos y props
+# --------------------------------------------------------------------------
+
+## Verdadero si el pueblo tiene plaza.
+func has_plaza() -> bool:
+	return plaza_polygon.size() >= 3
+
+
+## Verdadero si el pueblo tiene puente.
+func has_bridge() -> bool:
+	return bridge_span > 0.0 and bridge_deck_width > 0.0
+
+
+## Verdadero si el pueblo tiene arroyo con agua.
+func has_creek() -> bool:
+	return creek_points.size() >= 2 and creek_width > 0.0
+
+
+## El eje del arroyo como polilínea en 3D a `y = 0`, que es lo que comen
+## [method polyline_closest] y [method polyline_point].
+func creek_axis() -> PackedVector3Array:
+	var out := PackedVector3Array()
+	for point: Vector2 in creek_points:
+		out.append(Vector3(point.x, 0.0, point.y))
+	return out
+
+
+## Cuántas especies distintas siembran las arboledas.
+func grove_species_count() -> int:
+	return grove_species.size()
+
+
+## Cuántas instancias tiene la especie [param index].
+func grove_count(index: int) -> int:
+	if index < 0 or index >= grove_points.size():
+		return 0
+	return grove_points[index].size()
+
+
+## Cuántos árboles, arbustos y matas hay en total.
+func grove_total() -> int:
+	var total := 0
+	for points: PackedVector3Array in grove_points:
+		total += points.size()
+	return total
+
+
+## Cuántas instancias sembró la arboleda [param grove] del diseño, sumando todas
+## sus especies.
+func grove_instances_of(grove: int) -> int:
+	var total := 0
+	for slot: int in grove_source.size():
+		for source: int in grove_source[slot]:
+			if source == grove:
+				total += 1
+	return total
+
+
+## Largo total de cerco de la clase [param kind] (índice de
+## [constant TownDesign.FENCE_LINE_KINDS]), en metros.
+func fence_length_of(kind: int) -> float:
+	var total := 0.0
+	for index: int in fence_kinds.size():
+		if fence_kinds[index] != kind:
+			continue
+		total += TownDesign.FENCE_SPAN.get(
+				TownDesign.FENCE_LINE_KINDS[kind] if kind < TownDesign.FENCE_LINE_KINDS.size()
+				else &"wire", 0.0)
+	return total
+
+
+## Cuántos props lleva la pieza [param piece].
+func prop_count_of(piece: StringName) -> int:
+	var total := 0
+	for prop: Dictionary in prop_placements:
+		if StringName(prop.get("piece", &"")) == piece:
+			total += 1
+	return total
+
+
+## Las piezas distintas que usan los props, en orden de primera aparición.
+func prop_pieces_used() -> PackedStringArray:
+	var out := PackedStringArray()
+	for prop: Dictionary in prop_placements:
+		var piece := String(prop.get("piece", ""))
+		if not out.has(piece):
+			out.append(piece)
+	return out
 
 
 ## Cota civil de la manzana [param i]. Sin terreno declarado es `0`, que es el
@@ -1036,9 +1288,17 @@ func dark_blocks() -> Dictionary:
 		})
 	# Desempate por índice: dos llaves iguales no pueden depender del orden en
 	# que `sort_custom` las visite, o el reparto dejaría de ser reproducible.
+	# Comparación **estricta** y no `is_equal_approx` (WP-D4a, hallazgo 21): la
+	# igualdad aproximada no es transitiva, así que con tres llaves a menos de
+	# una épsilon una de otra el comparador deja de ser un orden débil estricto y
+	# `sort_custom` puede devolver órdenes distintos según por dónde empiece. El
+	# desempate por índice sigue: dos llaves exactamente iguales se ordenan por
+	# manzana.
 	keyed.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		if not is_equal_approx(float(a["key"]), float(b["key"])):
-			return float(a["key"]) < float(b["key"])
+		var ka := float(a["key"])
+		var kb := float(b["key"])
+		if ka != kb:
+			return ka < kb
 		return int(a["block"]) < int(b["block"]))
 	var wanted := clampi(roundi(float(keyed.size()) * DARK_BLOCK_RATIO), 0, keyed.size())
 	for index: int in wanted:
@@ -1115,9 +1375,38 @@ func spawn_cone_angle(spot: Vector3) -> float:
 ## sobre enteros de 64 bits, que es exactamente lo que GDScript garantiza.
 static func mix(value: int) -> int:
 	var z := value + -7046029254386353131  # 0x9E3779B97F4A7C15
-	z = (z ^ (z >> 30)) * -4658895280553007687  # 0xBF58476D1CE4E5B9
-	z = (z ^ (z >> 27)) * -7723592293110705685  # 0x94D049BB133111EB
-	return z ^ (z >> 31)
+	z = (z ^ _ushr(z, 30)) * -4658895280553007687  # 0xBF58476D1CE4E5B9
+	z = (z ^ _ushr(z, 27)) * -7723592293110705685  # 0x94D049BB133111EB
+	return z ^ _ushr(z, 31)
+
+
+## Desplazamiento a la derecha **lógico** de 64 bits.
+##
+## `>>` en GDScript es aritmético: sobre un entero negativo rellena con unos, y
+## splitmix64 está definido sobre enteros **sin signo**. La diferencia no es
+## académica y costó encontrarla: con el desplazamiento aritmético el último
+## paso del mezclador, `z ^ (z >> 31)`, deja el bit 63 **siempre en cero**
+## —porque ese bit se hace XOR consigo mismo—, así que [method mix] no podía
+## devolver un negativo y [method mix_unit] no podía devolver nada mayor que
+## 0,5. Medido: de 1 600 llaves, 1 600 cayeron en `[0; 0,5)` y ninguna arriba.
+##
+## Lo que eso arruinaba: toda tirada que se comparara contra un umbral por
+## encima de 0,5 salía siempre para el mismo lado. En WP-D2 lo delató el reparto
+## de especies de las arboledas —el sauce pesa 0,5 y se llevó **las 288**
+## instancias, y el maíz 0,6 contra 0,4 dio 1 046 contra 107— pero afectaba
+## igual al giro de la maleza (medio círculo, nunca el otro), a la altura de los
+## puestos de pila (4 a 5 m, nunca 5 a 6) y a la variación de altura de las
+## casas antes de que el diseño la declarara.
+static func _ushr(value: int, bits: int) -> int:
+	# `bits` se acota a [0, 63] (WP-D4a, hallazgo 24): con 64 o más, `1 << (64 -
+	# bits)` desplaza por cero o por un negativo y GDScript devuelve basura en
+	# vez de cero, que es lo que un desplazamiento lógico de 64 bits tiene que
+	# dar. Hoy nadie llama con más de 31, pero el mezclador es la raíz de todo el
+	# determinismo del pueblo y no puede depender de que nadie se equivoque.
+	var shift := clampi(bits, 0, 63)
+	if shift <= 0:
+		return value
+	return (value >> shift) & ((1 << (64 - shift)) - 1)
 
 
 ## Mezcla varios enteros en uno solo, en orden.
@@ -1131,8 +1420,10 @@ static func mix_all(values: Array[int]) -> int:
 ## Flotante en `[0, 1)` determinista a partir de [param key].
 static func mix_unit(key: int) -> float:
 	# Se usan los 53 bits altos, que es lo que un `float` representa sin perder
-	# nada, y se fuerza el signo para que el módulo no dependa del complemento.
-	return float((mix(key) >> 11) & 0x1FFFFFFFFFFFFF) / float(0x20000000000000)
+	# nada. El desplazamiento tiene que ser **lógico** (ver [method _ushr]): con
+	# el aritmético de GDScript el bit de signo se propagaba y el resultado nunca
+	# pasaba de 0,5.
+	return float(_ushr(mix(key), 11) & 0x1FFFFFFFFFFFFF) / float(0x20000000000000)
 
 
 ## Ángulo en grados entre dos direcciones, medido en XZ.
@@ -1378,6 +1669,66 @@ static func polygon_inset(poly: PackedVector2Array, point: Vector2) -> float:
 		if outward == Vector2.ZERO:
 			continue
 		best = minf(best, -(point - poly[index]).dot(outward))
+	return best
+
+
+## El polígono convexo [param poly] corrido [param amount] metros hacia adentro.
+##
+## Cada lado se mueve paralelo a sí mismo y los vértices nuevos son el corte de
+## los dos lados corridos que los tocan, que es lo que conserva los ángulos: un
+## corrimiento vértice a vértice hacia el baricentro deformaría la figura en
+## cuanto los lados no midieran lo mismo. Con un corrimiento mayor que el radio
+## inscrito el polígono se da vuelta; en ese caso se devuelve vacío, que es la
+## única respuesta honesta.
+static func polygon_shrink(poly: PackedVector2Array, amount: float) -> PackedVector2Array:
+	if poly.size() < 3:
+		return PackedVector2Array()
+	if absf(amount) < 0.0001:
+		return poly
+	var count := poly.size()
+	var lines: Array[Dictionary] = []
+	for edge: int in count:
+		var a := poly[edge]
+		var b := poly[(edge + 1) % count]
+		var direction := (b - a)
+		if direction.length() < 0.0001:
+			return PackedVector2Array()
+		direction = direction.normalized()
+		var outward := polygon_edge_normal(poly, edge)
+		lines.append({"point": a - outward * amount, "dir": direction})
+	var out := PackedVector2Array()
+	for corner: int in count:
+		var first: Dictionary = lines[(corner - 1 + count) % count]
+		var second: Dictionary = lines[corner]
+		var p: Vector2 = first["point"]
+		var d: Vector2 = first["dir"]
+		var q: Vector2 = second["point"]
+		var e: Vector2 = second["dir"]
+		var denominator := d.cross(e)
+		if absf(denominator) < 0.000001:
+			return PackedVector2Array()
+		out.append(p + d * ((q - p).cross(e) / denominator))
+	if not polygon_is_convex(out, 0.001) or polygon_area(out) < 0.01:
+		return PackedVector2Array()
+	return out
+
+
+## Distancia de [param point] al segmento `a`–`b`, en XZ.
+static func segment_distance(a: Vector2, b: Vector2, point: Vector2) -> float:
+	var delta := b - a
+	var span := delta.length_squared()
+	if span < 0.000001:
+		return point.distance_to(a)
+	var t := clampf((point - a).dot(delta) / span, 0.0, 1.0)
+	return point.distance_to(a + delta * t)
+
+
+## Distancia de [param point] a la polilínea [param line], medida en XZ.
+static func polyline_distance(line: PackedVector3Array, point: Vector2) -> float:
+	var best := INF
+	for index: int in maxi(line.size() - 1, 0):
+		best = minf(best, segment_distance(Vector2(line[index].x, line[index].z),
+				Vector2(line[index + 1].x, line[index + 1].z), point))
 	return best
 
 

@@ -64,11 +64,134 @@ const PIECE_CLASS: Dictionary[StringName, StringName] = {
 	&"gas_station": &"pending", &"water_tower": &"pending", &"silo": &"pending",
 	&"chapel": &"pending", &"field_shed": &"pending", &"bus_stop": &"pending",
 	&"lamp_post": &"pending", &"school_chair": &"pending", &"bench": &"pending",
+	&"lantern": &"pending", &"flag_mast": &"pending", &"monument": &"pending",
+	&"awning_orange": &"pending", &"welcome_sign": &"pending",
+	&"road_sign_narrow": &"pending", &"road_sign_speed": &"pending",
+	&"fence_post": &"pending", &"fence_wire_6m": &"pending",
+	&"fence_picket_3m": &"pending", &"bridge_deck": &"pending",
+	&"crate": &"pending", &"barrel_c": &"pending",
+	&"car_a": &"pending", &"car_b": &"pending", &"pickup": &"pending",
+	&"truck": &"pending",
 	&"tree_xl": &"pending", &"tree_large": &"pending", &"tree_medium": &"pending",
 	&"tree_small": &"pending", &"tree_stump": &"pending",
 	&"bush_a": &"pending", &"bush_b": &"pending", &"grass_a": &"pending",
-	&"flowers_a": &"pending", &"corn_a": &"pending",
+	&"flowers_a": &"pending", &"corn_a": &"pending", &"corn_b": &"pending",
 }
+
+## Manifiesto de piezas de WP-D1.
+##
+## Es la tabla que el encargo de arte escribe cuando hornea las piezas nuevas:
+## `{nombre: {class, scene, footprint, height, origin, front, placeholder,
+## tris}}`. Mientras el archivo no exista, [method piece_class] contesta con
+## [constant PIECE_CLASS] y las diecinueve piezas nuevas siguen siendo
+## `pending`; en cuanto aparece, la **misma** llamada empieza a decir `prop`,
+## `building` o `foliage` sin tocar una línea de este archivo.
+##
+## La fusión se hace acá y no copiando el manifiesto a [constant PIECE_CLASS]
+## porque una constante no se puede fusionar en ejecución y un diccionario
+## estático mutable se desincroniza: lo único que hay es **una** pregunta.
+const MANIFEST_PATH: String = "res://assets/town/pieces_manifest.json"
+
+## Clases que el manifiesto puede declarar y que el resolvedor sabe sembrar.
+##
+## `foliage` es la clase nueva de WP-D1: malla sin colisión que se siembra por
+## [MultiMesh] y nunca como [Building]. Se acepta también en el sitio de un
+## `prop`, porque un árbol de patio es un prop que resulta ser follaje.
+const PIECE_CLASSES: Array[StringName] = [
+	&"building", &"prop", &"rock", &"foliage", &"pending",
+]
+
+static var _manifest: Dictionary = {}
+static var _manifest_loaded: bool = false
+
+
+## El manifiesto de WP-D1, o un diccionario vacío si todavía no está en disco.
+static func manifest() -> Dictionary:
+	if _manifest_loaded:
+		return _manifest
+	_manifest_loaded = true
+	_manifest = {}
+	if not FileAccess.file_exists(MANIFEST_PATH):
+		return _manifest
+	var file := FileAccess.open(MANIFEST_PATH, FileAccess.READ)
+	if file == null:
+		push_error("TownDesign: '%s' existe y no se puede abrir." % MANIFEST_PATH)
+		return _manifest
+	var json := JSON.new()
+	var err := json.parse(_strip_comments(file.get_as_text()))
+	file.close()
+	if err != OK or typeof(json.data) != TYPE_DICTIONARY:
+		push_error("TownDesign: '%s' no parsea como objeto JSON." % MANIFEST_PATH)
+		return _manifest
+	# El manifiesto de WP-D1 envuelve la tabla en `pieces` y le pone al lado un
+	# `comment` y una `version`. Se aceptan las dos formas —envuelta y plana—
+	# porque la que importa es la tabla y no dónde está: preguntar por `pieces` y
+	# caer a la raíz cuesta tres líneas y ahorra un acoplamiento de formato.
+	var data: Dictionary = json.data
+	var pieces: Variant = data.get("pieces", null)
+	_manifest = pieces if typeof(pieces) == TYPE_DICTIONARY else data
+	return _manifest
+
+
+## Verdadero si el manifiesto de WP-D1 ya está en disco. Lo preguntan los checks
+## para saber si una pieza que falta es trabajo pendiente o una regresión.
+static func manifest_ready() -> bool:
+	return not manifest().is_empty()
+
+
+## Olvida el manifiesto cargado. Sólo para las pruebas que lo escriben a mano.
+static func forget_manifest() -> void:
+	_manifest = {}
+	_manifest_loaded = false
+
+
+## Clase de [param piece]: la que dice el manifiesto si existe, la de
+## [constant PIECE_CLASS] si no, y `&""` si la pieza no la conoce nadie.
+static func piece_class(piece: StringName) -> StringName:
+	var entry: Variant = manifest().get(String(piece), null)
+	if typeof(entry) == TYPE_DICTIONARY:
+		var declared := StringName(String((entry as Dictionary).get("class", "")))
+		if PIECE_CLASSES.has(declared):
+			return declared
+	return StringName(PIECE_CLASS.get(piece, &""))
+
+
+## La escena de [param piece] según el manifiesto, o `""`.
+static func piece_scene(piece: StringName) -> String:
+	var entry: Variant = manifest().get(String(piece), null)
+	if typeof(entry) != TYPE_DICTIONARY:
+		return ""
+	return String((entry as Dictionary).get("scene", ""))
+
+
+## Hacia dónde mira la pieza [param piece] en su espacio local: `-X` para las
+## piezas del pueblo y `-Z` para las de ciudad.
+##
+## El giro que el diseño declara es el del **mundo**: «esta parada mira a la
+## ruta». Cuál de los ejes locales de la pieza es su frente es dato de la pieza,
+## y por eso vive en el manifiesto y no en el diseño. Sin esto, la mitad de los
+## props le mostrarían el costado a la calle, que es exactamente lo que
+## [constant CityGrid.TOWN_PIECE_META] resuelve para los edificios.
+static func piece_front(piece: StringName) -> StringName:
+	var entry: Variant = manifest().get(String(piece), null)
+	if typeof(entry) != TYPE_DICTIONARY:
+		return &"-Z"
+	return StringName(String((entry as Dictionary).get("front", "-Z")))
+
+
+## Alto nominal de [param piece] según el manifiesto, o `0`.
+static func piece_height(piece: StringName) -> float:
+	var entry: Variant = manifest().get(String(piece), null)
+	if typeof(entry) != TYPE_DICTIONARY:
+		return 0.0
+	return float((entry as Dictionary).get("height", 0.0))
+
+
+## Verdadero si [param piece] se puede sembrar como decorado: prop, follaje o
+## roca. Es la pregunta que hacen las arboledas, los cercos y los props.
+static func piece_is_decor(piece: StringName) -> bool:
+	var kind := piece_class(piece)
+	return kind == &"prop" or kind == &"foliage" or kind == &"rock"
 
 ## Qué puede ser un [code]kind[/code] de calle. El orden fija el entero que va a
 ## `TownPlan.street_kind`.
@@ -91,6 +214,50 @@ const HOUSE_STATES: Array[StringName] = [&"intact", &"damaged", &"ruined"]
 ## Cómo se puede cercar un frente.
 const FENCE_KINDS: Array[StringName] = [&"", &"picket", &"wire", &"hedge", &"wall"]
 
+## Qué clases de cerco de **línea** sabe sembrar el resolvedor (WP-D2).
+##
+## Son menos que [constant FENCE_KINDS] a propósito: el cerco del frente de una
+## casa es un adorno que la pieza puede o no traer, pero un cerco de línea es
+## geometría repetida a lo largo de una polilínea y hace falta saber de cuántos
+## metros es cada tramo. Hoy hay dos piezas y por lo tanto dos clases.
+const FENCE_LINE_KINDS: Array[StringName] = [&"wire", &"picket"]
+
+## Largo de un tramo de cada clase de cerco de línea, en metros.
+##
+## Son los largos **reales** de las piezas de WP-D1: el alambrado mide 6,00 m y
+## el cerco de tabla **3,60** —tres módulos de 1,2— y no 3,00, que es lo que el
+## encargo suponía. El número vive acá y no en el resolvedor porque es un dato de
+## la pieza: si mañana el cerco de tabla pasa a cuatro módulos, cambia esta línea
+## y los tramos se recalculan solos.
+const FENCE_SPAN: Dictionary[StringName, float] = {&"wire": 6.0, &"picket": 3.6}
+
+## Pieza de cada clase de cerco de línea.
+const FENCE_PIECE: Dictionary[StringName, StringName] = {
+	&"wire": &"fence_wire_6m", &"picket": &"fence_picket_3m",
+}
+
+## Qué puede declarar un marcador del diseño.
+##
+## Un marcador **reemplaza** al que el resolvedor sortearía de ese `kind`: es la
+## puerta por la que el diseño se mete en una decisión que hasta P2b era
+## automática, sin tener que declarar las cuatro. Las pilas son el caso que lo
+## justifica: la gramática de `docs/17` §4 dice «toldo naranja = pila», y eso no
+## lo puede cumplir un sorteo sobre los cruces del grafo.
+const MARKER_KINDS: Array[StringName] = [&"battery", &"enemy", &"drone", &"camera"]
+
+## A cuántos metros de un toldo naranja o de una estación de servicio tiene que
+## caer un marcador `battery` declarado (`docs/17` §4, fila «toldo = pila»).
+const AWNING_REACH: float = 4.0
+
+## Las piezas que cumplen la gramática «acá hay una pila».
+const AWNING_PIECES: Array[StringName] = [&"awning_orange", &"gas_station", &"bus_stop"]
+
+## Holguras por omisión de una arboleda, en metros: a la franja de calle, al
+## borde de manzana, a la huella de un edificio y al eje de la ruta.
+const GROVE_CLEAR: Dictionary[StringName, float] = {
+	&"streets": 6.0, &"blocks": 4.0, &"houses": 3.0, &"route": 12.0,
+}
+
 ## Tolerancia con la que un nodo declarado tiene que caer sobre el eje que dice
 ## tocar, en metros.
 const ON_AXIS_TOLERANCE: float = 0.25
@@ -106,8 +273,18 @@ const ON_AXIS_TOLERANCE: float = 0.25
 ## diseño válido.
 @export var problems: PackedStringArray = PackedStringArray()
 
-## Avisos: piezas desconocidas o todavía sin asset. No impiden cargar.
+## Avisos: piezas que la tabla **no conoce**. No impiden cargar, pero son una
+## regresión: alguien escribió un nombre que no existe.
 @export var warnings: PackedStringArray = PackedStringArray()
+
+## Piezas nombradas por el diseño que todavía no existen en disco (`pending`).
+##
+## Van aparte de [member warnings] porque no son lo mismo: un nombre
+## desconocido es un error de tipeo y una pieza `pending` es **trabajo de
+## WP-D1**. El check exige que [member warnings] esté vacío y se limita a
+## **contar** éstas, que es lo que permite tener el diseño bueno escrito y
+## verificado mientras el arte llega.
+@export var pending: PackedStringArray = PackedStringArray()
 
 ## El JSON ya parseado y normalizado a los tipos del esquema.
 var _data: Dictionary = {}
@@ -300,6 +477,7 @@ func _validate() -> void:
 	_validate_blocks()
 	_validate_poi()
 	_validate_scatter()
+	_validate_markers()
 	_validate_terrain()
 
 
@@ -655,6 +833,32 @@ func _validate_poi() -> void:
 			if size.x <= 0.0 or size.y <= 0.0:
 				_fail(line, "el POI '%s' tiene una huella de %.1f × %.1f m" % [id, size.x, size.y])
 		_check_piece(StringName(String(data.get("piece", ""))), line, "el POI '%s'" % id)
+		# `block` dice **en qué manzana** va el POI. Un POI sin la clave se sienta
+		# donde caiga (compatibilidad con el andamio); con `null` declara que es
+		# un lote rural fuera de todas las manzanas —el silo— y toma su cota del
+		# terreno; con un identificador se exige que esa manzana exista.
+		if data.has("block") and data["block"] != null:
+			var block_id := StringName(String(data["block"]))
+			if block_index(block_id) < 0:
+				_fail(line, "el POI '%s' dice estar en la manzana '%s', que no existe"
+						% [id, block_id])
+
+
+## Los marcadores declarados, que reemplazan a los sorteados de su `kind`.
+func _validate_markers() -> void:
+	for index: int in _array("markers").size():
+		var entry: Variant = _array("markers")[index]
+		var line := _line_of("\"markers\"")
+		if typeof(entry) != TYPE_DICTIONARY:
+			_fail(line, "el marcador %d no es un objeto" % index)
+			continue
+		var data: Dictionary = entry
+		var kind := StringName(String(data.get("kind", "")))
+		if not MARKER_KINDS.has(kind):
+			_fail(line, "el marcador %d es de clase '%s', que no existe (%s)"
+					% [index, kind, ", ".join(_names(MARKER_KINDS))])
+		if to_vector2(data.get("pos", null)) == null:
+			_fail(line, "el marcador %d no tiene una 'pos' de dos números" % index)
 
 
 ## Rocas, caseríos, props, arboledas, cercos, arroyo, puente y plaza.
@@ -683,8 +887,24 @@ func _validate_scatter() -> void:
 			_fail(line, "la arboleda %d tiene menos de tres vértices" % index)
 		if float(grove.get("density", 0.0)) <= 0.0:
 			_fail(line, "la arboleda %d no declara una densidad positiva" % index)
-		for piece_raw: Variant in grove.get("species", []):
-			_check_piece(StringName(String(piece_raw)), line, "la arboleda %d" % index)
+		if float(grove.get("min_spacing", 0.0)) < 0.0:
+			_fail(line, "la arboleda %d declara una separación mínima negativa" % index)
+		var species := grove_species(index)
+		if species.is_empty():
+			_fail(line, "la arboleda %d no declara ninguna especie" % index)
+		for choice: Dictionary in species:
+			if float(choice["weight"]) <= 0.0:
+				_fail(line, "la especie '%s' de la arboleda %d pesa %.3f"
+						% [choice["piece"], index, float(choice["weight"])])
+			_check_piece(StringName(choice["piece"]), line, "la arboleda %d" % index)
+		var clear: Variant = grove.get("clear", {})
+		if typeof(clear) == TYPE_DICTIONARY:
+			for key: Variant in (clear as Dictionary):
+				if not GROVE_CLEAR.has(StringName(String(key))):
+					_fail(line, "la arboleda %d declara la holgura '%s', que no existe"
+							% [index, key] + " ('streets', 'blocks', 'houses', 'route')")
+		elif clear != null:
+			_fail(line, "la holgura de la arboleda %d no es un objeto" % index)
 
 	for index: int in _array("fences").size():
 		var entry: Variant = _array("fences")[index]
@@ -696,8 +916,11 @@ func _validate_scatter() -> void:
 		if to_vector2_list(fence.get("polyline", null)).size() < 2:
 			_fail(line, "el cerco %d tiene menos de dos vértices" % index)
 		var kind := StringName(String(fence.get("kind", "")))
-		if not FENCE_KINDS.has(kind):
-			_fail(line, "el cerco %d es de tipo '%s', que no existe" % [index, kind])
+		if not FENCE_LINE_KINDS.has(kind):
+			_fail(line, "el cerco %d es de tipo '%s', que no existe (%s)"
+					% [index, kind, ", ".join(_names(FENCE_LINE_KINDS))])
+		else:
+			_check_piece(FENCE_PIECE[kind], line, "el cerco %d" % index)
 
 	if _data.has("creek"):
 		var creek := _dictionary("creek")
@@ -717,8 +940,32 @@ func _validate_scatter() -> void:
 				_fail(line, "el puente no declara un '%s' positivo" % key)
 	if _data.has("plaza"):
 		var plaza := _dictionary("plaza")
+		var line := _line_of("\"plaza\"")
 		if to_vector2_list(plaza.get("polygon", null)).size() < 3:
-			_fail(_line_of("\"plaza\""), "la plaza tiene menos de tres vértices")
+			_fail(line, "la plaza tiene menos de tres vértices")
+		elif not TownPlan.polygon_is_convex(to_vector2_list(plaza.get("polygon", null))):
+			_fail(line, "el polígono de la plaza no es convexo")
+		var datum: Variant = plaza.get("datum", "auto")
+		if typeof(datum) == TYPE_STRING and String(datum) != "auto":
+			_fail(line, "la plaza declara 'datum' = '%s': sólo vale \"auto\" o un número"
+					% datum)
+		# Los props de la plaza se validan como cualquier otro prop: son props que
+		# resulta que están en la plaza, y tenerlos declarados ahí adentro es lo
+		# que permite mover la plaza entera sin perseguir seis bancos por el JSON.
+		var props: Variant = plaza.get("props", [])
+		if typeof(props) != TYPE_ARRAY:
+			_fail(line, "los props de la plaza no son una lista")
+		else:
+			for index: int in (props as Array).size():
+				var prop: Variant = (props as Array)[index]
+				if typeof(prop) != TYPE_DICTIONARY:
+					_fail(line, "el prop %d de la plaza no es un objeto" % index)
+					continue
+				if to_vector2((prop as Dictionary).get("pos", null)) == null:
+					_fail(line, "el prop %d de la plaza no tiene una 'pos' de dos números"
+							% index)
+				_check_piece(StringName(String((prop as Dictionary).get("piece", ""))),
+						line, "el prop %d de la plaza" % index)
 
 
 func _validate_terrain() -> void:
@@ -747,12 +994,12 @@ func _check_piece(piece: StringName, line: int, who: String) -> void:
 	if piece == &"":
 		_warn(line, "%s no nombra ninguna pieza" % who)
 		return
-	var kind := StringName(PIECE_CLASS.get(piece, &""))
+	var kind := piece_class(piece)
 	if kind == &"":
 		_warn(line, "%s usa la pieza '%s', que la tabla no conoce: se omite" % [who, piece])
 	elif kind == &"pending":
-		_warn(line, "%s usa la pieza '%s', que todavía no existe (WP-D1): se omite"
-				% [who, piece])
+		pending.append(_where(line,
+				"%s usa la pieza '%s', que todavía no existe (WP-D1)" % [who, piece]))
 
 
 # --------------------------------------------------------------------------
@@ -901,6 +1148,69 @@ func bridge() -> Dictionary:
 
 func plaza() -> Dictionary:
 	return _dictionary("plaza")
+
+
+## Los props de la plaza, ya como lista de diccionarios.
+func plaza_props() -> Array:
+	var props: Variant = plaza().get("props", [])
+	return props if typeof(props) == TYPE_ARRAY else []
+
+
+## Los marcadores declarados.
+func markers() -> Array:
+	return _array("markers")
+
+
+## Índice de la manzana [param id], o `-1`.
+func block_index(id: StringName) -> int:
+	for index: int in _blocks.size():
+		if StringName(_blocks[index]["id"]) == id:
+			return index
+	return -1
+
+
+## Las especies de la arboleda [param index], normalizadas a
+## `[{piece: StringName, weight: float}]` y **en el orden declarado**.
+##
+## El JSON admite las dos formas: una lista de nombres —todas las especies
+## pesan lo mismo— y una lista de `{piece, weight}`. El orden importa porque de
+## él sale el reparto por peso acumulado, y un reparto que dependiera del orden
+## de las claves de un diccionario no sería reproducible.
+func grove_species(index: int) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var list: Array = groves()
+	if index < 0 or index >= list.size():
+		return out
+	var raw: Variant = (list[index] as Dictionary).get("species", [])
+	if typeof(raw) != TYPE_ARRAY:
+		return out
+	for entry: Variant in (raw as Array):
+		if typeof(entry) == TYPE_DICTIONARY:
+			var data: Dictionary = entry
+			out.append({
+				"piece": StringName(String(data.get("piece", ""))),
+				"weight": float(data.get("weight", 1.0)),
+			})
+			continue
+		out.append({"piece": StringName(String(entry)), "weight": 1.0})
+	return out
+
+
+## Holguras de la arboleda [param index], con los valores por omisión de
+## [constant GROVE_CLEAR] rellenando lo que no declare.
+func grove_clear(index: int) -> Dictionary[StringName, float]:
+	var out: Dictionary[StringName, float] = GROVE_CLEAR.duplicate()
+	var list: Array = groves()
+	if index < 0 or index >= list.size():
+		return out
+	var raw: Variant = (list[index] as Dictionary).get("clear", {})
+	if typeof(raw) != TYPE_DICTIONARY:
+		return out
+	for key: Variant in (raw as Dictionary):
+		var name := StringName(String(key))
+		if out.has(name):
+			out[name] = float((raw as Dictionary)[key])
+	return out
 
 
 func terrain() -> Dictionary:

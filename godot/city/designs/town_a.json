@@ -38,186 +38,506 @@
 		"nodes": ["n_in", "n_r1", "n_r2", "n_r3", "n_r4", "n_r5", "n_r6", "n_r7", "n_out"]
 	},
 
+	// WP-D4a (hallazgo 1). Cinco cabos eran MAS CORTOS que el radio de boca de
+	// su propio cruce -c1 a (8,53 contra 9,98), c2 a (7,76 / 9,66), c3 a
+	// (7,97 / 11,25), c4 b (10,51 / 12,19) y c5 b (9,14 / 9,70)-, asi que el
+	// poligono de asfalto del cruce se comia el cabo entero y seguia de 0,6 a
+	// 3,3 m MAS ALLA de la tranquera: calzada del lado de afuera del cierre.
+	// Con el cabo aplicado dos veces nadie lo veia, porque la tranquera estaba
+	// al doble de distancia. Los cinco suben a radio + 0,5 m.
 	"streets": [
-		{"id": "c1", "a": "n_b1", "b": "n_a1", "width": 10.614, "sidewalk": 3.0, "kind": "street", "stub_a": 8.53, "stub_b": 12.0, "closure_a": "gate", "closure_b": "gate"},
-		{"id": "c2", "a": "n_b2", "b": "n_a2", "width": 8.834, "sidewalk": 3.0, "kind": "street", "stub_a": 7.755, "stub_b": 11.555, "closure_a": "gate", "closure_b": "gate"},
-		{"id": "c3", "a": "n_b3", "b": "n_a3", "width": 8.955, "sidewalk": 3.0, "kind": "street", "stub_a": 7.972, "stub_b": 16.712, "closure_a": "gate", "closure_b": "gate"},
-		{"id": "c4", "a": "n_b4", "b": "n_a4", "width": 9.776, "sidewalk": 3.0, "kind": "street", "stub_a": 16.757, "stub_b": 10.507, "closure_a": "gate", "closure_b": "gate"},
-		{"id": "c5", "a": "n_b5", "b": "n_a5", "width": 11.256, "sidewalk": 3.0, "kind": "street", "stub_a": 12.767, "stub_b": 9.139, "closure_a": "gate", "closure_b": "gate"},
+		{"id": "c1", "a": "n_b1", "b": "n_a1", "width": 10.614, "sidewalk": 3.0, "kind": "street", "stub_a": 10.5, "stub_b": 12.0, "closure_a": "gate", "closure_b": "gate"},
+		{"id": "c2", "a": "n_b2", "b": "n_a2", "width": 8.834, "sidewalk": 3.0, "kind": "street", "stub_a": 10.2, "stub_b": 11.555, "closure_a": "gate", "closure_b": "gate"},
+		{"id": "c3", "a": "n_b3", "b": "n_a3", "width": 8.955, "sidewalk": 3.0, "kind": "street", "stub_a": 11.8, "stub_b": 16.712, "closure_a": "gate", "closure_b": "gate"},
+		{"id": "c4", "a": "n_b4", "b": "n_a4", "width": 9.776, "sidewalk": 3.0, "kind": "street", "stub_a": 16.757, "stub_b": 12.75, "closure_a": "gate", "closure_b": "gate"},
+		{"id": "c5", "a": "n_b5", "b": "n_a5", "width": 11.256, "sidewalk": 3.0, "kind": "street", "stub_a": 12.767, "stub_b": 10.25, "closure_a": "gate", "closure_b": "gate"},
 		{"id": "c6", "a": "n_b6", "b": "n_a6", "width": 10.074, "sidewalk": 3.0, "kind": "street", "stub_a": 13.097, "stub_b": 14.125, "closure_a": "gate", "closure_b": "gate"},
 		{"id": "c7", "a": "n_b7", "b": "n_a7", "width": 8.382, "sidewalk": 3.0, "kind": "street", "stub_a": 13.006, "stub_b": 12.0, "closure_a": "gate", "closure_b": "gate"},
 		{"id": "back_a", "a": "n_a1", "b": "n_a7", "width": 11.746, "sidewalk": 3.0, "kind": "street", "stub_a": 0.0, "stub_b": 0.0, "closure_a": "none", "closure_b": "none"},
 		{"id": "back_b", "a": "n_b1", "b": "n_b7", "width": 11.429, "sidewalk": 3.0, "kind": "street", "stub_a": 0.0, "stub_b": 0.0, "closure_a": "none", "closure_b": "none"}
 	],
 
+	// ----------------------------------------------------------------------
+	// MANZANAS Y CASAS
+	//
+	// El corazon del pueblo cambia de forma en WP-D2 (docs/17 SS2 y SS3): la
+	// manzana 9 entera pasa a ser **la plaza** y se queda sin casas, la 6 la
+	// ocupa la estacion de servicio y en la 8 la escuela se come el frente de
+	// la calle 4. Las tres manzanas que quedaban cortas -0, 4 y 11- suben a
+	// cuatro casas, que es el piso que pide docs/17 SS3 ("cuatro a seis casas
+	// por manzana"). De 46 casas quedan 41.
+	//
+	// Reparto de pieza y color: ciclico con periodos 10 y 4, asi que dos casas
+	// consecutivas de un mismo frente nunca repiten el par (regla de docs/17
+	// SS3). Una sola casa tiene la puerta abierta -la de la manzana 3 frente a
+	// la ruta- y hay dos danadas, las dos en el borde (manzanas 0 y 11).
 	"blocks": [
 		{
+		// Manzana de borde: sube de dos a cuatro casas y trae una danada.
+		// WP-D4a (hallazgo 9): la casa danada de la ruta pasa de t 0,55 a 0,555
+		// y de 11,00 a 9,00 m de ancho (el minimo que el check admite). Con la
+		// fila del circulo midiendo la HUELLA ENTERA y no el centro, a 0,55 y
+		// 11 m sacaba una esquina a 141,0 m. El frente de ruta de m00 mide
+		// 37,5 m y va de r 162 a r 107: correrla sin estrecharla la empujaba
+		// contra la casa 03, que ya esta pegada al extremo. Es la casa danada
+		// del borde: una casa angosta y rota al final del pueblo es exactamente
+		// lo que cuenta.
 			"id": "m00", "nodes": ["n_r1", "n_r2", "n_a2", "n_a1"],
 			"datum": "auto", "pad": "garden",
 			"houses": [
-				{"front": "c2", "t": 0.67031, "piece": "house_a", "variant": 0, "color": 0, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.967, "height_scale": 0.935},
-				{"front": "c2", "t": 0.32970, "piece": "house_b_b", "variant": 1, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.967, "height_scale": 1.008}
+				{"front": "c2", "t": 0.67031, "piece": "house_a", "variant": 0, "color": 0, "state": "intact", "garden": true, "tree": "tree_small", "door_open": false, "fence": "picket", "width": 11.967, "height_scale": 0.93},
+				{"front": "c2", "t": 0.3297, "piece": "house_b_b", "variant": 1, "color": 1, "state": "intact", "garden": true, "tree": "tree_medium", "door_open": false, "fence": "wire", "width": 11.967, "height_scale": 1.0},
+				{"front": "route", "t": 0.555, "piece": "house_c", "variant": 2, "color": 2, "state": "damaged", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 9.0, "height_scale": 1.07},
+				{"front": "route", "t": 0.835, "piece": "house_d_b", "variant": 3, "color": 3, "state": "intact", "garden": false, "tree": "", "door_open": false, "fence": "picket", "width": 10.999, "height_scale": 1.14}
 			]
 		},
 		{
 			"id": "m01", "nodes": ["n_r2", "n_r3", "n_a3", "n_a2"],
 			"datum": "auto", "pad": "garden",
 			"houses": [
-				{"front": "c3", "t": 0.67196, "piece": "house_c", "variant": 2, "color": 3, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 12.338, "height_scale": 1.025},
-				{"front": "back_a", "t": 0.65636, "piece": "house_d_b", "variant": 3, "color": 0, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 9.351, "height_scale": 0.984},
-				{"front": "back_a", "t": 0.34364, "piece": "shed", "variant": 4, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 9.351, "height_scale": 1.064},
-				{"front": "c2", "t": 0.67030, "piece": "shed", "variant": 4, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.967, "height_scale": 0.97},
-				{"front": "c2", "t": 0.32969, "piece": "house_a_b", "variant": 5, "color": 2, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.967, "height_scale": 1.103}
+				{"front": "c3", "t": 0.67196, "piece": "shed", "variant": 4, "color": 0, "state": "intact", "garden": true, "tree": "tree_small", "door_open": false, "fence": "", "width": 12.338, "height_scale": 0.95},
+				{"front": "back_a", "t": 0.65636, "piece": "house_a_b", "variant": 5, "color": 1, "state": "intact", "garden": false, "tree": "", "door_open": false, "fence": "wire", "width": 9.351, "height_scale": 1.02},
+				{"front": "back_a", "t": 0.34364, "piece": "house_b", "variant": 6, "color": 2, "state": "intact", "garden": true, "tree": "tree_small", "door_open": false, "fence": "picket", "width": 9.351, "height_scale": 1.09},
+				{"front": "c2", "t": 0.6703, "piece": "house_c_b", "variant": 7, "color": 3, "state": "intact", "garden": true, "tree": "tree_medium", "door_open": false, "fence": "wire", "width": 11.967, "height_scale": 1.16},
+				{"front": "c2", "t": 0.32969, "piece": "house_d", "variant": 8, "color": 0, "state": "intact", "garden": false, "tree": "", "door_open": false, "fence": "", "width": 11.967, "height_scale": 0.97}
 			]
 		},
 		{
 			"id": "m02", "nodes": ["n_r3", "n_r4", "n_a4", "n_a3"],
 			"datum": "auto", "pad": "garden",
 			"houses": [
-				{"front": "c4", "t": 0.67317, "piece": "house_d_b", "variant": 3, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 12.623, "height_scale": 1.079},
-				{"front": "c4", "t": 0.32683, "piece": "shed", "variant": 4, "color": 2, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 12.623, "height_scale": 1.021},
-				{"front": "route", "t": 0.74306, "piece": "house_a_b", "variant": 5, "color": 3, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 10.052, "height_scale": 1.094},
-				{"front": "route", "t": 0.49999, "piece": "house_b", "variant": 6, "color": 0, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 10.052, "height_scale": 1.107},
-				{"front": "route", "t": 0.25693, "piece": "house_c_b", "variant": 7, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 10.052, "height_scale": 1.145}
+				{"front": "c4", "t": 0.67317, "piece": "shed_b", "variant": 9, "color": 1, "state": "intact", "garden": false, "tree": "", "door_open": false, "fence": "picket", "width": 12.623, "height_scale": 1.04},
+				{"front": "c4", "t": 0.32683, "piece": "house_a", "variant": 0, "color": 2, "state": "intact", "garden": true, "tree": "tree_small", "door_open": false, "fence": "", "width": 12.623, "height_scale": 1.11},
+				{"front": "route", "t": 0.74306, "piece": "house_b_b", "variant": 1, "color": 3, "state": "intact", "garden": false, "tree": "", "door_open": false, "fence": "wire", "width": 10.052, "height_scale": 1.18},
+				{"front": "route", "t": 0.49999, "piece": "house_c", "variant": 2, "color": 0, "state": "intact", "garden": false, "tree": "", "door_open": false, "fence": "picket", "width": 10.052, "height_scale": 0.99},
+				{"front": "route", "t": 0.25693, "piece": "house_d_b", "variant": 3, "color": 1, "state": "intact", "garden": true, "tree": "tree_medium", "door_open": false, "fence": "wire", "width": 10.052, "height_scale": 1.06}
 			]
 		},
 		{
+		// Frente a la ruta va la unica casa con la puerta abierta del pueblo.
 			"id": "m03", "nodes": ["n_r4", "n_r5", "n_a5", "n_a4"],
 			"datum": "auto", "pad": "garden",
 			"houses": [
-				{"front": "back_a", "t": 0.50001, "piece": "house_a_b", "variant": 5, "color": 0, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 12.86, "height_scale": 0.949},
-				{"front": "c5", "t": 0.67029, "piece": "house_d", "variant": 8, "color": 3, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.964, "height_scale": 0.967},
-				{"front": "c5", "t": 0.32971, "piece": "shed_b", "variant": 9, "color": 0, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.964, "height_scale": 1.145}
+				{"front": "back_a", "t": 0.50001, "piece": "shed", "variant": 4, "color": 2, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 12.86, "height_scale": 1.13},
+				{"front": "c5", "t": 0.67029, "piece": "house_a_b", "variant": 5, "color": 3, "state": "intact", "garden": false, "tree": "", "door_open": false, "fence": "picket", "width": 11.964, "height_scale": 0.94},
+				{"front": "c5", "t": 0.32971, "piece": "house_b", "variant": 6, "color": 0, "state": "intact", "garden": true, "tree": "tree_small", "door_open": false, "fence": "", "width": 11.964, "height_scale": 1.01},
+				{"front": "route", "t": 0.7, "piece": "house_c_b", "variant": 7, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": true, "fence": "wire", "width": 9.352, "height_scale": 1.08}
 			]
 		},
 		{
+		// Sube de dos a cuatro: dos casas nuevas sobre la ruta.
 			"id": "m04", "nodes": ["n_r5", "n_r6", "n_a6", "n_a5"],
 			"datum": "auto", "pad": "garden",
 			"houses": [
-				{"front": "c6", "t": 0.67152, "piece": "house_b", "variant": 6, "color": 2, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 12.237, "height_scale": 0.984},
-				{"front": "back_a", "t": 0.49999, "piece": "house_a", "variant": 0, "color": 0, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 15.0, "height_scale": 1.022}
+				{"front": "c6", "t": 0.67152, "piece": "house_d", "variant": 8, "color": 2, "state": "intact", "garden": true, "tree": "tree_small", "door_open": false, "fence": "picket", "width": 12.237, "height_scale": 1.15},
+				{"front": "back_a", "t": 0.49999, "piece": "shed_b", "variant": 9, "color": 3, "state": "intact", "garden": true, "tree": "tree_medium", "door_open": false, "fence": "wire", "width": 15.0, "height_scale": 0.96},
+				{"front": "c5", "t": 0.28, "piece": "house_a", "variant": 0, "color": 0, "state": "intact", "garden": false, "tree": "", "door_open": false, "fence": "", "width": 9.757, "height_scale": 1.03},
+				{"front": "c5", "t": 0.7, "piece": "house_b_b", "variant": 1, "color": 1, "state": "intact", "garden": true, "tree": "tree_medium", "door_open": false, "fence": "picket", "width": 9.757, "height_scale": 1.1}
 			]
 		},
 		{
+		// El tanque de agua se queda con el lote: de las dos casas queda una.
 			"id": "m05", "nodes": ["n_r6", "n_r7", "n_a7", "n_a6"],
 			"datum": "auto", "pad": "garden",
 			"houses": [
-				{"front": "c6", "t": 0.67151, "piece": "house_c_b", "variant": 7, "color": 0, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 12.237, "height_scale": 1.077},
-				{"front": "c6", "t": 0.32848, "piece": "house_d", "variant": 8, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 12.237, "height_scale": 0.978}
+				{"front": "c6", "t": 0.32848, "piece": "house_c", "variant": 2, "color": 2, "state": "intact", "garden": false, "tree": "", "door_open": false, "fence": "", "width": 12.237, "height_scale": 1.17}
 			]
 		},
 		{
+		// La estacion de servicio ocupa la manzana entera: sin casas.
 			"id": "m06", "nodes": ["n_r1", "n_b1", "n_b2", "n_r2"],
 			"datum": "auto", "pad": "garden",
-			"houses": [
-				{"front": "c2", "t": 0.74905, "piece": "shed_b", "variant": 9, "color": 3, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.031, "height_scale": 1.16},
-				{"front": "c2", "t": 0.50000, "piece": "house_a", "variant": 0, "color": 2, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.031, "height_scale": 1.089},
-				{"front": "c2", "t": 0.25096, "piece": "house_b_b", "variant": 1, "color": 3, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.031, "height_scale": 0.956},
-				{"front": "back_b", "t": 0.71820, "piece": "house_b_b", "variant": 1, "color": 3, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 13.627, "height_scale": 1.108}
-			]
+			"houses": []
 		},
 		{
 			"id": "m07", "nodes": ["n_r2", "n_b2", "n_b3", "n_r3"],
 			"datum": "auto", "pad": "garden",
 			"houses": [
-				{"front": "c3", "t": 0.75080, "piece": "house_c", "variant": 2, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.344, "height_scale": 0.964},
-				{"front": "c3", "t": 0.50001, "piece": "house_d_b", "variant": 3, "color": 2, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.344, "height_scale": 1.168},
-				{"front": "c3", "t": 0.24921, "piece": "shed", "variant": 4, "color": 3, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.344, "height_scale": 1.161},
-				{"front": "c2", "t": 0.74904, "piece": "house_c", "variant": 2, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.031, "height_scale": 0.968},
-				{"front": "c2", "t": 0.50000, "piece": "house_d_b", "variant": 3, "color": 2, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.031, "height_scale": 1.133},
-				{"front": "c2", "t": 0.25095, "piece": "shed", "variant": 4, "color": 3, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.031, "height_scale": 1.16}
+				{"front": "c3", "t": 0.7508, "piece": "house_d_b", "variant": 3, "color": 3, "state": "intact", "garden": false, "tree": "", "door_open": false, "fence": "wire", "width": 11.344, "height_scale": 0.98},
+				{"front": "c3", "t": 0.50001, "piece": "shed", "variant": 4, "color": 0, "state": "intact", "garden": true, "tree": "tree_small", "door_open": false, "fence": "picket", "width": 11.344, "height_scale": 1.05},
+				{"front": "c3", "t": 0.24921, "piece": "house_a_b", "variant": 5, "color": 1, "state": "intact", "garden": true, "tree": "tree_medium", "door_open": false, "fence": "wire", "width": 11.344, "height_scale": 1.12},
+				{"front": "c2", "t": 0.74904, "piece": "house_b", "variant": 6, "color": 2, "state": "intact", "garden": false, "tree": "", "door_open": false, "fence": "", "width": 11.031, "height_scale": 0.93},
+				{"front": "c2", "t": 0.5, "piece": "house_c_b", "variant": 7, "color": 3, "state": "intact", "garden": true, "tree": "tree_medium", "door_open": false, "fence": "picket", "width": 11.031, "height_scale": 1.0},
+				{"front": "c2", "t": 0.25095, "piece": "house_d", "variant": 8, "color": 0, "state": "intact", "garden": false, "tree": "", "door_open": false, "fence": "", "width": 11.031, "height_scale": 1.07}
 			]
 		},
 		{
+		// La escuela toma el frente de la calle 4; quedan tres casas sobre la 3.
 			"id": "m08", "nodes": ["n_r3", "n_b3", "n_b4", "n_r4"],
 			"datum": "auto", "pad": "garden",
 			"houses": [
-				{"front": "c3", "t": 0.75079, "piece": "house_a_b", "variant": 5, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.344, "height_scale": 1.037},
-				{"front": "c3", "t": 0.49999, "piece": "house_b", "variant": 6, "color": 2, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.344, "height_scale": 1.161},
-				{"front": "c4", "t": 0.50001, "piece": "house_a_b", "variant": 5, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.582, "height_scale": 1.152},
-				{"front": "c4", "t": 0.24793, "piece": "house_b", "variant": 6, "color": 2, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.582, "height_scale": 1.043}
+				{"front": "c3", "t": 0.75079, "piece": "shed_b", "variant": 9, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "wire", "width": 11.344, "height_scale": 1.14},
+				{"front": "c3", "t": 0.49999, "piece": "house_a", "variant": 0, "color": 2, "state": "intact", "garden": false, "tree": "", "door_open": false, "fence": "picket", "width": 11.344, "height_scale": 0.95},
+				{"front": "c3", "t": 0.2, "piece": "house_b_b", "variant": 1, "color": 3, "state": "intact", "garden": true, "tree": "tree_medium", "door_open": false, "fence": "wire", "width": 11.344, "height_scale": 1.02}
 			]
 		},
 		{
+		// LA PLAZA. La unica manzana sin casas: es lo que le da 45 m de linea de
+		// tiro en las dos diagonales y deja ver la escuela entera desde la ruta.
 			"id": "m09", "nodes": ["n_r4", "n_b4", "n_b5", "n_r5"],
 			"datum": "auto", "pad": "garden",
-			"houses": [
-				{"front": "back_b", "t": 0.75890, "piece": "house_c_b", "variant": 7, "color": 0, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 12.987, "height_scale": 1.062},
-				{"front": "back_b", "t": 0.49999, "piece": "house_d", "variant": 8, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 12.987, "height_scale": 1.056},
-				{"front": "back_b", "t": 0.24108, "piece": "shed_b", "variant": 9, "color": 2, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 12.987, "height_scale": 1.176},
-				{"front": "c4", "t": 0.50000, "piece": "house_c_b", "variant": 7, "color": 0, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.582, "height_scale": 0.974},
-				{"front": "c4", "t": 0.24792, "piece": "house_d", "variant": 8, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.582, "height_scale": 1.027}
-			]
+			"houses": []
 		},
 		{
 			"id": "m10", "nodes": ["n_r5", "n_b5", "n_b6", "n_r6"],
 			"datum": "auto", "pad": "garden",
 			"houses": [
-				{"front": "c6", "t": 0.75033, "piece": "house_a", "variant": 0, "color": 2, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.258, "height_scale": 0.966},
-				{"front": "c6", "t": 0.50000, "piece": "house_b_b", "variant": 1, "color": 3, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.258, "height_scale": 1.013},
-				{"front": "c6", "t": 0.24968, "piece": "house_c", "variant": 2, "color": 0, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.258, "height_scale": 1.007},
-				{"front": "back_b", "t": 0.50000, "piece": "shed_b", "variant": 9, "color": 3, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.454, "height_scale": 0.925},
-				{"front": "back_b", "t": 0.24860, "piece": "house_a", "variant": 0, "color": 2, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.454, "height_scale": 0.958}
+				{"front": "c6", "t": 0.75033, "piece": "house_c", "variant": 2, "color": 0, "state": "intact", "garden": false, "tree": "", "door_open": false, "fence": "", "width": 11.258, "height_scale": 1.09},
+				{"front": "c6", "t": 0.5, "piece": "house_d_b", "variant": 3, "color": 1, "state": "intact", "garden": true, "tree": "tree_medium", "door_open": false, "fence": "picket", "width": 11.258, "height_scale": 1.16},
+				{"front": "c6", "t": 0.24968, "piece": "shed", "variant": 4, "color": 2, "state": "intact", "garden": true, "tree": "tree_small", "door_open": false, "fence": "", "width": 11.258, "height_scale": 0.97},
+				{"front": "back_b", "t": 0.5, "piece": "house_a_b", "variant": 5, "color": 3, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "wire", "width": 11.454, "height_scale": 1.04},
+				{"front": "back_b", "t": 0.2486, "piece": "house_b", "variant": 6, "color": 0, "state": "intact", "garden": false, "tree": "", "door_open": false, "fence": "picket", "width": 11.454, "height_scale": 1.11}
 			]
 		},
 		{
+		// Manzana de borde: cuarta casa sobre la ruta, y la segunda danada.
 			"id": "m11", "nodes": ["n_r6", "n_b6", "n_b7", "n_r7"],
 			"datum": "auto", "pad": "garden",
 			"houses": [
-				{"front": "c6", "t": 0.75032, "piece": "house_b_b", "variant": 1, "color": 0, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.258, "height_scale": 1.117},
-				{"front": "c6", "t": 0.50000, "piece": "house_c", "variant": 2, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.258, "height_scale": 0.934},
-				{"front": "c6", "t": 0.24967, "piece": "house_d_b", "variant": 3, "color": 2, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.258, "height_scale": 1.033}
+				{"front": "c6", "t": 0.75032, "piece": "house_c_b", "variant": 7, "color": 1, "state": "intact", "garden": true, "tree": "tree_medium", "door_open": false, "fence": "wire", "width": 11.258, "height_scale": 1.18},
+				{"front": "c6", "t": 0.5, "piece": "house_d", "variant": 8, "color": 2, "state": "intact", "garden": false, "tree": "", "door_open": false, "fence": "", "width": 11.258, "height_scale": 0.99},
+				{"front": "c6", "t": 0.24967, "piece": "shed_b", "variant": 9, "color": 3, "state": "intact", "garden": true, "tree": "tree_medium", "door_open": false, "fence": "picket", "width": 11.258, "height_scale": 1.06},
+				{"front": "route", "t": 0.6, "piece": "house_a", "variant": 0, "color": 0, "state": "damaged", "garden": true, "tree": "tree_small", "door_open": false, "fence": "", "width": 9.347, "height_scale": 1.13}
 			]
 		}
 	],
 
+	// ----------------------------------------------------------------------
+	// PLAZA (POI del anillo 0)
+	//
+	// El poligono es el de la manzana 9 con un inset de 1 m: la losa deja ver
+	// el cordon de la vereda en todo el perimetro en vez de empalmar con el.
+	// El mastil va en el baricentro y el monumento tres metros al norte; los
+	// ocho arboles medianos van en el **perimetro** y no en el centro, porque
+	// el jefe tiene que poder pararse ahi y el jugador tiene que poder leerlo
+	// (docs/17 SS3).
+	"plaza": {
+		"polygon": [[16.401, -18.222], [-7.261, 18.723], [38.454, 32.858], [51.064, -7.504]],
+		"datum": "auto",
+		"props": [
+			// mastil: el eje de la plaza
+			{"piece": "flag_mast", "pos": [24.212, 7.385], "yaw_deg": 0.0, "on_terrain": true},
+			// monumento con la placa
+			{"piece": "monument", "pos": [24.212, 4.385], "yaw_deg": 162.818, "on_terrain": true},
+			{"piece": "bench", "pos": [33.738, 12.885], "yaw_deg": 120.0, "on_terrain": true},
+			{"piece": "bench", "pos": [24.212, 18.385], "yaw_deg": 180.0, "on_terrain": true},
+			{"piece": "bench", "pos": [14.686, 12.885], "yaw_deg": 240.0, "on_terrain": true},
+			{"piece": "bench", "pos": [14.686, 1.885], "yaw_deg": 300.0, "on_terrain": true},
+			{"piece": "bench", "pos": [24.212, -3.615], "yaw_deg": 360.0, "on_terrain": true},
+			{"piece": "bench", "pos": [33.738, 1.885], "yaw_deg": 420.0, "on_terrain": true},
+			{"piece": "lantern", "pos": [34.818, 17.992], "yaw_deg": 0.0, "on_terrain": true},
+			{"piece": "lantern", "pos": [13.605, 17.992], "yaw_deg": 0.0, "on_terrain": true},
+			{"piece": "lantern", "pos": [13.605, -3.222], "yaw_deg": 0.0, "on_terrain": true},
+			{"piece": "lantern", "pos": [34.818, -3.222], "yaw_deg": 0.0, "on_terrain": true},
+			{"piece": "tree_medium", "pos": [14.193, -5.503], "yaw_deg": 0.0, "on_terrain": true},
+			{"piece": "tree_medium", "pos": [5.459, 8.132], "yaw_deg": 41.0, "on_terrain": true},
+			{"piece": "tree_medium", "pos": [7.165, 17.95], "yaw_deg": 82.0, "on_terrain": true},
+			{"piece": "tree_medium", "pos": [22.635, 22.733], "yaw_deg": 123.0, "on_terrain": true},
+			{"piece": "tree_medium", "pos": [36.085, 23.674], "yaw_deg": 164.0, "on_terrain": true},
+			{"piece": "tree_medium", "pos": [40.914, 8.218], "yaw_deg": 205.0, "on_terrain": true},
+			{"piece": "tree_medium", "pos": [41.764, -5.146], "yaw_deg": 246.0, "on_terrain": true},
+			{"piece": "tree_medium", "pos": [26.294, -9.929], "yaw_deg": 287.0, "on_terrain": true},
+			// parada sobre la ruta
+			{"piece": "bus_stop", "pos": [29.132, -13.029], "yaw_deg": -17.182, "on_terrain": true}
+		]
+	},
+
+	// ----------------------------------------------------------------------
+	// PUNTOS DE INTERES (docs/17 SS2)
 	"poi": [
-		{"id": "school", "piece": "tower_b", "pos": [-17.422, -23.708], "yaw_deg": -17.182, "footprint": [21.0, 11.5], "height_scale": 1.15, "role": "school", "name_key": "BLD_SCHOOL", "silhouette": "block", "story": []},
-		{"id": "landmark", "piece": "tower_b", "pos": [91.854, -18.704], "yaw_deg": 162.818, "footprint": [21.0, 11.5], "height_scale": 1.45, "role": "landmark", "name_key": "BLD_LANDMARK", "silhouette": "tower", "story": []},
-		{"id": "mid_0", "piece": "block_mid", "pos": [32.445, -8.289], "yaw_deg": -17.182, "footprint": [21.0, 11.5], "height_scale": 1.249, "role": "medium", "name_key": "BLD_MID_0", "silhouette": "block", "story": []},
-		{"id": "mid_1", "piece": "tower_b", "pos": [-66.962, -39.026], "yaw_deg": -17.182, "footprint": [21.0, 11.5], "height_scale": 1.016, "role": "medium", "name_key": "BLD_MID_1", "silhouette": "block", "story": []},
-		{"id": "mid_2", "piece": "block_mid", "pos": [42.704, -33.901], "yaw_deg": 162.818, "footprint": [21.0, 11.5], "height_scale": 1.046, "role": "medium", "name_key": "BLD_MID_2", "silhouette": "block", "story": []},
-		{"id": "mid_3", "piece": "tower_b", "pos": [-60.571, -65.835], "yaw_deg": 162.818, "footprint": [21.0, 11.5], "height_scale": 1.034, "role": "medium", "name_key": "BLD_MID_3", "silhouette": "block", "story": []},
-		{"id": "mid_4", "piece": "block_low_c", "pos": [85.061, 7.98], "yaw_deg": -17.182, "footprint": [21.0, 11.5], "height_scale": 1.091, "role": "medium", "name_key": "BLD_MID_4", "silhouette": "block", "story": []}
+		// La escuela: manzana 8, fachada al este sobre la calle 4 y mirando a la
+		// plaza. El `t` del frente no es 0,5 sino el que deja el eje de la
+		// fachada pasando por el mastil de la plaza (docs/17 SS3).
+		{"id": "school", "piece": "tower_b", "pos": [-11.926, -15.76], "yaw_deg": -122.638, "footprint": [21.0, 11.5], "height_scale": 1.15, "role": "school", "block": "m08", "name_key": "BLD_SCHOOL", "silhouette": "block", "story": []},
+		// El hito, sin tocar desde P2b.
+		{"id": "landmark", "piece": "tower_b", "pos": [91.854, -18.704], "yaw_deg": 162.818, "footprint": [21.0, 11.5], "height_scale": 1.45, "role": "landmark", "block": "m04", "name_key": "BLD_LANDMARK", "silhouette": "tower", "story": []},
+		// Los cinco medianos de P2b. `mid_0` estaba en (32,4; -8,3), o sea
+		// **dentro de la manzana 9**: con la plaza ahi no puede quedarse, asi
+		// que cruza la calle 5 y le da a la plaza su borde construido del este.
+		{"id": "mid_0", "piece": "block_mid", "pos": [66.791, 22.659], "yaw_deg": 72.651, "footprint": [21.0, 11.5], "height_scale": 1.249, "role": "medium", "block": "m10", "name_key": "BLD_MID_0", "silhouette": "block", "story": []},
+		{"id": "mid_1", "piece": "tower_b", "pos": [-66.962, -39.026], "yaw_deg": -17.182, "footprint": [21.0, 11.5], "height_scale": 1.016, "role": "medium", "block": "m07", "name_key": "BLD_MID_1", "silhouette": "block", "story": []},
+		{"id": "mid_2", "piece": "block_mid", "pos": [39.416, -45.349], "yaw_deg": 57.362, "footprint": [21.0, 11.5], "height_scale": 1.046, "role": "medium", "block": "m03", "name_key": "BLD_MID_2", "silhouette": "block", "story": []},
+		{"id": "mid_3", "piece": "tower_b", "pos": [-60.571, -65.835], "yaw_deg": 162.818, "footprint": [21.0, 11.5], "height_scale": 1.034, "role": "medium", "block": "m01", "name_key": "BLD_MID_3", "silhouette": "block", "story": []},
+		{"id": "mid_4", "piece": "block_low_c", "pos": [85.061, 7.98], "yaw_deg": -17.182, "footprint": [21.0, 11.5], "height_scale": 1.091, "role": "medium", "block": "m10", "name_key": "BLD_MID_4", "silhouette": "block", "story": []},
+		// La estacion de servicio: el "hola" del pueblo, de frente a la ruta en
+		// la manzana 6. Es lo primero que se ve entrando por el puente.
+		//
+		// WP-D4a (hallazgo 9): la huella declarada era 24 x 14 y la pieza mide
+		// 17,7 x 25,4 (manifiesto), o sea 25,4 A LO LARGO de la calle tras el
+		// TOWN_YAW_OFFSET de las piezas con frente -X. Con la huella real las
+		// dos esquinas del oeste quedaban a 144,2 y 146,2 m del centro, fuera
+		// del circulo de 140 -el jugador ve entera una estacion que el nivel
+		// dice que no existe- y las dos del sur se salian 3,98 m de la manzana
+		// por encima de la vereda, porque el centro estaba a 7,00 m del frente
+		// y la huella nueva pide 8,85.
+		// Se mueve 6,47 m: 6,13 m A LO LARGO del frente hacia el este y 2,08 m
+		// hacia adentro del lote. Conserva el rumbo y el frente a la ruta -su
+		// cara delantera queda a 23 cm de la linea municipal, que es donde se
+		// sientan los otros ocho edificios del pueblo-, la peor esquina queda a
+		// 139,80 m del centro y la mas justa a 23 cm del borde de m06.
+		{"id": "gas_station", "piece": "gas_station", "pos": [-115.417, -50.521], "yaw_deg": -17.181, "footprint": [25.4, 17.7], "height_scale": 1.0, "role": "gas_station", "block": "m06", "name_key": "BLD_GAS", "silhouette": "canopy", "story": []},
+		// Hito A: el tanque de agua, en el lote vacio de la manzana 5. No va
+		// contra la linea municipal sino en el medio del lote, que es donde
+		// esta un tanque de agua (docs/17 SS3: "un lote vacio con pasto alto").
+		// WP-D4a (hallazgo 9): huella real 7,019 x 7,2 (manifiesto) en vez de
+		// los 8 x 8 declarados a ojo, y 2,08 m al oeste, a (133,8; -18,3).
+		// Estaba en (135, -20) con el centro a 136,5 m y su huella sacaba una
+		// esquina a 141,8: la fila del circulo mide ahora la huella ENTERA. Con
+		// la huella verdadera el corrimiento que hace falta es chico -la peor
+		// esquina queda a 139,76- y por eso sigue viendose desde los cinco ojos:
+		// un salto mas grande lo metia detras del hito desde EnemySpawn0. Deja
+		// 0,80 m a la unica casa de la manzana y sigue en medio de su lote.
+		{"id": "water_tower", "piece": "water_tower", "pos": [133.8, -18.3], "yaw_deg": -17.182, "footprint": [7.019, 7.2], "height_scale": 1.0, "role": "water_tower", "block": "m05", "name_key": "BLD_WATER", "silhouette": "tower", "story": []},
+		// Hito B: silo y galpon, lote RURAL al sur de back_b (`block: null`).
+		// Macizo contra calado, sur contra norte: es el contrapunto del tanque.
+		{"id": "silo", "piece": "silo", "pos": [-95.0, 70.0], "yaw_deg": -17.182, "footprint": [7.0, 7.0], "height_scale": 1.0, "role": "silo", "block": null, "name_key": "BLD_SILO", "silhouette": "tower", "story": []},
+		{"id": "field_shed", "piece": "field_shed", "pos": [-74.0, 76.0], "yaw_deg": -17.182, "footprint": [18.0, 10.0], "height_scale": 1.0, "role": "shed", "block": null, "name_key": "BLD_SHED", "silhouette": "block", "story": []}
 	],
 
+	// ----------------------------------------------------------------------
+	// MARCADORES: los cuatro puestos de pila bajo toldo naranja
+	//
+	// Gramatica de docs/17 SS4: **toldo naranja = pila**. Un sorteo sobre los
+	// cruces del grafo no sabe donde hay un toldo, asi que los cuatro primeros
+	// puestos se declaran aca y el quinto lo sigue eligiendo el resolvedor. Los
+	// tres de azotea -escuela, hito y el mediano mas alto- no se tocan.
+	"markers": [
+		// estacion de servicio
+		{"kind": "battery", "pos": [-124.478, -55.502], "yaw_deg": 0.0},
+		// esquina de la manzana 02
+		{"kind": "battery", "pos": [6.784, -42.546], "yaw_deg": 0.0},
+		// esquina de la manzana 04
+		{"kind": "battery", "pos": [77.916, -20.817], "yaw_deg": 0.0},
+		// esquina de la manzana 10
+		{"kind": "battery", "pos": [100.696, 11.013], "yaw_deg": 0.0}
+	],
+
+	// ----------------------------------------------------------------------
+	// ARROYO Y PUENTE
+	//
+	// El cruce se corre de arco -200 a arco -230 m. A -200 caia justo sobre el
+	// acceso oeste del jefe -que el resolvedor pone a play_radius + 60 = 200 m
+	// de arco sobre la ruta- y con el vano abierto por WP-D1 el coloso nacia
+	// dos metros dentro del pozo del cauce. El cruce nuevo esta a r 228,6 m,
+	// justo del lado de adentro del desvanecido del relieve (230 m), conserva
+	// los 75 grados de cruce, deja 22 m entre el extremo este del vano y el
+	// acceso, y del quinto vertice en adelante la banda norte queda como estaba.
 	"creek": {
-		"polyline": [[-275.344, 73.025], [-230.516, 27.347], [-199.201, -23.833], [-182.672, -83.589], [-174.674, -112.503], [-167.1, -139.146], [-151.635, -161.388], [-130.856, -178.691], [-106.177, -189.862], [-79.817, -195.435], [-53.707, -197.464], [-28.663, -198.527], [-4.253, -200.442], [20.599, -203.34], [46.644, -205.562], [101.189, -225.282], [154.402, -257.1]],
+		"polyline": [[-275.344, 73.025], [-230.516, 27.347], [-227.334, -30.821], [-212.671, -83.831], [-206.806, -105.035], [-167.1, -139.146], [-151.635, -161.388], [-130.856, -178.691], [-106.177, -189.862], [-79.817, -195.435], [-53.707, -197.464], [-28.663, -198.527], [-4.253, -200.442], [20.599, -203.34], [46.644, -205.562], [101.189, -225.282], [154.402, -257.1]],
 		"width": 6.0, "depth": 2.4, "bank": 9.0
 	},
-	"bridge": {"at": [-182.672, -83.589], "span": 16.0, "deck_width": 12.0},
+	// El puente estrena tablero en WP-D2: `piece` es la pieza de WP-D1 y la
+	// calzada toma su cota de la recta entre los dos extremos del vano, no del
+	// terreno, que adentro del vano baja al cauce.
+	"bridge": {"at": [-212.671, -83.831], "span": 16.0, "deck_width": 12.0, "piece": "bridge_deck"},
 
-	"groves": [],
-	"fences": [],
-	"props": [],
+	// ----------------------------------------------------------------------
+	// ARBOLEDAS
+	//
+	// Del arroyo: la banda de +-18 m de su eje, cortada en dos porque el
+	// corredor de la ruta (+-20 m alrededor del puente) no lleva arboles: el
+	// puente tiene que verse desde lejos. Los extremos se cortan a r 250 m,
+	// donde el relieve esculpido se apaga: mas alla los sauces flotarian sobre
+	// el plano del campo lejano.
+	//
+	// De los maizales: dos parcelas de 120 x 80 m al sur, entre r 260 y 450 m,
+	// giradas 17,18 grados para seguir el grano de la ruta. Densidad 0,06/m2:
+	// el maiz se lee como textura, no como arboles sueltos.
+	"groves": [
+		// la banda del arroyo al oeste del puente
+		{
+			"id": "creek_w",
+			"polygon": [[-258.446, 30.108], [-246.986, 20.084], [-245.098, -33.729], [-235.351, -69.354],
+			[-200.654, -59.756], [-209.57, -27.913], [-214.046, 34.61], [-232.752, 55.324]],
+			"species": [{"piece": "tree_large", "weight": 0.5}, {"piece": "tree_xl", "weight": 0.2}, {"piece": "bush_a", "weight": 0.3}],
+			"density": 0.018,
+			"min_spacing": 5.0,
+			"clear": {"streets": 6.0, "blocks": 4.0, "houses": 3.0, "route": 12.0}
+		},
+		// la banda del arroyo al norte del pueblo: el borde natural del norte
+		{
+			"id": "creek_e",
+			"polygon": [[-224.688, -107.906], [-222.004, -114.679], [-180.461, -151.207], [-164.903, -173.552],
+			[-140.413, -193.944], [-111.783, -206.967], [-82.381, -213.251], [-54.786, -215.432],
+			[-29.749, -216.494], [-6.0, -218.357], [18.791, -221.249], [42.786, -223.144],
+			[93.475, -241.545], [94.398, -242.194], [112.873, -211.296], [108.903, -209.019],
+			[50.502, -187.98], [22.407, -185.431], [-2.506, -182.527], [-27.577, -180.56],
+			[-52.628, -179.496], [-77.253, -177.619], [-100.571, -172.757], [-121.299, -163.438],
+			[-138.367, -149.224], [-153.739, -127.085], [-191.608, -95.391], [-189.991, -98.309]],
+			"species": [{"piece": "tree_large", "weight": 0.5}, {"piece": "tree_xl", "weight": 0.2}, {"piece": "bush_a", "weight": 0.3}],
+			"density": 0.018,
+			"min_spacing": 5.0,
+			"clear": {"streets": 6.0, "blocks": 4.0, "houses": 3.0, "route": 12.0}
+		},
+		// maizal del suroeste
+		{
+			"id": "corn_w",
+			"polygon": [[-173.506, 262.061], [-58.861, 297.51], [-82.494, 373.939], [-197.139, 338.49]],
+			"species": [{"piece": "corn_a", "weight": 0.6}, {"piece": "corn_b", "weight": 0.4}],
+			"density": 0.06,
+			"clear": {"streets": 6.0, "blocks": 4.0, "houses": 3.0, "route": 12.0}
+		},
+		// maizal del sureste
+		{
+			"id": "corn_e",
+			"polygon": [[50.494, 288.061], [165.139, 323.51], [141.506, 399.939], [26.861, 364.49]],
+			"species": [{"piece": "corn_a", "weight": 0.4}, {"piece": "corn_b", "weight": 0.6}],
+			"density": 0.06,
+			"clear": {"streets": 6.0, "blocks": 4.0, "houses": 3.0, "route": 12.0}
+		}
+	],
 
+	// ----------------------------------------------------------------------
+	// CERCOS
+	//
+	// Alambrado de campo a los dos lados de la ruta, a 9 m del eje, desde
+	// r 200 hasta r 560 m, con hueco en el puente (+-12 m). Y dos medias
+	// vueltas a r ~178 m que cierran el disco por el norte y por el sur entre
+	// cabos vecinos: el limite del area jugable se lee por el alambre y no por
+	// un muro (docs/17 SS4). El hueco de cada calle lo abre `gap_at_streets`.
+	//
+	// WP-D3: las dos medias vueltas eran arcos de circunferencia muestreados
+	// cada 7,5 grados y desde el aire (`aerial_nw`) se leian como un compas
+	// trazado sobre el campo, que es lo contrario de un alambrado de campo. Sus
+	// vertices ahora llevan un desvio radial por vertice de 4 a 8 m en rachas
+	// de uno a tres, con tramos rectos de 21 a 38 m entre quiebre y quiebre:
+	// r va de 170,6 a 182,7 m y el limite se sigue leyendo entero, pero como
+	// una linea de postes que alguien planto siguiendo cabos y esquinas. Los
+	// dos extremos NO se tocan -(170.056, 52.583) y (-170.056, -52.583), el
+	// cruce de la ruta con el disco- porque son los que cierran el anillo entre
+	// las dos mitades y los que dejan el hueco de la ruta donde tiene que estar.
+	//
+	// Y seis quintas de caserio de 14 x 14 m con cerco de ALAMBRE.
+	//
+	// WP-D4a (hallazgo 10). Tres cosas:
+	//
+	// 1. Eran cuadrados alineados al mundo alrededor de casas giradas 163 o 180
+	//    grados: desde el aire se leian como una rejilla de catastro sobre un
+	//    caserio que no la tiene. Cada cuadrado toma ahora el rumbo de la casa
+	//    que encierra (`decor_houses[].yaw_deg`).
+	// 2. Dos pares se pisaban -00/04 por 0,45 m y 06/08 por 0,22 alineados, y
+	//    por 3,49 una vez girados-: dos quintas que comparten alambre no son dos
+	//    quintas. Quedan a 2,28 / 2,21 / 2,06 m de separacion (la 08 con la 10
+	//    tambien se mide). Para el par 06/08 no alcanzaba con correr el cuadrado
+	//    -las dos casas estaban a 10,5 m sobre el eje de separacion y las dos
+	//    juntas miden 9,97-, asi que la casa 06 se corre 5,70 m al oeste SOBRE
+	//    EL EJE DE LA RUTA (conserva sus 31,5 m a la calzada) y la 04, 2,70 m al
+	//    sur. Las dos siguen en el anillo de 150 a 220 m y a mas de 14 m de
+	//    cualquier vecina.
+	// 3. `kind` pasa de tabla a ALAMBRE: docs/17 SS3 dice "quintas con cercos de
+	//    alambre" y SS4 reserva el alambrado para el limite del campo. La tabla
+	//    se queda para los frentes de casa del pueblo.
+	"fences": [
+		// alambrado de la ruta, oeste lado -1
+		{"kind": "wire", "gap_at_streets": true, "polyline": [[-224.743, -74.928], [-553.34, -77.575]]},
+		// alambrado de la ruta, este lado -1
+		{"kind": "wire", "gap_at_streets": true, "polyline": [[195.301, 37.096], [220.903, 45.012], [555.912, 45.406], [558.816, 45.406]]},
+		// alambrado de la ruta, oeste lado +1
+		{"kind": "wire", "gap_at_streets": true, "polyline": [[-224.598, -92.927], [-553.195, -95.575]]},
+		// alambrado de la ruta, este lado +1
+		{"kind": "wire", "gap_at_streets": true, "polyline": [[200.618, 19.899], [226.221, 27.816], [555.912, 27.406], [558.815, 27.406]]},
+		// cierre del disco por el norte
+		{"kind": "wire", "gap_at_streets": true, "polyline": [[170.056, 52.583], [169.876, 25.461], [171.902, 0.462], [168.789, -32.572], [162.23, -55.968], [150.809, -81.9], [140.807, -100.134], [119.309, -122.309], [97.217, -140.51], [72.663, -167.117], [43.796, -176.889], [21.683, -180.936], [-11.281, -182.346], [-44.398, -177.218], [-65.965, -170.37], [-84.626, -148.134], [-104.415, -134.918], [-128.511, -112.206], [-150.652, -85.55], [-170.056, -52.583]]},
+		// cierre del disco por el sur
+		{"kind": "wire", "gap_at_streets": true, "polyline": [[170.056, 52.583], [156.754, 69.888], [147.578, 107.027], [122.62, 134.901], [91.048, 145.464], [71.12, 156.178], [43.257, 166.067], [11.54, 171.882], [-9.723, 171.994], [-37.152, 169.829], [-62.64, 162.168], [-89.657, 146.554], [-116.094, 127.385], [-139.831, 100.757], [-157.629, 69.698], [-166.565, 43.598], [-170.842, 19.662], [-171.963, -1.555], [-180.131, -26.637], [-170.056, -52.583]]},
+		// quinta del caserio 00
+		{"kind": "wire", "gap_at_streets": true, "polyline": [[-143.389, -117.386], [-157.388, -117.499], [-157.275, -131.498], [-143.276, -131.385], [-143.389, -117.386]]},
+		// quinta del caserio 02
+		{"kind": "wire", "gap_at_streets": true, "polyline": [[-118.074, -150.542], [-131.449, -154.677], [-127.314, -168.052], [-113.939, -163.917], [-118.074, -150.542]]},
+		// quinta del caserio 04
+		{"kind": "wire", "gap_at_streets": true, "polyline": [[-146.962, -101.134], [-160.961, -101.247], [-160.848, -115.246], [-146.849, -115.133], [-146.962, -101.134]]},
+		// quinta del caserio 06
+		{"kind": "wire", "gap_at_streets": true, "polyline": [[186.665, -0.655], [173.290, -4.791], [177.426, -18.166], [190.801, -14.031], [186.665, -0.655]]},
+		// quinta del caserio 08
+		{"kind": "wire", "gap_at_streets": true, "polyline": [[199.344, 13.217], [185.969, 9.082], [190.104, -4.293], [203.479, -0.158], [199.344, 13.217]]},
+		// quinta del caserio 10
+		{"kind": "wire", "gap_at_streets": true, "polyline": [[214.725, 17.845], [201.350, 13.710], [205.485, 0.335], [218.860, 4.470], [214.725, 17.845]]}
+	],
+
+	// ----------------------------------------------------------------------
+	// PROPS
+	//
+	// Lo que cuenta la historia de los ultimos veinte minutos (docs/17 SS0.10):
+	// los autos apuntando hacia afuera, el toldo naranja de cada pila, el
+	// camion de cereal a medio cargar. Las farolas de la avenida van cada 25 m
+	// alternando lado, que es el ritmo que hace legible la ruta de noche.
+	//
+	// WP-D4a (hallazgo 5): los tres toldos naranjas llevan `lift` 2.4. Un toldo
+	// es un alero: apoyado en el suelo no es un toldo, es una lona tirada, y la
+	// gramatica de docs/17 SS4 -"toldo naranja = pila"- deja de leerse desde la
+	// calle. Con 2,40 m de alto y 0,80 de espesor el toldo cubre de 2,4 a 3,2 m,
+	// que es justo donde vive ahora el puesto de pila de calle.
+	"props": [
+		// toldo de la tienda de la estacion: aca hay pila
+		{"piece": "awning_orange", "pos": [-125.911, -55.945], "yaw_deg": -17.181, "lift": 2.4, "on_terrain": true, "align_to_slope": false},
+		// puesto de pila de la manzana 02
+		{"piece": "awning_orange", "pos": [7.784, -40.814], "yaw_deg": 162.818, "lift": 2.4, "on_terrain": true, "align_to_slope": false},
+		// puesto de pila de la manzana 04
+		{"piece": "bus_stop", "pos": [76.18, -19.825], "yaw_deg": 72.65, "on_terrain": true, "align_to_slope": false},
+		// puesto de pila de la manzana 10
+		{"piece": "awning_orange", "pos": [102.304, 9.823], "yaw_deg": -97.138, "lift": 2.4, "on_terrain": true, "align_to_slope": false},
+		// auto cargando bajo la marquesina
+		{"piece": "car_a", "pos": [-115.88, -52.844], "yaw_deg": 162.819, "on_terrain": true, "align_to_slope": false},
+		// el otro auto, torcido y con la puerta abierta
+		{"piece": "car_b", "pos": [-112.058, -51.662], "yaw_deg": 196.819, "on_terrain": true, "align_to_slope": false},
+		{"piece": "pickup", "pos": [-86.0, 75.0], "yaw_deg": 78.818, "on_terrain": true, "align_to_slope": true},
+		// camion de cereal contra la tolva
+		{"piece": "truck", "pos": [-81.0, 83.5], "yaw_deg": 8.0, "on_terrain": true, "align_to_slope": true},
+		{"piece": "crate", "pos": [-68.0, 72.0], "yaw_deg": 24.0, "on_terrain": true, "align_to_slope": true},
+		{"piece": "barrel_c", "pos": [-100.5, 67.0], "yaw_deg": 0.0, "on_terrain": true, "align_to_slope": true},
+		{"piece": "lamp_post", "pos": [-120.122, -76.974], "yaw_deg": -17.182, "on_terrain": true, "align_to_slope": false},
+		{"piece": "lamp_post", "pos": [-100.255, -56.596], "yaw_deg": 162.818, "on_terrain": true, "align_to_slope": false},
+		{"piece": "lamp_post", "pos": [-72.354, -62.203], "yaw_deg": -17.182, "on_terrain": true, "align_to_slope": false},
+		{"piece": "lamp_post", "pos": [-52.487, -41.825], "yaw_deg": 162.818, "on_terrain": true, "align_to_slope": false},
+		{"piece": "lamp_post", "pos": [-24.585, -47.433], "yaw_deg": -17.182, "on_terrain": true, "align_to_slope": false},
+		{"piece": "lamp_post", "pos": [-4.718, -27.055], "yaw_deg": 162.818, "on_terrain": true, "align_to_slope": false},
+		{"piece": "lamp_post", "pos": [23.183, -32.662], "yaw_deg": -17.182, "on_terrain": true, "align_to_slope": false},
+		{"piece": "lamp_post", "pos": [43.05, -12.284], "yaw_deg": 162.818, "on_terrain": true, "align_to_slope": false},
+		{"piece": "lamp_post", "pos": [70.952, -17.892], "yaw_deg": -17.182, "on_terrain": true, "align_to_slope": false},
+		{"piece": "lamp_post", "pos": [90.819, 2.486], "yaw_deg": 162.818, "on_terrain": true, "align_to_slope": false},
+		{"piece": "lamp_post", "pos": [118.721, -3.122], "yaw_deg": -17.182, "on_terrain": true, "align_to_slope": false},
+		{"piece": "lamp_post", "pos": [138.587, 17.257], "yaw_deg": 162.818, "on_terrain": true, "align_to_slope": false},
+		// el nombre del pueblo y Escuela 12 - 1,2 km
+		{"piece": "welcome_sign", "pos": [-215.0, -70.0], "yaw_deg": -88.282, "on_terrain": true, "align_to_slope": false},
+		// puente angosto, 40 m antes
+		{"piece": "road_sign_narrow", "pos": [-252.724, -77.353], "yaw_deg": 89.538, "on_terrain": true, "align_to_slope": false},
+		// entrada este
+		{"piece": "road_sign_speed", "pos": [190.289, 19.008], "yaw_deg": -107.182, "on_terrain": true, "align_to_slope": false},
+		{"piece": "car_b", "pos": [-10.195, 0.15], "yaw_deg": -32.638, "on_terrain": true, "align_to_slope": false},
+		{"piece": "car_a", "pos": [20.807, -34.907], "yaw_deg": 147.362, "on_terrain": true, "align_to_slope": false},
+		{"piece": "car_b", "pos": [51.995, 9.731], "yaw_deg": -17.35, "on_terrain": true, "align_to_slope": false},
+		// El arbol grande de cada quinta. Su sitio se mide en el marco LOCAL de
+		// la quinta -4,20 m sobre cada eje desde la casa- y no en el del mundo:
+		// con el cuadrado ya girado (hallazgo 10), el desplazamiento de mundo de
+		// WP-D2 dejaba cuatro de los seis a 27 cm del alambre, o sea con la copa
+		// entera del lado de afuera. Asi quedan a 2,80 m del cerco.
+		{"piece": "tree_large", "pos": [-146.166, -120.208], "yaw_deg": 0.0, "on_terrain": true, "align_to_slope": false},
+		{"piece": "tree_large", "pos": [-119.922, -154.044], "yaw_deg": 74.0, "on_terrain": true, "align_to_slope": false},
+		{"piece": "tree_large", "pos": [-149.739, -103.956], "yaw_deg": 148.0, "on_terrain": true, "align_to_slope": false},
+		{"piece": "tree_large", "pos": [184.817, -4.158], "yaw_deg": 222.0, "on_terrain": true, "align_to_slope": false},
+		{"piece": "tree_large", "pos": [197.496, 9.715], "yaw_deg": 296.0, "on_terrain": true, "align_to_slope": false},
+		{"piece": "tree_large", "pos": [212.877, 14.343], "yaw_deg": 370.0, "on_terrain": true, "align_to_slope": false}
+	],
+
+	// ----------------------------------------------------------------------
+	// CASERIOS
+	//
+	// Nits de WP-T5 cerrados: 01 y 03 estaban a 13,2 m (regla: 14 entre
+	// centros), 03 a 17,6 m del arroyo y 15,0 de la ruta, 11 a 13,5 m de la
+	// ruta y 06 y 07 a un metro de la franja de la calle 7 (regla: 8,5 m).
 	"decor_houses": [
-		// 00 estaba en [-164.332, -93.442]: a 10,0 m del eje de la ruta —media calzada más
-		// banquina son 8 m— y su pad aplanaba la banquina. Movida 34,01 m al sursureste:
-		// 43,2 m a la ruta, 20,15 m al eje del arroyo, 15,6 m fuera de la franja de la calle 1
-		// y 14,01 m de la 04. Los 15,6 m de calle no son coquetería: el pad de una casa de
-		// caserío aplana un disco de unos 7,2 m de radio, y con el metro que pedía el encargo
-		// el pad levantaba el terreno 1,5 cm por encima del asfalto (`city_check`) (WP-T5).
 		{"piece": "house_a", "pos": [-150.332, -124.442], "yaw_deg": 179.538, "width": 10.241, "height_scale": 1.072},
-		{"piece": "house_b_b", "pos": [-159.044, -59.387], "yaw_deg": -17.182, "width": 9.922, "height_scale": 1.149},
-		{"piece": "house_c", "pos": [-151.694, -96.797], "yaw_deg": 162.818, "width": 10.39, "height_scale": 1.057},
-		{"piece": "house_d_b", "pos": [-168.562, -68.498], "yaw_deg": -0.462, "width": 11.149, "height_scale": 0.937},
-		// 04 estaba en [-180.883, -96.89]: a 1,82 m del eje del arroyo, o sea **dentro del
-		// cauce**, y su pad aplanaba el lecho. Movida 30,41 m al este, a la cuña que queda
-		// entre el arroyo y la ruta: 20,44 m al arroyo, 29,2 m a la ruta y 14,3 m fuera de
-		// la franja de la calle 1 (WP-T5).
-		{"piece": "shed", "pos": [-153.883, -110.89], "yaw_deg": 179.538, "width": 10.72, "height_scale": 0.946},
-		// 05 estaba en [-192.334, -62.752]: a 3,76 m del eje del arroyo, también dentro del
-		// cauce. Al este la tapan la 01 y la 03 —quedaría a menos de 14 m de las dos—, así
-		// que cruza a la barranca de enfrente, cerca del puente: 16,29 m al oeste, 20,03 m al
-		// arroyo, 16,04 m a la ruta y r 218,6 m, dentro de la banda 150–220 (WP-T5).
-		{"piece": "house_a_b", "pos": [-207.834, -67.752], "yaw_deg": -0.462, "width": 9.637, "height_scale": 1.118},
-		{"piece": "house_b", "pos": [172.991, -1.727], "yaw_deg": 162.818, "width": 9.502, "height_scale": 1.161},
-		{"piece": "house_c_b", "pos": [165.235, 37.743], "yaw_deg": -17.182, "width": 10.009, "height_scale": 1.02},
-		{"piece": "house_d", "pos": [186.224, 7.462], "yaw_deg": 162.818, "width": 10.433, "height_scale": 1.065},
-		{"piece": "shed_b", "pos": [185.074, 46.038], "yaw_deg": -17.182, "width": 9.69, "height_scale": 0.959},
-		{"piece": "house_a", "pos": [208.605, 11.59], "yaw_deg": 162.818, "width": 10.996, "height_scale": 1.147},
-		{"piece": "house_b_b", "pos": [207.494, 45.552], "yaw_deg": -17.182, "width": 10.132, "height_scale": 1.093}
+		{"piece": "house_b_b", "pos": [-174.044, -55.887], "yaw_deg": -17.182, "width": 9.922, "height_scale": 1.149},
+		{"piece": "house_c", "pos": [-122.694, -159.297], "yaw_deg": 162.818, "width": 10.39, "height_scale": 1.057},
+		{"piece": "house_d_b", "pos": [-189.062, -12.998], "yaw_deg": -0.462, "width": 11.149, "height_scale": 0.937},
+		{"piece": "shed", "pos": [-153.905, -108.19], "yaw_deg": 179.538, "width": 10.72, "height_scale": 0.946},
+		{"piece": "house_a_b", "pos": [-190.834, 1.248], "yaw_deg": -0.462, "width": 9.637, "height_scale": 1.118},
+		{"piece": "house_b", "pos": [182.045, -9.411], "yaw_deg": 162.818, "width": 9.502, "height_scale": 1.161},
+		{"piece": "house_c_b", "pos": [175.235, 56.243], "yaw_deg": -17.182, "width": 10.009, "height_scale": 1.02},
+		{"piece": "house_d", "pos": [194.724, 4.462], "yaw_deg": 162.818, "width": 10.433, "height_scale": 1.065},
+		{"piece": "shed_b", "pos": [187.074, 48.538], "yaw_deg": -17.182, "width": 9.69, "height_scale": 0.959},
+		{"piece": "house_a", "pos": [210.105, 9.09], "yaw_deg": 162.818, "width": 10.996, "height_scale": 1.147},
+		{"piece": "house_b_b", "pos": [205.994, 54.052], "yaw_deg": -17.182, "width": 10.132, "height_scale": 1.093}
 	],
 
 	"rocks": [
