@@ -440,7 +440,8 @@ Todo lo que hay en `assets/_raw/` y el juego no usa tiene una vista previa en
 `assets/preview/<pack>/`: GLB **estáticos**, sin `import_script` (ni colisión ni scripts:
 el `.glb.import` queda con `import_script/path=""`), fuera del export
 (`assets/preview/*` en los dos presets) y visibles en la galería de assets, filas
-`Packs/*` y `Enemigos/Vista previa`. No son arte del juego: sirven para decidir qué entra.
+`Packs/*` y `Enemigos` (junto a los del catálogo). No son arte del juego: sirven para decidir
+qué entra.
 
 ```powershell
 cd godot\tools

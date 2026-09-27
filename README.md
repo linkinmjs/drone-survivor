@@ -25,6 +25,27 @@ El detalle completo de la visión, el alcance del MVP y la hoja de ruta está en
 | Física | Jolt Physics a 100 Hz |
 | Controles | Gamepad o radio RC; teclado y ratón solo para depurar |
 
+## Clonar
+
+Los binarios del proyecto (modelos, audio, texturas, fuentes y recursos `.res`) viajan
+por **Git LFS**; la lista de extensiones está en `.gitattributes`. Antes del primer
+clon hay que instalar [git-lfs](https://git-lfs.com) y activarlo **una vez por
+máquina**:
+
+```
+git lfs install
+git clone <url-del-repositorio>
+```
+
+Si el clon se hizo sin LFS, los binarios quedan como punteros de texto de pocas líneas
+y Godot no los puede abrir. Se completa desde la raíz del repositorio con:
+
+```
+git lfs pull
+```
+
+Los packs crudos de `godot/assets/_raw/` no están en git ni en LFS.
+
 ## Cómo abrir el proyecto
 
 El proyecto Godot **no está en la raíz del repositorio**, sino en `godot/`. Desde el
@@ -108,7 +129,9 @@ El wrapper de consola solo se genera en export de **depuración**
 `.github/workflows/deploy-to-itch.yml` encadena cuatro jobs: `import` → `checks`
 (solo los headless) → `export` (preset **Windows Desktop**, publicado como artefacto
 `windows-desktop`) → `deploy-itch`, este último desactivado con `if: false` hasta que
-el juego se publique. Los cuatro usan **Godot 4.7 stable**.
+el juego se publique. Los cuatro usan **Godot 4.7 stable**. Los jobs que hacen
+checkout bajan los objetos LFS con `git lfs pull` y cachean `.git/lfs`, así que solo
+gastan ancho de banda de LFS cuando cambia algún binario.
 
 ## Estructura del repositorio
 

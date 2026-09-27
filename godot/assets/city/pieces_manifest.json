@@ -10,7 +10,15 @@
 		"material: familia de material de assets/city/materials/<material>.tres.",
 		"base_size [x, y, z] en metros es el metadato base_size de la raiz importada",
 		"(AABB agregado; y es la altura). Los edificios tienen el origen en una",
-		"esquina de la base; props y viario, en el centro de la base."
+		"esquina de la base; props y viario, en el centro de la base.",
+		"features (solo edificios, P2f 2026-09-27): rasgos humanos medidos en unidades",
+		"nativas del FBX (root_scale = 1): door_native es el alto de la hoja de la puerta",
+		"y floor_native el alto de una planta. Se midieron dos veces, con la fachada",
+		"reproyectada desde el atlas (UV -> texel, sin render) y con una captura",
+		"ortografica a 200 px por unidad; coinciden al voxel (0,1). Sin puerta pintada",
+		"no hay door_native. tools/asset_gallery_sources.gd los multiplica por el",
+		"nodes/root_scale vigente del .fbx.import y marca ESCALA? si la puerta cae",
+		"fuera de 1,9-2,5 m o la planta fuera de 2,6-4,0 m (docs/10 seccion 2.2)."
 	],
 	"version": 1,
 	"pieces": [
@@ -21,10 +29,13 @@
 			"family": "building",
 			"material": "buildings_002",
 			"base_size": [
-				20.0,
-				81.0,
-				10.0
+				9.8,
+				39.69,
+				4.9
 			],
+			"features": {
+				"floor_native": 1.3
+			},
 			"source": "freesample"
 		},
 		{
@@ -38,6 +49,10 @@
 				12.5,
 				11.0
 			],
+			"features": {
+				"door_native": 2.1,
+				"floor_native": 2.5
+			},
 			"source": "freesample"
 		},
 		{
@@ -51,6 +66,9 @@
 				12.5,
 				11.0
 			],
+			"features": {
+				"floor_native": 2.5
+			},
 			"source": "freesample"
 		},
 		{
@@ -60,10 +78,14 @@
 			"family": "building",
 			"material": "buildings_002",
 			"base_size": [
-				30.0,
-				12.5,
-				12.0
+				6.3,
+				2.63,
+				2.52
 			],
+			"features": {
+				"door_native": 2.0,
+				"floor_native": 2.5
+			},
 			"source": "freesample"
 		},
 		{
@@ -73,10 +95,13 @@
 			"family": "building",
 			"material": "buildings_002",
 			"base_size": [
-				30.0,
-				12.5,
-				10.0
+				6.3,
+				2.63,
+				2.1
 			],
+			"features": {
+				"floor_native": 2.5
+			},
 			"source": "freesample"
 		},
 		{
@@ -90,6 +115,9 @@
 				8.0,
 				10.5
 			],
+			"features": {
+				"floor_native": 1.6
+			},
 			"source": "freesample"
 		},
 		{

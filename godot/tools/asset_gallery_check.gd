@@ -1,13 +1,14 @@
 ## Copyright (c) 2026 Drone Survivor. Todos los derechos reservados.
 ##
-## Check de la galería de inventario de assets (plan P2e, WP-G).
+## Check de la galería de inventario de assets (planes P2e y P2f).
 ##
 ## Carga `tools/asset_gallery.tscn` —la escena que hornea
 ## `tools/build_asset_gallery.gd`— y la mide contra las fuentes de verdad de
-## cada familia, recalculadas con `tools/asset_gallery_sources.gd`: lo que la
-## galería *debería* tener sale del mismo cálculo que usó el horneador, así que
-## una galería vieja —una pieza nueva en un manifiesto, un `.res` que se fue—
-## se pone en rojo hasta que alguien la vuelva a hornear.
+## cada familia, recalculadas con [AssetGallerySources]: lo que la galería
+## *debería* tener sale del mismo cálculo que usó el horneador, así que una
+## galería vieja —una pieza nueva en un manifiesto, una regla de escala
+## cambiada— se pone en rojo hasta que alguien la vuelva a hornear. Lo mismo con
+## `assets/INVENTARIO.md`.
 ##
 ## | # | Fila | Umbral |
 ## |---|------|--------|
@@ -15,19 +16,27 @@
 ## | 2 | Nada del juego corre al abrirla | ningún nodo con script, ningún `Script` entre sus recursos externos |
 ## | 3 | Slots = fuentes | el conjunto de `slot_*` es la unión de las fuentes; lista faltantes y sobrantes |
 ## | 4 | Cada slot en su fila | el padre del slot es la fila de su familia |
-## | 5 | Cada instancia apunta a lo declarado | escena (`scene_file_path`) o `.res` (malla, `MultiMesh`, forma) |
+## | 5 | Cada instancia apunta a lo declarado | `scene_file_path` de la instancia = escena o GLB de la fuente |
 ## | 6 | Etiquetas | el texto de cada etiqueta es el que dicta su fuente |
 ## | 7 | Sin solapes en fila | cajas de la geometría real en X, por fila, sin cruzarse |
-## | 8 | Horneados aparte | las filas horneadas empiezan a −400 m o más allá |
+## | 8 | Dron de referencia en cada fila | el primer elemento de cada fila es el poste `Escala` con `ref_drone_quad` (el GLB del dron) apoyado a 2 m ± 1 cm y de frente (+Z) |
+## | 9 | Procedencia conocida | ninguna entrada con procedencia `?`; cada etiqueta empieza con su `PROPIO`/`DESCARGADO (pack)` y lleva su tinta |
+## | 10 | Marcas de escala = reglas | la tercera línea de cada etiqueta (`MEDIDA≠`, `ESCALA?`) es exactamente la que recalculan las fuentes |
+## | 11 | INVENTARIO.md al día | el texto regenerado en memoria es byte a byte el de `assets/INVENTARIO.md` |
 ##
-## **Prueba negativa** (`-- --negative`): borra un slot en memoria y cambia una
-## etiqueta, y exige que las filas 3 y 6 se pongan en rojo. Un check que no sabe
-## fallar no está midiendo nada.
+## **Prueba negativa** (`-- --negative`): en memoria, borra un slot, cambia una
+## medida de una etiqueta, le quita la marca de escala a otra y le cambia la
+## procedencia a una tercera, y exige que las filas 3, 6, 9 y 10 se pongan en
+## rojo. Además (P2f) le devuelve a `block_low_a` el `root_scale` de WP-13 (5.0)
+## y exige que la fila 10 lo marque por la **puerta**: la regla de rasgos
+## humanos tiene que ver sola una casa con una puerta de 10 m. Un check que no
+## sabe fallar no está midiendo nada.
 ##
 ## **Capturas** (`-- --shots`, con ventana): una o más por familia desde una
 ## cámara de fila (la regla de `town_showcase.gd::_shoot_row()`), con las otras
-## filas ocultas, en `tools/out/shots/asset_gallery/`. Las filas largas se parten
-## en tramos de pocas piezas para que las etiquetas se lean.
+## filas y el resto de la fila ocultos, en `tools/out/shots/asset_gallery/`. Las
+## filas largas se parten en tramos de pocas piezas para que las etiquetas se
+## lean.
 ##
 ## Uso:
 ## [codeblock]
@@ -38,23 +47,26 @@
 ## [/codeblock]
 extends CheckRunner
 
-const Sources := preload("res://tools/asset_gallery_sources.gd")
-
 const GALLERY_PATH: String = "res://tools/asset_gallery.tscn"
 ## Directorio de capturas cuando se pide `--shots` sin valor. El runner le
 ## suma el nombre del check (`asset_gallery`): quedan en
 ## `tools/out/shots/asset_gallery/`.
 const SHOTS_ROOT: String = "res://tools/out/shots"
 const TSCN_BUDGET_KB: float = 500.0
-const BAKED_FRONT_Z: float = -400.0
+
+## Nombre del poste de escala y del dron de referencia que lleva encima, y
+## altura del poste (la del horneador).
+const SCALE_POST: String = "Escala"
+const REFERENCE_DRONE: String = "ref_drone_quad"
+const SCALE_HEIGHT: float = 2.0
+## Cuánto puede separarse la base del dron de la punta del poste, en metros.
+const PERCH_TOLERANCE: float = 0.01
 
 ## Tolerancia de contacto entre dos cajas vecinas, en metros.
 const TOUCH: float = 0.001
 
-## Piezas por captura como máximo; en las filas horneadas, que miden cientos de
-## metros, dos, para que se vean desde arriba y no como una raya.
+## Piezas por captura como máximo.
 const SHOT_MAX_ITEMS: int = 8
-const SHOT_MAX_BAKED: int = 2
 
 ## Avance de un carácter de la fuente mono, en em, y aire entre dos etiquetas
 ## del mismo piso, en píxeles de pantalla.
@@ -66,8 +78,14 @@ const LABEL_AIR_PX: float = 24.0
 const WARMUP_FRAMES: int = 90
 const SETTLE_FRAMES: int = 12
 
+## Pieza y factor de la negativa de rasgos humanos: el `root_scale` que
+## `block_low_a` tuvo desde WP-13 hasta P2f.
+const SPOILED_FEATURE_ID: String = "block_low_a"
+const SPOILED_ROOT_SCALE: float = 5.0
+
 var _negative: bool = false
 var _fired: Dictionary[String, bool] = {}
+var _problems: Dictionary[String, PackedStringArray] = {}
 var _entries: Array[Dictionary] = []
 var _by_id: Dictionary[String, Dictionary] = {}
 
@@ -78,7 +96,7 @@ func _run() -> void:
 	var gallery := _load_gallery()
 	if gallery == null:
 		return
-	_entries = Sources.entries()
+	_entries = AssetGallerySources.entries()
 	for entry: Dictionary in _entries:
 		_by_id[String(entry["id"])] = entry
 
@@ -92,7 +110,10 @@ func _run() -> void:
 	_check_targets(slots)
 	_check_labels(slots)
 	_check_overlaps(gallery)
-	_check_baked_zone(gallery)
+	_check_reference_drones(gallery)
+	_check_provenance(slots)
+	_check_marks(slots)
+	_check_inventory()
 	_print_counts(slots)
 
 	if _negative:
@@ -132,7 +153,7 @@ func _load_gallery() -> Node3D:
 ## la escena nombra.
 func _check_scripts(gallery: Node) -> void:
 	var problems := PackedStringArray()
-	var nodes := Sources.walk(gallery)
+	var nodes := AssetGallerySources.walk(gallery)
 	for node: Node in nodes:
 		if node.get_script() != null:
 			var _added := problems.append("'%s' lleva script %s"
@@ -170,7 +191,7 @@ func _check_rows(slots: Dictionary[String, Node3D]) -> void:
 	for id: String in slots:
 		if not _by_id.has(id):
 			continue
-		var wanted := Sources.row_node(String(_by_id[id]["row"]))
+		var wanted := AssetGallerySources.row_node(String(_by_id[id]["row"]))
 		var parent := slots[id].get_parent()
 		if parent == null or String(parent.name) != wanted:
 			var _added := problems.append("'%s' está en '%s' y no en '%s'"
@@ -179,17 +200,13 @@ func _check_rows(slots: Dictionary[String, Node3D]) -> void:
 	_row("cada slot en su fila", problems)
 
 
-## 5. Cada instancia apunta a la escena o al `.res` que su fuente declara.
+## 5. Cada instancia apunta a la escena o al GLB que su fuente declara.
 func _check_targets(slots: Dictionary[String, Node3D]) -> void:
 	var problems := PackedStringArray()
-	var kinds: Dictionary[String, int] = {}
 	for id: String in slots:
 		if not _by_id.has(id):
 			continue
-		var entry := _by_id[id]
-		var path := String(entry["path"])
-		var kind := String(entry["kind"])
-		kinds[kind] = int(kinds.get(kind, 0)) + 1
+		var path := String(_by_id[id]["path"])
 		var slot := slots[id]
 		if String(slot.get_meta(&"source_path", "")) != path:
 			var _added := problems.append("'%s': metadato source_path '%s', esperado '%s'"
@@ -198,10 +215,10 @@ func _check_targets(slots: Dictionary[String, Node3D]) -> void:
 		if body == null:
 			var _added := problems.append("'%s': el slot no tiene la instancia '%s'" % [id, id])
 			continue
-		var found := _target_of(body, kind)
-		if kind != "data" and found != path:
-			var _added := problems.append("'%s' apunta a '%s' y no a '%s'" % [id, found, path])
-	print("  instancias: %s" % str(kinds))
+		if body.scene_file_path != path:
+			var _added := problems.append("'%s' apunta a '%s' y no a '%s'"
+					% [id, body.scene_file_path, path])
+	print("  instancias: %d revisadas, %d mal apuntadas" % [slots.size(), problems.size()])
 	_row("cada instancia apunta a lo declarado", problems)
 
 
@@ -212,12 +229,12 @@ func _check_labels(slots: Dictionary[String, Node3D]) -> void:
 	for id: String in slots:
 		if not _by_id.has(id):
 			continue
-		var label := slots[id].get_node_or_null(^"Label") as Label3D
+		var label := _label_of(slots[id])
 		if label == null:
 			var _added := problems.append("'%s' no tiene etiqueta" % id)
 			continue
 		checked += 1
-		var wanted := Sources.label_text(_by_id[id])
+		var wanted := AssetGallerySources.label_text(_by_id[id])
 		if label.text != wanted:
 			var _added := problems.append("'%s': «%s» y la fuente dice «%s»"
 					% [id, label.text.replace("\n", " | "), wanted.replace("\n", " | ")])
@@ -226,8 +243,7 @@ func _check_labels(slots: Dictionary[String, Node3D]) -> void:
 
 
 ## 7. Ninguna instancia se cruza con otra de su fila. La caja de cada una sale
-## de su geometría real —mallas, `MultiMesh` leídos del `buffer`, decals, la
-## forma de altura—, no del manifiesto.
+## de su geometría real, no del manifiesto.
 func _check_overlaps(gallery: Node) -> void:
 	var problems := PackedStringArray()
 	var rows := gallery.get_node_or_null(^"Rows")
@@ -251,63 +267,186 @@ func _check_overlaps(gallery: Node) -> void:
 	_row("sin solapes en fila", problems)
 
 
-## 8. Las mallas horneadas van aparte, desde −400 m.
-func _check_baked_zone(gallery: Node) -> void:
+## 8. Cada fila de [constant AssetGallerySources.ROWS] existe y arranca con el
+## poste de escala, que lleva encima el dron de referencia: el GLB del dron,
+## con la base de su caja sobre la punta del poste y girado de frente a +Z.
+func _check_reference_drones(gallery: Node) -> void:
 	var problems := PackedStringArray()
-	for row: Dictionary in Sources.ROWS:
-		if String(row["zone"]) != "baked":
-			continue
-		var node := gallery.get_node_or_null(NodePath("Rows/%s" % String(row["node"]))) as Node3D
+	var perched := 0
+	var wanted_basis := Basis(Vector3.UP, AssetGallerySources.DRONE_YAW)
+	for row: Dictionary in AssetGallerySources.ROWS:
+		var name := String(row["node"])
+		var node := gallery.get_node_or_null(NodePath("Rows/%s" % name)) as Node3D
 		if node == null:
-			var _added := problems.append("falta la fila '%s'" % String(row["node"]))
+			var _added := problems.append("falta la fila '%s'" % name)
 			continue
 		var spans := _row_spans(node)
-		var front := -INF
-		for span: Dictionary in spans:
-			front = maxf(front, float(span["front"]))
-		print("  %s: centro z = %.0f m, borde delantero z = %.0f m"
-				% [String(row["name"]), node.position.z, front])
-		if front > BAKED_FRONT_Z + TOUCH:
-			var _added := problems.append("'%s' llega a z = %.1f" % [String(row["name"]), front])
-	_row("horneados aparte", problems)
+		if spans.is_empty() or String(spans[0]["name"]) != SCALE_POST:
+			var _added := problems.append("'%s' no arranca con el poste '%s' (arranca con '%s')"
+					% [name, SCALE_POST, String(spans[0]["name"]) if not spans.is_empty() else "-"])
+			continue
+		var drone := node.get_node_or_null(NodePath("%s/%s" % [SCALE_POST, REFERENCE_DRONE])) \
+				as Node3D
+		if drone == null:
+			var _added := problems.append("'%s': el poste no lleva '%s'" % [name, REFERENCE_DRONE])
+			continue
+		if drone.scene_file_path != AssetGallerySources.DRONE_GLB:
+			var _added := problems.append("'%s': '%s' apunta a '%s' y no a '%s'" % [name,
+					REFERENCE_DRONE, drone.scene_file_path, AssetGallerySources.DRONE_GLB])
+			continue
+		var box := drone.transform * (AssetGallerySources.measure(drone)["aabb"] as AABB)
+		if absf(box.position.y - SCALE_HEIGHT) > PERCH_TOLERANCE:
+			var _added := problems.append("'%s': la base del dron está a %.3f m y el poste mide %.1f"
+					% [name, box.position.y, SCALE_HEIGHT])
+			continue
+		if not drone.transform.basis.is_equal_approx(wanted_basis):
+			var _added := problems.append("'%s': el dron no mira a +Z" % name)
+			continue
+		perched += 1
+	print("  dron de referencia: %d de %d filas con el dron sobre el poste"
+			% [perched, AssetGallerySources.ROWS.size()])
+	_row("dron de referencia en cada fila", problems)
+
+
+## 9. Toda entrada tiene procedencia conocida y su etiqueta la dice y la tiñe.
+func _check_provenance(slots: Dictionary[String, Node3D]) -> void:
+	var problems := PackedStringArray()
+	var counts: Dictionary[String, int] = {}
+	for entry: Dictionary in _entries:
+		var made := String(entry["made"])
+		counts[made] = int(counts.get(made, 0)) + 1
+		if made == "?":
+			var _added := problems.append("'%s': origen '%s' sin procedencia en PROVENANCE"
+					% [String(entry["id"]), String(entry["origin"])])
+	for id: String in slots:
+		if not _by_id.has(id):
+			continue
+		var label := _label_of(slots[id])
+		if label == null:
+			continue
+		var entry := _by_id[id]
+		var token := AssetGallerySources.provenance_token(entry)
+		var line := label.text.get_slice("\n", 1)
+		if not line.begins_with(token + " · ") or line.begins_with("?"):
+			var _added := problems.append("'%s': la etiqueta dice «%s» y la procedencia es «%s»"
+					% [id, line.get_slice(" · ", 0), token])
+		if not label.modulate.is_equal_approx(AssetGallerySources.tint(entry)):
+			var _added := problems.append("'%s': tinta %s y su procedencia pide %s"
+					% [id, label.modulate.to_html(false), AssetGallerySources.tint(entry).to_html(false)])
+	print("  procedencia: %s" % str(counts))
+	_row("procedencia conocida", problems)
+
+
+## 10. Las marcas de escala de cada etiqueta son exactamente las que recalculan
+## las fuentes.
+func _check_marks(slots: Dictionary[String, Node3D]) -> void:
+	var problems := PackedStringArray()
+	var marked := 0
+	for id: String in slots:
+		if not _by_id.has(id):
+			continue
+		var label := _label_of(slots[id])
+		if label == null:
+			continue
+		var shown := label.text.get_slice("\n", 2) if label.text.get_slice_count("\n") > 2 else ""
+		var wanted := AssetGallerySources.marks_line(_by_id[id])
+		if not wanted.is_empty():
+			marked += 1
+		if shown != wanted:
+			var _added := problems.append("'%s': marcas «%s» y las reglas dan «%s»"
+					% [id, shown, wanted])
+	print("  marcas: %d piezas marcadas según las reglas, %d etiquetas distintas"
+			% [marked, problems.size()])
+	_row("marcas de escala = reglas", problems)
+
+
+## 11. `assets/INVENTARIO.md` es byte a byte el que escribiría el horneador hoy.
+func _check_inventory() -> void:
+	var problems := PackedStringArray()
+	var path := AssetGallerySources.INVENTORY_PATH
+	var wanted := AssetGallerySources.inventory_text(_entries).to_utf8_buffer()
+	if not FileAccess.file_exists(path):
+		var _added := problems.append("falta '%s'; horneá la galería" % path)
+	else:
+		var found := FileAccess.get_file_as_bytes(path)
+		if found != wanted:
+			var lines := found.get_string_from_utf8().split("\n")
+			var fresh := wanted.get_string_from_utf8().split("\n")
+			var line := 0
+			while line < mini(lines.size(), fresh.size()) and lines[line] == fresh[line]:
+				line += 1
+			var _added := problems.append("'%s' (%d bytes) no es el regenerado (%d bytes): difiere en la línea %d"
+					% [path, found.size(), wanted.size(), line + 1])
+	print("  inventario: %s, %d bytes regenerados" % [path, wanted.size()])
+	_row("INVENTARIO.md al día", problems)
 
 
 # --------------------------------------------------------------------------
 # Negativa
 # --------------------------------------------------------------------------
 
-## Borra un slot y cambia una etiqueta, en memoria.
+## En memoria: borra un slot, cambia una medida de una etiqueta, le quita la
+## marca de escala a otra y le cambia la procedencia a una tercera.
 func _spoil(gallery: Node) -> void:
 	var slots := _slots(gallery)
 	var removed := "barrel_a"
 	var relabelled := "house_a"
+	var unmarked := "tree_large"
+	var unknown := "bench"
 	if slots.has(removed):
 		var slot := slots[removed]
 		slot.get_parent().remove_child(slot)
 		slot.free()
-	if slots.has(relabelled):
-		var label := slots[relabelled].get_node_or_null(^"Label") as Label3D
-		if label != null:
-			label.text = label.text.replace("5×5×3 m", "5×5×4 m")
-	print("  NEGATIVA: slot '%s' borrado y etiqueta de '%s' cambiada en memoria"
-			% [removed, relabelled])
+	var label := _label_of(slots.get(relabelled, null))
+	if label != null:
+		label.text = label.text.replace("5×5×3 m", "5×5×4 m")
+	label = _label_of(slots.get(unmarked, null))
+	if label != null:
+		label.text = label.text.get_slice("\n", 0) + "\n" + label.text.get_slice("\n", 1)
+	label = _label_of(slots.get(unknown, null))
+	if label != null:
+		label.text = label.text.replace("\nPROPIO · ", "\n? · ")
+	print("  NEGATIVA: slot '%s' borrado, medida de '%s' cambiada, marca de '%s' quitada y "
+			% [removed, relabelled, unmarked]
+			+ "procedencia de '%s' borrada, en memoria" % unknown)
+	# La fuente, no la etiqueta: el `root_scale` vuelve a 5.0 y las marcas se
+	# recalculan como lo haría el horneador con ese preset.
+	if _by_id.has(SPOILED_FEATURE_ID):
+		var entry := _by_id[SPOILED_FEATURE_ID]
+		entry["root_scale"] = SPOILED_ROOT_SCALE
+		var marks := AssetGallerySources.measure_marks(entry)
+		marks.append_array(AssetGallerySources.scale_marks(entry))
+		entry["marks"] = marks
+		print("  NEGATIVA: root_scale de '%s' a %.1f en memoria → «%s»" % [SPOILED_FEATURE_ID,
+				SPOILED_ROOT_SCALE, AssetGallerySources.marks_line(entry)])
 
 
 func _report_negative() -> void:
-	var expected := PackedStringArray(["slots = fuentes", "etiquetas"])
+	var expected := PackedStringArray(["slots = fuentes", "etiquetas", "procedencia conocida",
+			"marcas de escala = reglas"])
 	var fired := 0
 	for label: String in expected:
 		if bool(_fired.get(label, false)):
 			fired += 1
 		expect(bool(_fired.get(label, false)), "la fila «%s» no vio el defecto que le tocaba" % label)
 	print("  NEGATIVA: %d de %d filas apuntadas se pusieron en rojo" % [fired, expected.size()])
+	var feature_seen := false
+	var marks: PackedStringArray = _problems.get("marcas de escala = reglas", PackedStringArray())
+	for problem: String in marks:
+		if problem.begins_with("'%s'" % SPOILED_FEATURE_ID) and problem.contains("puerta"):
+			feature_seen = true
+	expect(feature_seen, "la fila «marcas de escala = reglas» no marcó la puerta de '%s' con "
+			% SPOILED_FEATURE_ID + "root_scale %.1f" % SPOILED_ROOT_SCALE)
+	print("  NEGATIVA: puerta de '%s' a root_scale %.1f %s" % [SPOILED_FEATURE_ID,
+			SPOILED_ROOT_SCALE, "marcada" if feature_seen else "SIN MARCAR"])
 
 
 # --------------------------------------------------------------------------
 # Capturas
 # --------------------------------------------------------------------------
 
-## Una o más capturas por fila, con las demás filas ocultas.
+## Una o más capturas por fila, con las demás filas y lo que queda fuera de cada
+## tramo ocultos.
 func _shoot(gallery: Node3D) -> void:
 	add_child(gallery)
 	var camera := gallery.get_node_or_null(^"Camera3D") as Camera3D
@@ -324,11 +463,8 @@ func _shoot(gallery: Node3D) -> void:
 	for row: Node in rows.get_children():
 		for other: Node in rows.get_children():
 			(other as Node3D).visible = other == row
-		if String(row.name) == "Horneados_Terreno":
-			_show_collision(row)
-		var most := SHOT_MAX_BAKED if String(row.name).begins_with("Horneados") 				else SHOT_MAX_ITEMS
-		var segments := _segments(_row_spans(row as Node3D), camera, most, (row as Node3D).position.z)
 		var z := (row as Node3D).position.z
+		var segments := _segments(_row_spans(row as Node3D), camera, SHOT_MAX_ITEMS, z)
 		for index: int in segments.size():
 			var segment: Array = segments[index]
 			var low := INF
@@ -336,32 +472,25 @@ func _shoot(gallery: Node3D) -> void:
 			var tall := 1.0
 			var front := 0.0
 			var names := PackedStringArray()
+			# Sólo el tramo a la vista: las etiquetas de las piezas vecinas, fuera
+			# del encuadre calculado, se leían encima de las del borde.
+			for child: Node in row.get_children():
+				if child is Node3D and not child is Label3D:
+					(child as Node3D).visible = false
 			for span: Dictionary in segment:
+				(row.get_node(NodePath(String(span["name"]))) as Node3D).visible = true
 				low = minf(low, float(span["min"]))
 				high = maxf(high, float(span["max"]))
 				tall = maxf(tall, float(span["height"]))
 				front = maxf(front, float(span["front"]) - z)
 				var _added := names.append(String(span["name"]))
-			camera.global_transform = Sources.frame(low, high, tall, z, camera.fov, front)
+			camera.global_transform = AssetGallerySources.frame(low, high, tall, z, camera.fov,
+					front)
 			await wait_frames(SETTLE_FRAMES)
 			var name := "%s_%d" % [String(row.name), index + 1]
 			print("  captura %s: %s" % [name, ", ".join(names)])
 			await shot(name)
 	remove_child(gallery)
-
-
-## La forma de colisión del relieve sólo se dibuja con el indicador de
-## depuración de colisiones encendido: se enciende y se vuelve a meter el cuerpo
-## al árbol para que arme su malla de depuración.
-func _show_collision(row: Node) -> void:
-	get_tree().debug_collisions_hint = true
-	for node: Node in Sources.walk(row):
-		var body := node as StaticBody3D
-		if body == null:
-			continue
-		var parent := body.get_parent()
-		parent.remove_child(body)
-		parent.add_child(body)
 
 
 ## Parte una fila en tramos que se puedan leer en una captura: se suman piezas
@@ -387,11 +516,12 @@ func _segments(spans: Array[Dictionary], camera: Camera3D, most: int, z: float) 
 ## la siguiente de su mismo piso.
 ##
 ## La escala en pantalla se mide con la cámara que de verdad va a sacar la
-## captura (`Sources.frame()`, fila en [param z]): ésa se aleja además lo que
-## sobresale el tramo hacia ella y se levanta, sobre todo en los tramos chatos.
-## Medida con la distancia horizontal a secas (antes de WP-G2), la escala salía
-## hasta 1,5 veces más grande que la real y las etiquetas de las piezas chicas
-## junto a una grande (un cartel al lado de una baldosa de 4 m) se pisaban.
+## captura ([method AssetGallerySources.frame], fila en [param z]): ésa se aleja
+## además lo que sobresale el tramo hacia ella y se levanta, sobre todo en los
+## tramos chatos. Medida con la distancia horizontal a secas (antes de WP-G2),
+## la escala salía hasta 1,5 veces más grande que la real y las etiquetas de las
+## piezas chicas junto a una grande (un cartel al lado de una baldosa de 4 m) se
+## pisaban.
 func _legible(spans: Array[Dictionary], camera: Camera3D, z: float) -> bool:
 	var low := INF
 	var high := -INF
@@ -404,7 +534,7 @@ func _legible(spans: Array[Dictionary], camera: Camera3D, z: float) -> bool:
 		front = maxf(front, float(span["front"]) - z)
 	var size := get_viewport().get_visible_rect().size
 	var half_fov := tan(deg_to_rad(camera.fov) * 0.5)
-	var view := Sources.frame(low, high, tall, z, camera.fov, front)
+	var view := AssetGallerySources.frame(low, high, tall, z, camera.fov, front)
 	var target := Vector3((low + high) * 0.5, tall * 0.45, z)
 	var depth := (target - view.origin).dot(-view.basis.z)
 	var pixels_per_metre := size.y / (2.0 * maxf(depth, 0.01) * half_fov)
@@ -427,7 +557,8 @@ func _legible(spans: Array[Dictionary], camera: Camera3D, z: float) -> bool:
 ## mide `font_size · pixel_size` veces el alto de la pantalla sobre
 ## `2 · tan(fov / 2)`.
 func _label_px(span: Dictionary, screen_height: float, half_fov: float) -> float:
-	var em := float(span["font_size"]) * float(span["pixel_size"]) * screen_height 			/ (2.0 * half_fov)
+	var em := float(span["font_size"]) * float(span["pixel_size"]) * screen_height \
+			/ (2.0 * half_fov)
 	return float(span["chars"]) * MONO_ADVANCE * em
 
 
@@ -446,35 +577,41 @@ func _resolve_dir(path: String) -> String:
 ## Los `slot_*` de la galería, por id.
 func _slots(gallery: Node) -> Dictionary[String, Node3D]:
 	var found: Dictionary[String, Node3D] = {}
-	for node: Node in Sources.walk(gallery):
+	for node: Node in AssetGallerySources.walk(gallery):
 		var name := String(node.name)
 		if name.begins_with("slot_"):
 			found[name.trim_prefix("slot_")] = node as Node3D
 	return found
 
 
-## Tramos en X que ocupa cada elemento de la fila (slots, poste de escala y
-## casa de referencia), ordenados, con su alto y su borde delantero en Z.
+## La etiqueta `Label` de [param item], o `null`.
+func _label_of(item: Node) -> Label3D:
+	if item == null:
+		return null
+	return item.get_node_or_null(^"Label") as Label3D
+
+
+## Tramos en X que ocupa cada elemento de la fila (slots y poste de escala con
+## su dron), ordenados, con su alto y su borde delantero en Z.
 func _row_spans(row: Node3D) -> Array[Dictionary]:
 	var spans: Array[Dictionary] = []
 	for child: Node in row.get_children():
 		var item := child as Node3D
 		if item == null or item is Label3D:
 			continue
-		var measured := Sources.measure(item)
+		var measured := AssetGallerySources.measure(item)
 		var local: AABB = measured["aabb"]
 		if local.size == Vector3.ZERO and local.position == Vector3.ZERO:
 			continue
 		var box := item.transform * local
-		var label := item.get_node_or_null(^"Label") as Label3D
+		var label := _label_of(item)
 		var chars := 0
 		# El encuadre tiene que dejar ver también la etiqueta, que puede ir más
 		# alta que la pieza (se empareja con la de sus vecinos).
 		var top := box.end.y
 		if label != null:
 			top = maxf(top, label.position.y + 0.5)
-			for line: String in label.text.split("
-"):
+			for line: String in label.text.split("\n"):
 				chars = maxi(chars, line.length())
 		spans.append({"name": String(item.name), "min": box.position.x, "max": box.end.x,
 				"centre": item.position.x, "height": top,
@@ -487,24 +624,6 @@ func _row_spans(row: Node3D) -> Array[Dictionary]:
 	return spans
 
 
-## Ruta del recurso al que apunta la instancia de un slot.
-func _target_of(body: Node, kind: String) -> String:
-	match kind:
-		"scene":
-			return body.scene_file_path
-		"mesh":
-			var mesh := body as MeshInstance3D
-			return mesh.mesh.resource_path if mesh != null and mesh.mesh != null else ""
-		"multimesh":
-			var multi := body as MultiMeshInstance3D
-			return multi.multimesh.resource_path if multi != null and multi.multimesh != null \
-					else ""
-		"shape":
-			var shape := body.get_node_or_null(^"Shape") as CollisionShape3D
-			return shape.shape.resource_path if shape != null and shape.shape != null else ""
-	return ""
-
-
 ## Cuántos slots hay por fila.
 func _print_counts(slots: Dictionary[String, Node3D]) -> void:
 	var per_row: Dictionary[String, int] = {}
@@ -512,7 +631,7 @@ func _print_counts(slots: Dictionary[String, Node3D]) -> void:
 		var row := String(slots[id].get_parent().name)
 		per_row[row] = int(per_row.get(row, 0)) + 1
 	var parts := PackedStringArray()
-	for row: Dictionary in Sources.ROWS:
+	for row: Dictionary in AssetGallerySources.ROWS:
 		var _added := parts.append("%s %d" % [String(row["node"]),
 				int(per_row.get(String(row["node"]), 0))])
 	print("  por fila: %s · total %d" % [", ".join(parts), slots.size()])
@@ -522,6 +641,7 @@ func _print_counts(slots: Dictionary[String, Node3D]) -> void:
 ## negativa sólo anota si se puso en rojo.
 func _row(label: String, problems: PackedStringArray) -> void:
 	_fired[label] = not problems.is_empty()
+	_problems[label] = problems
 	if _negative:
 		for problem: String in problems:
 			print("    (negativa) %s: %s" % [label, problem])

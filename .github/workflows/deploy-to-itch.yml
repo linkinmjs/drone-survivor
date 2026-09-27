@@ -17,6 +17,24 @@ jobs:
     container: barichello/godot-ci:4.7
     steps:
       - uses: actions/checkout@v4
+      # Los binarios van por Git LFS (docs/02 §6.3). El checkout no los baja: se
+      # cachea .git/lfs con una clave que es el hash del listado de objetos, así
+      # solo se gasta ancho de banda de LFS cuando cambia algún binario.
+      # La imagen godot-ci ya trae git-lfs; safe.directory evita el error de
+      # «dubious ownership» porque el contenedor corre como root.
+      - name: Listar objetos LFS
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git lfs ls-files -l | cut -d' ' -f1 | sort > .lfs-assets-id
+      - name: Cache de LFS
+        uses: actions/cache@v4
+        with:
+          path: .git/lfs
+          key: lfs-${{ hashFiles('.lfs-assets-id') }}
+      - name: Traer objetos LFS
+        run: |
+          git lfs install --local
+          git lfs pull
       - name: Cache de importacion
         uses: actions/cache@v4
         with:
@@ -38,6 +56,24 @@ jobs:
     needs: import
     steps:
       - uses: actions/checkout@v4
+      # Los binarios van por Git LFS (docs/02 §6.3). El checkout no los baja: se
+      # cachea .git/lfs con una clave que es el hash del listado de objetos, así
+      # solo se gasta ancho de banda de LFS cuando cambia algún binario.
+      # La imagen godot-ci ya trae git-lfs; safe.directory evita el error de
+      # «dubious ownership» porque el contenedor corre como root.
+      - name: Listar objetos LFS
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git lfs ls-files -l | cut -d' ' -f1 | sort > .lfs-assets-id
+      - name: Cache de LFS
+        uses: actions/cache@v4
+        with:
+          path: .git/lfs
+          key: lfs-${{ hashFiles('.lfs-assets-id') }}
+      - name: Traer objetos LFS
+        run: |
+          git lfs install --local
+          git lfs pull
       - uses: actions/download-artifact@v4
         with:
           name: godot-imported
@@ -62,6 +98,16 @@ jobs:
     needs: checks
     steps:
       - uses: actions/checkout@v4
+      # Mismo cache de LFS que en import y checks; ubuntu-latest ya trae git-lfs.
+      - name: Listar objetos LFS
+        run: git lfs ls-files -l | cut -d' ' -f1 | sort > .lfs-assets-id
+      - name: Cache de LFS
+        uses: actions/cache@v4
+        with:
+          path: .git/lfs
+          key: lfs-${{ hashFiles('.lfs-assets-id') }}
+      - name: Traer objetos LFS
+        run: git lfs pull
       - uses: actions/download-artifact@v4
         with:
           name: godot-imported

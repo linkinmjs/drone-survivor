@@ -383,6 +383,28 @@ Los archivos de `_raw/` **no se extraen dentro del repositorio**. El pipeline de
 
 `localization/translations.csv` usa cabecera `keys,es,en` y prefijos estables por dominio: `UI_`, `MENU_`, `OPT_`, `AUD_`, `GFX_`, `CTRL_`, `CAL_`, `HUD_`, `QUAD_`, `OBJ_`, `ERR_`, `GAME_`, más los nuevos `RND_` (rondas), `ENM_` (enemigos) y `WPN_` (armas). Ninguna cadena visible se escribe literal en un script.
 
+### 6.3 Git LFS
+
+> **Nota de P2f (2026-09-27, hechos medidos)**: `.gitattributes` en la raíz del repositorio activa Git LFS. Conteo sobre los archivos trackeados en `bb0f394` (`git check-attr filter` sobre `git ls-files`, y `git add --renormalize .` simulado sobre una copia del índice): **294 archivos, 43,8 MB (41,8 MiB)** pasan a punteros LFS: `.wav` 55 (19,4 MB), `.glb` 128 (10,2 MB), `.png` 33 (6,4 MB), `.res` 54 (5,8 MB), `.otf` 4 (1,0 MB), `.ttf` 5 (0,6 MB), `.fbx` 13 (0,5 MB), `.ogg` 2 (0,02 MB). Ningún archivo de texto cambia: el índice no tiene ningún archivo con CRLF (`git ls-files --eol`: 1 157 `i/lf`, 296 `i/-text`, 4 `i/none`).
+
+**Regla**: todo binario de arte, audio, fuente y recurso binario de Godot va por LFS; los formatos de texto de Godot (`.tscn`, `.tres`, `.import`, `.gd`, `.gdshader`, `.json`, `.svg`, `.uid`, `.cfg`, `.translation`, `.md`, `.py`) quedan en git, donde se leen en los diffs y se fusionan.
+
+| Grupo | Extensiones por LFS |
+|---|---|
+| Modelos 3D | `*.glb` `*.gltf` `*.fbx` `*.obj` `*.blend` `*.vox` |
+| Audio | `*.wav` `*.ogg` `*.mp3` |
+| Imágenes y texturas | `*.png` `*.jpg` `*.jpeg` `*.webp` `*.exr` `*.hdr` `*.ktx` `*.ktx2` |
+| Recursos binarios de Godot | `*.res` |
+| Fuentes | `*.otf` `*.ttf` `*.woff` `*.woff2` |
+
+Cada línea es `*.ext filter=lfs diff=lfs merge=lfs -text`. El archivo no declara `* text=auto` ni ninguna regla de finales de línea: hay archivos CRLF en la copia de trabajo y una renormalización de texto sería un diff ajeno a LFS.
+
+**La historia no se reescribe.** Los binarios ya subidos siguen dentro de los objetos de git (el `.git` local mide 47 MB) y los clones los siguen bajando. Sacarlos exige `git lfs migrate import --everything`, que reescribe todos los commits y obliga a un `push --force`: es una decisión aparte, no parte de este paso. Desde el commit que agrega `.gitattributes`, cada binario nuevo o modificado entra como puntero.
+
+**Al clonar**: instalar git-lfs y correr `git lfs install` una vez por máquina antes del `git clone`. Un clon hecho sin LFS deja los binarios como punteros de texto (Godot falla al importarlos) y se completa con `git lfs pull` desde la raíz. El detalle para quien llega al repo está en `README.md`, sección «Clonar».
+
+`godot/assets/_raw/` sigue fuera de git **y** de LFS (`.gitignore`, §6.1): los packs de terceros se quedan en cada máquina.
+
 ---
 
 ## 7. Presets de importación
@@ -594,6 +616,8 @@ jobs:
 Diferencias contra el workflow actual, todas obligatorias: `GODOT_VERSION` pasa de `4.4.1` a `4.7`; el contenedor pasa de `barichello/godot-ci:4.4.1` a `:4.7`; `relative_project_path` se mantiene en `./godot`; se añade el job `checks` **entre** import y export; se exporta `Windows Desktop` en lugar de `Web`; el job de itch queda con `if: false` porque el juego todavía no se publica y la licencia es propietaria.
 
 `godot/tools/run_checks.sh` es el equivalente Linux de `tools/run_checks.ps1`; ambos se especifican en `docs/15-verificacion-y-ci.md` §7.
+
+> **Nota de P2f (2026-09-27, hechos medidos)**: con Git LFS (§6.3) el checkout de `actions/checkout@v4` deja punteros en lugar de binarios. Los tres jobs que hacen checkout (`import`, `checks`, `export`) agregan, justo después del checkout y sin `lfs: true`, tres pasos: **Listar objetos LFS** (`git lfs ls-files -l | cut -d' ' -f1 | sort > .lfs-assets-id`), **Cache de LFS** (`actions/cache@v4` sobre `.git/lfs` con clave `lfs-${{ hashFiles('.lfs-assets-id') }}`) y **Traer objetos LFS** (`git lfs pull`). La clave es el hash del listado de OIDs: mientras no cambie ningún binario el cache se restaura entero y `git lfs pull` no baja nada, así que las corridas no gastan cuota de ancho de banda de LFS (GitHub cuenta como ancho de banda del dueño lo que baja Actions; GitHub Free incluye 10 GiB de almacenamiento y 10 GiB de ancho de banda de LFS, <https://docs.github.com/en/billing/concepts/product-billing/git-lfs>). **`git-lfs` en el contenedor**: `barichello/godot-ci:4.7` lo trae; el `Dockerfile` del tag `4.7-stable` de `abarichello/godot-ci` lo instala en el `apt-get install` (`git-lfs \`), así que no hay paso de instalación. En `import` y `checks` el paso de listado corre antes `git config --global --add safe.directory "$GITHUB_WORKSPACE"` (el contenedor corre como root sobre un workspace de otro usuario y git rechaza el repo por «dubious ownership») y el de traída corre `git lfs install --local` antes del `pull`, porque la imagen no deja los filtros de LFS configurados. `export` corre en `ubuntu-latest`, que ya trae `git-lfs`. El bloque YAML de arriba no repite estos pasos; el workflow real sí los tiene.
 
 ---
 

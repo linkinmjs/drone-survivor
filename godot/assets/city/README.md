@@ -4,7 +4,22 @@
 
 El ZIP **no se extrae dentro del repositorio**: se descomprime en un directorio temporal fuera del árbol y aquí sólo quedan los derivados que el juego usa. La licencia del pack sigue abierta (`docs/16`, riesgo 11 de `docs/10`).
 
-## Escala: `nodes/root_scale = 5.0`
+## Escala: por pieza, medida por la puerta (P2f)
+
+> **P2f (2026-09-27, hechos medidos)**: la sección que sigue es la historia de WP-13, que eligió 5.0 para caer en la ventana de 12–16 m de `docs/10` §11.1 **sin medir nada del pack**; con ese factor la puerta de `BuildingBlock_1` medía 10 m. Medido en la fachada, en unidades nativas (`root_scale = 1`, vóxel 0,1), con la fachada reproyectada desde el atlas (UV → texel) y con una captura ortográfica, que coinciden:
+>
+> | FBX | Puerta nativa | Planta nativa | `root_scale` | Puerta | Planta | Ancho × Alto × Fondo |
+> |---|---|---|---|---|---|---|
+> | `BuildingBlock_1` | **2,0** (hoja 1,2 de ancho, teclado a 0,9–1,1) | 2,5 (una planta) | 5.0 → **1.05** | 2,10 m | 2,63 m | 6,30 × 2,63 × 2,52 m |
+> | `BuildingBlock_2` | — | 2,5 | 5.0 → **1.05** (mismo kit) | — | 2,63 m | 6,30 × 2,63 × 2,10 m |
+> | `Building_3` | — | **1,3** (período de las ventanas) | 5.0 → **2.45** | — | 3,19 m | 9,80 × 39,69 × 4,90 m |
+> | `BuildingBlock_19` | **2,1** | 2,5 | **5.0** (sin cambio) | 10,5 m | 12,5 m | 20,00 × 12,50 × 11,00 m |
+> | `BuildingBlock_18` | — | 2,5 | **5.0** (sin cambio) | — | 12,5 m | 20,00 × 12,50 × 11,00 m |
+> | `BuildingBlock_24` | — | 1,6 | **5.0** (sin cambio) | — | 8 m | 20,00 × 8,00 × 10,50 m |
+>
+> Factor = 2,1 m / puerta nativa (redondeado a 0,05); sin puerta, 3,2 m / planta nativa. El kit no es homogéneo: los bloques de una planta están a ~×1 y `Building_3` a ~×2,5. `BuildingBlock_19`, `_18` y `_24` son la escuela, el hito y los medianos de `town_a`: llevarlos a 1.05 tira cinco filas de `city_check` y deja el hito en 3,6 m, así que siguen en 5.0 y la galería los marca `ESCALA?` hasta que se rediseñe el pueblo. Props y viario no cambian (tamaño real ya medido en WP-24b; módulo de 10 m del viario). Las medidas nativas viven en `pieces_manifest.json` (`features`) y la galería las multiplica por el `root_scale` vigente de cada `.fbx.import`. `docs/10` §2.2 y su Nota de P2f.
+
+### Historia de WP-13: `nodes/root_scale = 5.0`
 
 **El factor es de aumento, no de reducción.** `docs/10` §2.2 suponía que los FBX venían en centímetros y que `BuildingBlock_1` mediría ~1 200 unidades, con lo que el factor sería `0.01`. Lo medido contradice las dos cosas:
 
@@ -20,27 +35,27 @@ El importador ufbx ya aplica por su cuenta la conversión de unidades del FBX, a
 
 ## Las 13 piezas
 
-Dimensiones reales del AABB agregado, en metros, tal como las imprime `city_import_check`.
+Dimensiones reales del AABB agregado, en metros, tal como las imprime `city_import_check` (P2f: `block_low_a`, `block_low_b` y `tower_a` con su escala medida).
 
 | FBX | Escena de pieza | Rol propuesto | Ancho × Alto × Fondo | Tris | Colisión |
 |---|---|---|---|---|---|
-| `Building_3` | `city/pieces/tower_a.tscn` | **Edificio alto** — única torre real del pack | 20.00 × **81.00** × 10.00 | 1 772 | `BoxShape3D` |
+| `Building_3` | `city/pieces/tower_a.tscn` | **Edificio alto** — única torre real del pack | 9.80 × **39.69** × 4.90 | 1 772 | `BoxShape3D` |
 | `BuildingBlock_19` | `city/pieces/tower_b.tscn` | Edificio alto, variante (ver aviso) | 20.00 × 12.50 × 11.00 | 468 | `BoxShape3D` |
 | `BuildingBlock_18` | `city/pieces/block_mid.tscn` | Bloque medio | 20.00 × 12.50 × 11.00 | 236 | `BoxShape3D` |
-| `BuildingBlock_1` | `city/pieces/block_low_a.tscn` | Bloque bajo — **pieza de calibración** | 30.00 × 12.50 × 12.00 | 210 | `BoxShape3D` |
-| `BuildingBlock_2` | `city/pieces/block_low_b.tscn` | Bloque bajo, variante | 30.00 × 12.50 × 10.00 | 160 | `BoxShape3D` |
+| `BuildingBlock_1` | `city/pieces/block_low_a.tscn` | Local de una planta con puerta — **pieza de calibración** | 6.30 × 2.63 × 2.52 | 210 | `BoxShape3D` |
+| `BuildingBlock_2` | `city/pieces/block_low_b.tscn` | Local de una planta, variante | 6.30 × 2.63 × 2.10 | 160 | `BoxShape3D` |
 | `BuildingBlock_24` | `city/pieces/block_low_c.tscn` | Bloque bajo, variante | 20.00 × 8.00 × 10.50 | 140 | `BoxShape3D` |
-| `Advertising_5` | `city/pieces/props/sign_a.tscn` | **Cartel** de fachada | 3.50 × 8.00 × 0.50 | 12 | `ConvexPolygonShape3D` |
-| `Advertising_6` | `city/pieces/props/sign_b.tscn` | **Cartel** de azotea | 6.00 × 9.00 × 1.50 | 164 | `ConvexPolygonShape3D` |
-| `Advertising_7` | `city/pieces/props/sign_c.tscn` | **Cartel** vertical de esquina | 9.00 × 4.50 × 2.50 | 288 | `ConvexPolygonShape3D` |
-| `SateliteDish` | `city/pieces/props/dish.tscn` | **Prop** de azotea, escombro cosmético | 4.50 × 4.50 × 1.50 | 266 | `ConvexPolygonShape3D` |
+| `Advertising_5` | `city/pieces/props/sign_a.tscn` | **Cartel** de fachada | 2.10 × 4.80 × 0.30 | 12 | `ConvexPolygonShape3D` |
+| `Advertising_6` | `city/pieces/props/sign_b.tscn` | **Cartel** vertical de azotea | 3.36 × 5.04 × 0.84 | 164 | `ConvexPolygonShape3D` |
+| `Advertising_7` | `city/pieces/props/sign_c.tscn` | **Cartel** horizontal de azotea | 5.94 × 2.97 × 1.65 | 288 | `ConvexPolygonShape3D` |
+| `SateliteDish` | `city/pieces/props/dish.tscn` | **Prop** de azotea, escombro cosmético | 1.80 × 1.80 × 0.60 | 266 | `ConvexPolygonShape3D` |
 | `Road_Chunk_5` | `city/pieces/road_chunk.tscn` | **Calle** — calzada (`MultiMesh`) | 10.00 × 0.50 × 10.00 | 12 | `BoxShape3D` |
 | `Sidewalk_Chunk_2` | `city/pieces/sidewalk_chunk.tscn` | **Vereda** de tramo (`MultiMesh`) | 10.00 × 1.00 × 10.00 | 28 | `BoxShape3D` |
 | `Sidewalk_Tile_1` | `city/pieces/sidewalk_tile.tscn` | **Vereda** — baldosa (`MultiMesh`) | 20.00 × 1.00 × 20.00 | 12 | `BoxShape3D` |
 
 Las 13 escenas de `city/pieces/` son **heredadas** de la escena importada: la raíz ya es el `StaticBody3D` de la capa 8 con su `IntactShape`, y WP-20 sólo tiene que ponerle el script `Building` y los nodos de etapa de `docs/10` §2.5.
 
-### Dos avisos para WP-20
+### Dos avisos para WP-20 (historia: medidas a ×5, antes de P2f)
 
 1. **Sólo hay una torre, no dos.** `BuildingBlock_19` mide 12.50 m, exactamente lo mismo que los bloques bajos; la única pieza con silueta de torre es `Building_3`, con 81 m. La tabla de `docs/10` §2.1 le asigna el rol `tower_b` suponiendo que era alta. Con la variación de altura prevista (`height_scale ∈ [0.85, 1.35]`, §4.3) `tower_b` llegaría a 16.9 m como mucho, lejos de leerse como torre. Las palancas son ampliar el rango de `height_scale` para las torres, repetir `Building_3` con rotación, o aceptar que el centro financiero es una torre rodeada de bloques medios.
 2. **`BuildingBlock_1` y `BuildingBlock_2` miden 30 m de ancho y la celda de `docs/10` §4.1 es de 24 m.** Se desbordan 3 m por lado sobre la calle. El metadato `base_size` de la raíz está justamente para que `CityGrid` lo resuelva sin volver a medir: o crece la celda, o esas dos variantes se reservan para celdas de borde, o se las escala también en planta (lo que obliga a reescribir `BoxShape3D.size` en los tres ejes, no sólo en `y`).

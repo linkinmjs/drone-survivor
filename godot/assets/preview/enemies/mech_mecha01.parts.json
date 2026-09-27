@@ -23,7 +23,7 @@
   "preview": {
     "pack": "mech",
     "class": "enemy",
-    "row": "Enemigos/Vista previa",
+    "row": "Enemigos",
     "sort": "height",
     "preview_only": true,
     "note": "vista previa: el .vox entero en una parte, no es el enemigo jugable"

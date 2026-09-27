@@ -4,14 +4,17 @@
 ; oscuro con una rejilla de 10 m y una línea más marcada cada 100 m, dibujada en
 ; coordenadas de mundo para que la rejilla sirva de regla aunque el plano cambie
 ; de tamaño. Lo escribe a mano WP-G; el horneador de la galería sólo lo nombra.
+; P2f (luz de estudio): líneas apagadas —la de 10 m de 0,36–0,42 a 0,25–0,29 y
+; la de 100 m de ámbar 0,62·0,52·0,34 a 0,38·0,34·0,28— para que con el sol de
+; frente el suelo no compita con las piezas ni con las etiquetas ámbar.
 
 [sub_resource type="Shader" id="Shader_gallery_grid"]
 code = "shader_type spatial;
 render_mode diffuse_burley, specular_schlick_ggx;
 
 uniform vec4 base_color : source_color = vec4(0.15, 0.16, 0.18, 1.0);
-uniform vec4 line_color : source_color = vec4(0.36, 0.38, 0.42, 1.0);
-uniform vec4 major_color : source_color = vec4(0.62, 0.52, 0.34, 1.0);
+uniform vec4 line_color : source_color = vec4(0.25, 0.26, 0.29, 1.0);
+uniform vec4 major_color : source_color = vec4(0.38, 0.34, 0.28, 1.0);
 uniform float cell = 10.0;
 uniform float major_cell = 100.0;
 uniform float line_width = 0.06;

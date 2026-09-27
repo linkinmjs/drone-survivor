@@ -1,70 +1,93 @@
 ## Copyright (c) 2026 Drone Survivor. Todos los derechos reservados.
 ##
-## Hornea `tools/asset_gallery.tscn`: la galería de inventario de assets (plan
-## P2e). **No es un check** ni forma parte del juego: es una escena para abrir en
-## el editor y recorrer todos los assets uno al lado del otro, por familia, con
-## una etiqueta que dice cómo se llama cada uno, de dónde viene, qué es, cuánto
-## mide y cuántos triángulos tiene.
+## Hornea `tools/asset_gallery.tscn`, la galería de inventario de assets (planes
+## P2e y P2f), y escribe `assets/INVENTARIO.md`. **No es un check** ni forma
+## parte del juego: la escena es para abrirla en el editor y recorrer todos los
+## objetos que se pueden poner en un nivel, uno al lado del otro, por familia,
+## con una etiqueta que dice cómo se llama cada uno, si es propio o descargado,
+## qué es, cuánto mide, cuántos triángulos tiene y si su escala es dudosa; el
+## inventario es la misma información como tablas, con un diagnóstico de escala
+## por pack.
 ##
 ## Uso, desde la raíz del repositorio:
 ## [codeblock]
 ## godot --headless --path godot -s res://tools/build_asset_gallery.gd
 ## [/codeblock]
 ##
-## Qué entra y en qué fila lo decide `tools/asset_gallery_sources.gd` (sin
-## listas a mano: cada familia sale de su propia fuente de verdad). Este script
-## sólo reparte, etiqueta y guarda.
+## Qué entra, en qué fila, con qué procedencia y con qué marcas lo decide
+## [AssetGallerySources] (sin listas a mano: cada familia sale de su propia
+## fuente de verdad). Este script sólo reparte, etiqueta y guarda.
 ##
 ## ## La escena
 ##
 ## - Raíz `Node3D` **sin script**, y ningún nodo con script: al abrirla en el
-##   editor no corre nada del juego. Los efectos de `vfx/` y la pila se
-##   instancian con el script quitado en la instancia (sus escenas no se tocan);
-##   lo que sus scripts harían en el juego —estirar un haz, dibujar una guía,
-##   cablear una textura procedural, colocar las motas de la pila— queda
-##   escrito en el horneado.
-## - `WorldEnvironment` y `Sun` como `tools/town_showcase.tscn` (el sol lleva el
-##   perfil de atardecer ya aplicado, sin `SunLight`), un suelo con rejilla de
-##   10 m, una `Camera3D` mirando la primera fila y un título con la fecha del
-##   horneado y los conteos por familia.
-## - Una fila por familia a lo largo de +X, apiladas hacia −Z; cada fila arranca
-##   con un poste de escala de 2 m y, si la fila lo declara en `ROWS`
-##   (`reference`), con una pieza de referencia: `house_a` en las del pueblo y
-##   las de packs, `car_a` junto a los autos del pack. Las mallas horneadas del
-##   nivel van aparte, desde −400 m, a escala 1.
+##   editor no corre nada del juego.
+## - Luz de estudio propia (plan P2f), no la del juego: `WorldEnvironment` con
+##   `tools/asset_gallery_environment.tres` y
+##   `tools/asset_gallery_camera_attributes.tres`, un `Sun` alto y de frente con
+##   sombras suaves y un `Fill` sin sombras del lado opuesto (ver
+##   [method _add_lights]); un suelo con rejilla de 10 m, una `Camera3D` mirando
+##   la primera fila y un título con los conteos por familia.
+## - Una fila por familia a lo largo de +X, apiladas hacia −Z. Cada fila arranca
+##   con el poste de escala de 2 m (`Escala`, en el borde delantero de la fila
+##   para que ninguna pieza honda lo tape) y, posado encima y de frente, el dron
+##   de 0,24 m (`ref_drone_quad`): la unidad con la que se leen todas las
+##   medidas.
 ## - Por pieza, un nodo `slot_<id>` con la instancia (que se llama `<id>`, para
-##   buscarla con el filtro del árbol) y su etiqueta.
+##   buscarla con el filtro del árbol) y su etiqueta, teñida según la
+##   procedencia.
 ##
 ## ## Determinismo
 ##
-## Dos horneados seguidos dan el mismo md5: los identificadores del `.tscn` los
-## reescribe [method SceneBake.stabilise_ids]. La única entrada que cambia sola
-## es la fecha del título, que va sin hora.
-##
-## ## Por qué el trabajo va en `_initialize()`
-##
-## Con `-s` el script del bucle principal se compila antes de dar de alta los
-## autoload, y las fuentes nombran a `VFXPool`, que los necesita. Todo lo que
-## toca clases del juego se pide con `load()` ya dentro de [method _initialize].
+## Dos horneados seguidos dan el mismo md5, del `.tscn` y del inventario: los
+## identificadores del `.tscn` los reescribe [method SceneBake.stabilise_ids] y
+## ninguno de los dos lleva fecha ni hora.
 extends SceneTree
 
 const OUT_PATH: String = "res://tools/asset_gallery.tscn"
-const SOURCES_PATH: String = "res://tools/asset_gallery_sources.gd"
 const GRID_MATERIAL: String = "res://assets/city/materials/gallery_grid.tres"
-const TEXTURE_DIR: String = "res://tools/asset_gallery"
-const ENVIRONMENT: String = "res://world/environment_battle.tres"
-const CAMERA_ATTRIBUTES: String = "res://world/camera_attributes_dusk.tres"
-const SUN_PROFILE: String = "res://world/sun_dusk.tres"
-const REFERENCE_ID: String = "house_a"
+## Entorno y cámara de la galería (plan P2f). Hasta P2f usaba los del juego
+## (`world/environment_battle.tres`, `world/camera_attributes_dusk.tres` y el sol
+## de `world/sun_dusk.tres`): atardecer naranja, bajo y de costado, con niebla,
+## glow y SDFGI, que dejaba las fachadas a contraluz y el horizonte quemado. Son
+## archivos propios de la galería para retocarlos en el editor sin volver a
+## hornear: el horneador los crea **sólo si faltan** ([method _ensure_environment])
+## y nunca los pisa. Para rehacerlos con los valores de acá, hay que borrarlos.
+const ENVIRONMENT: String = "res://tools/asset_gallery_environment.tres"
+const CAMERA_ATTRIBUTES: String = "res://tools/asset_gallery_camera_attributes.tres"
+
+## Sol de estudio: alto y de frente. La cámara de cada fila está en +Z mirando a
+## −Z, así que el sol viene de atrás y arriba de ella (la luz viaja hacia −Z) y
+## las fachadas que miran a +Z quedan iluminadas de frente. 60° de elevación da
+## sombras cortas que no tapan la pieza vecina; 30° hacia la izquierda de la
+## cámara deja una cara lateral en sombra, que es lo que da volumen.
+const SUN_ELEVATION_DEG: float = 60.0
+const SUN_AZIMUTH_DEG: float = 30.0
+## Casi blanco, apenas cálido: los colores de los atlas se leen como son.
+const SUN_COLOR: Color = Color(1.0, 0.97, 0.92)
+## Con el cielo a 1 de ambiente, 1,15 separa luz y sombra sin quemar las caras
+## claras (las paredes blancas de la aldea).
+const SUN_ENERGY: float = 1.15
+## Sombra suave: desenfoque 2,5 y 1,5° de disco solar (el sol real mide 0,5°;
+## más ancho ablanda el borde sin perder el contacto con el suelo).
+const SUN_SHADOW_BLUR: float = 2.5
+const SUN_ANGULAR_DISTANCE_DEG: float = 1.5
+## Relleno del lado opuesto (a la derecha de la cámara) y más bajo, sin sombras:
+## que la cara que el sol no ve no quede negra. Algo frío, para que el volumen se
+## lea también por color.
+const FILL_ELEVATION_DEG: float = 25.0
+const FILL_AZIMUTH_DEG: float = -60.0
+const FILL_COLOR: Color = Color(0.9, 0.94, 1.0)
+const FILL_ENERGY: float = 0.3
+
+## Nombre del dron de referencia de cada fila, hijo del poste de escala.
+const REFERENCE_DRONE: String = "ref_drone_quad"
 
 ## Tope del `.tscn`, en kilobytes: las mallas van por referencia, nunca adentro.
 const TSCN_BUDGET_KB: float = 500.0
 
-## Cuánto se separan las filas de piezas entre sí y cuánto las horneadas.
+## Cuánto se separan las filas entre sí.
 const ROW_GAP_MIN: float = 12.0
-const BAKED_FRONT_Z: float = -400.0
-const BAKED_ROW_SPACING: float = 300.0
-const BAKED_GAP: float = 40.0
 
 ## Etiquetas: tamaño en pantalla fijo, fuente mono.
 const LABEL_FONT_SIZE: int = 32
@@ -73,30 +96,37 @@ const LABEL_PIXEL_SIZE: float = 0.00045
 ## Desplazamiento vertical, en píxeles de texto, de la etiqueta de las piezas
 ## impares de cada fila: dos pisos de etiquetas alternados para que las de
 ## piezas vecinas no se pisen (con tamaño fijo en pantalla, el desplazamiento en
-## píxeles también es fijo).
-const LABEL_TIER_OFFSET: float = 120.0
+## píxeles también es fijo). Cubre las tres líneas de una etiqueta con marcas.
+const LABEL_TIER_OFFSET: float = 160.0
 const TITLE_FONT_SIZE: int = 56
+
+## Cuánto sube el título de la fila sobre la etiqueta del poste, en píxeles de
+## texto (una línea de 32 más aire).
+const TITLE_OFFSET: float = 64.0
 
 ## Poste de escala.
 const SCALE_HEIGHT: float = 2.0
 const SCALE_RADIUS: float = 0.06
+## Altura de la etiqueta del poste sobre su punta: el dron mide 8 cm de alto.
+const POST_LABEL_LIFT: float = 0.35
 
-var _sources: Variant = null
 var _font: Font = null
 var _scale_mesh: Mesh = null
-var _marker_mesh: Mesh = null
-var _textures: Dictionary = {}
 var _entries: Array[Dictionary] = []
+var _drone_span: float = 0.0
 
 
 func _initialize() -> void:
-	_sources = load(SOURCES_PATH)
 	_font = load("res://gui/theme/theme_builder.gd").font_mono() as Font
-	_entries = _sources.entries()
+	_entries = AssetGallerySources.entries()
+	_drone_span = AssetGallerySources.drone_span()
 	if not _unique_ids():
 		quit(1)
 		return
-	_textures = _bake_textures()
+
+	if not _ensure_environment():
+		quit(1)
+		return
 
 	var gallery := Node3D.new()
 	gallery.name = "AssetGallery"
@@ -105,6 +135,7 @@ func _initialize() -> void:
 	rows.name = "Rows"
 	gallery.add_child(rows)
 	var bounds := _lay_rows(rows)
+	_add_lights(gallery, bounds)
 	_add_ground(gallery, bounds)
 	_add_camera(gallery, rows)
 	_add_title(gallery)
@@ -124,6 +155,9 @@ func _initialize() -> void:
 		quit(1)
 		return
 	SceneBake.stabilise_ids(OUT_PATH, "build_asset_gallery")
+	if not _write_inventory():
+		quit(1)
+		return
 	_report()
 	var size := float(FileAccess.get_file_as_bytes(OUT_PATH).size()) / 1024.0
 	print("build_asset_gallery: %s guardado (%.1f KB de %.0f)." % [OUT_PATH, size, TSCN_BUDGET_KB])
@@ -143,31 +177,15 @@ func _initialize() -> void:
 func _lay_rows(rows: Node3D) -> AABB:
 	var bounds := AABB(Vector3(-20.0, 0.0, -20.0), Vector3(40.0, 1.0, 40.0))
 	var front := 0.0
-	var baked_centre := 0.0
-	var baked_half := 0.0
-	var first_baked := true
-	for row: Dictionary in _sources.ROWS:
+	for row: Dictionary in AssetGallerySources.ROWS:
 		var name := String(row["name"])
 		var members := _members(name)
-		var baked := String(row["zone"]) == "baked"
-		var items := _row_items(name, members, baked)
+		var items := _row_items(row, members)
 		var depth := 4.0
 		for item: Dictionary in items:
 			depth = maxf(depth, (item["box"] as AABB).size.z)
-		var centre := 0.0
-		if not baked:
-			centre = front - depth * 0.5
-			front = centre - depth * 0.5 - maxf(ROW_GAP_MIN, depth * 0.6)
-		elif first_baked:
-			centre = minf(BAKED_FRONT_Z, front) - depth * 0.5
-			first_baked = false
-		else:
-			# Trescientos metros entre centros, o lo que haga falta para que el
-			# relieve (512 m de colisión) no pise a la fila de al lado.
-			centre = baked_centre - maxf(BAKED_ROW_SPACING, baked_half + depth * 0.5 + BAKED_GAP)
-		if baked:
-			baked_centre = centre
-			baked_half = depth * 0.5
+		var centre := front - depth * 0.5
+		front = centre - depth * 0.5 - maxf(ROW_GAP_MIN, depth * 0.6)
 		var row_node := Node3D.new()
 		row_node.name = String(row["node"])
 		row_node.position = Vector3(0.0, 0.0, centre)
@@ -179,33 +197,21 @@ func _lay_rows(rows: Node3D) -> AABB:
 	return bounds
 
 
-## Entradas de la fila [param row_name], en orden de fuente (con `house_a`
-## primero en los edificios del pueblo: es la referencia de escala).
+## Entradas de la fila [param row_name], en el orden de las fuentes.
 func _members(row_name: String) -> Array[Dictionary]:
 	var found: Array[Dictionary] = []
 	for entry: Dictionary in _entries:
-		if String(entry["row"]) != row_name:
-			continue
-		if String(entry["id"]) == REFERENCE_ID:
-			found.push_front(entry)
-		else:
+		if String(entry["row"]) == row_name:
 			found.append(entry)
 	return found
 
 
-## Qué va en la fila y cuánto ocupa cada cosa: el poste de escala, la pieza de
-## referencia que declare la fila en `ROWS` (`house_a`, `car_a`) y las piezas.
-func _row_items(row_name: String, members: Array[Dictionary], baked: bool) -> Array[Dictionary]:
+## Qué va en la fila y cuánto ocupa cada cosa: el poste de escala con el dron y
+## las piezas.
+func _row_items(row: Dictionary, members: Array[Dictionary]) -> Array[Dictionary]:
 	var items: Array[Dictionary] = []
-	var info: Dictionary = _sources.row_info(row_name)
 	items.append({"kind": "scale",
 			"box": AABB(Vector3(-0.3, 0.0, -0.3), Vector3(0.6, SCALE_HEIGHT, 0.6))})
-	var reference_id := String(info.get("reference", ""))
-	if not reference_id.is_empty():
-		var reference := _entry(reference_id)
-		if not reference.is_empty():
-			items.append({"kind": "reference", "entry": reference,
-					"box": _rotated_box(reference)})
 	for entry: Dictionary in members:
 		items.append({"kind": "slot", "entry": entry, "box": _rotated_box(entry)})
 	# Aire proporcional: cada pieza deja un 30 % de su ancho, con un piso que
@@ -217,10 +223,9 @@ func _row_items(row_name: String, members: Array[Dictionary], baked: bool) -> Ar
 	var floor_gap := clampf(widths[widths.size() / 2] * 0.35, 1.5, 20.0)
 	# Paso propio de la fila (`gap` en `ROWS`): con piezas de veinte metros el
 	# 30 % del ancho deja las etiquetas de dos vecinos pisándose.
-	floor_gap = maxf(floor_gap, float(info.get("gap", 0.0)))
+	floor_gap = maxf(floor_gap, float(row.get("gap", 0.0)))
 	for item: Dictionary in items:
-		var width := (item["box"] as AABB).size.x
-		item["gap"] = BAKED_GAP if baked else maxf(floor_gap, width * 0.3)
+		item["gap"] = maxf(floor_gap, (item["box"] as AABB).size.x * 0.3)
 	return items
 
 
@@ -229,54 +234,69 @@ func _place_row(row_node: Node3D, row_name: String, items: Array[Dictionary],
 		count: int) -> float:
 	var reach := _label_reach(items)
 	var tops := _label_tops(items)
+	# El poste va al borde delantero de la fila: detrás de una pieza honda (el
+	# galpón de campo, 10,6 m de fondo) quedaba tapado, dron incluido.
+	var front := 0.0
+	for item: Dictionary in items:
+		front = maxf(front, (item["box"] as AABB).size.z * 0.5)
 	var cursor := 0.0
-	var tier := 0
 	for index: int in items.size():
 		var item: Dictionary = items[index]
 		var box: AABB = item["box"]
 		var at := Vector3(cursor + box.size.x * 0.5, 0.0, 0.0)
-		match String(item["kind"]):
-			"scale":
-				row_node.add_child(_scale_post(at, reach))
-				tier += 1
-			"reference":
-				var reference := _instance_for(item["entry"])
-				reference.name = "ref_%s" % String((item["entry"] as Dictionary)["id"])
-				reference.position += at
-				row_node.add_child(reference)
-			"slot":
-				var slot := _slot(item["entry"], at, reach, tops[index])
-				if tier % 2 == 1:
-					(slot.get_node(^"Label") as Label3D).offset = Vector2(0.0, LABEL_TIER_OFFSET)
-				row_node.add_child(slot)
-				tier += 1
+		if String(item["kind"]) == "scale":
+			at.z = front
+			row_node.add_child(_scale_post(at, reach))
+		else:
+			var slot := _slot(item["entry"], at, reach, tops[index])
+			# El poste es el elemento 0 y va en el piso de abajo: las piezas
+			# impares van en el de arriba, alternando con las pares.
+			if index % 2 == 1:
+				(slot.get_node(^"Label") as Label3D).offset = Vector2(0.0, LABEL_TIER_OFFSET)
+			row_node.add_child(slot)
 		cursor += box.size.x + float(item["gap"])
+	# El título va sobre la etiqueta del poste, separado en píxeles y no en
+	# metros: junto a la torre de 81 m, 1,6 m de aire eran dos píxeles y las
+	# dos etiquetas se encimaban.
 	var title := _label("%s · %d" % [row_name, count], TITLE_FONT_SIZE, reach)
 	title.name = "Title"
-	title.position = Vector3(0.0, SCALE_HEIGHT + 1.6, 0.0)
+	title.position = Vector3(0.0, _post_label_height(), front)
+	title.offset = Vector2(0.0, TITLE_OFFSET)
 	row_node.add_child(title)
 	return cursor
 
 
-## Altura de la etiqueta de cada elemento de la fila: el techo más alto entre
-## él y sus dos vecinos. Con dos pisos de etiquetas alternados, lo que las hace
-## chocar no es el piso sino la diferencia de alturas entre vecinos (un tacho de
-## 20 cm al lado de uno de 75); igualarlas con los vecinos deja que los pisos
-## hagan su trabajo sin mandar la etiqueta de una casa a la altura del silo del
-## otro extremo de la fila.
+## Altura de la etiqueta de cada elemento de la fila. Con dos pisos de
+## etiquetas alternados, lo que las hace chocar no es el piso sino la diferencia
+## de alturas entre vecinos (un tacho de 20 cm al lado de uno de 75), así que la
+## base de cada una es el techo más alto entre la pieza y sus dos vecinas: eso
+## deja que los pisos hagan su trabajo sin mandar la etiqueta de una casa a la
+## altura del silo del otro extremo de la fila.
+##
+## Las del piso de arriba (índice impar) suben además a la base de sus vecinas
+## de abajo, para no quedar por debajo de ellas (un mecha de 23,5 m al lado de
+## uno de 27 las encimaba), salvo que esa base sea más del doble de la propia:
+## una etiqueta a 81 m (la torre) no choca con una a 12,5, y subirla la dejaba
+## lejísimos de su pieza.
 func _label_tops(items: Array[Dictionary]) -> Array[float]:
 	var own: Array[float] = []
 	for item: Dictionary in items:
-		var box: AABB = item["box"]
-		var entry: Dictionary = item.get("entry", {})
-		own.append(box.size.y if bool(entry.get("lift", true)) else box.end.y)
-	var tops: Array[float] = []
+		own.append((item["box"] as AABB).size.y)
+	var bases: Array[float] = []
 	for index: int in own.size():
-		var top := own[index]
+		var base := own[index]
 		if index > 0:
-			top = maxf(top, own[index - 1])
+			base = maxf(base, own[index - 1])
 		if index < own.size() - 1:
-			top = maxf(top, own[index + 1])
+			base = maxf(base, own[index + 1])
+		bases.append(base)
+	var tops: Array[float] = []
+	for index: int in bases.size():
+		var top := bases[index]
+		if index % 2 == 1:
+			for other: int in [index - 1, index + 1]:
+				if other >= 0 and other < bases.size() and bases[other] <= bases[index] * 2.0:
+					top = maxf(top, bases[other])
 		tops.append(top)
 	return tops
 
@@ -292,20 +312,20 @@ func _label_reach(items: Array[Dictionary]) -> float:
 	return maxf(90.0, biggest * 5.0)
 
 
-## Un `slot_<id>`: la instancia y su etiqueta.
+## Un `slot_<id>`: la instancia y su etiqueta, teñida por procedencia.
 func _slot(entry: Dictionary, at: Vector3, reach: float, top: float) -> Node3D:
 	var slot := Node3D.new()
 	slot.name = "slot_%s" % String(entry["id"])
 	slot.position = at
 	slot.set_meta(&"asset_id", String(entry["id"]))
 	slot.set_meta(&"source_path", String(entry["path"]))
-	slot.set_meta(&"kind", String(entry["kind"]))
 	slot.set_meta(&"row", String(entry["row"]))
 	var body := _instance_for(entry)
 	if body != null:
 		slot.add_child(body)
-	var label := _label(String(_sources.label_text(entry)), LABEL_FONT_SIZE, reach)
+	var label := _label(AssetGallerySources.label_text(entry), LABEL_FONT_SIZE, reach)
 	label.name = "Label"
+	label.modulate = AssetGallerySources.tint(entry)
 	label.position = Vector3(0.0, top + maxf(0.3, top * 0.04), 0.0)
 	slot.add_child(label)
 	return slot
@@ -314,71 +334,19 @@ func _slot(entry: Dictionary, at: Vector3, reach: float, top: float) -> Node3D:
 ## La instancia de [param entry], ya girada y apoyada: la caja girada queda
 ## centrada en el origen del slot en X y Z, con la base en y = 0.
 func _instance_for(entry: Dictionary) -> Node3D:
+	var node := AssetGallerySources.instance(String(entry["path"]), true)
+	if node == null:
+		return null
 	var basis := Basis(Vector3.UP, float(entry["yaw"]))
 	var box := _rotated_box(entry)
-	var offset := Vector3(-(box.position.x + box.size.x * 0.5), 0.0,
-			-(box.position.z + box.size.z * 0.5))
-	if bool(entry.get("lift", true)):
-		offset.y = -box.position.y
-	var path := String(entry["path"])
-	var node: Node3D = null
-	match String(entry["kind"]):
-		"scene":
-			node = _scene_instance(entry)
-		"mesh":
-			var mesh_node := MeshInstance3D.new()
-			mesh_node.mesh = load(path) as Mesh
-			node = mesh_node
-		"multimesh":
-			var multi_node := MultiMeshInstance3D.new()
-			multi_node.multimesh = load(path) as MultiMesh
-			node = multi_node
-		"shape":
-			# La forma de colisión del relieve: en el editor el gizmo de la
-			# `CollisionShape3D` la dibuja como rejilla. Capa y máscara en cero:
-			# en la galería no choca nada.
-			var body := StaticBody3D.new()
-			body.collision_layer = 0
-			body.collision_mask = 0
-			var shape_node := CollisionShape3D.new()
-			shape_node.name = "Shape"
-			shape_node.shape = load(path) as Shape3D
-			shape_node.debug_color = Color(0.35, 0.85, 1.0, 1.0)
-			shape_node.debug_fill = false
-			body.add_child(shape_node)
-			node = body
-		"data":
-			var marker := MeshInstance3D.new()
-			marker.mesh = _marker()
-			node = marker
-	if node == null:
-		return null
-	if String(entry["origin"]) == "horneado":
-		offset.y += float(_sources.BAKED_LIFT)
 	node.name = String(entry["id"])
-	node.transform = Transform3D(basis, offset)
+	node.transform = Transform3D(basis, Vector3(-(box.position.x + box.size.x * 0.5),
+			-box.position.y, -(box.position.z + box.size.z * 0.5)))
 	return node
 
 
-## Instancia una escena de pieza. Los efectos se preparan para verse quietos y
-## la pila recibe sus instancias ya colocadas; a los dos se les quita el script
-## en la instancia.
-func _scene_instance(entry: Dictionary) -> Node3D:
-	var node: Node3D = _sources.instance(String(entry["path"]), true)
-	if node == null:
-		return null
-	var row := String(entry["row"])
-	if row == "VFX" or row == "Decals":
-		_sources.prepare_vfx(node, String(entry["id"]), _textures)
-		node.set_meta(&"gallery_editable", true)
-	elif row == "Pila":
-		_sources.place_battery(node)
-		node.set_script(null)
-		node.set_meta(&"gallery_editable", true)
-	return node
-
-
-## Poste de escala de 2 m con su etiqueta.
+## Poste de escala de 2 m con el dron de referencia posado encima, de frente, y
+## su etiqueta.
 func _scale_post(at: Vector3, reach: float) -> Node3D:
 	var post := Node3D.new()
 	post.name = "Escala"
@@ -388,11 +356,25 @@ func _scale_post(at: Vector3, reach: float) -> Node3D:
 	mesh.mesh = _scale()
 	mesh.position = Vector3(0.0, SCALE_HEIGHT * 0.5, 0.0)
 	post.add_child(mesh)
-	var label := _label("2 m", LABEL_FONT_SIZE, reach)
+	var drone := AssetGallerySources.instance(AssetGallerySources.DRONE_GLB, true)
+	if drone != null:
+		var basis := Basis(Vector3.UP, AssetGallerySources.DRONE_YAW)
+		var box := Transform3D(basis, Vector3.ZERO) * (AssetGallerySources.measure(drone)["aabb"] as AABB)
+		drone.name = REFERENCE_DRONE
+		drone.transform = Transform3D(basis, Vector3(-(box.position.x + box.size.x * 0.5),
+				SCALE_HEIGHT - box.position.y, -(box.position.z + box.size.z * 0.5)))
+		post.add_child(drone)
+	var label := _label("%s m · dron %s m" % [AssetGallerySources.num(SCALE_HEIGHT),
+			AssetGallerySources.num(_drone_span)], LABEL_FONT_SIZE, reach)
 	label.name = "Label"
-	label.position = Vector3(0.0, SCALE_HEIGHT + 0.25, 0.0)
+	label.position = Vector3(0.0, _post_label_height(), 0.0)
 	post.add_child(label)
 	return post
+
+
+## Altura de la etiqueta del poste: por encima del dron posado.
+func _post_label_height() -> float:
+	return SCALE_HEIGHT + POST_LABEL_LIFT
 
 
 func _label(text: String, font_size: int, reach: float) -> Label3D:
@@ -400,7 +382,7 @@ func _label(text: String, font_size: int, reach: float) -> Label3D:
 	label.text = text
 	label.font = _font
 	label.font_size = font_size
-	label.outline_size = 10
+	label.outline_size = 14
 	label.modulate = Color(0.96, 0.95, 0.9, 1.0)
 	label.outline_modulate = Color(0.0, 0.0, 0.0, 0.9)
 	label.pixel_size = LABEL_PIXEL_SIZE
@@ -427,17 +409,113 @@ func _add_environment(gallery: Node3D) -> void:
 	world.environment = load(ENVIRONMENT) as Environment
 	world.camera_attributes = load(CAMERA_ATTRIBUTES) as CameraAttributes
 	gallery.add_child(world)
-	# El sol de las escenas del juego es un `SunLight` (`@tool`) que lee su
-	# perfil al entrar al árbol. En la galería no corre ningún script: el perfil
-	# se aplica acá, una vez, y queda escrito en la luz.
-	var sun := DirectionalLight3D.new()
-	sun.name = "Sun"
-	var profile: Variant = load(SUN_PROFILE)
-	if profile != null:
-		profile.apply_to(sun)
+
+
+## Crea el entorno y los atributos de cámara de la galería si faltan. Cada valor,
+## con su motivo: mirar objetos, no ambientar una batalla.
+func _ensure_environment() -> bool:
+	if not ResourceLoader.exists(ENVIRONMENT):
+		var sky_material := ProceduralSkyMaterial.new()
+		# Cielo de estudio: arriba gris azulado suave, horizonte gris claro y sin
+		# el resplandor del sol (`sun_angle_max` chico y las luces no se dibujan
+		# en el cielo, ver `sky_mode`), para que ninguna etiqueta ni silueta se
+		# pierda contra un horizonte blanco.
+		sky_material.sky_top_color = Color(0.46, 0.53, 0.62)
+		sky_material.sky_horizon_color = Color(0.72, 0.74, 0.76)
+		sky_material.ground_horizon_color = Color(0.72, 0.74, 0.76)
+		sky_material.ground_bottom_color = Color(0.3, 0.31, 0.33)
+		sky_material.sun_angle_max = 1.0
+		sky_material.energy_multiplier = 1.0
+		var sky := Sky.new()
+		sky.sky_material = sky_material
+		var environment := Environment.new()
+		environment.resource_name = "asset_gallery_environment"
+		environment.background_mode = Environment.BG_SKY
+		environment.sky = sky
+		# Energía 1: el cielo se ve como es, sin la intensidad física de 1 100
+		# del entorno de batalla (que pide exposición de cámara física).
+		environment.background_energy_multiplier = 1.0
+		# Ambiente del cielo a 1: rellena todas las caras por igual, que es lo
+		# que se quiere para leer la forma y el color de cada pieza.
+		environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+		environment.ambient_light_energy = 1.0
+		environment.ambient_light_sky_contribution = 1.0
+		environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+		# AgX neutro: contraste 1 y blanco 1, sin la curva dramática (1,35) del
+		# juego; los colores de los atlas llegan sin virar.
+		environment.tonemap_mode = Environment.TONE_MAPPER_AGX
+		environment.tonemap_exposure = 1.0
+		environment.tonemap_agx_contrast = 1.0
+		environment.tonemap_agx_white = 1.0
+		environment.tonemap_white = 1.0
+		# Nada de efectos: sin niebla (tapa las filas del fondo), sin glow (las
+		# emisivas de los carteles sangraban sobre las etiquetas), sin SSAO/SSIL
+		# ni SDFGI (oscurecen los huecos y cambian con la distancia de cámara).
+		environment.fog_enabled = false
+		environment.volumetric_fog_enabled = false
+		environment.glow_enabled = false
+		environment.ssao_enabled = false
+		environment.ssil_enabled = false
+		environment.sdfgi_enabled = false
+		environment.ssr_enabled = false
+		environment.adjustment_enabled = false
+		if not _save_resource(environment, ENVIRONMENT):
+			return false
+	if not ResourceLoader.exists(CAMERA_ATTRIBUTES):
+		var attributes := CameraAttributesPractical.new()
+		attributes.resource_name = "asset_gallery_camera_attributes"
+		# Exposición 1 y sin autoexposición: una pieza oscura al lado de una
+		# clara no cambia el brillo de la captura.
+		attributes.exposure_multiplier = 1.0
+		attributes.auto_exposure_enabled = false
+		attributes.dof_blur_far_enabled = false
+		attributes.dof_blur_near_enabled = false
+		if not _save_resource(attributes, CAMERA_ATTRIBUTES):
+			return false
+	return true
+
+
+func _save_resource(resource: Resource, path: String) -> bool:
+	var err := ResourceSaver.save(resource, path)
+	if err != OK:
+		push_error("build_asset_gallery: no se pudo guardar '%s': %s" % [path, error_string(err)])
+		return false
+	print("build_asset_gallery: %s creado." % path)
+	return true
+
+
+## Sol de estudio y relleno (ver las constantes `SUN_*` y `FILL_*`). La sombra
+## del sol llega a toda la galería: su distancia máxima es la diagonal de la caja
+## de las filas.
+func _add_lights(gallery: Node3D, bounds: AABB) -> void:
+	var sun := _directional("Sun", SUN_ELEVATION_DEG, SUN_AZIMUTH_DEG, SUN_COLOR, SUN_ENERGY)
 	sun.shadow_enabled = true
-	sun.directional_shadow_max_distance = 400.0
+	sun.shadow_blur = SUN_SHADOW_BLUR
+	sun.light_angular_distance = SUN_ANGULAR_DISTANCE_DEG
+	sun.directional_shadow_max_distance = ceilf(Vector2(bounds.size.x, bounds.size.z).length())
 	gallery.add_child(sun)
+	var fill := _directional("Fill", FILL_ELEVATION_DEG, FILL_AZIMUTH_DEG, FILL_COLOR,
+			FILL_ENERGY)
+	fill.shadow_enabled = false
+	gallery.add_child(fill)
+
+
+## Luz direccional que llega desde [param elevation_deg] sobre el horizonte y
+## [param azimuth_deg] grados a la izquierda de la cámara de fila (que mira a
+## −Z desde +Z): la luz viaja hacia −Z. No se dibuja en el cielo.
+func _directional(node_name: String, elevation_deg: float, azimuth_deg: float,
+		color: Color, energy: float) -> DirectionalLight3D:
+	var elevation := deg_to_rad(elevation_deg)
+	var azimuth := deg_to_rad(azimuth_deg)
+	var from := Vector3(-sin(azimuth) * cos(elevation), sin(elevation),
+			cos(azimuth) * cos(elevation))
+	var light := DirectionalLight3D.new()
+	light.name = node_name
+	light.transform = Transform3D(Basis.looking_at(-from, Vector3.UP), Vector3.ZERO)
+	light.light_color = color
+	light.light_energy = energy
+	light.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY
+	return light
 
 
 ## Suelo con rejilla de 10 m que cubre todas las filas.
@@ -463,23 +541,26 @@ func _add_camera(gallery: Node3D, rows: Node3D) -> void:
 	camera.far = 6000.0
 	var first := rows.get_child(0) as Node3D
 	var z := first.position.z if first != null else 0.0
-	camera.transform = _sources.frame(0.0, 40.0, 8.0, z, camera.fov)
+	camera.transform = AssetGallerySources.frame(0.0, 40.0, 8.0, z, camera.fov)
 	gallery.add_child(camera)
 
 
+## Título general: total, propio/descargado y conteo por familia (el primer
+## tramo del nombre de cada fila de [constant AssetGallerySources.ROWS]).
 func _add_title(gallery: Node3D) -> void:
+	var groups: Dictionary[String, int] = {}
+	for row: Dictionary in AssetGallerySources.ROWS:
+		groups[String(row["name"]).get_slice("/", 0)] = 0
+	var own := 0
+	for entry: Dictionary in _entries:
+		var group := String(entry["row"]).get_slice("/", 0)
+		groups[group] = int(groups.get(group, 0)) + 1
+		own += 1 if String(entry["made"]) == "propio" else 0
 	var counts := PackedStringArray()
-	var total := 0
-	for group: String in ["Pueblo", "Ciudad", "Rocas", "Escombros", "Enemigos", "Packs",
-			"Dron", "Pila", "VFX", "Decals", "Horneados"]:
-		var count := 0
-		for entry: Dictionary in _entries:
-			if String(entry["row"]).get_slice("/", 0) == group:
-				count += 1
-		total += count
-		counts.append("%s %d" % [group, count])
-	var text := "Galería de assets · %d piezas · horneada %s\n%s" % [
-		total, Time.get_date_string_from_system(), " · ".join(counts)]
+	for group: String in groups:
+		var _added := counts.append("%s %d" % [group, groups[group]])
+	var text := "Galería de objetos · %d piezas · propio %d · descargado %d\n%s" % [
+		_entries.size(), own, _entries.size() - own, " · ".join(counts)]
 	var title := _label(text, TITLE_FONT_SIZE, 400.0)
 	title.name = "Title"
 	title.position = Vector3(20.0, 14.0, 12.0)
@@ -487,7 +568,25 @@ func _add_title(gallery: Node3D) -> void:
 
 
 # --------------------------------------------------------------------------
-# Recursos compartidos
+# Inventario
+# --------------------------------------------------------------------------
+
+## Escribe `assets/INVENTARIO.md` con [method AssetGallerySources.inventory_text].
+func _write_inventory() -> bool:
+	var path := AssetGallerySources.INVENTORY_PATH
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		push_error("build_asset_gallery: no se pudo escribir '%s': %s"
+				% [path, error_string(FileAccess.get_open_error())])
+		return false
+	file.store_string(AssetGallerySources.inventory_text(_entries))
+	file.close()
+	print("build_asset_gallery: %s escrito." % path)
+	return true
+
+
+# --------------------------------------------------------------------------
+# Utilidades
 # --------------------------------------------------------------------------
 
 func _scale() -> Mesh:
@@ -508,69 +607,10 @@ func _scale() -> Mesh:
 	return _scale_mesh
 
 
-func _marker() -> Mesh:
-	if _marker_mesh == null:
-		var side := float(_sources.DATA_MARKER_SIDE)
-		var box := BoxMesh.new()
-		box.size = Vector3(side, 0.2, side)
-		var material := StandardMaterial3D.new()
-		material.albedo_color = Color(0.3, 0.55, 0.7, 1.0)
-		material.roughness = 0.9
-		box.material = material
-		_marker_mesh = box
-	return _marker_mesh
-
-
-## Guarda en `tools/asset_gallery/` las texturas procedurales que piden los
-## efectos de la galería y las devuelve recargadas desde disco, para que la
-## escena las nombre como recurso externo y no las incruste.
-func _bake_textures() -> Dictionary:
-	var names := PackedStringArray()
-	for entry: Dictionary in _entries:
-		var row := String(entry["row"])
-		if row != "VFX" and row != "Decals":
-			continue
-		var node: Node3D = _sources.instance(String(entry["path"]))
-		if node == null:
-			continue
-		for key: String in _sources.texture_names(node):
-			if not names.has(key):
-				var _added := names.append(key)
-		node.free()
-	names.sort()
-	var err := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(TEXTURE_DIR))
-	if err != OK and err != ERR_ALREADY_EXISTS:
-		push_error("build_asset_gallery: no se pudo crear '%s'" % TEXTURE_DIR)
-	var found: Dictionary = {}
-	for key: String in names:
-		var texture: Texture2D = _sources.make_texture(key)
-		if texture == null:
-			push_error("build_asset_gallery: VFXTextures no sabe hacer '%s'" % key)
-			continue
-		var path := "%s/%s.res" % [TEXTURE_DIR, key]
-		err = ResourceSaver.save(texture, path)
-		if err != OK:
-			push_error("build_asset_gallery: no se pudo guardar '%s'" % path)
-			continue
-		found[key] = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_REPLACE)
-	return found
-
-
-# --------------------------------------------------------------------------
-# Utilidades
-# --------------------------------------------------------------------------
-
 ## Caja de [param entry] ya girada por su `yaw`.
 func _rotated_box(entry: Dictionary) -> AABB:
 	var basis := Basis(Vector3.UP, float(entry["yaw"]))
 	return Transform3D(basis, Vector3.ZERO) * (entry["aabb"] as AABB)
-
-
-func _entry(id: String) -> Dictionary:
-	for entry: Dictionary in _entries:
-		if String(entry["id"]) == id:
-			return entry
-	return {}
 
 
 ## Los ids son nombres de nodo y de búsqueda: no pueden repetirse.
@@ -588,17 +628,12 @@ func _unique_ids() -> bool:
 
 
 ## Asigna el dueño a todo lo que se creó acá. Las instancias de escena se
-## adueñan sólo en su raíz; los efectos y la pila, cuyos hijos se tocaron, se
-## marcan como instancia editable para que el empaquetado guarde esos cambios.
+## adueñan sólo en su raíz: su interior lo trae la escena instanciada.
 func _own(node: Node, owner: Node) -> void:
 	for child: Node in node.get_children():
 		child.owner = owner
-		if not child.scene_file_path.is_empty():
-			if child.has_meta(&"gallery_editable"):
-				child.remove_meta(&"gallery_editable")
-				owner.set_editable_instance(child, true)
-			continue
-		_own(child, owner)
+		if child.scene_file_path.is_empty():
+			_own(child, owner)
 
 
 func _report() -> void:
@@ -606,9 +641,13 @@ func _report() -> void:
 	for entry: Dictionary in _entries:
 		var row := String(entry["row"])
 		per_row[row] = int(per_row.get(row, 0)) + 1
-	for row: Dictionary in _sources.ROWS:
+	for row: Dictionary in AssetGallerySources.ROWS:
 		print("  %-32s %3d" % [String(row["name"]), int(per_row.get(String(row["name"]), 0))])
 	print("  %-32s %3d" % ["total", _entries.size()])
+	print("  dron de referencia: %s m motor a motor" % AssetGallerySources.num(_drone_span))
 	for entry: Dictionary in _entries:
+		var marks := AssetGallerySources.marks_line(entry)
+		if not marks.is_empty():
+			print("  %s: %s" % [String(entry["id"]), marks])
 		if not String(entry.get("note", "")).is_empty():
 			print("  nota %s: %s" % [String(entry["id"]), String(entry["note"])])

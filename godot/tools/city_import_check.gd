@@ -4,7 +4,7 @@
 ##
 ## Comprueba las 13 piezas ya importadas y sus escenas de `city/pieces/`: raíz
 ## `StaticBody3D` en la capa `city`, forma de colisión del tipo que manda la
-## tabla de nombres, escala con `BuildingBlock_1` entre 12 y 16 m, ajustes de
+## tabla de nombres, escala con `BuildingBlock_1` entre 2,5 y 2,9 m, ajustes de
 ## render, materiales con textura, LOD generados y presupuesto de VRAM.
 ##
 ## La VRAM se estima leyendo los `.import` con `ConfigFile`, no consultando al
@@ -16,11 +16,13 @@
 ## lo verifica comparando el contenido de los presets antes y después.
 extends CheckRunner
 
-## Factor fijado en `docs/10` §2.2 paso 3 tras medir `BuildingBlock_1`.
+## Factor de las piezas que no tienen uno propio en [constant ROOT_SCALE_BY_PIECE].
 ## El importador ufbx ya aplica el `UnitScaleFactor` del FBX, así que con
-## `root_scale = 1.0` la pieza llega midiendo **2.50 m**, no 1 200 unidades: el
-## factor es de aumento, **5.0**, y no el 0.01 que el documento suponía.
-## Ver `assets/city/README.md`.
+## `root_scale = 1.0` `BuildingBlock_1` llega midiendo **2.50 m**, no 1 200
+## unidades. WP-13 fijó **5.0** para que cayera en la ventana de 12–16 m que
+## pedía `docs/10` §11.1, **sin medir el pack**; P2f midió la puerta y dejó ese
+## 5.0 sólo en el viario (módulo de 10 m) y en los tres edificios que usa el
+## pueblo (ver la tabla de abajo). Ver `assets/city/README.md`.
 const ROOT_SCALE: float = 5.0
 
 ## `nodes/root_scale` **por pieza** (WP-24b).
@@ -38,11 +40,34 @@ const ROOT_SCALE: float = 5.0
 ## Advertising_7  5.0 -> 3.3   9.00 x 4.50 m -> 5.94 x 2.97 m  (cartel horizontal)
 ## Advertising_5  5.0 -> 3.0   3.50 x 8.00 m -> 2.10 x 4.80 m  (cartel de fachada)
 ## [/codeblock]
+##
+## **Edificios por rasgos humanos (P2f, 2026-09-27, hechos medidos).** La puerta
+## pintada de `BuildingBlock_1` mide **2,0** unidades nativas de alto (1,2 de
+## ancho) y la de `BuildingBlock_19`, **2,1**; la planta de los bloques es toda
+## la pieza (2,5) y la de `Building_3`, **1,3** (período de sus filas de
+## ventanas). Medido dos veces —fachada reproyectada desde el atlas y captura
+## ortográfica— con el mismo resultado al vóxel (0,1). Con puerta de 2,1 m:
+##
+## [codeblock]
+## BuildingBlock_1  5.0 -> 1.05   30 x 12.5 x 12 m -> 6.3 x 2.63 x 2.52 m  (puerta 2.10 m, planta 2.63 m)
+## BuildingBlock_2  5.0 -> 1.05   30 x 12.5 x 10 m -> 6.3 x 2.63 x 2.10 m  (mismo kit, sin puerta)
+## Building_3       5.0 -> 2.45   20 x 81 x 10 m   -> 9.8 x 39.7 x 4.9 m   (sin puerta: planta 3.19 m)
+## [/codeblock]
+##
+## `BuildingBlock_19`, `_18` y `_24` (`tower_b`, `block_mid`, `block_low_c`)
+## **siguen en 5.0**: son la escuela, el hito y los medianos de `town_a`, y
+## llevarlos a 1.05 (probado en P2f) deja el hito en 3,6 m y tira cinco filas de
+## `city_check` (horizonte, puestos de pila en azoteas, tiempo de derrumbe).
+## Corregirlos es rediseñar el pueblo, no ajustar un umbral: queda abierto y la
+## galería los marca `ESCALA?` con la puerta o la planta que tienen hoy.
 const ROOT_SCALE_BY_PIECE: Dictionary[StringName, float] = {
 	&"SateliteDish": 2.0,
 	&"Advertising_5": 3.0,
 	&"Advertising_6": 2.8,
 	&"Advertising_7": 3.3,
+	&"BuildingBlock_1": 1.05,
+	&"BuildingBlock_2": 1.05,
+	&"Building_3": 2.45,
 }
 
 ## Tolerancia del cotejo de `nodes/root_scale` (`docs/10` §11.1 sub-check 6).
@@ -57,9 +82,12 @@ const SIGN_MAX_SIZE: float = 6.5
 const IMPORT_SCRIPT: String = "res://asset_import/import_city_piece.gd"
 
 ## Pieza de calibración y ventana admitida de altura, en metros (`docs/10` §2.2).
+## Desde P2f la ventana sale de la puerta medida: 2,0 unidades nativas de puerta
+## en 2,5 de pieza, y una puerta real de 2,0–2,3 m, dan 2,5–2,875 m de alto (se
+## redondea a 2,9). La de WP-13 (12–16 m) no venía de ninguna medida.
 const SCALE_PIECE: StringName = &"BuildingBlock_1"
-const SCALE_MIN: float = 12.0
-const SCALE_MAX: float = 16.0
+const SCALE_MIN: float = 2.5
+const SCALE_MAX: float = 2.9
 
 ## Cota de cordura de altura para cualquier pieza: atrapa un factor 100 en
 ## cualquier dirección (`docs/10` §11.1 sub-check 5).

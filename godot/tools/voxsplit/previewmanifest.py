@@ -21,13 +21,14 @@ Forma de cada pieza (`pieces[]`, ordenadas por id):
 `scene` es la ruta `res://` del GLB (las vistas previas no llevan `.tscn` heredado: se
 importan como escena estática, sin `import_script`). `yaw` es el giro en grados que la
 galería aplica para mirar la pieza de frente, cuando su frente no es +Z.
-`preview_only` marca lo que **no es jugable** aunque su familia lo sea (los mechas de
-`Enemigos/Vista previa`): la etiqueta de la galería le suma `VISTA PREVIA`.
+`preview_only` marca lo que **no es jugable** aunque su familia lo sea (los mechas de la
+fila `Enemigos`, que comparten fila con los del catálogo): la etiqueta de la galería le
+suma `VISTA PREVIA`.
 `order` (entero, por pieza) adelanta una pieza dentro de su carpeta: la galería ordena
-por `order` (1 si falta) y después por id; el taxi lleva 0 para quedar junto al `car_a`
-de referencia.
-`sort` (cabecera) dice cómo ordena la galería las piezas de la carpeta: `id` o
-`height` (de menor a mayor altura).
+por `order` (1 si falta) y después por id; el taxi lleva 0 para abrir su fila.
+`sort` (cabecera) dice cómo se pensó ordenar la carpeta: `id` o `height` (de menor a
+mayor altura). Desde P2f es informativo: la galería ordena por altura la fila entera
+(`sort` de `ROWS` en `asset_gallery_sources.gd`), porque mezcla carpetas y catálogo.
 """
 
 from __future__ import annotations

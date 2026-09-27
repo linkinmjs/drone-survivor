@@ -4,7 +4,7 @@
 
 Este archivo **registra**, no resuelve. `assets/preview/` guarda **vistas previas** de todo
 lo que hay en `assets/_raw/` y el juego todavía no usa: GLB estáticos para mirarlos en la
-galería de assets (`tools/asset_gallery.tscn`, filas `Packs/*` y `Enemigos/Vista previa`)
+galería de assets (`tools/asset_gallery.tscn`, filas `Packs/*` y `Enemigos`)
 y decidir si entran. **No son arte del juego**: se importan sin `import_script`, ninguna
 escena del juego los nombra y la carpeta entera está fuera de los dos presets de
 `export_presets.cfg` (`assets/preview/*`). Aun así son **derivados** de packs sin licencia

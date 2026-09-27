@@ -1,0 +1,21 @@
+[gd_resource type="Environment" format=3]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_tn4hi"]
+sky_top_color = Color(0.46, 0.53, 0.62, 1)
+sky_horizon_color = Color(0.72, 0.74, 0.76, 1)
+ground_bottom_color = Color(0.3, 0.31, 0.33, 1)
+ground_horizon_color = Color(0.72, 0.74, 0.76, 1)
+sun_angle_max = 1.0
+
+[sub_resource type="Sky" id="Sky_c5oui"]
+sky_material = SubResource("ProceduralSkyMaterial_tn4hi")
+
+[resource]
+resource_name = "asset_gallery_environment"
+background_mode = 2
+sky = SubResource("Sky_c5oui")
+ambient_light_source = 3
+reflected_light_source = 2
+tonemap_mode = 4
+tonemap_agx_white = 1.0
+tonemap_agx_contrast = 1.0
