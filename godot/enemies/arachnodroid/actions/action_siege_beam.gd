@@ -176,10 +176,8 @@ func _track() -> void:
 	var space := space_state()
 	if space == null:
 		return
-	var query := PhysicsRayQueryParameters3D.create(origin, _aim,
+	var query := ray_query(origin, _aim,
 			profile.query_layers if profile != null else PhysicsLayers.QUERY_SWEEP)
-	query.collide_with_areas = false
-	query.exclude = self_exclusions()
 	var hit := space.intersect_ray(query)
 	if hit.is_empty():
 		return

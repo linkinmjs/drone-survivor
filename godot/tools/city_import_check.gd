@@ -77,28 +77,22 @@ const MODELS_DIR: String = "res://assets/city/models"
 const TEXTURES_DIR: String = "res://assets/city/textures"
 const CITY_DIR: String = "res://assets/city"
 
-## Las 13 piezas y su escena de `docs/10` §2.1, en el orden de la tabla.
-const PIECE_SCENES: Dictionary[StringName, String] = {
-	&"Building_3": "res://city/pieces/tower_a.tscn",
-	&"BuildingBlock_19": "res://city/pieces/tower_b.tscn",
-	&"BuildingBlock_18": "res://city/pieces/block_mid.tscn",
-	&"BuildingBlock_1": "res://city/pieces/block_low_a.tscn",
-	&"BuildingBlock_2": "res://city/pieces/block_low_b.tscn",
-	&"BuildingBlock_24": "res://city/pieces/block_low_c.tscn",
-	&"Advertising_5": "res://city/pieces/props/sign_a.tscn",
-	&"Advertising_6": "res://city/pieces/props/sign_b.tscn",
-	&"Advertising_7": "res://city/pieces/props/sign_c.tscn",
-	&"SateliteDish": "res://city/pieces/props/dish.tscn",
-	&"Road_Chunk_5": "res://city/pieces/road_chunk.tscn",
-	&"Sidewalk_Chunk_2": "res://city/pieces/sidewalk_chunk.tscn",
-	&"Sidewalk_Tile_1": "res://city/pieces/sidewalk_tile.tscn",
-}
+## Índice de las 13 piezas de ciudad (P2e): la única fuente de verdad de la
+## tabla. Lo leen también `asset_import/import_city_piece.gd` y la galería de
+## assets. Ver el comentario del propio JSON.
+const MANIFEST_PATH: String = "res://assets/city/pieces_manifest.json"
+
+## Cantidad de piezas que el pack aporta (`docs/10` §2.1).
+const PIECE_COUNT: int = 13
+
+## Las 13 piezas y su escena de `docs/10` §2.1, en el orden de la tabla. Se
+## llena desde [constant MANIFEST_PATH] en [method _read_manifest].
+var _piece_scenes: Dictionary[StringName, String] = {}
 
 ## Props: llevan `ConvexPolygonShape3D` y desvanecimiento a 180 m. El resto usa
-## `BoxShape3D` (`docs/10` §2.4 punto 2 y §11.1 sub-check 3).
-const PROP_PIECES: Array[StringName] = [
-	&"Advertising_5", &"Advertising_6", &"Advertising_7", &"SateliteDish",
-]
+## `BoxShape3D` (`docs/10` §2.4 punto 2 y §11.1 sub-check 3). Son las piezas de
+## familia `prop` del manifiesto.
+var _prop_pieces: Array[StringName] = []
 
 ## Difusas de edificio: 2048². El resto de las texturas de ciudad, 1024².
 const BUILDING_DIFFUSE: Array[String] = [
@@ -117,6 +111,7 @@ var _import_digest: Dictionary[String, String] = {}
 
 func _run() -> void:
 	_import_digest = _digest_imports()
+	_read_manifest()
 
 	_check_pieces_present()
 	_check_root_is_body()
@@ -136,16 +131,41 @@ func _run() -> void:
 	await wait_frames(1)
 
 
+# --- Manifiesto -----------------------------------------------------------------
+
+## Llena [member _piece_scenes] y [member _prop_pieces] desde el manifiesto de
+## ciudad. Un manifiesto ausente o incompleto es un fallo: sin él no hay tabla
+## contra la que medir.
+func _read_manifest() -> void:
+	if not FileAccess.file_exists(MANIFEST_PATH):
+		fail("falta el manifiesto de ciudad '%s'" % MANIFEST_PATH)
+		return
+	var document := JSON.parse_string(FileAccess.get_file_as_string(MANIFEST_PATH)) as Dictionary
+	if document == null:
+		fail("'%s' no es un JSON con un objeto en la raíz" % MANIFEST_PATH)
+		return
+	for raw: Variant in document.get("pieces", []) as Array:
+		var entry := raw as Dictionary
+		if entry == null:
+			continue
+		var model := StringName(String(entry.get("model", "")))
+		_piece_scenes[model] = String(entry.get("scene", ""))
+		if String(entry.get("family", "")) == "prop":
+			_prop_pieces.append(model)
+	expect(_piece_scenes.size() == PIECE_COUNT, "el manifiesto de ciudad declara %d piezas, no %d"
+			% [_piece_scenes.size(), PIECE_COUNT])
+
+
 # --- Sub-checks ---------------------------------------------------------------
 
 ## 1. Las 13 piezas existen como FBX, y su escena heredada carga e instancia.
 func _check_pieces_present() -> void:
-	for piece: StringName in PIECE_SCENES:
+	for piece: StringName in _piece_scenes:
 		var fbx := "%s/%s.fbx" % [MODELS_DIR, piece]
 		if not ResourceLoader.exists(fbx):
 			fail("pieces_present: falta el FBX '%s'" % fbx)
 			continue
-		var scene_path: String = PIECE_SCENES[piece]
+		var scene_path: String = _piece_scenes[piece]
 		if not ResourceLoader.exists(scene_path):
 			fail("pieces_present: falta la escena '%s'" % scene_path)
 			continue
@@ -197,7 +217,7 @@ func _check_has_shape() -> void:
 			fail("has_shape: '%s' no tiene ningún CollisionShape3D con forma" % piece)
 			continue
 		var shape := filled[0].shape
-		if PROP_PIECES.has(piece):
+		if _prop_pieces.has(piece):
 			expect(shape is ConvexPolygonShape3D,
 					"has_shape: '%s' debería usar ConvexPolygonShape3D, usa %s"
 					% [piece, shape.get_class()])
@@ -240,7 +260,7 @@ func _check_scale() -> void:
 ## importada, no el `root_scale` del preset: es la cota que de verdad importa y
 ## la que atrapa un cambio de malla, no sólo un cambio de preset.
 func _check_prop_scale() -> void:
-	for piece: StringName in PROP_PIECES:
+	for piece: StringName in _prop_pieces:
 		if not _bounds.has(piece):
 			continue
 		var size := _bounds[piece].size
@@ -253,7 +273,7 @@ func _check_prop_scale() -> void:
 
 ## 6. Los 13 presets `.fbx.import` declaran los valores de `docs/10` §2.2.
 func _check_import_options() -> void:
-	for piece: StringName in PIECE_SCENES:
+	for piece: StringName in _piece_scenes:
 		var path := "%s/%s.fbx.import" % [MODELS_DIR, piece]
 		var config := ConfigFile.new()
 		var err := config.load(path)
@@ -289,7 +309,7 @@ func _check_mesh_render() -> void:
 					% [piece, mesh_instance.name])
 			expect(mesh_instance.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_ON,
 					"mesh_render: '%s/%s' no proyecta sombra" % [piece, mesh_instance.name])
-			if not PROP_PIECES.has(piece):
+			if not _prop_pieces.has(piece):
 				continue
 			expect(is_equal_approx(mesh_instance.visibility_range_end,
 							PROP_VISIBILITY_RANGE_END),
@@ -414,7 +434,7 @@ func _check_restore() -> void:
 func _print_table() -> void:
 	print("  %-18s %8s %8s %8s %7s %4s  %-22s %s" % ["pieza", "ancho", "alto",
 			"fondo", "tris", "lod", "forma", "escena"])
-	for piece: StringName in PIECE_SCENES:
+	for piece: StringName in _piece_scenes:
 		if not _bounds.has(piece):
 			continue
 		var size := _bounds[piece].size
@@ -426,7 +446,7 @@ func _print_table() -> void:
 				shape_name = shape.get_class()
 		print("  %-18s %8.2f %8.2f %8.2f %7d %4d  %-22s %s" % [piece, size.x, size.y,
 				size.z, _triangle_count(piece), _lod_count(piece), shape_name,
-				String(PIECE_SCENES[piece]).get_file()])
+				String(_piece_scenes[piece]).get_file()])
 
 
 ## AABB agregado de los `MeshInstance3D` de [param root], en su espacio local.

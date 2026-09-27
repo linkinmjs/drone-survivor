@@ -1,0 +1,48 @@
+voxsplit 1.0.0 — pueblo «village_objects»
+origen              : VoxelVillagePack.zip
+paso del OBJ        : 0.1 u · escala ×1.0 · vóxel 0.1 m
+
+piezas del pack (tras familias de paleta, recorte y diezmado):
+  pieza          celdas           metros                      vox  OBJ tris
+  --------------------------------------------------------------------------
+  box_blue       9×6×7            0.90 × 0.60 × 0.70          287       334
+  box_green      9×6×7            0.90 × 0.60 × 0.70          261       364
+  box_orange     9×6×7            0.90 × 0.60 × 0.70          262       380
+  box_red        9×6×7            0.90 × 0.60 × 0.70          261       364
+  bridge         60×30×40         6.00 × 3.00 × 4.00         8132      1068
+  rock_big       16×5×10          1.60 × 0.50 × 1.00          408       492
+
+diagnóstico de la voxelización (cáscara por normales frente a relleno por inundación):
+  una pieza de casa con más desajustes que su 'allow_fill_mismatches' es un fallo;
+  en un prop es sólo un aviso, porque los montones del pack son mallas abiertas.
+  box_blue: 2 celdas de desajuste de relleno (tolerancia 0), 0 de color
+      la celda (4, 1, 4) está marcada exterior pero el relleno la llena
+      la celda (4, 2, 4) está marcada exterior pero el relleno la llena
+
+piezas compuestas:
+  pieza            clase    tris  presup  OBJ tris      vox  AABB (m)                 vent.
+  ------------------------------------------------------------------------------------------------
+  village_crate_blue prop      262    1000       334      287  0.90 × 0.60 × 0.70       0
+      partes: box_blue
+      AABB   : min [-0.45, 0.0, -0.35]  max [0.45, 0.6, 0.35]
+  village_crate_green prop      302    1000       364      261  0.90 × 0.60 × 0.70       0
+      partes: box_green
+      AABB   : min [-0.45, 0.0, -0.35]  max [0.45, 0.6, 0.35]
+  village_crate_orange prop      314    1000       380      262  0.90 × 0.60 × 0.70       0
+      partes: box_orange
+      AABB   : min [-0.45, 0.0, -0.35]  max [0.45, 0.6, 0.35]
+  village_crate_red prop      302    1000       364      261  0.90 × 0.60 × 0.70       0
+      partes: box_red
+      AABB   : min [-0.45, 0.0, -0.35]  max [0.45, 0.6, 0.35]
+  village_bridge   prop      980    1000      1068     8132  6.00 × 3.00 × 4.00       0
+      partes: bridge
+      AABB   : min [-3.0, 0.0, -2.0]  max [3.0, 3.0, 2.0]
+  village_rock_big prop      440    1000       492      408  1.60 × 0.50 × 1.00       0
+      partes: rock_big
+      AABB   : min [-0.8, 0.0, -0.5]  max [0.8, 0.5, 0.5]
+
+familias de paleta (representante ← miembros):
+
+índices de ventana de la máscara emisiva:
+
+CHECK compose: OK

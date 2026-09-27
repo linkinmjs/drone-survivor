@@ -1,0 +1,187 @@
+{
+	"comment": [
+		"Indice de las 13 piezas de ciudad del pack VoxelCity FreeSample (WP-13, P2e).",
+		"Es la unica fuente de verdad de la tabla: la leen tools/city_import_check.gd,",
+		"asset_import/import_city_piece.gd y tools/build_asset_gallery.gd.",
+		"id es el nombre de la escena de pieza; model es el FBX de assets/city/models/",
+		"(el nombre que el post-import guarda en el metadato piece_id).",
+		"family: building | prop | street. Los props llevan ConvexPolygonShape3D y",
+		"desvanecimiento a 180 m; el resto, BoxShape3D (docs/10 seccion 2.4).",
+		"material: familia de material de assets/city/materials/<material>.tres.",
+		"base_size [x, y, z] en metros es el metadato base_size de la raiz importada",
+		"(AABB agregado; y es la altura). Los edificios tienen el origen en una",
+		"esquina de la base; props y viario, en el centro de la base."
+	],
+	"version": 1,
+	"pieces": [
+		{
+			"id": "tower_a",
+			"model": "Building_3",
+			"scene": "res://city/pieces/tower_a.tscn",
+			"family": "building",
+			"material": "buildings_002",
+			"base_size": [
+				20.0,
+				81.0,
+				10.0
+			],
+			"source": "freesample"
+		},
+		{
+			"id": "tower_b",
+			"model": "BuildingBlock_19",
+			"scene": "res://city/pieces/tower_b.tscn",
+			"family": "building",
+			"material": "buildings_001",
+			"base_size": [
+				20.0,
+				12.5,
+				11.0
+			],
+			"source": "freesample"
+		},
+		{
+			"id": "block_mid",
+			"model": "BuildingBlock_18",
+			"scene": "res://city/pieces/block_mid.tscn",
+			"family": "building",
+			"material": "buildings_001",
+			"base_size": [
+				20.0,
+				12.5,
+				11.0
+			],
+			"source": "freesample"
+		},
+		{
+			"id": "block_low_a",
+			"model": "BuildingBlock_1",
+			"scene": "res://city/pieces/block_low_a.tscn",
+			"family": "building",
+			"material": "buildings_002",
+			"base_size": [
+				30.0,
+				12.5,
+				12.0
+			],
+			"source": "freesample"
+		},
+		{
+			"id": "block_low_b",
+			"model": "BuildingBlock_2",
+			"scene": "res://city/pieces/block_low_b.tscn",
+			"family": "building",
+			"material": "buildings_002",
+			"base_size": [
+				30.0,
+				12.5,
+				10.0
+			],
+			"source": "freesample"
+		},
+		{
+			"id": "block_low_c",
+			"model": "BuildingBlock_24",
+			"scene": "res://city/pieces/block_low_c.tscn",
+			"family": "building",
+			"material": "buildings_001",
+			"base_size": [
+				20.0,
+				8.0,
+				10.5
+			],
+			"source": "freesample"
+		},
+		{
+			"id": "sign_a",
+			"model": "Advertising_5",
+			"scene": "res://city/pieces/props/sign_a.tscn",
+			"family": "prop",
+			"material": "props",
+			"base_size": [
+				2.1,
+				4.8,
+				0.3
+			],
+			"source": "freesample"
+		},
+		{
+			"id": "sign_b",
+			"model": "Advertising_6",
+			"scene": "res://city/pieces/props/sign_b.tscn",
+			"family": "prop",
+			"material": "props",
+			"base_size": [
+				3.36,
+				5.04,
+				0.84
+			],
+			"source": "freesample"
+		},
+		{
+			"id": "sign_c",
+			"model": "Advertising_7",
+			"scene": "res://city/pieces/props/sign_c.tscn",
+			"family": "prop",
+			"material": "props",
+			"base_size": [
+				5.94,
+				2.97,
+				1.65
+			],
+			"source": "freesample"
+		},
+		{
+			"id": "dish",
+			"model": "SateliteDish",
+			"scene": "res://city/pieces/props/dish.tscn",
+			"family": "prop",
+			"material": "props",
+			"base_size": [
+				1.8,
+				1.8,
+				0.6
+			],
+			"source": "freesample"
+		},
+		{
+			"id": "road_chunk",
+			"model": "Road_Chunk_5",
+			"scene": "res://city/pieces/road_chunk.tscn",
+			"family": "street",
+			"material": "roads",
+			"base_size": [
+				10.0,
+				0.5,
+				10.0
+			],
+			"source": "freesample"
+		},
+		{
+			"id": "sidewalk_chunk",
+			"model": "Sidewalk_Chunk_2",
+			"scene": "res://city/pieces/sidewalk_chunk.tscn",
+			"family": "street",
+			"material": "roads",
+			"base_size": [
+				10.0,
+				1.0,
+				10.0
+			],
+			"source": "freesample"
+		},
+		{
+			"id": "sidewalk_tile",
+			"model": "Sidewalk_Tile_1",
+			"scene": "res://city/pieces/sidewalk_tile.tscn",
+			"family": "street",
+			"material": "roads",
+			"base_size": [
+				20.0,
+				1.0,
+				20.0
+			],
+			"source": "freesample"
+		}
+	]
+}

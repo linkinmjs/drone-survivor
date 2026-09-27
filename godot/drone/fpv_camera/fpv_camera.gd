@@ -368,6 +368,32 @@ func get_fisheye_viewports() -> Array[SubViewport]:
 	return _viewports.duplicate()
 
 
+## El `Environment` barato que comparten las caras laterales, o `null` si no hay
+## ninguna (modos OFF, FAST y FULL) o si el nivel todavía no tiene `Environment`.
+##
+## Lo miran las mediciones: la cadena de pantalla completa que ese clon lleva encima
+## —glow de seis niveles y `adjustment_enabled`— corre **una vez por viewport**, y la
+## ablación `side_glow` de `tools/perf_report.gd` necesita poder apagarla sin tocar la
+## del nivel, que es la que ve la cara frontal.
+func get_side_environment() -> Environment:
+	return _side_environment
+
+
+## Verdadero si la sub-viewport [param index] de [method get_fisheye_viewports] es una
+## **cara lateral** de [constant Graphics.FisheyeMode.FAST_WIDE].
+##
+## Las laterales nacen con el MSAA y el LOD recortados de `Graphics`
+## ([method Graphics.fisheye_side_msaa_level], [method Graphics.fisheye_side_mesh_lod]):
+## quien toque esas propiedades desde fuera —hoy la ablación `msaa` de
+## `tools/perf_report.gd`— tiene que saber cuál es cuál para restituirlas como el juego
+## las tenía. Sin esto la restitución subía las tres a 4× y todas las ventanas
+## posteriores de `--ablate=all` se medían con más carga que la partida real.
+func face_is_side(index: int) -> bool:
+	if index < 0 or index >= _face_is_side.size():
+		return false
+	return _face_is_side[index]
+
+
 ## Cuánta imagen real hay en la dirección [param dir], de `0.0` (negro: ninguna cara
 ## la tiene renderizada) a `1.0` (la cubre al menos una cara con holgura).
 ##
@@ -742,6 +768,23 @@ func _refresh_side_environment() -> void:
 ## `Environment.new()`: así el cielo, el tonemap, la niebla de profundidad, el glow y
 ## los ajustes de color son exactamente los mismos que ve la cara frontal, y lo único
 ## que cambia es lo que se apaga a propósito.
+##
+## ## Por qué el glow se queda (medido en P2d)
+##
+## El clon arrastra el glow de seis niveles y `adjustment_enabled` del nivel: una
+## cadena de pantalla completa **por viewport**, que en las dos laterales no es gratis.
+## Se midió con `perf_report --ablate=side_glow` (tres ventanas emparejadas, árbol en
+## pausa): apagarlo devuelve **0,18–0,30 ms**, y en una corrida completa de
+## `boss_and_city` las dos laterales bajan de 0,82 + 1,03 ms a 0,66 + 0,82 ms, o sea
+## **0,3–0,4 ms de los 7,1 ms de GPU (4–5 %)**.
+##
+## No se aplica igual, y la razón está en las capturas de
+## `tools/out/shots_perf` y `tools/out/shots_glowoff`: al atardecer, con el sol de
+## frente, el velo del glow cubre el cuadro entero. Apagarlo sólo en las laterales
+## corta ese velo justo donde empieza el fundido de [constant EDGE_FADE]: la periferia
+## —los árboles de la izquierda, el edificio de la derecha— salta a más contraste y
+## menos exposición que el centro. No es una costura fina: es un escalón tonal ancho.
+## Cuatro por ciento de GPU no paga eso.
 func _build_side_environment(source: Environment) -> Environment:
 	if source == null:
 		return null

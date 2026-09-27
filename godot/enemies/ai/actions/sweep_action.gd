@@ -41,6 +41,22 @@ const MAX_RESULTS: int = 16
 ## Estados de locomoción en los que ninguna acción ofensiva puede empezar.
 const BLOCKING_STATES: Array[StringName] = [&"LEAP", &"STAGGER", &"DOWNED"]
 
+## Consultas de física **reutilizadas** en vez de recreadas (P2d WP-C §1 y §11).
+##
+## Cada `resolve_at()` construía un `PhysicsShapeQueryParameters3D` nuevo y pedía
+## las exclusiones del enemigo —un recorrido del subárbol entero del jefe y un
+## `Array[RID]` nuevo—, y en el mismo tick [method ground_snap] hacía lo propio
+## con un `PhysicsRayQueryParameters3D.create()` y una segunda lista. A 20 Hz
+## durante toda la ventana activa eso son cuatro objetos y dos recorridos del
+## árbol por consulta. Acá los dos objetos se crean una vez por acción y sólo se
+## les reescriben los campos que cambian; las exclusiones se reasignan cuando
+## [method EnemyAction.exclusions_version] avisa que una parte se desprendió.
+## Es el patrón de `ProjectilePool._query` y de `Perception._refresh_exclusions()`.
+var _shape_query: PhysicsShapeQueryParameters3D = null
+var _shape_query_version: int = -1
+var _ray_query: PhysicsRayQueryParameters3D = null
+var _ray_query_version: int = -1
+
 var _query_accumulator: float = 0.0
 var _hits: Dictionary[int, bool] = {}
 var _drone_hits: int = 0
@@ -120,13 +136,7 @@ func resolve_at(xform: Transform3D, shape: Shape3D) -> int:
 	var space := space_state()
 	if space == null or profile == null or shape == null:
 		return 0
-	var params := PhysicsShapeQueryParameters3D.new()
-	params.shape = shape
-	params.transform = xform
-	params.collision_mask = profile.query_layers
-	params.collide_with_bodies = true
-	params.collide_with_areas = false
-	params.exclude = self_exclusions()
+	var params := shape_query(shape, xform)
 
 	var origin := _damage_origin(xform)
 	var touched := 0
@@ -160,6 +170,49 @@ func damage_dealt() -> float:
 ## Intervalo entre consultas, en segundos.
 func query_step() -> float:
 	return maxf(profile.query_interval, 0.01) if profile != null else 0.05
+
+
+## Consulta de barrido de la acción, con [param shape] en [param xform].
+##
+## El objeto es **de la acción**: se crea en el primer barrido y después sólo se
+## le reescriben la forma, la transformada y —si el perfil cambió— la máscara.
+func shape_query(shape: Shape3D, xform: Transform3D) -> PhysicsShapeQueryParameters3D:
+	if _shape_query == null:
+		_shape_query = PhysicsShapeQueryParameters3D.new()
+		_shape_query.collide_with_bodies = true
+		_shape_query.collide_with_areas = false
+	_shape_query.shape = shape
+	_shape_query.transform = xform
+	var mask := profile.query_layers if profile != null else PhysicsLayers.QUERY_SWEEP
+	if _shape_query.collision_mask != mask:
+		_shape_query.collision_mask = mask
+	var version := exclusions_version()
+	if version != _shape_query_version:
+		_shape_query_version = version
+		_shape_query.exclude = self_exclusions()
+	return _shape_query
+
+
+## Consulta de rayo de la acción, de [param from] a [param to] con [param mask].
+##
+## Es **una sola** por acción: los rayos del jefe —el apoyo de [method ground_snap],
+## el punto de contacto de los dos haces y la pisada de [ActionClimb]— se resuelven
+## uno por vez y consumen el resultado en el acto, así que compartir el objeto es
+## seguro y ahorra un `create()` con su `Array` de exclusión por tick.
+func ray_query(from: Vector3, to: Vector3, mask: int) -> PhysicsRayQueryParameters3D:
+	if _ray_query == null:
+		_ray_query = PhysicsRayQueryParameters3D.new()
+		_ray_query.collide_with_bodies = true
+		_ray_query.collide_with_areas = false
+	_ray_query.from = from
+	_ray_query.to = to
+	if _ray_query.collision_mask != mask:
+		_ray_query.collision_mask = mask
+	var version := exclusions_version()
+	if version != _ray_query_version:
+		_ray_query_version = version
+		_ray_query.exclude = self_exclusions()
+	return _ray_query
 
 
 # --------------------------------------------------------------------------
@@ -332,10 +385,8 @@ func ground_snap(point: Vector3) -> Vector3:
 	var space := space_state()
 	if space == null:
 		return point
-	var query := PhysicsRayQueryParameters3D.create(point + Vector3.UP * GROUND_PROBE,
+	var query := ray_query(point + Vector3.UP * GROUND_PROBE,
 			point + Vector3.DOWN * GROUND_PROBE, PhysicsLayers.QUERY_FOOT)
-	query.collide_with_areas = false
-	query.exclude = self_exclusions()
 	var hit := space.intersect_ray(query)
 	if hit.is_empty():
 		return point

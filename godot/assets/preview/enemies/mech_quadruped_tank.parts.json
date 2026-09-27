@@ -1,0 +1,76 @@
+{
+  "comment": [
+    "Vista previa de QuadrupedTank, artilleria de asedio (docs/14 3.2, WP-31). WP-G2.",
+    "NO es el enemigo: es el .vox entero en UNA sola parte, sin puntos debiles, sin",
+    "colision y sin import_script, para mirarlo en la galeria antes de su WP. Cuando",
+    "el enemigo se produzca, su parts.json de verdad vive en enemies/<id>/.",
+    "voxel_size de docs/14 2; axis_map y origen como el Arachnodroid (Z del .vox es la",
+    "altura, centro de la huella en el origen, base en y = 0). emissive_strength fijo en",
+    "3,0 (el techo del Arachnodroid): el MATL de estos packs llega a energia 8 y con",
+    "eso el visor quema a blanco en la galeria."
+  ],
+  "source": "../../../../assets/_raw/QuadrupedTank.zip!Package/QuadrupedTank.vox",
+  "name": "mech_quadruped_tank",
+  "voxel_size": 0.42,
+  "origin_voxel": [19, 25, 0],
+  "grid_size": [38, 50, 56],
+  "axis_map": {"x": "+x", "y": "+z", "z": "-y"},
+  "palette_texture": "mech_quadruped_tank_palette.png",
+  "emissive_palette_indices": [2, 6, 7],
+  "emissive_strength": 3,
+  "collision_default": "box",
+  "expect": {"part_count": 1, "triangle_budget": 8000, "total_height": 23.52, "height_tolerance": 0.01},
+  "preview": {
+    "pack": "mech",
+    "class": "enemy",
+    "row": "Enemigos/Vista previa",
+    "sort": "height",
+    "preview_only": true,
+    "note": "vista previa: el .vox entero en una parte, no es el enemigo jugable"
+  },
+  "parts": [
+    {
+      "id": "body",
+      "parent": null,
+      "boxes": [[0, 0, 0, 37, 49, 55]],
+      "pivot": [18.5, 24.5, -0.5],
+      "flags": ["root"]
+    }
+  ],
+  "metadata": {
+    "voxsplit_version": "1.0.0",
+    "generated_at": "2026-09-24T00:00:00Z",
+    "source": "../../../../assets/_raw/QuadrupedTank.zip!Package/QuadrupedTank.vox",
+    "part_count": 1,
+    "voxel_count": 28399,
+    "triangle_count": 6804,
+    "quad_count": 3402,
+    "unassigned_count": 0,
+    "total_height": 23.52,
+    "aabb_min": [-7.98, 0, -10.5],
+    "aabb_max": [7.98, 23.52, 10.5],
+    "footprint": [15.96, 21],
+    "density": 220,
+    "emissive_strength": 3,
+    "emissive_indices": {
+      "2": {"color": [120, 169, 254, 255], "voxels": 60, "weight": "1", "flux": "4", "energy": 8},
+      "6": {"color": [120, 169, 254, 255], "voxels": 4, "weight": "0.08", "flux": "2", "energy": 0.16},
+      "7": {"color": [249, 58, 29, 255], "voxels": 38, "weight": "1", "flux": "1", "energy": 1}
+    },
+    "root_node": "MechQuadrupedTankRoot",
+    "parts": {
+      "body": {
+        "parent": null,
+        "aabb_min": [-7.98, 0, -10.5],
+        "aabb_max": [7.98, 23.52, 10.5],
+        "center_of_mass": [0.012889, 12.508521, -2.525479],
+        "voxel_count": 28399,
+        "triangle_count": 6804,
+        "estimated_mass": 462885.52464,
+        "has_emissive_surface": true,
+        "pivot_world": [0, 0, 0],
+        "translation": [0, 0, 0]
+      }
+    }
+  }
+}

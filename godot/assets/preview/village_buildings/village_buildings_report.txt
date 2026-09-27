@@ -1,0 +1,80 @@
+voxsplit 1.0.0 — pueblo «village_buildings»
+origen              : VoxelVillagePack.zip
+paso del OBJ        : 0.1 u · escala ×1.0 · vóxel 0.1 m
+
+piezas del pack (tras familias de paleta, recorte y diezmado):
+  pieza          celdas           metros                      vox  OBJ tris
+  --------------------------------------------------------------------------
+  building1      40×40×40         4.00 × 4.00 × 4.00        37890      1316
+  building2      60×58×58         6.00 × 5.80 × 5.80       132248      2636
+  building3      40×60×40         4.00 × 6.00 × 4.00        60082      1768
+  building4      40×50×40         4.00 × 5.00 × 4.00        49264      3232
+  building5      64×60×30         6.40 × 6.00 × 3.00        47448      1158
+  stand_green    40×26×18         4.00 × 2.60 × 1.80         4036       664
+  stand_red      40×26×18         4.00 × 2.60 × 1.80         4036       664
+  stand_yellow   40×26×18         4.00 × 2.60 × 1.80         4036       664
+  tree1          29×40×23         2.90 × 4.00 × 2.30         5805       640
+  tree2          29×40×23         2.90 × 4.00 × 2.30         5805       640
+  tree3          29×40×23         2.90 × 4.00 × 2.30         5805       640
+  tree4          28×36×28         2.80 × 3.60 × 2.80         8084      1020
+  tree5          30×37×30         3.00 × 3.70 × 3.00         9269      2898
+  rock_small     10×5×10          1.00 × 0.50 × 1.00          324       306
+
+diagnóstico de la voxelización (cáscara por normales frente a relleno por inundación):
+  una pieza de casa con más desajustes que su 'allow_fill_mismatches' es un fallo;
+  en un prop es sólo un aviso, porque los montones del pack son mallas abiertas.
+  building4: 2 celdas de desajuste de relleno (tolerancia 0), 0 de color
+      la celda (4, 11, 24) está marcada exterior pero el relleno la llena
+      la celda (4, 10, 24) está marcada exterior pero el relleno la llena
+
+piezas compuestas:
+  pieza            clase    tris  presup  OBJ tris      vox  AABB (m)                 vent.
+  ------------------------------------------------------------------------------------------------
+  village_building_1 building   1192    2600      1316    37890  4.00 × 4.00 × 4.00       0
+      partes: building1
+      AABB   : min [-2.0, 0.0, -2.0]  max [2.0, 4.0, 2.0]
+  village_building_2 building   2432    2600      2636   132248  6.00 × 5.80 × 5.80       0
+      partes: building2
+      AABB   : min [-3.0, 0.0, -2.9]  max [3.0, 5.8, 2.9]
+  village_building_3 building   1604    2600      1768    60082  4.00 × 6.00 × 4.00       0
+      partes: building3
+      AABB   : min [-2.0, 0.0, -2.0]  max [2.0, 6.0, 2.0]
+  village_building_4 building   2574    2600      3232    49264  4.00 × 5.00 × 4.00       0
+      partes: building4
+      AABB   : min [-2.0, 0.0, -2.0]  max [2.0, 5.0, 2.0]
+  village_building_5 building   1038    2600      1158    47448  6.40 × 6.00 × 3.00       0
+      partes: building5
+      AABB   : min [-3.2, 0.0, -1.5]  max [3.2, 6.0, 1.5]
+  village_market_stall_1 prop      570     600       664     4036  4.00 × 2.60 × 1.80       0
+      partes: stand_green
+      AABB   : min [-2.0, 0.0, -0.9]  max [2.0, 2.6, 0.9]
+  village_market_stall_2 prop      570     600       664     4036  4.00 × 2.60 × 1.80       0
+      partes: stand_red
+      AABB   : min [-2.0, 0.0, -0.9]  max [2.0, 2.6, 0.9]
+  village_market_stall_3 prop      570     600       664     4036  4.00 × 2.60 × 1.80       0
+      partes: stand_yellow
+      AABB   : min [-2.0, 0.0, -0.9]  max [2.0, 2.6, 0.9]
+  village_tree_1   foliage    582    2600       640     5805  2.90 × 4.00 × 2.30       0
+      partes: tree1
+      AABB   : min [-1.45, 0.0, -1.15]  max [1.45, 4.0, 1.15]
+  village_tree_2   foliage    582    2600       640     5805  2.90 × 4.00 × 2.30       0
+      partes: tree2
+      AABB   : min [-1.45, 0.0, -1.15]  max [1.45, 4.0, 1.15]
+  village_tree_3   foliage    582    2600       640     5805  2.90 × 4.00 × 2.30       0
+      partes: tree3
+      AABB   : min [-1.45, 0.0, -1.15]  max [1.45, 4.0, 1.15]
+  village_tree_4   foliage    916    2600      1020     8084  2.80 × 3.60 × 2.80       0
+      partes: tree4
+      AABB   : min [-1.4, 0.0, -1.4]  max [1.4, 3.6, 1.4]
+  village_tree_5   foliage   2562    2600      2898     9269  3.00 × 3.70 × 3.00       0
+      partes: tree5
+      AABB   : min [-1.5, 0.0, -1.5]  max [1.5, 3.7, 1.5]
+  village_rock_small prop      272     600       306      324  1.00 × 0.50 × 1.00       0
+      partes: rock_small
+      AABB   : min [-0.5, 0.0, -0.5]  max [0.5, 0.5, 0.5]
+
+familias de paleta (representante ← miembros):
+
+índices de ventana de la máscara emisiva:
+
+CHECK compose: OK

@@ -117,7 +117,23 @@ var _ready_to_think: bool = false
 
 func _ready() -> void:
 	_build_states()
-	var _discard := Events.building_destroyed.connect(_on_building_destroyed)
+
+
+## Se engancha al bus al **entrar** al árbol, no en `_ready`: `_ready` corre una sola
+## vez y [method _exit_tree] suelta la conexión en cada salida, así que un cerebro
+## reparentado (salir y volver a entrar) se quedaba sin enterarse de los edificios
+## caídos. Con el par `_enter_tree`/`_exit_tree` la conexión sigue al nodo.
+func _enter_tree() -> void:
+	if not Events.building_destroyed.is_connected(_on_building_destroyed):
+		var _discard := Events.building_destroyed.connect(_on_building_destroyed)
+
+
+## Suelta la conexión global. El bus vive más que el enemigo, así que un cerebro
+## liberado que siguiera enganchado sería una referencia colgada en `Events`
+## (P2d WP-C, mejoras; es la simetría que ya tenía `AudioRig._unwire()`).
+func _exit_tree() -> void:
+	if Events.building_destroyed.is_connected(_on_building_destroyed):
+		Events.building_destroyed.disconnect(_on_building_destroyed)
 
 
 ## Conduce las dos capas. Acumuladores, nunca un [Timer].

@@ -78,11 +78,60 @@ const SCHOOL_REACH_MAX: float = 60.0
 const SCHOOL_PLAZA_MAX: float = 80.0
 const SCHOOL_PLAZA_ANGLE: float = 35.0
 
-## Reglas de las arboledas: cuánto puede desviarse el conteo declarado y a qué
-## distancia mínima del eje de la ruta puede caer una instancia.
+## Filas A–D de WP-L (P2d), en metros.
+##
+## `SOLID_OVERLAP_MAX` es el ruido de coma flotante de un rectángulo girado, no
+## una licencia: cinco centímetros es menos que el espesor de una pared. El medio
+## metro de `SOLID_GAP_MIN` es lo que separa «dos edificios» de «un edificio con
+## una junta», y el mismo medio metro se le pide a una copa contra una pared.
+## Treinta centímetros a un alambre porque un árbol pegado al alambrado es lo
+## normal en el campo, y un metro de orilla además del medio cauce porque un
+## sauce con los pies en el agua no crece: se cae.
+const SOLID_OVERLAP_MAX: float = 0.05
+const FENCE_SOLID_CLEAR: float = 0.10
+const SOLID_GAP_MIN: float = 0.50
+const FOLIAGE_SOLID_CLEAR: float = 0.50
+const FOLIAGE_FENCE_CLEAR: float = 0.30
+const FOLIAGE_CREEK_CLEAR: float = 1.0
+
+## Cuánto se le perdona a una huella declarada por debajo de la real: el ruido
+## del milímetro con el que el manifiesto redondea, y nada más.
+const FOOTPRINT_TOLERANCE: float = 0.001
+
+## Reglas de las arboledas: cuánto por debajo de su densidad puede sembrar una
+## arboleda —con separación mínima o sin ella— y a qué distancia mínima del eje de
+## la ruta puede caer una instancia.
 const GROVE_COUNT_TOLERANCE: float = 0.10
-const GROVE_SPACED_TOLERANCE: float = 0.20
+const GROVE_SPACED_TOLERANCE: float = 0.55
 const GROVE_ROUTE_MIN: float = 12.0
+
+## Cuánto se le perdona a dos instancias de una misma arboleda por debajo de su
+## separación efectiva ([method TownPlanner.grove_spacing]): el milímetro de la
+## coma flotante, y nada más. Y a qué distancia se planta la instancia que la
+## negativa de la fila C mete al lado de otra.
+const GROVE_SPACING_TOLERANCE: float = 0.001
+const NEGATIVE_CROWD: float = 1.0
+
+## Cuántas casas con jardín pueden quedarse sin árbol de patio antes de que la
+## regla de siembra sea sospechosa. Con el corazón de manzana ocupado por un
+## mediano no hay patio, y eso es información; que se quedaran sin árbol la
+## mitad de las casas sería un error de la regla.
+const GARDEN_TREES_SKIPPED_MAX: int = 6
+
+## Cuánto se agranda la arboleda 0 en la prueba de determinismo posicional, y
+## con qué vara se distingue una instancia **corrida** de una desalojada.
+const GROVE_GROWTH: float = 4.0
+const GROVE_MOVED_REACH: float = 3.0
+const GROVE_EVICTED_MAX: int = 4
+
+## Cuánto se rompe cada dato en las pruebas negativas de las filas A–D, en
+## metros: dos cuadrados de `NEGATIVE_SIDE` de lado separados `NEGATIVE_GAP`
+## —veinte centímetros, menos que [constant SOLID_GAP_MIN] y más que cero— o
+## `NEGATIVE_OVERLAP`, que es negativo y por lo tanto los pisa tres metros.
+const NEGATIVE_OVERLAP: float = -3.0
+const NEGATIVE_GAP: float = 0.2
+const NEGATIVE_FOOTPRINT: float = 3.0
+const NEGATIVE_SIDE: float = 4.0
 
 ## Anillos de densidad de `docs/17` §1: radio de corte y banda de POI de cada
 ## uno. Un POI es un edificio que no es casa, un hito, la plaza, el puente, un
@@ -172,7 +221,11 @@ func _run() -> void:
 	_check_markers()
 	_check_rocks()
 	_check_plaza()
+	_check_solids()
+	_check_fence_clearance()
+	_check_declared_footprints()
 	_check_groves()
+	_check_foliage_clear()
 	_check_fences()
 	_check_props()
 	_check_awnings()
@@ -261,6 +314,7 @@ func _check_signature_covers() -> void:
 		{"what": "el rumbo de un tramo de cerco", "field": "fence_yaws"},
 		{"what": "el `on_terrain` de un prop", "field": "prop_on_terrain"},
 		{"what": "el `align` de un prop", "field": "prop_align"},
+		{"what": "la pieza de una roca", "field": "rock_pieces"},
 	]
 	var touched := 0
 	for case: Dictionary in cases:
@@ -311,6 +365,13 @@ func _nudge(plan: TownPlan, field: String) -> bool:
 			var prop: Dictionary = plan.prop_placements[0]
 			prop["align"] = not bool(prop.get("align", false))
 			return true
+		"rock_pieces":
+			if plan.rock_pieces.size() < 2:
+				return false
+			var first := plan.rock_pieces[0]
+			plan.rock_pieces[0] = plan.rock_pieces[1]
+			plan.rock_pieces[1] = first
+			return plan.rock_pieces[0] != plan.rock_pieces[1]
 	return false
 
 
@@ -680,14 +741,19 @@ func _parcel_problems(plan: TownPlan) -> Array[String]:
 								% [label, inset])
 				found.append_array(_frontage_matches_street(plan, index, block, street, label))
 
-		# Los solapes se miran **también entre casas de caserío**: las de caserío
-		# no tienen manzana (`block = -1`), así que se comparan entre ellas.
+		# Los solapes se miran contra **todas** las demás parcelas y no sólo contra
+		# las de la misma manzana. El filtro por manzana venía de WP-B, cuando una
+		# parcela sin manzana era un caserío y los caseríos estaban lejos; desde
+		# WP-D2 hay lotes rurales dentro del disco (el silo, el galpón) y dos
+		# manzanas vecinas comparten esquina, así que un par entre manzanas
+		# distintas era exactamente el par que nadie miraba (WP-L, agujero
+		# latente).
 		for other: int in index:
-			if int(plan.parcels[other].get("block", -2)) != block:
-				continue
 			if TownPlan.polygons_overlap(footprints[index], footprints[other], 0.02):
-				found.append("'%s' se solapa con '%s'"
-						% [label, plan.parcels[other].get("name", "?")])
+				found.append("'%s' se solapa con '%s' (%.3f m)"
+						% [label, plan.parcels[other].get("name", "?"),
+						TownPlanner.polygon_overlap_depth(footprints[index],
+						footprints[other])])
 	return found
 
 
@@ -945,6 +1011,28 @@ func _nearest_node_distance(point: Vector3) -> float:
 func _check_rocks() -> void:
 	var spots := _plan.rock_spots()
 	expect(not spots.is_empty(), "el pueblo no tiene ni una roca")
+	# La pieza de cada roca viaja en el plano (revisión de WP-L, hallazgo 3) y
+	# tiene que ser la que el diseño declara en ese sitio: es de ahí que
+	# `CityGrid` elige la escena y el plano saca el radio del casco.
+	expect(_plan.rock_pieces.size() == spots.size(),
+			"el plano trae %d rocas y %d piezas de roca"
+			% [spots.size(), _plan.rock_pieces.size()])
+	for index: int in mini(spots.size(), _plan.rock_pieces.size()):
+		var piece := StringName(_plan.rock_pieces[index])
+		expect(TownDesign.piece_class(piece) == &"rock",
+				"la roca %d es '%s', que no es una roca" % [index, piece])
+		var declared := false
+		for entry: Variant in _design.rocks():
+			var data: Dictionary = entry
+			var flat: Variant = TownDesign.to_vector2(data.get("pos", null))
+			if flat == null or StringName(String(data.get("piece", ""))) != piece:
+				continue
+			if (flat as Vector2).distance_to(Vector2(spots[index].x, spots[index].z)) \
+					<= DESIGN_TOLERANCE:
+				declared = true
+				break
+		expect(declared, "la roca %d ('%s') no está donde el diseño declara esa pieza"
+				% [index, piece])
 	for index: int in spots.size():
 		expect(not _plan.is_inside(spots[index]),
 				"la roca %d cae dentro del círculo (%.1f m)"
@@ -1091,6 +1179,534 @@ func _check_baked_scene() -> void:
 
 
 # --------------------------------------------------------------------------
+# Filas A–D de WP-L (P2d): sólidos, follaje, arboledas y huellas declaradas
+# --------------------------------------------------------------------------
+#
+# Las cuatro miden **la pieza** y no el lote. Hasta P2c el único solape que el
+# check miraba era entre lotes, con la huella que el diseño declara: ningún par
+# de lotes se pisaba y aun así había ocho árboles dentro de una roca, un árbol
+# de patio con el tronco dentro de una torre, dos autos y un toldo dentro de la
+# caja maciza de la estación de servicio y cincuenta y dos sauces en el agua.
+# Un lote no es una pared.
+
+
+## Los sólidos del pueblo con los que se mide todo lo demás.
+##
+## Cada uno es un rectángulo orientado o un disco con su tramo de alturas. Las
+## alturas no son decoración: la marquesina de la estación de servicio es una
+## losa a seis metros, y un auto estacionado **debajo** no la pisa. Sin el tramo
+## de alturas la única respuesta posible sería una lista blanca, y una lista
+## blanca dice «no mires» donde la geometría podía decir «hay aire».
+##
+## [param ground] suma lo que no es edificio —rocas, tablero del puente y la losa
+## de la plaza—, que la fila A quiere y la B no: la plaza existe justamente para
+## tener props encima.
+func _solids(ground: bool) -> Array[Dictionary]:
+	var out := TownPlanner.parcel_solid_list(_plan)
+	if not ground:
+		return out
+	for disc: Dictionary in TownPlanner.rock_discs(_plan):
+		out.append({"id": disc["id"], "part": &"", "parcel": -1,
+				"disc": disc["centre"], "radius": disc["radius"],
+				"poly": PackedVector2Array(), "y0": 0.0, "y1": 0.0})
+	var deck := TownPlanner.bridge_rect(_plan)
+	if deck.size() >= 3:
+		out.append({"id": &"bridge_deck", "part": &"", "parcel": -1,
+				"poly": deck, "y0": 0.0, "y1": 0.0})
+	if _plan.plaza_polygon.size() >= 3:
+		out.append({"id": &"plaza", "part": &"", "parcel": -1,
+				"poly": _plan.plaza_polygon, "y0": 0.0, "y1": 0.0})
+	return out
+
+
+## Nombre legible de un sólido, con la caja si la pieza tiene varias.
+func _solid_name(solid: Dictionary) -> String:
+	var part := String(solid.get("part", &""))
+	return String(solid["id"]) if part.is_empty() \
+			else "%s/%s" % [String(solid["id"]), part]
+
+
+## Verdadero si los dos sólidos comparten algún metro de altura.
+##
+## Un sólido con `y1 <= y0` no declara alturas —las rocas, el tablero, la losa de
+## la plaza— y entonces vale para toda la columna: es lo conservador.
+func _heights_meet(a: Dictionary, b: Dictionary) -> bool:
+	var a0 := float(a.get("y0", 0.0))
+	var a1 := float(a.get("y1", 0.0))
+	var b0 := float(b.get("y0", 0.0))
+	var b1 := float(b.get("y1", 0.0))
+	if a1 <= a0 or b1 <= b0:
+		return true
+	return a0 < b1 and b0 < a1
+
+
+## Distancia entre dos sólidos en XZ: `0` si se pisan.
+func _solid_distance(a: Dictionary, b: Dictionary) -> float:
+	var a_disc: bool = a.has("disc")
+	var b_disc: bool = b.has("disc")
+	if a_disc and b_disc:
+		return maxf((a["disc"] as Vector2).distance_to(b["disc"] as Vector2)
+				- float(a["radius"]) - float(b["radius"]), 0.0)
+	if a_disc or b_disc:
+		var disc := a if a_disc else b
+		var rect := b if a_disc else a
+		return maxf(TownPlanner.point_polygon_distance(
+				rect["poly"] as PackedVector2Array, disc["disc"] as Vector2)
+				- float(disc["radius"]), 0.0)
+	return TownPlanner.polygon_distance(a["poly"] as PackedVector2Array,
+			b["poly"] as PackedVector2Array)
+
+
+## Cuánto se pisan dos sólidos, en metros; `0` si no se pisan.
+func _solid_overlap(a: Dictionary, b: Dictionary) -> float:
+	var a_disc: bool = a.has("disc")
+	var b_disc: bool = b.has("disc")
+	if a_disc and b_disc:
+		return maxf(float(a["radius"]) + float(b["radius"])
+				- (a["disc"] as Vector2).distance_to(b["disc"] as Vector2), 0.0)
+	if a_disc or b_disc:
+		var disc := a if a_disc else b
+		var rect := b if a_disc else a
+		return maxf(float(disc["radius"]) - TownPlanner.point_polygon_distance(
+				rect["poly"] as PackedVector2Array, disc["disc"] as Vector2), 0.0)
+	return TownPlanner.polygon_overlap_depth(a["poly"] as PackedVector2Array,
+			b["poly"] as PackedVector2Array)
+
+
+## **Fila A**: ningún par de sólidos se pisa, y ninguno se acerca a otro más de
+## [constant SOLID_GAP_MIN] metros.
+##
+## «Sólido» es la pieza con la huella del manifiesto girada por la fachada más su
+## `yaw_jitter`, más las rocas, el tablero del puente y la losa de la plaza. Las
+## cajas de una misma pieza no se miden entre ellas —las cuatro columnas de la
+## estación sostienen la marquesina y por eso la tocan—, y dos sólidos que no
+## comparten altura tampoco: eso es lo que deja al dron volar bajo la marquesina
+## y a un auto estacionar debajo.
+func _check_solids() -> void:
+	var solids := _solids(true)
+	var closest := INF
+	var closest_pair := ""
+	for index: int in solids.size():
+		for other: int in index:
+			var a: Dictionary = solids[index]
+			var b: Dictionary = solids[other]
+			if _same_piece(a, b) or not _heights_meet(a, b):
+				continue
+			if _solid_overlap(a, b) > SOLID_OVERLAP_MAX:
+				continue
+			var gap := _solid_distance(a, b)
+			if gap < closest:
+				closest = gap
+				closest_pair = "%s / %s" % [_solid_name(a), _solid_name(b)]
+	var problems := _solid_pair_problems(solids)
+	for problem: String in problems:
+		fail(problem)
+	print("  fila A · sólidos disjuntos: %d cajas · %d problemas · el par más justo %s a %.2f m"
+			% [solids.size(), problems.size(), closest_pair,
+			0.0 if is_inf(closest) else closest])
+
+
+## **Fila A bis**: ningún tramo de cerco a menos de [constant FENCE_SOLID_CLEAR]
+## metros de un edificio, medido con el **canto** de la pieza de cerco y la huella
+## real de la pieza de casa.
+##
+## Es el caso que la fila E de `city_check` encontró en la escena horneada: con
+## lotes de 5,4 m de fondo y casas de 5,0–5,1, la fachada quedaba a 15–20 cm de la
+## línea municipal y el cerco de frente, a 30, así que dieciséis tramos le
+## atravesaban la pared a su propia casa. Se mide acá, en el plano, para que el
+## valor de [constant TownPlanner.HOUSE_DEPTH] se elija por número y no por prueba
+## y error contra la escena.
+func _check_fence_clearance() -> void:
+	var solids := TownPlanner.parcel_solid_list(_plan)
+	var problems := _fence_clear_problems(_plan, solids)
+	for index: int in problems.size():
+		if index < 8:
+			fail(problems[index])
+	var closest := INF
+	for fence: PackedVector2Array in _fence_rects(_plan):
+		for solid: Dictionary in solids:
+			closest = minf(closest, TownPlanner.polygon_distance(fence,
+					solid["poly"] as PackedVector2Array))
+	print("  fila A bis · cercos contra edificios: %d tramos · %d problemas · el más justo a %.3f m (mínimo %.2f)"
+			% [_plan.fence_points.size(), problems.size(),
+			0.0 if is_inf(closest) else closest, FENCE_SOLID_CLEAR])
+
+
+## Los tramos de cerco de [param plan] como rectángulos con su canto real.
+func _fence_rects(plan: TownPlan) -> Array[PackedVector2Array]:
+	var out: Array[PackedVector2Array] = []
+	for index: int in plan.fence_points.size():
+		var kind := plan.fence_kinds[index]
+		if kind < 0 or kind >= TownDesign.FENCE_LINE_KINDS.size():
+			continue
+		var line_kind: StringName = TownDesign.FENCE_LINE_KINDS[kind]
+		var span := float(TownDesign.FENCE_SPAN.get(line_kind, 0.0))
+		var thick := TownPlanner.piece_plan_size(TownDesign.FENCE_PIECE[line_kind],
+				Vector2(span, 0.2))
+		# `front: "+X-run"`: la pieza no gira un cuarto de vuelta, así que su
+		# canto es el lado `z` del manifiesto tal cual.
+		var depth := minf(thick.x, thick.y)
+		var yaw := plan.fence_yaws[index]
+		var run := Vector2(cos(yaw), -sin(yaw))
+		var at: Vector3 = plan.fence_points[index]
+		var mid := Vector2(at.x, at.z) + run * span * 0.5
+		out.append(TownPlanner.oriented_rect(mid, run, Vector2(-run.y, run.x),
+				Vector2(span, depth)))
+	return out
+
+
+## El cuerpo de la fila A bis, aparte para la negativa.
+func _fence_clear_problems(plan: TownPlan, solids: Array[Dictionary]) -> Array[String]:
+	var found: Array[String] = []
+	for fence: PackedVector2Array in _fence_rects(plan):
+		for solid: Dictionary in solids:
+			var gap := TownPlanner.polygon_distance(fence, solid["poly"] as PackedVector2Array)
+			if gap < FENCE_SOLID_CLEAR:
+				var at := TownPlan.polygon_centroid(fence)
+				found.append("fila A bis: el tramo de cerco de (%.1f, %.1f) queda a %.3f m de '%s' (mínimo %.2f)"
+						% [at.x, at.y, gap, _solid_name(solid), FENCE_SOLID_CLEAR])
+	return found
+
+
+## Verdadero si las dos cajas son de la misma pieza: las cuatro columnas de la
+## estación sostienen su marquesina y por eso la tocan.
+func _same_piece(a: Dictionary, b: Dictionary) -> bool:
+	return int(a.get("parcel", -1)) >= 0 \
+			and int(a.get("parcel", -1)) == int(b.get("parcel", -1))
+
+
+## El cuerpo de la fila A, sobre una lista de sólidos cualquiera.
+##
+## Va aparte —mismo patrón que [method _parcel_problems]— para que la prueba
+## negativa pueda correr **esta misma rutina** sobre una lista rota a mano.
+func _solid_pair_problems(solids: Array[Dictionary]) -> Array[String]:
+	var found: Array[String] = []
+	for index: int in solids.size():
+		for other: int in index:
+			var a: Dictionary = solids[index]
+			var b: Dictionary = solids[other]
+			if _same_piece(a, b) or not _heights_meet(a, b):
+				continue
+			var depth := _solid_overlap(a, b)
+			if depth > SOLID_OVERLAP_MAX:
+				found.append("fila A: '%s' y '%s' se pisan %.3f m"
+						% [_solid_name(a), _solid_name(b), depth])
+				continue
+			var gap := _solid_distance(a, b)
+			if gap < SOLID_GAP_MIN:
+				found.append("fila A: '%s' y '%s' quedan a %.3f m (mínimo %.2f)"
+						% [_solid_name(a), _solid_name(b), gap, SOLID_GAP_MIN])
+	return found
+
+
+## **Fila B**: ni una instancia de follaje ni un prop dentro de un sólido.
+##
+## El follaje se mide **desde la copa** y con dos varas distintas: medio metro a
+## una pared y treinta centímetros a un alambre, porque un árbol pegado a un
+## alambrado es lo normal en el campo y un árbol pegado a una pared no. Los props
+## se miden a solape cero, con la lista blanca del diseño (`allow_overlap`) por
+## única excepción, y no pueden caer sobre la calzada salvo que el diseño diga
+## `on_road`: los tres autos «apuntando hacia afuera» de `docs/17` §0.10 están en
+## la calle a propósito.
+##
+## Desde la revisión de WP-L las dos listas blancas se **auditan** (hallazgo 7):
+## un identificador de `allow_overlap` que el prop no pisa es un error —la lista
+## blanca sobra y se convierte en un permiso general— y un prop con `on_road` que
+## apoya fuera del asfalto, también. Y la copa de un árbol de patio se mide
+## además contra las rocas, las copas de arboleda y las otras copas de patio
+## (hallazgo 18), que es la regla con la que el resolvedor la siembra.
+func _check_foliage_clear() -> void:
+	var result := _foliage_clear_problems(_plan, _design.markers())
+	var problems: Array[String] = result["problems"]
+	for index: int in problems.size():
+		if index < 8:
+			fail(problems[index])
+	expect(problems.is_empty(),
+			"fila B: %d instancias de follaje, props o marcadores pisan algo" % problems.size())
+	print("  fila B · follaje y props fuera de sólidos: %d instancias ·"
+			% int(result["checked"])
+			+ " la más justa a %.2f m de un sólido, %.2f m de un alambre, %.2f m del cauce"
+			% [_finite(result["worst_solid"]), _finite(result["worst_fence"]),
+			_finite(result["worst_water"])]
+			+ " · la copa de patio más justa a %.2f m de otra copa o de una roca"
+			% _finite(result["worst_crown"])
+			+ " · %d props con lista blanca usada, %d en calzada declarada"
+			% [int(result["whitelisted"]), int(result["on_road"])]
+			+ " · el prop más justo al asfalto, %s, a %.2f m del borde"
+			% [result["worst_road_at"], _finite(result["worst_road"])])
+
+
+## `0` si [param value] no es finito: para imprimir un «el más justo» de una
+## lista vacía.
+func _finite(value: Variant) -> float:
+	var number := float(value)
+	return number if is_finite(number) else 0.0
+
+
+## El cuerpo de la **fila B** sobre [param plan] y la lista de marcadores
+## [param markers] —con la forma de los del diseño—: devuelve los
+## incumplimientos en `problems` y las cuentas del resumen.
+##
+## Va aparte, como [method _solid_pair_problems], para que las negativas corran
+## **esta misma rutina** sobre un plano al que se le movió un prop o sobre una
+## lista de marcadores armada a mano.
+func _foliage_clear_problems(plan: TownPlan, markers: Array) -> Dictionary:
+	var found: Array[String] = []
+	var solids := TownPlanner.parcel_solid_list(plan)
+	var segments := TownPlanner.fence_segments(plan)
+	var discs := TownPlanner.rock_discs(plan)
+	var water := plan.creek_width * 0.5 + FOLIAGE_CREEK_CLEAR
+	var out: Dictionary = {
+		"checked": 0, "whitelisted": 0, "on_road": 0,
+		"worst_solid": INF, "worst_fence": INF, "worst_water": INF,
+		"worst_crown": INF, "worst_road": INF, "worst_road_at": "",
+	}
+
+	# --- follaje de arboleda ----------------------------------------------
+	var grove_crowns: Array[Dictionary] = []
+	for slot: int in plan.grove_species.size():
+		var piece := StringName(plan.grove_species[slot])
+		var radius := TownPlanner.piece_radius(piece)
+		for index: int in plan.grove_points[slot].size():
+			var at: Vector3 = plan.grove_points[slot][index]
+			var flat := Vector2(at.x, at.z)
+			var crown := radius * plan.grove_scales[slot][index]
+			grove_crowns.append({"centre": flat, "radius": crown})
+			out["checked"] = int(out["checked"]) + 1
+			found.append_array(_foliage_problems(plan, "un '%s' de arboleda" % piece,
+					flat, crown, solids, segments, water))
+			_track_foliage(out, plan, flat, crown, solids, segments)
+
+	# --- props y árboles de patio -----------------------------------------
+	var garden: Array[Dictionary] = []
+	for prop: Dictionary in plan.prop_placements:
+		var piece := StringName(prop.get("piece", &""))
+		var at: Vector3 = prop.get("pos", Vector3.ZERO)
+		var flat := Vector2(at.x, at.z)
+		var allowed: Array = prop.get("allow_overlap", [])
+		out["checked"] = int(out["checked"]) + 1
+		if TownDesign.piece_class(piece) == &"foliage":
+			var crown := TownPlanner.piece_radius(piece)
+			var label := "el '%s' de '%s'" % [piece, prop.get("source", &"?")]
+			found.append_array(_foliage_problems(plan, label, flat, crown, solids,
+					segments, water))
+			_track_foliage(out, plan, flat, crown, solids, segments)
+			# La copa contra lo que ya estaba plantado: rocas, arboledas y los
+			# otros árboles de patio. Es la vara del resolvedor
+			# ([constant TownPlanner.GARDEN_TREE_CLEAR]).
+			var others: Array[Dictionary] = []
+			for disc: Dictionary in discs:
+				others.append({"centre": disc["centre"], "radius": disc["radius"],
+						"what": "la roca '%s'" % disc["id"]})
+			for other: Dictionary in garden:
+				others.append(other)
+			for other: Dictionary in grove_crowns:
+				if flat.distance_to(other["centre"] as Vector2) < 40.0:
+					others.append({"centre": other["centre"], "radius": other["radius"],
+							"what": "una copa de arboleda"})
+			for other: Dictionary in others:
+				var gap := flat.distance_to(other["centre"] as Vector2) \
+						- crown - float(other["radius"])
+				out["worst_crown"] = minf(float(out["worst_crown"]), gap)
+				if gap < TownPlanner.GARDEN_TREE_CLEAR - EPSILON * 0.1:
+					found.append("fila B: %s en (%.2f, %.2f) queda a %.2f m de %s (mínimo %.2f)"
+							% [label, flat.x, flat.y, gap,
+							other.get("what", "otra copa de patio"),
+							TownPlanner.GARDEN_TREE_CLEAR])
+			garden.append({"centre": flat, "radius": crown,
+					"what": "el árbol de patio de '%s'" % prop.get("source", &"?")})
+			continue
+		var rect := TownPlanner.prop_rect(prop)
+		var used: Array[StringName] = []
+		for solid: Dictionary in solids:
+			if not _prop_heights_meet(prop, solid):
+				continue
+			var depth := 0.0
+			if rect.size() >= 3:
+				depth = TownPlanner.polygon_overlap_depth(
+						solid["poly"] as PackedVector2Array, rect)
+			elif TownPlan.polygon_inset(solid["poly"] as PackedVector2Array, flat) > 0.0:
+				depth = TownPlan.polygon_inset(solid["poly"] as PackedVector2Array, flat)
+			if depth <= 0.0:
+				continue
+			if allowed.has(solid["id"]):
+				if not used.has(StringName(solid["id"])):
+					used.append(StringName(solid["id"]))
+				continue
+			found.append("fila B: el prop '%s' de (%.2f, %.2f) se mete %.2f m en '%s' y no lo declara"
+					% [piece, flat.x, flat.y, depth, _solid_name(solid)])
+		# La lista blanca se audita: lo que declara y no pisa, sobra.
+		for id: Variant in allowed:
+			if not used.has(StringName(id)):
+				found.append("fila B: el prop '%s' de (%.2f, %.2f) declara allow_overlap '%s' y no lo pisa"
+						% [piece, flat.x, flat.y, id])
+		if not used.is_empty():
+			out["whitelisted"] = int(out["whitelisted"]) + 1
+		# La calzada: se mide el **apoyo** del prop y no su huella, porque el
+		# brazo de una farola vuela sobre el asfalto a propósito.
+		var margin := _roadway_margin(plan, flat)
+		if margin < float(out["worst_road"]):
+			out["worst_road"] = margin
+			out["worst_road_at"] = "%s (%.2f, %.2f)" % [piece, flat.x, flat.y]
+		var on_road := bool(prop.get("on_road", false))
+		if margin < 0.0:
+			if on_road:
+				out["on_road"] = int(out["on_road"]) + 1
+			else:
+				found.append("fila B: el prop '%s' de (%.2f, %.2f) cae sobre la calzada"
+						% [piece, flat.x, flat.y])
+		elif on_road:
+			found.append("fila B: el prop '%s' de (%.2f, %.2f) declara on_road y apoya %.2f m fuera del asfalto"
+					% [piece, flat.x, flat.y, margin])
+
+	# --- los puestos de pila declarados -----------------------------------
+	for entry: Variant in markers:
+		var data: Dictionary = entry
+		var raw_flat: Variant = TownDesign.to_vector2(data.get("pos", null))
+		if raw_flat == null:
+			continue
+		var point: Vector2 = raw_flat
+		var allowed := TownDesign.allow_overlap_of(data)
+		var used: Array[StringName] = []
+		for solid: Dictionary in solids:
+			if TownPlan.polygon_inset(solid["poly"] as PackedVector2Array, point) <= 0.0:
+				continue
+			# Un puesto de pila cuelga a unos tres metros: lo que le importa es la
+			# caja que tenga **a esa altura**.
+			if float(solid.get("y1", 0.0)) > float(solid.get("y0", 0.0)) \
+					and (float(solid["y0"]) > POST_Y_MAX or float(solid["y1"]) < POST_Y_MIN):
+				continue
+			if allowed.has(solid["id"]):
+				if not used.has(StringName(solid["id"])):
+					used.append(StringName(solid["id"]))
+				continue
+			found.append("fila B: el marcador '%s' de (%.2f, %.2f) cae dentro de '%s'"
+					% [data.get("kind", "?"), point.x, point.y, _solid_name(solid)])
+		for id: StringName in allowed:
+			if not used.has(id):
+				found.append("fila B: el marcador '%s' de (%.2f, %.2f) declara allow_overlap '%s' y no lo pisa"
+						% [data.get("kind", "?"), point.x, point.y, id])
+	out["problems"] = found
+	return out
+
+
+## Suma a las cuentas de [param out] lo justa que queda una copa.
+func _track_foliage(out: Dictionary, plan: TownPlan, flat: Vector2, crown: float,
+		solids: Array[Dictionary], segments: Array[PackedVector2Array]) -> void:
+	out["worst_solid"] = minf(float(out["worst_solid"]), _closest_solid(solids, flat) - crown)
+	out["worst_fence"] = minf(float(out["worst_fence"]),
+			TownPlanner.fence_distance(segments, flat) - crown)
+	if plan.creek_width > 0.0:
+		out["worst_water"] = minf(float(out["worst_water"]),
+				TownPlanner.creek_distance(plan, flat) - crown)
+
+
+## Los incumplimientos de una instancia de follaje de [param plan].
+func _foliage_problems(plan: TownPlan, label: String, flat: Vector2, crown: float,
+		solids: Array[Dictionary], segments: Array[PackedVector2Array],
+		water: float) -> Array[String]:
+	var found: Array[String] = []
+	var gap := _closest_solid(solids, flat) - crown
+	if gap < FOLIAGE_SOLID_CLEAR:
+		found.append("fila B: %s en (%.2f, %.2f) queda a %.2f m de un sólido (mínimo %.2f)"
+				% [label, flat.x, flat.y, gap, FOLIAGE_SOLID_CLEAR])
+	var fence := TownPlanner.fence_distance(segments, flat) - crown
+	if fence < FOLIAGE_FENCE_CLEAR:
+		found.append("fila B: %s en (%.2f, %.2f) queda a %.2f m de un alambre (mínimo %.2f)"
+				% [label, flat.x, flat.y, fence, FOLIAGE_FENCE_CLEAR])
+	if plan.creek_width > 0.0 and TownPlanner.creek_distance(plan, flat) - crown < water:
+		found.append("fila B: %s queda a %.2f m del eje del cauce (mínimo %.2f)"
+				% [label, TownPlanner.creek_distance(plan, flat) - crown, water])
+	return found
+
+
+## Distancia de [param flat] al sólido más cercano, o `INF`.
+func _closest_solid(solids: Array[Dictionary], flat: Vector2) -> float:
+	var best := INF
+	for solid: Dictionary in solids:
+		best = minf(best, TownPlanner.point_polygon_distance(
+				solid["poly"] as PackedVector2Array, flat))
+	return best
+
+
+## Verdadero si el prop y el sólido comparten algún metro de altura.
+func _prop_heights_meet(prop: Dictionary, solid: Dictionary) -> bool:
+	var top := float(solid.get("y1", 0.0))
+	var floor_y := float(solid.get("y0", 0.0))
+	if top <= floor_y:
+		return true
+	var at: Vector3 = prop.get("pos", Vector3.ZERO)
+	var base := at.y
+	if bool(prop.get("on_terrain", true)):
+		base += TownPlanner.ground_height(_terrain, Vector2(at.x, at.z))
+	var height := TownDesign.piece_height(StringName(prop.get("piece", &"")))
+	return base < top and floor_y < base + maxf(height, 0.01)
+
+
+## Cuántos metros hay de [param flat] al borde del asfalto más cercano de
+## [param plan], negativo si el punto está **sobre** la calzada.
+func _roadway_margin(plan: TownPlan, flat: Vector2) -> float:
+	var best := INF
+	for street: int in plan.graph_street_count():
+		var axis := plan.street_axis(street)
+		if axis.size() < 2:
+			continue
+		best = minf(best, TownPlan.polyline_distance(axis, flat)
+				- plan.street_width_of(street) * 0.5)
+	return best
+
+
+## **Fila D**: la huella que el diseño declara para un POI nunca es menor que la
+## de la pieza.
+##
+## Cero de tolerancia hacia abajo: una huella declarada de menos es lo que dejó
+## `pickup`, `truck` y `crate` encima del galpón de campo (hallazgo S8), porque
+## la huella declarada es con la que el resolvedor reparte el lote y con la que
+## `_parcel_problems` mide contención y solapes.
+func _check_declared_footprints() -> void:
+	var worst := INF
+	var worst_label := ""
+	var unknown := 0
+	var measured := 0
+	for index: int in _plan.parcels.size():
+		var parcel := _plan.parcels[index]
+		var piece := StringName(parcel.get("piece", &""))
+		var declared := Vector2(float(parcel.get("width", 0.0)),
+				float(parcel.get("depth", 0.0)))
+		var real := TownPlanner.piece_plan_size(piece, Vector2.ZERO)
+		if real == Vector2.ZERO:
+			unknown += 1
+			continue
+		measured += 1
+		var slack := minf(declared.x - real.x, declared.y - real.y)
+		if slack < worst:
+			worst = slack
+			worst_label = String(parcel.get("name", "?"))
+		var problem := _footprint_problem(parcel)
+		if not problem.is_empty():
+			fail(problem)
+	print("  fila D · huellas declaradas: %d parcelas medidas (%d sin manifiesto) ·"
+			% [measured, unknown]
+			+ " la más justa, '%s', con %.2f m de sobra"
+			% [worst_label, 0.0 if is_inf(worst) else worst])
+
+
+## El incumplimiento de huella de [param parcel], o `""`. Aparte, para la
+## negativa.
+func _footprint_problem(parcel: Dictionary) -> String:
+	var piece := StringName(parcel.get("piece", &""))
+	var real := TownPlanner.piece_plan_size(piece, Vector2.ZERO)
+	if real == Vector2.ZERO:
+		return ""
+	var declared := Vector2(float(parcel.get("width", 0.0)),
+			float(parcel.get("depth", 0.0)))
+	if minf(declared.x - real.x, declared.y - real.y) >= -FOOTPRINT_TOLERANCE:
+		return ""
+	return "fila D: '%s' (%s) declara %.2f × %.2f y la pieza mide %.2f × %.2f" \
+			% [parcel.get("name", "?"), piece, declared.x, declared.y, real.x, real.y]
+
+
+# --------------------------------------------------------------------------
 # Pruebas negativas
 # --------------------------------------------------------------------------
 
@@ -1105,7 +1721,287 @@ func _check_negative() -> void:
 	_negative_parcels()
 	_negative_graph()
 	_negative_design()
+	_negative_rows()
 	TownDesign.report_to_log = true
+
+
+## Las filas de WP-L contra datos rotos a mano.
+##
+## Cada una corre **la rutina de verdad** —la misma que la fila usa en verde—
+## sobre una lista o un plano al que se le movió una cosa. Una fila que nunca
+## vio fallar nada no se sabe si mira, y estas cuatro son geometría pura: es
+## fácil escribirlas de modo que no encuentren nada nunca.
+func _negative_rows() -> void:
+	# --- A: dos sólidos que se pisan, y dos que se rozan ------------------
+	var solids := _solids(true)
+	var clean := _solid_pair_problems(solids)
+	expect(clean.is_empty(), "negativa A: el pueblo bueno ya trae %d pares malos"
+			% clean.size())
+	# Las dos roturas se arman a mano y no moviendo una casa del pueblo: correr
+	# una casa hasta dejarla a veinte centímetros de su vecina la deja, de paso,
+	# encima de una tercera, y entonces la negativa mediría el solape en vez de
+	# la separación. Dos cuadrados sobre la rutina de verdad miden exactamente lo
+	# que la fila promete.
+	expect(_has_problem(_solid_pair_problems(_twin_solids(NEGATIVE_OVERLAP)), "se pisan"),
+			"negativa A: dos sólidos que se pisan %.1f m no se ven" % NEGATIVE_OVERLAP)
+	expect(_has_problem(_solid_pair_problems(_twin_solids(NEGATIVE_GAP)), "quedan a"),
+			"negativa A: dos sólidos a %.2f m (mínimo %.2f) no se ven"
+			% [-NEGATIVE_GAP, SOLID_GAP_MIN])
+
+	# --- A bis: un tramo de cerco corrido sobre una casa -----------------
+	var fenced := TownPlanner.resolve(_design, _terrain)
+	var house := _first_role(fenced, TownPlan.Role.HOUSE)
+	if house < 0 or fenced.fence_points.is_empty():
+		fail("negativa A bis: no hay casa o cerco que romper")
+	else:
+		var centre := fenced.parcel_position(house)
+		fenced.fence_points[0] = Vector3(centre.x, 0.0, centre.z)
+		expect(_has_problem(_fence_clear_problems(fenced,
+				TownPlanner.parcel_solid_list(fenced)), "fila A bis"),
+				"negativa A bis: un cerco plantado en el centro de una casa no se ve")
+
+	# --- B: la rutina de verdad sobre un plano con un prop movido ---------
+	_negative_foliage()
+
+	# --- C: una instancia de arboleda movida al centro de una roca --------
+	var broken := TownPlanner.resolve(_design, _terrain)
+	var discs := TownPlanner.rock_discs(broken)
+	var slot := 0
+	while slot < broken.grove_points.size() and broken.grove_points[slot].is_empty():
+		slot += 1
+	if discs.is_empty() or slot >= broken.grove_points.size():
+		fail("negativa C: no hay roca o arboleda que romper")
+	else:
+		var centre: Vector2 = discs[0]["centre"]
+		var points := broken.grove_points[slot]
+		points[0] = Vector3(centre.x, 0.0, centre.y)
+		broken.grove_points[slot] = points
+		expect(_has_problem(_grove_clear_problems(broken), "queda a"),
+				"negativa C: un árbol en el centro de una roca no se ve")
+
+	# --- C: dos instancias de la misma arboleda a un metro ----------------
+	# Las copas de dos arbustos a un metro pueden no cruzarse; lo que tiene que
+	# saltar es la **separación** (hallazgo 1).
+	var crowded := TownPlanner.resolve(_design, _terrain)
+	var moved := _crowd_two(crowded, NEGATIVE_CROWD)
+	if moved.is_empty():
+		fail("negativa C: no hay una arboleda con separación y dos instancias que juntar")
+	else:
+		expect(_has_problem(_grove_clear_problems(crowded), "(separación"),
+				"negativa C: dos instancias de '%s' a %.1f m no se ven" % [moved, NEGATIVE_CROWD])
+
+	# --- densidad: una arboleda a la que las holguras se la comieron ------
+	var data := _design.raw_data()
+	var groves: Array = data.get("groves", [])
+	if groves.is_empty():
+		fail("negativa de densidad: el diseño no trae arboledas")
+	else:
+		var grove: Dictionary = groves[0]
+		var clear: Dictionary = grove.get("clear", {})
+		clear["route"] = 5000.0
+		grove["clear"] = clear
+		var starved := TownDesign.from_data(data)
+		if starved == null:
+			fail("negativa de densidad: el diseño con la holgura enorme no valida")
+		else:
+			var result := _grove_density_problems(TownPlanner.resolve(starved, _terrain),
+					starved)
+			var problems: Array[String] = result["problems"]
+			expect(_has_problem(problems, "no sembró nada"),
+					"negativa de densidad: una arboleda sin un árbol no se ve")
+			expect(_has_problem(problems, "plantables de"),
+					"negativa de densidad: una arboleda sin un metro plantable no se ve")
+
+	# --- D: una huella declarada más chica que la pieza -------------------
+	var parcel := _first_manifest_parcel()
+	if parcel.is_empty():
+		fail("negativa D: ninguna parcela usa una pieza del manifiesto")
+	else:
+		var shrunk := parcel.duplicate()
+		shrunk["width"] = float(parcel.get("width", 0.0)) - NEGATIVE_FOOTPRINT
+		expect(not _footprint_problem(shrunk).is_empty(),
+				"negativa D: declarar %.1f m menos de huella no se ve" % NEGATIVE_FOOTPRINT)
+
+
+## Las negativas de la **fila B**, todas sobre [method _foliage_clear_problems]
+## y un plano recién resuelto al que se le cambia **un** prop por caso.
+##
+## Además del árbol de patio metido en su casa, que es la de siempre, las de la
+## revisión de WP-L (hallazgos 6 y 7): un prop dentro de un sólido, un prop en la
+## calzada sin `on_road`, un marcador dentro de un sólido, un prop que sí declara
+## en `allow_overlap` el sólido que pisa —el control positivo: tiene que pasar—,
+## un `allow_overlap` que no se usa, un `on_road` fuera del asfalto y un árbol de
+## patio encima de una roca.
+func _negative_foliage() -> void:
+	var plan := TownPlanner.resolve(_design, _terrain)
+	var original: Array[Dictionary] = plan.prop_placements.duplicate(true)
+	var clean: Array[String] = _foliage_clear_problems(plan, _design.markers())["problems"]
+	expect(clean.is_empty(), "negativa B: el pueblo bueno ya trae %d problemas" % clean.size())
+
+	var victim := -1
+	var tree := -1
+	for index: int in original.size():
+		var prop: Dictionary = original[index]
+		var piece := StringName(prop.get("piece", &""))
+		if TownDesign.piece_class(piece) == &"foliage":
+			if tree < 0 and String(prop.get("source", &"")).begins_with(
+					String(TownPlan.HOUSE_PREFIX)):
+				tree = index
+			continue
+		if victim < 0 and StringName(prop.get("source", &"")) == &"design" \
+				and not bool(prop.get("on_road", false)) \
+				and TownPlanner.prop_rect(prop).size() >= 3:
+			victim = index
+	var house := {}
+	for solid: Dictionary in TownPlanner.parcel_solid_list(plan):
+		var parcel := int(solid.get("parcel", -1))
+		if parcel < 0 or int(plan.parcels[parcel].get("role", -1)) != TownPlan.Role.HOUSE:
+			continue
+		if float(solid["y0"]) <= POST_Y_MIN and float(solid["y1"]) >= POST_Y_MAX:
+			house = solid
+			break
+	if victim < 0 or tree < 0 or house.is_empty():
+		fail("negativa B: falta un prop, un árbol de patio o una casa que romper")
+		return
+	var inside := TownPlan.polygon_centroid(house["poly"] as PackedVector2Array)
+	var victim_piece := String(original[victim].get("piece", &""))
+	var summary: PackedStringArray = PackedStringArray()
+
+	# 1. Un prop dentro de una casa, sin declararlo.
+	var into := _moved_prop(original, victim, inside)
+	var problems := _props_problems(plan, into, _design.markers())
+	expect(_has_problem(problems, "se mete"),
+			"negativa B: un '%s' en el centro de una casa no se ve" % victim_piece)
+	summary.append("prop en casa %d" % problems.size())
+
+	# 2. El mismo, declarándolo: el control positivo. Tiene que pasar limpio y
+	# contar como lista blanca usada.
+	var allowed := _moved_prop(original, victim, inside)
+	allowed[victim]["allow_overlap"] = [StringName(house["id"])] as Array[StringName]
+	plan.prop_placements = allowed
+	var result := _foliage_clear_problems(plan, _design.markers())
+	var whitelisted: Array[String] = result["problems"]
+	expect(whitelisted.is_empty() and int(result["whitelisted"]) == 1,
+			"negativa B: un prop que declara la casa que pisa no pasa limpio (%d problemas, %d listas usadas): %s"
+			% [whitelisted.size(), int(result["whitelisted"]), "; ".join(whitelisted)])
+	summary.append("declarado %d" % whitelisted.size())
+
+	# 3. Un prop en medio de la ruta, sin `on_road`.
+	var axis := plan.street_axis(0)
+	var road := TownPlan.polyline_point(axis, TownPlan.polyline_closest(axis, plan.play_centre))
+	problems = _props_problems(plan, _moved_prop(original, victim, Vector2(road.x, road.z)),
+			_design.markers())
+	expect(_has_problem(problems, "cae sobre la calzada"),
+			"negativa B: un '%s' en medio de la ruta no se ve" % victim_piece)
+	summary.append("en calzada %d" % problems.size())
+
+	# 4. `on_road` sobre un prop que está en la vereda.
+	var stray := original.duplicate(true)
+	stray[victim]["on_road"] = true
+	problems = _props_problems(plan, stray, _design.markers())
+	expect(_has_problem(problems, "declara on_road"),
+			"negativa B: un 'on_road' fuera del asfalto no se ve")
+	summary.append("on_road de más %d" % problems.size())
+
+	# 5. `allow_overlap` que nombra una casa que el prop no pisa.
+	var unused := original.duplicate(true)
+	unused[victim]["allow_overlap"] = [StringName(house["id"])] as Array[StringName]
+	problems = _props_problems(plan, unused, _design.markers())
+	expect(_has_problem(problems, "no lo pisa"),
+			"negativa B: un 'allow_overlap' que no se usa no se ve")
+	summary.append("lista blanca sin usar %d" % problems.size())
+
+	# 6. Un marcador de pila en el centro de la casa.
+	var markers: Array = [{"kind": "battery", "pos": [inside.x, inside.y]}]
+	problems = _props_problems(plan, original, markers)
+	expect(_has_problem(problems, "cae dentro"),
+			"negativa B: un puesto de pila dentro de una casa no se ve")
+	summary.append("marcador en casa %d" % problems.size())
+
+	# 7. El árbol de patio en el centro de la casa.
+	problems = _props_problems(plan, _moved_prop(original, tree, inside), _design.markers())
+	expect(_has_problem(problems, "de un sólido"),
+			"negativa B: un árbol plantado en el centro de una casa no se ve")
+	summary.append("árbol en casa %d" % problems.size())
+
+	# 8. El árbol de patio pegado a una roca (hallazgo 18): fuera de todo
+	# sólido, así que sólo lo puede ver la regla nueva.
+	var discs := TownPlanner.rock_discs(plan)
+	if discs.is_empty():
+		fail("negativa B: no hay roca contra la que plantar el árbol")
+	else:
+		var rock: Vector2 = discs[0]["centre"]
+		var edge := rock + Vector2(float(discs[0]["radius"]), 0.0)
+		problems = _props_problems(plan, _moved_prop(original, tree, edge), _design.markers())
+		expect(_has_problem(problems, "la roca"),
+				"negativa B: un árbol de patio encima de una roca no se ve")
+		summary.append("árbol en roca %d" % problems.size())
+	plan.prop_placements = original
+	print("  negativas de la fila B: %s" % ", ".join(summary))
+
+
+## Copia de [param props] con el prop [param index] llevado a [param flat].
+func _moved_prop(props: Array[Dictionary], index: int, flat: Vector2) -> Array[Dictionary]:
+	var out: Array[Dictionary] = props.duplicate(true)
+	var at: Vector3 = out[index].get("pos", Vector3.ZERO)
+	out[index]["pos"] = Vector3(flat.x, at.y, flat.y)
+	return out
+
+
+## Los problemas de la fila B de [param plan] con [param props] en lugar de los
+## suyos y [param markers] por marcadores.
+func _props_problems(plan: TownPlan, props: Array[Dictionary], markers: Array) -> Array[String]:
+	plan.prop_placements = props
+	return _foliage_clear_problems(plan, markers)["problems"]
+
+
+## Junta dos instancias de una arboleda con separación: lleva la segunda a
+## [param distance] metros de la primera. Devuelve el `id` de la arboleda, o `""`
+## si no hay ninguna con separación mayor que esa distancia y dos instancias.
+func _crowd_two(plan: TownPlan, distance: float) -> String:
+	for grove: int in _design.groves().size():
+		if TownPlanner.grove_spacing(_design, grove) <= distance:
+			continue
+		var first := Vector2i(-1, -1)
+		for slot: int in plan.grove_species.size():
+			for index: int in plan.grove_points[slot].size():
+				if plan.grove_source[slot][index] != grove:
+					continue
+				if first.x < 0:
+					first = Vector2i(slot, index)
+					continue
+				var anchor: Vector3 = plan.grove_points[first.x][first.y]
+				var points := plan.grove_points[slot]
+				points[index] = anchor + Vector3(distance, 0.0, 0.0)
+				plan.grove_points[slot] = points
+				return String((_design.groves()[grove] as Dictionary).get("id", grove))
+	return ""
+
+
+## Dos cuadrados de [constant NEGATIVE_SIDE] metros de lado separados
+## [param gap] metros —negativo, y se pisan—, para las negativas de la fila A.
+func _twin_solids(gap: float) -> Array[Dictionary]:
+	var half := NEGATIVE_SIDE * 0.5
+	var out: Array[Dictionary] = []
+	for slot: int in 2:
+		var centre := Vector2(float(slot) * (NEGATIVE_SIDE + gap), 0.0)
+		out.append({
+			"id": StringName("negativa_%d" % slot), "part": &"", "parcel": -1,
+			"poly": PackedVector2Array([
+				centre + Vector2(-half, -half), centre + Vector2(half, -half),
+				centre + Vector2(half, half), centre + Vector2(-half, half)]),
+			"y0": 0.0, "y1": 0.0,
+		})
+	return out
+
+
+## La primera parcela cuya pieza está en el manifiesto, para la negativa D.
+func _first_manifest_parcel() -> Dictionary:
+	for parcel: Dictionary in _plan.parcels:
+		if TownPlanner.piece_plan_size(StringName(parcel.get("piece", &"")),
+				Vector2.ZERO) != Vector2.ZERO:
+			return parcel
+	return {}
 
 
 ## Cuatro parcelas rotas contra [method _parcel_problems].
@@ -1431,94 +2327,309 @@ func _check_plaza() -> void:
 			_design.plaza_props().size()])
 
 
-## Las arboledas: cada una siembra lo que su densidad promete (±10 %) y ninguna
-## instancia cae donde no puede.
+## Las arboledas: cada una siembra, sobre su superficie **plantable**, lo que su
+## densidad promete —con la banda de abajo que le toca— y ninguna instancia cae
+## donde no puede.
 ##
-## El conteo esperado es `área · densidad`: la siembra es una instancia por
-## celda de `1/√densidad` metros de lado, así que un polígono de mil metros
-## cuadrados a 0,018 por metro cuadrado da dieciocho árboles. La tolerancia del
-## diez por ciento es por los bordes: una celda cuyo centro cae fuera del
-## polígono no siembra, y eso se nota en una arboleda angosta.
+## La siembra es una instancia por celda de `1/√densidad` metros de lado, así que
+## la superficie plantable ([method TownPlanner.grove_free_area]) por la densidad
+## es **exactamente** el número de celdas en que entra una instancia. Eso hace
+## que la fila tenga tres afirmaciones y no dos (revisión de WP-L, hallazgo 2):
+##
+## - la arboleda sembró algo: una arboleda con densidad y especies que no siembra
+##   nada es un error, aunque «cero de cero» cumpla cualquier banda;
+## - le queda sitio: la superficie plantable es al menos `min_free_ratio` de su
+##   polígono ([method TownDesign.grove_min_free_ratio], medido y declarado en el
+##   JSON). Sin este piso, una holgura que se comiera la arboleda entera
+##   aprobaría con cero metros plantables y cero árboles;
+## - no siembra de menos: al menos `(1 − tolerancia)` de las celdas libres, con
+##   [constant GROVE_SPACED_TOLERANCE] para las que declaran separación —cada
+##   vez que dos celdas vecinas quedan más cerca que la separación, la segunda
+##   cede, y con copas de ocho metros y celdas de siete y medio eso es casi la
+##   mitad de la rejilla— y [constant GROVE_COUNT_TOLERANCE] para las demás.
+##
+## **No hay cota superior** y es a propósito: una instancia sólo se planta en una
+## celda libre, así que «no más árboles que celdas libres» es verdad por
+## construcción y una fila que lo exigiera no podría fallar nunca. Hasta la
+## revisión existía, y era decoración.
 func _check_groves() -> void:
 	var declared := _design.groves()
 	expect(_plan.grove_species_count() > 0 or declared.is_empty(),
 			"el diseño declara %d arboledas y el plano no sembró ninguna especie"
 			% declared.size())
-	var total := 0
-	for index: int in declared.size():
-		var grove: Dictionary = declared[index]
-		var polygon := TownDesign.to_vector2_list(grove.get("polygon", null))
-		var density := float(grove.get("density", 0.0))
-		var wanted := TownPlan.polygon_area(polygon) * density
-		var found := _plan.grove_instances_of(index)
-		total += found
-		# La arboleda que pide separación mínima siembra **menos** de lo que su
-		# densidad promete: cada vez que dos celdas vecinas se acercan más de lo
-		# permitido, la segunda cede. Es el precio de que dos sauces de cinco
-		# metros de copa no se pisen, y se paga en una banda más ancha —medido:
-		# 11 y 12 % menos— en vez de en una densidad mentida.
-		var tolerance := GROVE_COUNT_TOLERANCE
-		if float(grove.get("min_spacing", 0.0)) > 0.0:
-			tolerance = GROVE_SPACED_TOLERANCE
-		expect(absf(float(found) - wanted) <= maxf(wanted * tolerance, 3.0),
-				"la arboleda '%s' sembró %d y su densidad pide %.0f (±%.0f %%)"
-				% [grove.get("id", index), found, wanted, tolerance * 100.0])
-		# Las especies del plano son las que la arboleda declara y ninguna más.
-		var allowed: Array[StringName] = []
-		for choice: Dictionary in _design.grove_species(index):
-			allowed.append(StringName(choice["piece"]))
-		for slot: int in _plan.grove_species.size():
-			var used := false
-			for source: int in _plan.grove_source[slot]:
-				if source == index:
-					used = true
-					break
-			if used:
-				expect(allowed.has(StringName(_plan.grove_species[slot])),
-						"la arboleda '%s' sembró '%s', que no declara"
-						% [grove.get("id", index), _plan.grove_species[slot]])
+	var density := _grove_density_problems(_plan, _design)
+	for problem: String in density["problems"] as Array[String]:
+		fail(problem)
+	var total := int(density["total"])
+	var plantable := float(density["plantable"])
+	var ratios: PackedStringArray = density["ratios"]
 
-	# Ninguna instancia dentro de una calle, de una manzana, de una huella ni a
-	# menos de doce metros del eje de la ruta.
-	var footprints: Array[PackedVector2Array] = []
-	for index: int in _plan.parcels.size():
-		footprints.append(_plan.parcel_footprint(index))
 	var worst_route := INF
-	var problems := 0
 	for slot: int in _plan.grove_species.size():
 		for point: Vector3 in _plan.grove_points[slot]:
-			var flat := Vector2(point.x, point.z)
-			worst_route = minf(worst_route, TownPlan.polyline_distance(_plan.route, flat))
-			if problems >= 6:
-				continue
-			for street: int in _plan.graph_street_count():
-				var axis := _plan.street_axis(street)
-				if axis.size() < 2:
-					continue
-				if TownPlan.polyline_distance(axis, flat) < _plan.street_half_of(street):
-					fail("un '%s' cayó dentro de la calle %d" % [_plan.grove_species[slot], street])
-					problems += 1
-					break
-			for block: int in _plan.block_count():
-				if TownPlan.polygon_contains(_plan.block_polygon(block), flat):
-					fail("un '%s' cayó dentro de la manzana %d"
-							% [_plan.grove_species[slot], block])
-					problems += 1
-					break
-			for footprint: PackedVector2Array in footprints:
-				if footprint.size() >= 3 and TownPlan.polygon_contains(footprint, flat):
-					fail("un '%s' cayó sobre una huella" % _plan.grove_species[slot])
-					problems += 1
-					break
+			worst_route = minf(worst_route,
+					TownPlan.polyline_distance(_plan.route, Vector2(point.x, point.z)))
 	expect(worst_route >= GROVE_ROUTE_MIN or _plan.grove_total() == 0,
 			"la instancia de arboleda más cercana a la ruta está a %.2f m (mínimo %.0f)"
 			% [worst_route, GROVE_ROUTE_MIN])
 	var by_species: PackedStringArray = PackedStringArray()
 	for slot: int in _plan.grove_species.size():
 		by_species.append("%s %d" % [_plan.grove_species[slot], _plan.grove_count(slot)])
-	print("  arboledas: %d polígonos · %d instancias (%s) · la más cercana a la ruta a %.1f m"
-			% [declared.size(), total, ", ".join(by_species),
-			0.0 if is_inf(worst_route) else worst_route])
+	print("  arboledas: %d polígonos · %d instancias (%s) sobre %.0f m² plantables"
+			% [declared.size(), total, ", ".join(by_species), plantable]
+			+ " · plantable/polígono: %s" % ", ".join(ratios)
+			+ " · la más cercana a la ruta a %.1f m"
+			% [0.0 if is_inf(worst_route) else worst_route])
+	_check_grove_clearances()
+
+
+## El cuerpo de la fila de densidad sobre [param plan] y [param design]:
+## devuelve los incumplimientos en `problems` y las cuentas del resumen.
+##
+## Va aparte para que la negativa lo corra sobre un diseño al que las holguras le
+## comieron una arboleda entera: con la fila vieja, «cero plantables, cero
+## árboles» aprobaba.
+func _grove_density_problems(plan: TownPlan, design: TownDesign) -> Dictionary:
+	var found: Array[String] = []
+	var total := 0
+	var plantable := 0.0
+	var ratios: PackedStringArray = PackedStringArray()
+	var declared := design.groves()
+	for index: int in declared.size():
+		var grove: Dictionary = declared[index]
+		var id: Variant = grove.get("id", index)
+		var polygon := TownDesign.to_vector2_list(grove.get("polygon", null))
+		var density := float(grove.get("density", 0.0))
+		var free := TownPlanner.grove_free_area(plan, design, index)
+		var wanted := free * density
+		var planted := plan.grove_instances_of(index)
+		var area := TownPlan.polygon_area(polygon) if polygon.size() >= 3 else 0.0
+		var ratio := design.grove_min_free_ratio(index)
+		total += planted
+		plantable += free
+		ratios.append("%s %.2f (mín %.2f)" % [id, free / area if area > 0.0 else 0.0, ratio])
+		if density > 0.0 and not design.grove_species(index).is_empty() and planted <= 0:
+			found.append("la arboleda '%s' tiene densidad %.3f y no sembró nada" % [id, density])
+		if free < ratio * area:
+			found.append("la arboleda '%s' tiene %.0f m² plantables de %.0f (%.2f) y declara un mínimo de %.2f"
+					% [id, free, area, free / maxf(area, 0.001), ratio])
+		var tolerance := GROVE_COUNT_TOLERANCE
+		if float(grove.get("min_spacing", 0.0)) > 0.0:
+			tolerance = GROVE_SPACED_TOLERANCE
+		if float(planted) < wanted * (1.0 - tolerance) - 3.0:
+			found.append("la arboleda '%s' sembró %d sobre %.0f m² plantables y su densidad pide %.0f (−%.0f %%)"
+					% [id, planted, free, wanted, tolerance * 100.0])
+		# Las especies del plano son las que la arboleda declara y ninguna más.
+		var allowed: Array[StringName] = []
+		for choice: Dictionary in design.grove_species(index):
+			allowed.append(StringName(choice["piece"]))
+		for slot: int in plan.grove_species.size():
+			if not plan.grove_source[slot].has(index):
+				continue
+			if not allowed.has(StringName(plan.grove_species[slot])):
+				found.append("la arboleda '%s' sembró '%s', que no declara"
+						% [id, plan.grove_species[slot]])
+	return {"problems": found, "total": total, "plantable": plantable, "ratios": ratios}
+
+
+## **Fila C**: cada instancia de arboleda respeta las siete holguras que su
+## arboleda declara, **medidas desde la copa**, y dos instancias de la misma
+## arboleda nunca se acercan más que la separación efectiva.
+##
+## Las tres holguras nuevas —roca, agua y alambre— son las que faltaban: sin
+## ellas había ocho instancias dentro de `rock_e` y de `rock_a`, cincuenta y dos
+## en el canal del arroyo y tres a un metro del cierre del disco. Y la separación
+## efectiva es la que impide que dos sauces de ocho metros de copa se planten a
+## cinco: `min_spacing` declarado no puede ser menor que la suma de los dos radios
+## más grandes que la arboleda puede sembrar.
+func _check_grove_clearances() -> void:
+	var worst: Dictionary[StringName, float] = {
+		&"streets": INF, &"blocks": INF, &"houses": INF, &"route": INF,
+		&"rocks": INF, &"water": INF, &"fences": INF,
+	}
+	var lots := _grove_lots(_plan)
+	var discs := TownPlanner.rock_discs(_plan)
+	var segments := TownPlanner.fence_segments(_plan)
+	for slot: int in _plan.grove_species.size():
+		var radius := TownPlanner.piece_radius(StringName(_plan.grove_species[slot]))
+		for index: int in _plan.grove_points[slot].size():
+			var at: Vector3 = _plan.grove_points[slot][index]
+			var flat := Vector2(at.x, at.z)
+			var crown := radius * _plan.grove_scales[slot][index]
+			for street: int in _plan.graph_street_count():
+				var axis := _plan.street_axis(street)
+				if axis.size() < 2:
+					continue
+				var key := &"route" if street == 0 else &"streets"
+				worst[key] = minf(worst[key], TownPlan.polyline_distance(axis, flat)
+						- _plan.street_half_of(street) - crown)
+			for block: int in _plan.block_count():
+				worst[&"blocks"] = minf(worst[&"blocks"],
+						-TownPlan.polygon_inset(_plan.block_polygon(block), flat) - crown)
+			for lot: PackedVector2Array in lots:
+				worst[&"houses"] = minf(worst[&"houses"],
+						-TownPlan.polygon_inset(lot, flat) - crown)
+			for disc: Dictionary in discs:
+				worst[&"rocks"] = minf(worst[&"rocks"],
+						flat.distance_to(disc["centre"] as Vector2)
+						- float(disc["radius"]) - crown)
+			if _plan.creek_width > 0.0:
+				worst[&"water"] = minf(worst[&"water"],
+						TownPlanner.creek_distance(_plan, flat)
+						- _plan.creek_width * 0.5 - crown)
+			worst[&"fences"] = minf(worst[&"fences"],
+					TownPlanner.fence_distance(segments, flat) - crown)
+
+	var problems := _grove_clear_problems(_plan)
+	for index: int in problems.size():
+		if index < 8:
+			fail(problems[index])
+	expect(problems.is_empty(),
+			"fila C: %d instancias de arboleda no respetan su holgura o se cruzan"
+			% problems.size())
+
+	var closest := INF
+	var spacing_parts: PackedStringArray = PackedStringArray()
+	for index: int in _design.groves().size():
+		var grove: Dictionary = _design.groves()[index]
+		var declared := float(grove.get("min_spacing", 0.0))
+		var floor_spacing := TownPlanner.grove_spacing(_design, index)
+		expect(declared <= 0.0 or declared >= floor_spacing - EPSILON,
+				"fila C: la arboleda '%s' declara %.2f m de separación y sus copas piden %.2f"
+				% [grove.get("id", index), declared, floor_spacing])
+		var points := PackedVector2Array()
+		var radii := PackedFloat32Array()
+		_grove_crowns(_plan, index, points, radii)
+		var nearest := INF
+		for a: int in points.size():
+			for b: int in a:
+				closest = minf(closest,
+						points[a].distance_to(points[b]) - radii[a] - radii[b])
+				nearest = minf(nearest, points[a].distance_to(points[b]))
+		spacing_parts.append("%s %.2f/%.2f" % [grove.get("id", index),
+				0.0 if is_inf(nearest) else nearest, floor_spacing])
+	print("  fila C · arboledas: holguras al borde — calle %.2f, manzana %.2f, lote %.2f,"
+			% [worst[&"streets"], worst[&"blocks"], worst[&"houses"]]
+			+ " roca %.2f, cauce %.2f, alambre %.2f · dos copas nunca a menos de %.2f m"
+			% [worst[&"rocks"], worst[&"water"], worst[&"fences"],
+			0.0 if is_inf(closest) else closest]
+			+ " · centros más cercanos / separación: %s" % ", ".join(spacing_parts))
+
+
+## Los lotes de [param plan], que es contra lo que se mide la holgura `houses`
+## de una arboleda.
+func _grove_lots(plan: TownPlan) -> Array[PackedVector2Array]:
+	var out: Array[PackedVector2Array] = []
+	for index: int in plan.parcels.size():
+		var lot := plan.parcel_footprint(index)
+		if lot.size() >= 3:
+			out.append(lot)
+	return out
+
+
+## Las copas plantadas por la arboleda [param grove] de [param plan], como punto
+## y radio.
+func _grove_crowns(plan: TownPlan, grove: int, points: PackedVector2Array,
+		radii: PackedFloat32Array) -> void:
+	for slot: int in plan.grove_species.size():
+		var radius := TownPlanner.piece_radius(StringName(plan.grove_species[slot]))
+		for index: int in plan.grove_points[slot].size():
+			if plan.grove_source[slot][index] != grove:
+				continue
+			var at: Vector3 = plan.grove_points[slot][index]
+			points.append(Vector2(at.x, at.z))
+			radii.append(radius * plan.grove_scales[slot][index])
+
+
+## El cuerpo de la **fila C**: toda instancia de arboleda de [param plan] respeta
+## las siete holguras que su arboleda declara —medidas desde la copa—, dos
+## instancias de la misma arboleda nunca quedan a menos de su separación efectiva
+## ([method TownPlanner.grove_spacing]) y, por lo tanto, dos copas no se cruzan.
+##
+## La separación se mide de centro a centro desde la revisión de WP-L (hallazgo
+## 1): la fila sólo exigía que las copas no se cruzaran, y eso dejó pasar las
+## cuatro parejas de `creek_e` que la memoria de dos niveles del resolvedor
+## plantaba a 3,96 m cuando la separación es 8,1.
+##
+## Todo sale de [param plan] —lotes incluidos—: va aparte, como
+## [method _parcel_problems], para que la prueba negativa corra esta misma rutina
+## sobre un plano roto a mano.
+func _grove_clear_problems(plan: TownPlan) -> Array[String]:
+	var found: Array[String] = []
+	var lots := _grove_lots(plan)
+	var discs := TownPlanner.rock_discs(plan)
+	var segments := TownPlanner.fence_segments(plan)
+	var deck := TownPlanner.bridge_rect(plan)
+	for slot: int in plan.grove_species.size():
+		var piece := StringName(plan.grove_species[slot])
+		var radius := TownPlanner.piece_radius(piece)
+		for index: int in plan.grove_points[slot].size():
+			var grove := plan.grove_source[slot][index]
+			var clear := _design.grove_clear(grove)
+			var at: Vector3 = plan.grove_points[slot][index]
+			var flat := Vector2(at.x, at.z)
+			var crown := radius * plan.grove_scales[slot][index]
+			var label := "un '%s' de '%s' en (%.1f, %.1f)" % [piece,
+					(_design.groves()[grove] as Dictionary).get("id", grove),
+					flat.x, flat.y]
+			for street: int in plan.graph_street_count():
+				var axis := plan.street_axis(street)
+				if axis.size() < 2:
+					continue
+				var key := &"route" if street == 0 else &"streets"
+				var gap := TownPlan.polyline_distance(axis, flat) \
+						- plan.street_half_of(street) - crown
+				if gap < float(clear.get(key, 0.0)) - EPSILON:
+					found.append("fila C: %s queda a %.2f m de la franja de la calle %d (pide %.2f)"
+							% [label, gap, street, float(clear.get(key, 0.0))])
+			for block: int in plan.block_count():
+				var gap := -TownPlan.polygon_inset(plan.block_polygon(block), flat) - crown
+				if gap < float(clear.get(&"blocks", 0.0)) - EPSILON:
+					found.append("fila C: %s queda a %.2f m de la manzana %d (pide %.2f)"
+							% [label, gap, block, float(clear.get(&"blocks", 0.0))])
+			for lot: PackedVector2Array in lots:
+				var gap := -TownPlan.polygon_inset(lot, flat) - crown
+				if gap < float(clear.get(&"houses", 0.0)) - EPSILON:
+					found.append("fila C: %s queda a %.2f m de un lote (pide %.2f)"
+							% [label, gap, float(clear.get(&"houses", 0.0))])
+			for disc: Dictionary in discs:
+				var gap := flat.distance_to(disc["centre"] as Vector2) \
+						- float(disc["radius"]) - crown
+				if gap < float(clear.get(&"rocks", 0.0)) - EPSILON:
+					found.append("fila C: %s queda a %.2f m de '%s' (pide %.2f)"
+							% [label, gap, disc["id"], float(clear.get(&"rocks", 0.0))])
+			if plan.creek_width > 0.0:
+				var gap := TownPlanner.creek_distance(plan, flat) \
+						- plan.creek_width * 0.5 - crown
+				if gap < float(clear.get(&"water", 0.0)) - EPSILON:
+					found.append("fila C: %s queda a %.2f m del cauce (pide %.2f)"
+							% [label, gap, float(clear.get(&"water", 0.0))])
+			if deck.size() >= 3:
+				var gap := TownPlanner.point_polygon_distance(deck, flat) - crown
+				if gap < float(clear.get(&"blocks", 0.0)) - EPSILON:
+					found.append("fila C: %s queda a %.2f m del tablero del puente (pide %.2f)"
+							% [label, gap, float(clear.get(&"blocks", 0.0))])
+			var fence := TownPlanner.fence_distance(segments, flat) - crown
+			if fence < float(clear.get(&"fences", 0.0)) - EPSILON:
+				found.append("fila C: %s queda a %.2f m de un alambre (pide %.2f)"
+						% [label, fence, float(clear.get(&"fences", 0.0))])
+	for index: int in _design.groves().size():
+		var points := PackedVector2Array()
+		var radii := PackedFloat32Array()
+		_grove_crowns(plan, index, points, radii)
+		var id: Variant = (_design.groves()[index] as Dictionary).get("id", index)
+		var spacing := TownPlanner.grove_spacing(_design, index)
+		for a: int in points.size():
+			for b: int in a:
+				var distance := points[a].distance_to(points[b])
+				if distance < spacing - GROVE_SPACING_TOLERANCE:
+					found.append("fila C: dos instancias de '%s' en (%.1f, %.1f) y (%.1f, %.1f) quedan a %.2f m (separación %.2f)"
+							% [id, points[a].x, points[a].y, points[b].x, points[b].y,
+							distance, spacing])
+				var gap := distance - radii[a] - radii[b]
+				if gap < 0.0:
+					found.append("fila C: dos copas de '%s' se cruzan %.2f m" % [id, -gap])
+	return found
 
 
 ## Los cercos: el largo que promete cada polilínea y ni un tramo sobre la
@@ -1589,20 +2700,37 @@ func _check_props() -> void:
 					break
 			expect(found, "el prop '%s' de (%.1f, %.1f) no aparece en el plano"
 					% [piece, wanted.x, wanted.y])
-	# Los props que cuelgan de una casa: uno por casa con jardín y árbol.
+	# Los props que cuelgan de una casa: uno por casa con jardín y árbol **que
+	# tenga dónde**. Desde WP-L la profundidad del árbol de patio no es una
+	# constante sino lo que quepa entre la casa y lo que haya detrás, y cuando no
+	# cabe nada la casa se queda sin árbol: es determinista y se cuenta acá.
+	var wanted_trees := 0
 	var garden_trees := 0
+	var skipped: PackedStringArray = PackedStringArray()
 	for index: int in _plan.parcels.size():
 		var parcel := _plan.parcels[index]
 		if int(parcel.get("role", -1)) != TownPlan.Role.HOUSE:
 			continue
-		if StringName(parcel.get("tree", &"")) != &"" and bool(parcel.get("garden", false)):
+		if StringName(parcel.get("tree", &"")) == &"" or not bool(parcel.get("garden", false)):
+			continue
+		wanted_trees += 1
+		if bool(parcel.get("garden_tree", false)):
 			garden_trees += 1
+		else:
+			skipped.append(String(parcel.get("name", "?")))
 	expect(_plan.prop_placements.size() == declared + garden_trees,
 			"el plano trae %d props y el diseño declara %d más %d árboles de patio"
 			% [_plan.prop_placements.size(), declared, garden_trees])
+	expect(garden_trees >= wanted_trees - GARDEN_TREES_SKIPPED_MAX,
+			"%d de %d casas con jardín se quedaron sin árbol (tope %d): %s"
+			% [wanted_trees - garden_trees, wanted_trees, GARDEN_TREES_SKIPPED_MAX,
+			", ".join(skipped)])
 	print("  props: %d declarados + %d árboles de patio = %d · %d piezas distintas"
 			% [declared, garden_trees, _plan.prop_placements.size(),
-			_plan.prop_pieces_used().size()])
+			_plan.prop_pieces_used().size()]
+			+ " · %d casas con jardín sin sitio para el árbol%s"
+			% [wanted_trees - garden_trees,
+			"" if skipped.is_empty() else " (%s)" % ", ".join(skipped)])
 
 
 ## Gramática «toldo naranja = pila» (`docs/17` §4), del lado del plano.
@@ -1750,20 +2878,36 @@ func _check_grove_determinism() -> void:
 	var groves: Array = data["groves"]
 	var grove: Dictionary = groves[0]
 	var polygon: Array = grove["polygon"]
-	# Se estira el primer vértice tres metros hacia afuera del baricentro: entran
-	# celdas nuevas y no se toca ninguna de las viejas.
+	# La arboleda entera se agranda [constant GROVE_GROWTH] metros hacia afuera del
+	# baricentro: entran celdas nuevas en todo el borde y no se toca ninguna de las
+	# de adentro.
+	#
+	# Hasta WP-L se estiraba **un** vértice tres metros. Con las holguras nuevas
+	# —el canal del arroyo, la roca, el alambre— ese triángulo de tres metros
+	# cabía entero dentro de una zona de exclusión y la prueba medía cero árboles
+	# nuevos, que es la forma más silenciosa de no medir nada.
 	var flat := TownDesign.to_vector2_list(grove.get("polygon", null))
 	var centre := TownPlan.polygon_centroid(flat)
-	var direction := (flat[0] - centre).normalized()
-	# El vértice se corre sobre la recta que lo une con el baricentro.
-	polygon[0] = [flat[0].x + direction.x * 3.0, flat[0].y + direction.y * 3.0]
+	for index: int in flat.size():
+		var direction := (flat[index] - centre).normalized()
+		polygon[index] = [flat[index].x + direction.x * GROVE_GROWTH,
+				flat[index].y + direction.y * GROVE_GROWTH]
 	var grown := TownDesign.from_data(data)
 	expect(grown != null, "agrandar una arboleda rompió la validación")
 	if grown == null:
 		return
 	var after := TownPlanner.resolve(grown, _terrain)
 
+	# «Movida» y «desalojada» no son lo mismo y sólo una de las dos rompe el
+	# determinismo posicional. Una instancia **movida** es la que ya no está donde
+	# estaba y sí aparece a pocos metros: eso querría decir que agrandar el
+	# polígono volvió a barajar la siembra, y es exactamente lo que no puede
+	# pasar. Una instancia **desalojada** es la que ya no está y no aparece en
+	# ninguna parte: eso sí puede pasar, porque una celda nueva del borde puede
+	# quedar a menos de la separación mínima de una vieja y ganarle por orden
+	# lexicográfico. Lo que se exige es cero de las primeras.
 	var moved := 0
+	var evicted := 0
 	var added := 0
 	for slot: int in _plan.grove_species.size():
 		var before_points := _plan.grove_points[slot]
@@ -1779,12 +2923,23 @@ func _check_grove_determinism() -> void:
 		for point: Vector3 in after.grove_points[other]:
 			lookup["%.3f|%.3f" % [point.x, point.z]] = true
 		for point: Vector3 in before_points:
-			if not lookup.has("%.3f|%.3f" % [point.x, point.z]):
+			if lookup.has("%.3f|%.3f" % [point.x, point.z]):
+				continue
+			var nearby := false
+			for check: Vector3 in after.grove_points[other]:
+				if check.distance_to(point) < GROVE_MOVED_REACH:
+					nearby = true
+					break
+			if nearby:
 				moved += 1
+			else:
+				evicted += 1
 		added += after.grove_points[other].size() - before_points.size()
-	expect(moved <= 1,
-			"agrandar una arboleda movió %d instancias que ya estaban (tope 1: la celda tocada)"
-			% moved)
+	expect(moved == 0,
+			"agrandar una arboleda corrió %d instancias que ya estaban" % moved)
+	expect(evicted <= GROVE_EVICTED_MAX,
+			"agrandar una arboleda desalojó %d instancias del borde (tope %d)"
+			% [evicted, GROVE_EVICTED_MAX])
 	expect(added > 0, "agrandar una arboleda no agregó ni un árbol")
 
 	# Y una arboleda **no toca a otra**: las de la segunda quedan intactas.
@@ -1812,6 +2967,6 @@ func _check_grove_determinism() -> void:
 					untouched = false
 					break
 		expect(untouched, "agrandar la arboleda 0 movió instancias de la arboleda 1")
-	print("  determinismo de arboleda: +%d instancias nuevas, %d movidas de las viejas"
-			% [added, moved])
+	print("  determinismo de arboleda: +%d instancias nuevas, %d corridas, %d desalojadas del borde"
+			% [added, moved, evicted])
 

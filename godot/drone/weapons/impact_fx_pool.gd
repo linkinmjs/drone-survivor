@@ -61,11 +61,20 @@ var _decal_next: int = 0
 var _decal_requests: int = 0
 var _decal_texture: Texture2D = null
 
+## Decals encendidos ahora mismo, llevado a mano por [method spawn_decal] y
+## [method _retire_decal]: es lo que enciende y apaga `_process`.
+var _live_decals: int = 0
+
 
 func _ready() -> void:
 	add_to_group(GROUP)
 	_build_fx()
 	_build_decals()
+	# El envejecimiento sólo tiene trabajo mientras haya un decal vivo, y los
+	# decals los enciende un impacto contra la capa 1 u 8: sin disparos el pool
+	# recorría sus ranuras en cada fotograma para no hacer nada
+	# (P2d WP-C, mejoras).
+	set_process(false)
 
 
 ## Envejece los decals vivos y los desvanece. Presentación pura: `_process`.
@@ -119,7 +128,12 @@ func spawn_decal(position: Vector3, normal: Vector3) -> bool:
 	decal.global_basis = _decal_basis(normal)
 	decal.modulate.a = 1.0
 	decal.visible = true
+	# La ranura puede venir reciclada de un decal todavía vivo: entonces no hay
+	# uno más, hay el mismo en otro sitio.
+	if _decal_age[index] < 0.0:
+		_live_decals += 1
 	_decal_age[index] = 0.0
+	set_process(true)
 	return true
 
 
@@ -136,6 +150,12 @@ func get_live_decal_count() -> int:
 		if age >= 0.0:
 			live += 1
 	return live
+
+
+## Decals vivos según el contador incremental. Es el que decide si `_process`
+## tiene trabajo; [method get_live_decal_count] lo verifica midiendo.
+func live_decals() -> int:
+	return _live_decals
 
 
 ## Efectos en marcha ahora mismo.
@@ -248,6 +268,10 @@ func _pick_decal_slot() -> int:
 
 
 func _retire_decal(index: int) -> void:
+	if _decal_age[index] >= 0.0:
+		_live_decals = maxi(_live_decals - 1, 0)
+		if _live_decals == 0:
+			set_process(false)
 	_decal_age[index] = -1.0
 	_decals[index].visible = false
 

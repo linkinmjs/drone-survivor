@@ -122,6 +122,14 @@ func change_scene(path: String, show_loading := false) -> void:
 	# Make sure the loading screen is on screen before the (blocking on the web) load starts
 	await _next_draw()
 
+	# El distrito del nivel se pide **en paralelo** con la escena del nivel
+	# (P2d WP-C §10): `RoundManager._spawn_district()` lo cargaba con un `load()`
+	# síncrono en el hilo principal desde el `_ready()` del nivel, y ese cuadro
+	# salía con varios segundos de `delta` —lo que obligó a
+	# `RoundManager.MAX_STEP`, que queda como red—. Pedirlo acá lo deja horneándose
+	# en el hilo de carga mientras se carga el nivel y mientras se funde, así que
+	# el `load_threaded_get()` de `begin()` ya lo encuentra hecho.
+	_prefetch_district(path)
 	var packed: PackedScene = null
 	if show_loading:
 		packed = await _load(path)
@@ -154,6 +162,21 @@ func _next_draw() -> void:
 		await get_tree().process_frame
 		return
 	await RenderingServer.frame_post_draw
+
+
+## Arranca la carga en hilo del distrito de la ronda elegida, si [param path] es
+## la escena de nivel de esa ronda. Silencioso: si no hay ronda, si no declara
+## distrito o si el pedido falla, [RoundManager] se cae al `load()` de siempre.
+func _prefetch_district(path: String) -> void:
+	if Global.selected_round.is_empty():
+		return
+	var data := RoundCatalog.get_by_id(Global.selected_round)
+	if data.is_empty() or RoundCatalog.level_scene_for(data) != path:
+		return
+	var district := String(data.get("district", ""))
+	if district.is_empty() or not ResourceLoader.exists(district):
+		return
+	var _requested := ResourceLoader.load_threaded_request(district)
 
 
 func _load(path: String) -> PackedScene:

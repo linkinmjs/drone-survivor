@@ -37,6 +37,9 @@ const FLIGHT_ACTION_DEADZONE: float = 0.01
 ## Los cuatro ejes de vuelo, en el orden del asistente de calibración (`docs/04` §4.6).
 const FLIGHT_AXES: Array[StringName] = [&"throttle", &"yaw", &"pitch", &"roll"]
 
+## Centinela de [method _read_flight_axis]: un eje sin calibración guardada.
+const _EMPTY_CALIBRATION: Dictionary = {}
+
 ## Índice físico por defecto de cada eje de vuelo, mapeo Mode 2 (`docs/02` §4.2).
 const DEFAULT_AXIS_INDEX: Dictionary[StringName, int] = {
 	&"throttle": 1,
@@ -469,14 +472,40 @@ func restore_keyboard_shortcuts() -> void:
 ##
 ## Devuelve un diccionario **vacío** si no hay mando: `RadioController` lo toma
 ## como «usá las acciones del `InputMap`» (`docs/03` §4).
+##
+## [b]No se llama por tick[/b] (P2d WP-C §4): arma un [Dictionary] nuevo y cuatro
+## [String] a partir de las [StringName] de [constant FLIGHT_AXES] en cada
+## llamada. Queda porque es la forma en que la leen `controls_check` y
+## `settings_check` —y la que documenta `docs/03` §4—, pero el bucle de vuelo usa
+## [method get_flight_axes], que no asigna nada.
 func get_flight_input() -> Dictionary:
 	if not has_joypad():
 		return {}
+	var axes := get_flight_axes()
+	return {
+		"throttle": axes.x,
+		"yaw": axes.y,
+		"pitch": axes.z,
+		"roll": axes.w,
+	}
+
+
+## Los mismos cuatro ejes de [method get_flight_input] como [Vector4], en el
+## orden de [constant FLIGHT_AXES]: `x` acelerador, `y` guiñada, `z` cabeceo y
+## `w` alabeo.
+##
+## Es lo que lee [RadioController] en cada tick de física. Sin mando devuelve
+## [constant Vector4.ZERO], así que el llamador tiene que preguntar antes por
+## [method has_joypad]: cero es una lectura legítima con los sticks centrados.
+func get_flight_axes() -> Vector4:
+	if not has_joypad():
+		return Vector4.ZERO
 	var device := maxi(active_device, 0)
-	var values: Dictionary = {}
-	for axis_name: StringName in FLIGHT_AXES:
-		values[String(axis_name)] = _read_flight_axis(device, axis_name)
-	return values
+	return Vector4(
+			_read_flight_axis(device, &"throttle"),
+			_read_flight_axis(device, &"yaw"),
+			_read_flight_axis(device, &"pitch"),
+			_read_flight_axis(device, &"roll"))
 
 
 # --- Internos --------------------------------------------------------------------------------
@@ -546,7 +575,13 @@ func _reset_calibration() -> void:
 
 ## Deflexión calibrada de un eje de vuelo, en `[−1, 1]`.
 func _read_flight_axis(device: int, axis_name: StringName) -> float:
-	var cal := get_axis_calibration(axis_name)
+	# La calibración se lee **sin copiar**: `get_axis_calibration()` devuelve un
+	# `duplicate()` para que nadie toque el original, y llamarla acá eran cuatro
+	# diccionarios nuevos por tick de física (P2d WP-C §4). Esta función no
+	# escribe nada dentro de `cal`.
+	var cal: Dictionary = _calibration.get(axis_name, _EMPTY_CALIBRATION)
+	if cal.is_empty():
+		cal = _default_calibration(axis_name)
 	var raw := Input.get_joy_axis(device, int(cal["axis"]) as JoyAxis)
 	var center := float(cal["center"])
 	var value := 0.0

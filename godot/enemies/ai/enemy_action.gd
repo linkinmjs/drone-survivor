@@ -46,6 +46,10 @@ var _last_use_time: float = -1.0e6
 var _elapsed: float = 0.0
 var _aborted: bool = false
 
+## Lista vacía que devuelve [method self_exclusions] sin enemigo, para no armar
+## un `Array[RID]` por llamada en los bancos sintéticos de los checks.
+var _empty_exclusions: Array[RID] = []
+
 
 ## Descuenta el enfriamiento. Acumulador, nunca un [Timer].
 func _physics_process(delta: float) -> void:
@@ -366,21 +370,26 @@ func space_state() -> PhysicsDirectSpaceState3D:
 
 
 ## RID de todos los cuerpos del enemigo, para excluirlos de los barridos.
+##
+## Es la lista **cacheada** del enemigo ([method EnemyBase.body_exclusions]), no
+## una copia: quien la reciba no debe modificarla. Antes recorría el subárbol
+## entero del jefe —31 partes— y armaba un `Array[RID]` nuevo en cada llamada, y
+## el barrido la pedía dos veces por consulta a 20 Hz durante toda la ventana
+## activa (P2d WP-C §1).
 func self_exclusions() -> Array[RID]:
-	var rids: Array[RID] = []
 	var host := owner_enemy()
 	if host == null:
-		return rids
-	var pending: Array[Node] = [host]
-	var index := 0
-	while index < pending.size():
-		for child: Node in pending[index].get_children():
-			pending.append(child)
-		var body := pending[index] as CollisionObject3D
-		if body != null:
-			rids.append(body.get_rid())
-		index += 1
-	return rids
+		return _empty_exclusions
+	return host.body_exclusions()
+
+
+## Versión de [method self_exclusions]: mientras no cambie, una consulta de
+## física que ya la tenga copiada no necesita volver a asignarla.
+func exclusions_version() -> int:
+	var host := owner_enemy()
+	if host == null:
+		return 0
+	return host.exclusions_version()
 
 
 # --------------------------------------------------------------------------

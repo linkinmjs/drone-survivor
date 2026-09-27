@@ -1,0 +1,78 @@
+{
+  "comment": "Generado por voxsplit (previewmanifest.py, WP-G2). No editar a mano: se reescribe en cada corrida de 'town' o 'build' sobre esta carpeta.",
+  "sort": "id",
+  "pieces": [
+    {
+      "id": "village_bridge",
+      "scene": "res://assets/preview/village_objects/village_bridge.glb",
+      "source": "VoxelVillagePack.zip",
+      "pack": "village",
+      "class": "prop",
+      "row": "Packs/Aldea",
+      "footprint": [6, 4],
+      "height": 3,
+      "tris": 980,
+      "placeholder": false
+    },
+    {
+      "id": "village_crate_blue",
+      "scene": "res://assets/preview/village_objects/village_crate_blue.glb",
+      "source": "VoxelVillagePack.zip",
+      "pack": "village",
+      "class": "prop",
+      "row": "Packs/Aldea",
+      "footprint": [0.9, 0.7],
+      "height": 0.6,
+      "tris": 262,
+      "placeholder": false
+    },
+    {
+      "id": "village_crate_green",
+      "scene": "res://assets/preview/village_objects/village_crate_green.glb",
+      "source": "VoxelVillagePack.zip",
+      "pack": "village",
+      "class": "prop",
+      "row": "Packs/Aldea",
+      "footprint": [0.9, 0.7],
+      "height": 0.6,
+      "tris": 302,
+      "placeholder": false
+    },
+    {
+      "id": "village_crate_orange",
+      "scene": "res://assets/preview/village_objects/village_crate_orange.glb",
+      "source": "VoxelVillagePack.zip",
+      "pack": "village",
+      "class": "prop",
+      "row": "Packs/Aldea",
+      "footprint": [0.9, 0.7],
+      "height": 0.6,
+      "tris": 314,
+      "placeholder": false
+    },
+    {
+      "id": "village_crate_red",
+      "scene": "res://assets/preview/village_objects/village_crate_red.glb",
+      "source": "VoxelVillagePack.zip",
+      "pack": "village",
+      "class": "prop",
+      "row": "Packs/Aldea",
+      "footprint": [0.9, 0.7],
+      "height": 0.6,
+      "tris": 302,
+      "placeholder": false
+    },
+    {
+      "id": "village_rock_big",
+      "scene": "res://assets/preview/village_objects/village_rock_big.glb",
+      "source": "VoxelVillagePack.zip",
+      "pack": "village",
+      "class": "prop",
+      "row": "Packs/Aldea",
+      "footprint": [1.6, 1],
+      "height": 0.5,
+      "tris": 440,
+      "placeholder": false
+    }
+  ]
+}

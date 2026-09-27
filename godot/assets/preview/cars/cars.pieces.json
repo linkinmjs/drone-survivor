@@ -1,0 +1,298 @@
+{
+  "name": "cars",
+  "voxsplit_version": "1.0.0",
+  "source": "cars.zip",
+  "step": 0.02,
+  "scale": 1,
+  "voxel_size": 0.02,
+  "palette_texture": "cars_palette.png",
+  "emissive_texture": "cars_emissive.png",
+  "window_indices": {"85": [243, 156, 80], "86": [255, 203, 100], "173": [203, 73, 75]},
+  "materials": {},
+  "palette_families": {},
+  "sources": {
+    "taxi_body": {
+      "file": "Free Sample-10-Taxi.obj",
+      "cells": [28, 24, 52],
+      "metres": [0.56, 0.48, 1.04],
+      "voxels": 21552,
+      "obj_triangles": 4384
+    },
+    "taxi_wheel_a": {
+      "file": "Free Sample-11.obj",
+      "cells": [4, 8, 8],
+      "metres": [0.08, 0.16, 0.16],
+      "voxels": 232,
+      "obj_triangles": 252
+    },
+    "taxi_wheel_b": {
+      "file": "Free Sample-12.obj",
+      "cells": [4, 8, 8],
+      "metres": [0.08, 0.16, 0.16],
+      "voxels": 232,
+      "obj_triangles": 252
+    },
+    "taxi_wheel_c": {
+      "file": "Free Sample-13.obj",
+      "cells": [4, 8, 8],
+      "metres": [0.08, 0.16, 0.16],
+      "voxels": 232,
+      "obj_triangles": 252
+    },
+    "taxi_wheel_d": {
+      "file": "Free Sample-14.obj",
+      "cells": [4, 8, 8],
+      "metres": [0.08, 0.16, 0.16],
+      "voxels": 232,
+      "obj_triangles": 252
+    },
+    "taxi_plate": {
+      "file": "Free Sample-9.obj",
+      "cells": [10, 1, 10],
+      "metres": [0.2, 0.02, 0.2],
+      "voxels": 100,
+      "obj_triangles": 12
+    },
+    "crossing_a": {
+      "file": "Free Sample-0-Crossing.obj",
+      "cells": [80, 2, 80],
+      "metres": [1.6, 0.04, 1.6],
+      "voxels": 12800,
+      "obj_triangles": 132
+    },
+    "crossing_b": {
+      "file": "Free Sample-1-Crossing.obj",
+      "cells": [80, 2, 80],
+      "metres": [1.6, 0.04, 1.6],
+      "voxels": 12800,
+      "obj_triangles": 136
+    },
+    "street_8_a": {
+      "file": "Free Sample-2-Street-8.obj",
+      "cells": [80, 2, 80],
+      "metres": [1.6, 0.04, 1.6],
+      "voxels": 12800,
+      "obj_triangles": 140
+    },
+    "street_6_a": {
+      "file": "Free Sample-3-Street-6.obj",
+      "cells": [80, 2, 80],
+      "metres": [1.6, 0.04, 1.6],
+      "voxels": 12800,
+      "obj_triangles": 108
+    },
+    "street_6_b": {
+      "file": "Free Sample-4-Street-6.obj",
+      "cells": [80, 2, 80],
+      "metres": [1.6, 0.04, 1.6],
+      "voxels": 12800,
+      "obj_triangles": 108
+    },
+    "street_8_b": {
+      "file": "Free Sample-5-Street-8.obj",
+      "cells": [80, 2, 80],
+      "metres": [1.6, 0.04, 1.6],
+      "voxels": 12800,
+      "obj_triangles": 140
+    },
+    "sign_60": {
+      "file": "Free Sample-6-RoadSign-60.obj",
+      "cells": [18, 52, 5],
+      "metres": [0.36, 1.04, 0.1],
+      "voxels": 872,
+      "obj_triangles": 188
+    },
+    "sign_64": {
+      "file": "Free Sample-7-RoadSign-64.obj",
+      "cells": [18, 52, 5],
+      "metres": [0.36, 1.04, 0.1],
+      "voxels": 808,
+      "obj_triangles": 332
+    },
+    "sign_66": {
+      "file": "Free Sample-8-RoadSign-66.obj",
+      "cells": [18, 52, 5],
+      "metres": [0.36, 1.04, 0.1],
+      "voxels": 752,
+      "obj_triangles": 412
+    }
+  },
+  "pieces": {
+    "cars_taxi": {
+      "kind": "vehicle",
+      "parts": ["taxi_plate", "taxi_body", "taxi_wheel_a", "taxi_wheel_b", "taxi_wheel_c", "taxi_wheel_d"],
+      "triangles": 682,
+      "obj_triangles": 5404,
+      "budget": 800,
+      "voxels": 23616,
+      "cells": [28, 26, 52],
+      "aabb_min": [-0.98, 0, -1.82],
+      "aabb_max": [0.98, 1.82, 1.82],
+      "size": [1.96, 1.82, 3.64],
+      "window_voxels": 32,
+      "origin": "centre",
+      "scale": 3.5,
+      "voxel_size": 0.07,
+      "scene": "res://city/pieces/town/props/cars_taxi.tscn"
+    },
+    "cars_crossing_a": {
+      "kind": "street",
+      "parts": ["crossing_a"],
+      "triangles": 114,
+      "obj_triangles": 132,
+      "budget": 300,
+      "voxels": 12800,
+      "cells": [80, 2, 80],
+      "aabb_min": [-2, 0, -2],
+      "aabb_max": [2, 0.1, 2],
+      "size": [4, 0.1, 4],
+      "window_voxels": 0,
+      "origin": "centre",
+      "scale": 2.5,
+      "voxel_size": 0.05,
+      "scene": "res://city/pieces/town/props/cars_crossing_a.tscn"
+    },
+    "cars_crossing_b": {
+      "kind": "street",
+      "parts": ["crossing_b"],
+      "triangles": 118,
+      "obj_triangles": 136,
+      "budget": 300,
+      "voxels": 12800,
+      "cells": [80, 2, 80],
+      "aabb_min": [-2, 0, -2],
+      "aabb_max": [2, 0.1, 2],
+      "size": [4, 0.1, 4],
+      "window_voxels": 0,
+      "origin": "centre",
+      "scale": 2.5,
+      "voxel_size": 0.05,
+      "scene": "res://city/pieces/town/props/cars_crossing_b.tscn"
+    },
+    "cars_street_6_a": {
+      "kind": "street",
+      "parts": ["street_6_a"],
+      "triangles": 108,
+      "obj_triangles": 108,
+      "budget": 300,
+      "voxels": 12800,
+      "cells": [80, 2, 80],
+      "aabb_min": [-2, 0, -2],
+      "aabb_max": [2, 0.1, 2],
+      "size": [4, 0.1, 4],
+      "window_voxels": 0,
+      "origin": "centre",
+      "scale": 2.5,
+      "voxel_size": 0.05,
+      "scene": "res://city/pieces/town/props/cars_street_6_a.tscn"
+    },
+    "cars_street_6_b": {
+      "kind": "street",
+      "parts": ["street_6_b"],
+      "triangles": 108,
+      "obj_triangles": 108,
+      "budget": 300,
+      "voxels": 12800,
+      "cells": [80, 2, 80],
+      "aabb_min": [-2, 0, -2],
+      "aabb_max": [2, 0.1, 2],
+      "size": [4, 0.1, 4],
+      "window_voxels": 0,
+      "origin": "centre",
+      "scale": 2.5,
+      "voxel_size": 0.05,
+      "scene": "res://city/pieces/town/props/cars_street_6_b.tscn"
+    },
+    "cars_street_8_a": {
+      "kind": "street",
+      "parts": ["street_8_a"],
+      "triangles": 134,
+      "obj_triangles": 140,
+      "budget": 300,
+      "voxels": 12800,
+      "cells": [80, 2, 80],
+      "aabb_min": [-2, 0, -2],
+      "aabb_max": [2, 0.1, 2],
+      "size": [4, 0.1, 4],
+      "window_voxels": 0,
+      "origin": "centre",
+      "scale": 2.5,
+      "voxel_size": 0.05,
+      "scene": "res://city/pieces/town/props/cars_street_8_a.tscn"
+    },
+    "cars_street_8_b": {
+      "kind": "street",
+      "parts": ["street_8_b"],
+      "triangles": 134,
+      "obj_triangles": 140,
+      "budget": 300,
+      "voxels": 12800,
+      "cells": [80, 2, 80],
+      "aabb_min": [-2, 0, -2],
+      "aabb_max": [2, 0.1, 2],
+      "size": [4, 0.1, 4],
+      "window_voxels": 0,
+      "origin": "centre",
+      "scale": 2.5,
+      "voxel_size": 0.05,
+      "scene": "res://city/pieces/town/props/cars_street_8_b.tscn"
+    },
+    "cars_sign_60": {
+      "kind": "sign",
+      "parts": ["sign_60"],
+      "triangles": 164,
+      "obj_triangles": 188,
+      "budget": 400,
+      "voxels": 872,
+      "cells": [18, 52, 5],
+      "aabb_min": [-0.45, 0, -0.125],
+      "aabb_max": [0.45, 2.6, 0.125],
+      "size": [0.9, 2.6, 0.25],
+      "window_voxels": 0,
+      "origin": "centre",
+      "scale": 2.5,
+      "voxel_size": 0.05,
+      "scene": "res://city/pieces/town/props/cars_sign_60.tscn"
+    },
+    "cars_sign_64": {
+      "kind": "sign",
+      "parts": ["sign_64"],
+      "triangles": 246,
+      "obj_triangles": 332,
+      "budget": 400,
+      "voxels": 808,
+      "cells": [18, 52, 5],
+      "aabb_min": [-0.45, 0, -0.125],
+      "aabb_max": [0.45, 2.6, 0.125],
+      "size": [0.9, 2.6, 0.25],
+      "window_voxels": 0,
+      "origin": "centre",
+      "scale": 2.5,
+      "voxel_size": 0.05,
+      "scene": "res://city/pieces/town/props/cars_sign_64.tscn"
+    },
+    "cars_sign_66": {
+      "kind": "sign",
+      "parts": ["sign_66"],
+      "triangles": 348,
+      "obj_triangles": 412,
+      "budget": 400,
+      "voxels": 752,
+      "cells": [18, 52, 5],
+      "aabb_min": [-0.45, 0, -0.125],
+      "aabb_max": [0.45, 2.6, 0.125],
+      "size": [0.9, 2.6, 0.25],
+      "window_voxels": 0,
+      "origin": "centre",
+      "scale": 2.5,
+      "voxel_size": 0.05,
+      "scene": "res://city/pieces/town/props/cars_sign_66.tscn"
+    }
+  },
+  "preview": {
+    "pack": "cars",
+    "row": "Packs/Autos y calle",
+    "pieces": {"cars_taxi": {"order": 0}},
+    "pieces_note": "order 0: la galeria pone el taxi primero, al lado del car_a de referencia."
+  }
+}

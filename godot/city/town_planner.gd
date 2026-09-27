@@ -91,9 +91,19 @@ const HOUSE_WIDTH_TARGET: float = 12.0
 ## Fondo de una parcela de casa, en metros.
 ##
 ## La fachada de las casas de WP-A mira a **−X local**, así que el fondo de la
-## parcela lo ocupa su `base_size.x`, que es 5,00–5,10 m en las diez piezas. Con
-## 5,4 la casa entra entera y sobran 15 cm de retiro contra la línea municipal.
-const HOUSE_DEPTH: float = 5.4
+## parcela lo ocupa su `base_size.x`, que es 5,00–5,10 m en las diez piezas.
+##
+## Era 5,4 y la casa entraba entera con 15–20 cm de retiro contra la línea
+## municipal: menos que los 30 cm a los que va el cerco del frente
+## ([constant FRONT_FENCE_OFFSET]) más su medio canto, así que 45 tramos de cerco
+## tocaban la fachada de su casa y 16 le atravesaban la pared (WP-L, fila E de
+## `city_check`, fila A bis de `town_plan_check`). La casa se centra en el lote,
+## así que agrandar el fondo la corre medio agrandamiento hacia adentro: con
+## 6,16 m el tramo de cerco más justo del pueblo queda a 0,103 m de su fachada,
+## y es el mínimo que deja los 0,10 que exige la fila. Con el fondo nuevo, cuatro
+## lotes de esquina se tocaban con el vecino de la calle perpendicular por la
+## espalda y se angostaron en `town_a.json`; ninguna casa real cambió de ancho.
+const HOUSE_DEPTH: float = 6.16
 
 ## Huella de un edificio grande cuando el diseño no declara `footprint`, en
 ## metros: `BuildingBlock_18/19` miden 20 × 11 m y la parcela les deja medio
@@ -163,12 +173,55 @@ const FENCE_STREET_GAP: float = 1.5
 
 # --- Props -----------------------------------------------------------------
 
-## A cuántos metros del frente, hacia adentro del lote, va el árbol del patio.
+## A cuántos metros del frente, hacia adentro del lote, va el árbol del patio
+## **como mucho**.
 ##
 ## El lote mide [constant HOUSE_DEPTH] de fondo y la casa lo ocupa entero, así
 ## que el árbol va **detrás** de la casa: es el patio, que es donde está el
 ## árbol frutal y el tendedero de `docs/17` §3.
+##
+## Hasta P2c era una constante y se aplicaba tal cual, y eso plantó el árbol de
+## `Building_House_01_03` con el tronco 0,65 m **dentro** de la pared de
+## `Building_Mid_3` (WP-L, hallazgos S2/S7): con lotes de 5,4 m de fondo, diez
+## metros dejan el árbol 4,6 m más allá del lote, en el corazón de manzana, que
+## es justamente donde se sientan los medianos. Desde WP-L es un **tope**: la
+## profundidad de verdad la decide [method _garden_tree_depth], que retrocede
+## hasta que la copa despeje [constant GARDEN_TREE_CLEAR] metros de todo sólido,
+## y si no hay dónde, la casa se queda sin árbol.
 const GARDEN_TREE_DEPTH: float = 10.0
+
+## Cuánto despeja la **copa** del árbol de patio de cualquier sólido y de
+## cualquier otra copa, en metros.
+##
+## Es el mismo medio metro que exige la fila B de `tools/town_plan_check.gd`: el
+## resolvedor siembra con la regla que el check mide, y no con una parecida.
+const GARDEN_TREE_CLEAR: float = 0.5
+
+## Con qué paso se prueba la profundidad del árbol de patio, en metros.
+##
+## Se busca de afuera hacia adentro —del tope hacia la línea municipal— y se
+## toma la primera que despeja: el árbol queda lo más al fondo del patio que se
+## pueda, que es donde está el árbol de una casa. Diez centímetros es más fino
+## que la holgura que se exige, así que el resultado no depende del paso.
+const GARDEN_TREE_STEP: float = 0.1
+
+## Radio del casco de cada roca, en metros, medido sobre los puntos del
+## `ConvexPolygonShape3D` de `world/rocks/rock_*.tscn`.
+##
+## Es un **radio** y no una huella orientada porque [CityGrid] le da a cada roca
+## un giro sorteado (`_build_rocks`, canal `CHANNEL_YAW`): lo único que el plano
+## puede afirmar de una roca girada al azar es su círculo circunscrito. Medidos:
+## `rock_a` 6,07 × 7,42 m de caja y 3,87 de radio; `rock_b` 10,22 × 8,62 / 5,67;
+## `rock_c` 8,74 × 11,29 / 5,78; `rock_d` 13,22 × 12,51 / 7,33; `rock_e`
+## 16,12 × 14,80 / 9,69; `rock_f` 12,78 × 17,33 / 8,76.
+const ROCK_RADIUS: Dictionary[StringName, float] = {
+	&"rock_a": 3.87,
+	&"rock_b": 5.67,
+	&"rock_c": 5.78,
+	&"rock_d": 7.33,
+	&"rock_e": 9.69,
+	&"rock_f": 8.76,
+}
 
 ## Cuánto se corre el cerco del frente **hacia adentro del lote**, en metros.
 ##
@@ -346,11 +399,26 @@ static func resolve(design: TownDesign, terrain: Object = null) -> TownPlan:
 	# Lo de WP-D2 va **al final** porque mira todo lo anterior: las arboledas
 	# esquivan calles, manzanas y huellas; los cercos, las calzadas; los props,
 	# las casas de las que cuelgan.
-	_place_groves(plan, design)
-	_place_fences(plan, design)
-	_place_props(plan, design)
+	#
+	# WP-L reordenó las cinco últimas. El arroyo, el puente y los cercos se
+	# copian ahora **antes** que las arboledas porque desde P2d una arboleda los
+	# esquiva, y no se puede esquivar lo que todavía no está en el plano: con el
+	# orden viejo `plan.creek_width` valía cero y `plan.fence_points` estaba
+	# vacío cuando se sembraban los mil cuatrocientos árboles. Ninguna de las
+	# tres depende de las arboledas, así que el orden nuevo no tiene vuelta.
+	#
+	# «Los cercos» son **todos**: los de línea del diseño y los de frente de cada
+	# casa. Los de frente se sembraban en `_place_house_props`, después de las
+	# arboledas, así que la siembra esquivaba unos cercos y la fila C medía
+	# contra todos (revisión de WP-L, hallazgo 9). Desde la revisión los dos los
+	# pone [method _place_fences], en el mismo orden que antes —primero los del
+	# diseño, después los de frente por orden de parcela—, y la lista es la misma
+	# para la siembra y para el check.
 	_place_creek(plan, design)
 	_place_bridge(plan, design, terrain)
+	_place_fences(plan, design)
+	_place_groves(plan, design)
+	_place_props(plan, design)
 	return plan
 
 
@@ -1115,6 +1183,7 @@ static func _roof_parcels(plan: TownPlan) -> Array[int]:
 ## fotograma de la ronda.
 static func _place_rocks(plan: TownPlan, design: TownDesign) -> void:
 	plan.rocks = PackedVector3Array()
+	plan.rock_pieces = PackedStringArray()
 	var list := design.rocks()
 	for index: int in list.size():
 		var data: Dictionary = list[index]
@@ -1127,6 +1196,7 @@ static func _place_rocks(plan: TownPlan, design: TownDesign) -> void:
 			continue
 		var point: Vector2 = flat
 		plan.rocks.append(Vector3(point.x, 0.0, point.y))
+		plan.rock_pieces.append(String(piece))
 
 
 ## Maleza, basura y barriles: dentro del pueblo sobre las manzanas y afuera sobre
@@ -1249,98 +1319,252 @@ static func _place_groves(plan: TownPlan, design: TownDesign) -> void:
 	if groves.is_empty():
 		return
 
-	var footprints: Array[PackedVector2Array] = []
-	for index: int in plan.parcels.size():
-		footprints.append(plan.parcel_footprint(index))
-
+	# Las listas que se comparten entre arboledas —lotes, rocas, cercos y
+	# tablero— se arman **una vez** para todo el pueblo: son las mismas para las
+	# cuatro arboledas y recalcularlas por celda costaría medio millón de cuentas.
+	var shared := _grove_shared(plan)
 	for index: int in groves.size():
-		var grove: Dictionary = groves[index]
-		var polygon := TownDesign.to_vector2_list(grove.get("polygon", null))
-		var density := float(grove.get("density", 0.0))
-		var species := design.grove_species(index)
-		if polygon.size() < 3 or density <= 0.0 or species.is_empty():
+		var context := _grove_context(plan, design, index, shared)
+		if context.is_empty():
 			continue
-		var clear := design.grove_clear(index)
-		# Una instancia por celda: el lado de la celda es el inverso de la raíz de
-		# la densidad, que es lo que hace que «0,018 por metro cuadrado» dé 0,018
-		# por metro cuadrado.
-		var cell := 1.0 / sqrt(density)
-		var spacing := float(grove.get("min_spacing", 0.0))
-		var low := polygon[0]
-		var high := polygon[0]
-		for point: Vector2 in polygon:
-			low = Vector2(minf(low.x, point.x), minf(low.y, point.y))
-			high = Vector2(maxf(high.x, point.x), maxf(high.y, point.y))
-		var weight_total := 0.0
-		for choice: Dictionary in species:
-			weight_total += maxf(float(choice["weight"]), 0.0)
-		if weight_total <= 0.0:
-			continue
-
+		var cell := float(context["cell"])
+		var low: Vector2 = context["low"]
+		var high: Vector2 = context["high"]
+		var species: Array[Dictionary] = context["species"]
 		for iz: int in range(floori(low.y / cell), ceili(high.y / cell) + 1):
 			for ix: int in range(floori(low.x / cell), ceili(high.x / cell) + 1):
-				var jitter_x := (_unit(design, [SALT_GROVE, index, ix, iz, 0]) - 0.5) \
-						* 2.0 * GROVE_JITTER
-				var jitter_z := (_unit(design, [SALT_GROVE, index, ix, iz, 1]) - 0.5) \
-						* 2.0 * GROVE_JITTER
-				var spot := Vector2((float(ix) + 0.5 + jitter_x) * cell,
-						(float(iz) + 0.5 + jitter_z) * cell)
-				if not Geometry2D.is_point_in_polygon(spot, polygon):
+				if not _grove_planted(context, ix, iz):
 					continue
-				if not _grove_spot_free(plan, footprints, spot, clear):
-					continue
-				var roll := _unit(design, [SALT_GROVE, index, ix, iz, 2]) * weight_total
-				var slot := species.size() - 1
-				for choice: int in species.size():
-					roll -= maxf(float(species[choice]["weight"]), 0.0)
-					if roll <= 0.0:
-						slot = choice
-						break
-				var piece := StringName(species[slot]["piece"])
-				if spacing > 0.0 and _grove_crowded(design, index, ix, iz, cell, spacing,
-						polygon):
-					continue
+				var spot := _grove_point(design, index, ix, iz, cell)
+				var piece := StringName(species[_grove_pick(context, ix, iz)]["piece"])
 				var bucket := _grove_bucket(plan, piece)
 				plan.grove_points[bucket].append(Vector3(spot.x, 0.0, spot.y))
 				plan.grove_yaws[bucket].append(
 						_unit(design, [SALT_GROVE, index, ix, iz, 3]) * TAU)
-				plan.grove_scales[bucket].append(lerpf(GROVE_SCALE_MIN, GROVE_SCALE_MAX,
-						_unit(design, [SALT_GROVE, index, ix, iz, 4])))
+				plan.grove_scales[bucket].append(_grove_scale(context, ix, iz))
 				plan.grove_source[bucket].append(index)
 
 
-## Verdadero si la celda `(ix, iz)` tiene un vecino **ya decidido** a menos de
-## [param spacing] metros.
+## Separación mínima **efectiva** de la arboleda [param index], en metros.
 ##
-## «Ya decidido» quiere decir con orden lexicográfico `(iz, ix)` menor: la celda
-## que cede es siempre la segunda, y cuál es la segunda no depende de en qué
-## orden se recorra la rejilla sino de los dos índices. Eso es lo que conserva el
-## determinismo posicional: la decisión de una celda mira sólo a sus ocho
-## vecinas, y las ocho se calculan con la misma fórmula pura que ella.
+## Es la declarada o la suma de los dos radios de copa más grandes que la
+## arboleda puede sembrar, lo que sea mayor. Los cinco metros que declaran las
+## dos bandas del arroyo eran menos que **una** copa de `tree_xl`
+## —6,5 m de huella por hasta [constant GROVE_SCALE_MAX] de escala, o sea 8,06 m
+## de diámetro— así que dos sauces a cinco metros no eran dos sauces sino un
+## borrón (WP-L, hallazgo S11). Con el piso, dos vecinas nunca se tocan.
+static func grove_spacing(design: TownDesign, index: int) -> float:
+	var list: Array = design.groves()
+	if index < 0 or index >= list.size():
+		return 0.0
+	var declared := float((list[index] as Dictionary).get("min_spacing", 0.0))
+	var widest := 0.0
+	for choice: Dictionary in design.grove_species(index):
+		widest = maxf(widest, piece_radius(StringName(choice["piece"])) * GROVE_SCALE_MAX)
+	return maxf(declared, widest * 2.0)
+
+
+## Cuántos metros cuadrados de la arboleda [param index] son **plantables**: los
+## de las celdas que caen dentro del polígono y cuya copa despeja todo.
 ##
-## Existe porque las copas importan: los sauces de WP-D1 miden 5,25 × 4,5 m de
-## huella y 8,5 m de alto, y dos a metro y medio no son dos árboles sino un
-## borrón. La rejilla con temblor sola no lo garantiza —dos celdas vecinas pueden
-## acercarse el doble del temblor— y bajar el temblor hasta que lo garantizara
-## habría devuelto la rejilla a la vista.
-## [param design] es de quien salen las llaves del temblor; [param grove] es el
-## índice de la arboleda, `(ix, iz)` la celda que pregunta, [param cell] el lado
-## de celda en metros, [param spacing] la separación mínima entre instancias y
-## [param polygon] el contorno de la arboleda, que hace falta porque una vecina
-## que cayó fuera del polígono no existe y por lo tanto no aprieta.
-static func _grove_crowded(design: TownDesign, grove: int, ix: int, iz: int,
-		cell: float, spacing: float, polygon: PackedVector2Array) -> bool:
-	var mine := _grove_point(design, grove, ix, iz, cell)
-	for dz: int in [-1, 0, 1]:
-		for dx: int in [-1, 0, 1]:
-			if dz > 0 or (dz == 0 and dx >= 0):
-				continue
-			var other := _grove_point(design, grove, ix + dx, iz + dz, cell)
-			if not Geometry2D.is_point_in_polygon(other, polygon):
-				continue
-			if mine.distance_to(other) < spacing:
-				return true
-	return false
+## Es la medida con la que `tools/town_plan_check.gd` pregunta por la densidad,
+## y hace falta porque la banda del arroyo es un polígono centrado **en el
+## cauce**: más de la mitad de su superficie es agua y orilla, y pedirle que
+## siembre 0,018 árboles por metro cuadrado de polígono sería pedirle que plante
+## en el agua. Lo que el diseño declara es la densidad **donde hay sitio**.
+##
+## Cuesta una pasada más sobre la rejilla y sólo la paga el check.
+static func grove_free_area(plan: TownPlan, design: TownDesign, index: int) -> float:
+	var context := _grove_context(plan, design, index, _grove_shared(plan))
+	if context.is_empty():
+		return 0.0
+	var cell := float(context["cell"])
+	var low: Vector2 = context["low"]
+	var high: Vector2 = context["high"]
+	var free := 0
+	for iz: int in range(floori(low.y / cell), ceili(high.y / cell) + 1):
+		for ix: int in range(floori(low.x / cell), ceili(high.x / cell) + 1):
+			if _grove_free(context, ix, iz):
+				free += 1
+	return float(free) * cell * cell
+
+
+## Lo que las cuatro arboledas miran igual: los lotes, las rocas, los tramos de
+## cerco y el tablero del puente. Se arma una vez por plano.
+static func _grove_shared(plan: TownPlan) -> Dictionary:
+	return {
+		"footprints": _lot_footprints(plan), "discs": rock_discs(plan),
+		"segments": fence_segments(plan), "deck": bridge_rect(plan),
+	}
+
+
+## El contexto de siembra de la arboleda [param index]: todo lo que las
+## funciones de celda necesitan saber, o un diccionario vacío si la arboleda no
+## siembra nada (polígono de menos de tres vértices, densidad nula, sin especies
+## o con todas las especies a peso cero).
+##
+## Existe para que [method _place_groves] y [method grove_free_area] —que es la
+## medida con la que el check pregunta por la densidad— no puedan sembrar con
+## reglas distintas: hasta la revisión de WP-L los dos armaban el contexto a mano,
+## campo por campo. [param shared] es lo de [method _grove_shared].
+##
+## Trae dos memorias por celda: `memo` ([method _grove_free]) y `planted`
+## ([method _grove_planted]).
+static func _grove_context(plan: TownPlan, design: TownDesign, index: int,
+		shared: Dictionary) -> Dictionary:
+	var groves: Array = design.groves()
+	if index < 0 or index >= groves.size():
+		return {}
+	var grove: Dictionary = groves[index]
+	var polygon := TownDesign.to_vector2_list(grove.get("polygon", null))
+	var density := float(grove.get("density", 0.0))
+	var species := design.grove_species(index)
+	if polygon.size() < 3 or density <= 0.0 or species.is_empty():
+		return {}
+	var weight_total := 0.0
+	for choice: Dictionary in species:
+		weight_total += maxf(float(choice["weight"]), 0.0)
+	if weight_total <= 0.0:
+		return {}
+	# Una instancia por celda: el lado de la celda es el inverso de la raíz de la
+	# densidad, que es lo que hace que «0,018 por metro cuadrado» dé 0,018 por
+	# metro cuadrado.
+	var cell := 1.0 / sqrt(density)
+	var low := polygon[0]
+	var high := polygon[0]
+	for point: Vector2 in polygon:
+		low = Vector2(minf(low.x, point.x), minf(low.y, point.y))
+		high = Vector2(maxf(high.x, point.x), maxf(high.y, point.y))
+	var spacing := grove_spacing(design, index)
+	# Hasta cuántas celdas de distancia puede estar una vecina que aprieta: dos
+	# celdas a `d` de distancia sobre un eje quedan, como mucho, a
+	# `(d − 2 · GROVE_JITTER) · cell` metros. Con la separación de las bandas del
+	# arroyo (8,1 m) y celdas de 7,45 m da una, que son las ocho vecinas.
+	var reach := maxi(ceili(spacing / cell + 2.0 * GROVE_JITTER) - 1, 0)
+	return {
+		"plan": plan, "design": design, "grove": index, "cell": cell,
+		"polygon": polygon, "low": low, "high": high,
+		"clear": design.grove_clear(index),
+		"species": species, "weight": weight_total,
+		"footprints": shared["footprints"], "discs": shared["discs"],
+		"segments": shared["segments"], "deck": shared["deck"],
+		"spacing": spacing, "reach": reach, "memo": {}, "planted": {},
+	}
+
+
+## Los lotes del plano, que es contra lo que se mide la holgura `houses` de una
+## arboleda. Es el **lote** y no la pieza a propósito: un árbol pegado a la
+## medianera de un lote vacío tampoco corresponde.
+static func _lot_footprints(plan: TownPlan) -> Array[PackedVector2Array]:
+	var out: Array[PackedVector2Array] = []
+	for index: int in plan.parcels.size():
+		out.append(plan.parcel_footprint(index))
+	return out
+
+
+## Qué especie le toca a la celda `(ix, iz)`, por peso acumulado.
+static func _grove_pick(context: Dictionary, ix: int, iz: int) -> int:
+	var species: Array[Dictionary] = context["species"]
+	var roll := _unit(context["design"], [SALT_GROVE, context["grove"], ix, iz, 2]) \
+			* float(context["weight"])
+	for choice: int in species.size():
+		roll -= maxf(float(species[choice]["weight"]), 0.0)
+		if roll <= 0.0:
+			return choice
+	return species.size() - 1
+
+
+## Escala de la instancia de la celda `(ix, iz)`.
+static func _grove_scale(context: Dictionary, ix: int, iz: int) -> float:
+	return lerpf(GROVE_SCALE_MIN, GROVE_SCALE_MAX,
+			_unit(context["design"], [SALT_GROVE, context["grove"], ix, iz, 4]))
+
+
+## Radio de la **copa** de la instancia de la celda `(ix, iz)`, en metros.
+##
+## Es lo que convierte una holgura medida al tronco en una holgura medida al
+## borde del árbol, que es la única que se ve desde el aire.
+static func _grove_crown(context: Dictionary, ix: int, iz: int) -> float:
+	var species: Array[Dictionary] = context["species"]
+	var piece := StringName(species[_grove_pick(context, ix, iz)]["piece"])
+	return piece_radius(piece) * _grove_scale(context, ix, iz)
+
+
+## Verdadero si en la celda `(ix, iz)` **entra** una instancia: cae dentro del
+## polígono y su copa despeja todo. No mira a las vecinas; de eso se ocupa
+## [method _grove_planted].
+##
+## Memoizado por celda porque [method _grove_planted] pregunta por las vecinas
+## de cada celda: sin memoria, el filtro se evaluaría una vez por vecina.
+static func _grove_free(context: Dictionary, ix: int, iz: int) -> bool:
+	var memo: Dictionary = context["memo"]
+	var key := Vector2i(ix, iz)
+	if memo.has(key):
+		return bool(memo[key])
+	var spot := _grove_point(context["design"], context["grove"], ix, iz,
+			float(context["cell"]))
+	var free := Geometry2D.is_point_in_polygon(spot, context["polygon"]) \
+			and _grove_spot_free(context, spot, _grove_crown(context, ix, iz))
+	memo[key] = free
+	return free
+
+
+## Verdadero si la celda `(ix, iz)` **se planta**: entra ([method _grove_free]) y
+## ninguna vecina **anterior que se haya plantado** queda a menos de la separación
+## efectiva ([method grove_spacing]).
+##
+## «Anterior» quiere decir con orden lexicográfico `(iz, ix)` menor: la celda que
+## cede es siempre la segunda, y cuál es la segunda no depende de en qué orden se
+## recorra la rejilla sino de los dos índices. La respuesta es una función pura de
+## los índices y del contorno, así que el determinismo sigue siendo **posicional**.
+##
+## Es recursiva hacia atrás y está memoizada en `context["planted"]`. Hasta la
+## revisión de WP-L la memoria era de dos niveles —«¿la vecina estaba apretada
+## por **su** vecina?», y ahí se cortaba— y eso no garantizaba la separación: en
+## una fila L → M → N → C con 8,1 m de separación y celdas de 7,45 m, M cedía
+## ante L, N se plantaba porque M no estaba, y C no veía a N —el segundo nivel
+## le decía que N estaba apretada por M— y se plantaba a menos de 8,1 m de ella.
+## Con la memoria de verdad cada celda sabe si su vecina **se plantó**, que es
+## lo único que importa.
+##
+## La recursión está acotada: sólo mira vecinas anteriores, hasta `reach` celdas
+## ([method _grove_context]), y una celda fuera de la caja del polígono no entra
+## y corta ahí. [method _place_groves] recorre la rejilla en el mismo orden
+## lexicográfico, así que cuando pregunta por una celda sus vecinas anteriores ya
+## están en la memoria y la pila no pasa de un nivel.
+##
+## Existe porque las copas importan: los sauces de WP-D1 miden 6,5 m de huella y
+## 8,5 m de alto, y dos a metro y medio no son dos árboles sino un borrón. La
+## rejilla con temblor sola no lo garantiza —dos celdas vecinas pueden acercarse
+## el doble del temblor— y bajar el temblor hasta que lo garantizara habría
+## devuelto la rejilla a la vista.
+static func _grove_planted(context: Dictionary, ix: int, iz: int) -> bool:
+	var planted: Dictionary = context["planted"]
+	var key := Vector2i(ix, iz)
+	if planted.has(key):
+		return bool(planted[key])
+	var result := _grove_free(context, ix, iz)
+	var spacing := float(context["spacing"])
+	if result and spacing > 0.0:
+		var design: TownDesign = context["design"]
+		var grove := int(context["grove"])
+		var cell := float(context["cell"])
+		var reach := int(context["reach"])
+		var mine := _grove_point(design, grove, ix, iz, cell)
+		for dz: int in range(-reach, 1):
+			for dx: int in range(-reach, reach + 1):
+				if dz == 0 and dx >= 0:
+					break
+				if mine.distance_to(_grove_point(design, grove, ix + dx, iz + dz, cell)) \
+						>= spacing:
+					continue
+				if _grove_planted(context, ix + dx, iz + dz):
+					result = false
+					break
+			if not result:
+				break
+	planted[key] = result
+	return result
 
 
 ## Dónde cae la instancia de la celda `(ix, iz)`, sin mirar nada más que sus
@@ -1373,27 +1597,55 @@ static func _grove_bucket(plan: TownPlan, piece: StringName) -> int:
 ## calle se le suma su media franja, a la manzana su polígono y a la casa su
 ## huella. Un número que dijera «seis metros del eje» significaría cosas
 ## distintas en una calle de nueve metros y en la ruta de dieciséis.
-static func _grove_spot_free(plan: TownPlan, footprints: Array[PackedVector2Array],
-		spot: Vector2, clear: Dictionary[StringName, float]) -> bool:
+static func _grove_spot_free(context: Dictionary, spot: Vector2, crown: float) -> bool:
+	var plan: TownPlan = context["plan"]
+	var clear: Dictionary = context["clear"]
 	for street: int in plan.graph_street_count():
 		var axis := plan.street_axis(street)
 		if axis.size() < 2:
 			continue
-		var margin := plan.street_half_of(street) + (
+		var margin := plan.street_half_of(street) + crown + (
 				float(clear.get(&"route", 0.0)) if street == 0
 				else float(clear.get(&"streets", 0.0)))
 		if TownPlan.polyline_distance(axis, spot) < margin:
 			return false
-	var block_clear := float(clear.get(&"blocks", 0.0))
+	var block_clear := float(clear.get(&"blocks", 0.0)) + crown
 	for block: int in plan.block_count():
 		if TownPlan.polygon_inset(plan.block_polygon(block), spot) > -block_clear:
 			return false
-	var house_clear := float(clear.get(&"houses", 0.0))
+	var house_clear := float(clear.get(&"houses", 0.0)) + crown
+	var footprints: Array[PackedVector2Array] = context["footprints"]
 	for footprint: PackedVector2Array in footprints:
 		if footprint.size() < 3:
 			continue
 		if TownPlan.polygon_inset(footprint, spot) > -house_clear:
 			return false
+	# --- lo que WP-L agregó ------------------------------------------------
+	# Las rocas. Ocho instancias vivían dentro de `rock_e` y de `rock_a` —hasta
+	# 6,70 m adentro del casco— porque `plan.rocks` no se consultaba (hallazgos
+	# S1/S4). Son discos: [CityGrid] les sortea el rumbo, así que lo único que el
+	# plano puede afirmar de una roca es su círculo.
+	var rock_clear := float(clear.get(&"rocks", 0.0)) + crown
+	var discs: Array[Dictionary] = context["discs"]
+	for disc: Dictionary in discs:
+		if spot.distance_to(disc["centre"] as Vector2) < float(disc["radius"]) + rock_clear:
+			return false
+	# El canal del arroyo. La banda de la arboleda está centrada **en el cauce**,
+	# así que sin restar el agua caían 52 instancias adentro (hallazgo S3).
+	var water := plan.creek_width * 0.5 + float(clear.get(&"water", 0.0)) + crown
+	if plan.creek_width > 0.0 and creek_distance(plan, spot) < water:
+		return false
+	# El tablero del puente, con la holgura de manzana: es obra, no campo.
+	var deck: PackedVector2Array = context["deck"]
+	if deck.size() >= 3 and point_polygon_distance(deck, spot) < block_clear:
+		return false
+	# El alambrado. Tres instancias quedaban a 1,0–1,4 m del cierre del disco
+	# (hallazgo S12): los cercos se siembran **antes** que las arboledas desde
+	# WP-L, así que acá ya están todos.
+	var fence_clear := float(clear.get(&"fences", 0.0)) + crown
+	var segments: Array[PackedVector2Array] = context["segments"]
+	if fence_distance(segments, spot) < fence_clear:
+		return false
 	return true
 
 
@@ -1444,6 +1696,45 @@ static func _place_fences(plan: TownPlan, design: TownDesign) -> void:
 				plan.fence_points.append(Vector3(start.x, 0.0, start.y))
 				plan.fence_yaws.append(yaw)
 				plan.fence_kinds.append(slot)
+	_place_front_fences(plan)
+
+
+## El cerco del frente de cada casa que lo declara.
+##
+## Corre sobre el frente del lote, corrido [constant FRONT_FENCE_OFFSET] metros
+## hacia adentro para no pisar el cordón, y se cuentan piezas enteras: un cerco
+## de 11,9 m con piezas de 3,6 m lleva tres y deja el hueco del portón.
+##
+## Va en [method _place_fences] y no con el árbol del patio porque las arboledas
+## lo esquivan, y las arboledas se siembran antes que los props (ver
+## [method resolve]). El orden de los tramos es el de siempre —después de los
+## cercos de línea y por orden de parcela—, así que la firma no cambia por
+## haberlo movido.
+static func _place_front_fences(plan: TownPlan) -> void:
+	for index: int in plan.parcels.size():
+		var parcel := plan.parcels[index]
+		if int(parcel.get("role", -1)) != TownPlan.Role.HOUSE:
+			continue
+		var fence := StringName(parcel.get("fence", &""))
+		var slot := TownDesign.FENCE_LINE_KINDS.find(fence)
+		var width := float(parcel.get("width", 0.0))
+		if slot < 0 or width <= 0.0:
+			continue
+		var span := float(TownDesign.FENCE_SPAN.get(fence, 0.0))
+		if span <= 0.0:
+			continue
+		var normal: Vector3 = parcel.get("frontage_normal", Vector3.FORWARD)
+		var front: Vector3 = parcel.get("frontage_point", Vector3.ZERO)
+		var along := Vector3(-normal.z, 0.0, normal.x)
+		var yaw := atan2(-along.z, along.x)
+		# `- normal`: la normal de frente apunta **a la calle**, así que restarla
+		# es meterse en el lote (WP-D4a, hallazgo 17).
+		var start := front - normal * FRONT_FENCE_OFFSET - along * (width * 0.5)
+		for piece: int in floori(width / span):
+			var at := start + along * (float(piece) * span)
+			plan.fence_points.append(Vector3(at.x, 0.0, at.z))
+			plan.fence_yaws.append(yaw)
+			plan.fence_kinds.append(slot)
 
 
 ## Verdadero si [param point] cae dentro de la franja de alguna calle, con el
@@ -1502,18 +1793,49 @@ static func _append_prop(plan: TownPlan, data: Dictionary, source: StringName) -
 		"yaw": deg_to_rad(float(data.get("yaw_deg", 0.0))),
 		"on_terrain": bool(data.get("on_terrain", true)),
 		"align": bool(data.get("align_to_slope", false)),
+		# Las dos listas blancas de WP-L. No entran en la firma del plano porque
+		# no deciden dónde va el prop ni cómo se ve: son lo que el diseño le
+		# **declara al check** sobre qué puede pisar este prop y ningún otro.
+		"allow_overlap": TownDesign.allow_overlap_of(data),
+		"on_road": TownDesign.on_road_of(data),
 		"source": source,
 	})
 
 
-## El árbol del patio de cada casa que lo declara, y el cerco de su frente.
+## El árbol del patio de cada casa que lo declara.
 ##
-## El árbol va **detrás** de la casa, a [constant GARDEN_TREE_DEPTH] metros de la
-## línea municipal: el lote mide 5,4 m de fondo y la casa lo ocupa entero, así
-## que el patio es lo que queda entre la casa y el corazón de la manzana. El
-## giro es posicional: la casa 2 de la manzana 7 tiene siempre su árbol torcido
-## igual.
+## El árbol va **detrás** de la casa: el lote mide [constant HOUSE_DEPTH] de
+## fondo y la casa lo ocupa casi entero, así que el patio es lo que queda entre
+## la casa y el corazón de la manzana. A qué profundidad lo decide
+## [method _garden_tree_depth]: la más honda que despeje, con
+## [constant GARDEN_TREE_DEPTH] metros de la línea municipal como **tope** y no
+## como valor; si no despeja a ninguna, la casa se queda sin árbol. El lado del
+## lote y el giro son posicionales: la casa 2 de la manzana 7 tiene siempre su
+## árbol en el mismo costado y torcido igual.
+##
+## El cerco del frente ya no se siembra acá: lo pone [method _place_front_fences]
+## antes que las arboledas (revisión de WP-L, hallazgo 9).
 static func _place_house_props(plan: TownPlan, design: TownDesign) -> void:
+	var solids := parcel_solid_list(plan)
+	# Las copas ya plantadas, como discos: el árbol de la casa 3 no se puede
+	# cruzar con el de la 2 (hallazgo S10, dos copas cruzadas 0,70 m). Se resuelve
+	# **por orden de parcela** —la segunda es la que cede— porque el orden de
+	# parcelas es posicional y no un contador: agregar una casa en la manzana 3
+	# no cambia quién cede en la 11.
+	var crowns: Array[Dictionary] = []
+	# Y lo que ya estaba plantado antes que los props: las rocas y las copas de
+	# arboleda. Es la misma regla que la fila B de `town_plan_check` mide desde la
+	# revisión de WP-L (hallazgo 18); hoy ninguna arboleda llega a un patio, pero
+	# el resolvedor siembra con la regla que el check mide y no con una parecida.
+	var planted: Array[Dictionary] = []
+	for disc: Dictionary in rock_discs(plan):
+		planted.append({"centre": disc["centre"], "radius": disc["radius"]})
+	for slot: int in plan.grove_species.size():
+		var grove_radius := piece_radius(StringName(plan.grove_species[slot]))
+		for at_index: int in plan.grove_points[slot].size():
+			var at: Vector3 = plan.grove_points[slot][at_index]
+			planted.append({"centre": Vector2(at.x, at.z),
+					"radius": grove_radius * plan.grove_scales[slot][at_index]})
 	for index: int in plan.parcels.size():
 		var parcel := plan.parcels[index]
 		if int(parcel.get("role", -1)) != TownPlan.Role.HOUSE:
@@ -1527,39 +1849,460 @@ static func _place_house_props(plan: TownPlan, design: TownDesign) -> void:
 		var tree := StringName(parcel.get("tree", &""))
 		if tree != &"" and bool(parcel.get("garden", false)):
 			var side := _unit(design, [SALT_PROP, block, index, 0]) - 0.5
-			var spot := front - normal * GARDEN_TREE_DEPTH + along * (side * width * 0.5)
-			plan.prop_placements.append({
-				"piece": tree,
-				"pos": Vector3(spot.x, 0.0, spot.z),
-				"yaw": _unit(design, [SALT_PROP, block, index, 1]) * TAU,
-				"on_terrain": true,
-				"align": false,
-				"source": StringName(parcel.get("name", &"")),
-			})
+			var line := Vector2(front.x, front.z) \
+					+ Vector2(along.x, along.z) * (side * width * 0.5)
+			var crown := piece_radius(tree)
+			# Sólo las copas que el árbol podría alcanzar: las mil y pico de la
+			# arboleda por cada paso de profundidad serían medio millón de cuentas.
+			var near: Array[Dictionary] = crowns.duplicate()
+			for other: Dictionary in planted:
+				if line.distance_to(other["centre"] as Vector2) < GARDEN_TREE_DEPTH \
+						+ crown + float(other["radius"]) + GARDEN_TREE_CLEAR:
+					near.append(other)
+			var depth := _garden_tree_depth(solids, near, line,
+					Vector2(normal.x, normal.z), crown)
+			# Sin sitio: la casa se queda sin árbol. Es determinista —la decisión
+			# sale de la geometría, no de un sorteo— y `town_plan_check` lo cuenta.
+			parcel["garden_tree"] = depth > 0.0
+			if depth > 0.0:
+				var spot := line - Vector2(normal.x, normal.z) * depth
+				crowns.append({"centre": spot, "radius": crown})
+				plan.prop_placements.append({
+					"piece": tree,
+					"pos": Vector3(spot.x, 0.0, spot.y),
+					"yaw": _unit(design, [SALT_PROP, block, index, 1]) * TAU,
+					"on_terrain": true,
+					"align": false,
+					"allow_overlap": [] as Array[StringName],
+					"on_road": false,
+					"source": StringName(parcel.get("name", &"")),
+				})
 
-		var fence := StringName(parcel.get("fence", &""))
-		var slot := TownDesign.FENCE_LINE_KINDS.find(fence)
-		if slot < 0 or width <= 0.0:
-			continue
-		var span := float(TownDesign.FENCE_SPAN.get(fence, 0.0))
-		if span <= 0.0:
-			continue
-		# El cerco corre sobre el frente del lote, corrido unos centímetros hacia
-		# adentro para no pisar el cordón. Se cuentan piezas enteras: un cerco de
-		# 11,9 m con piezas de 3 m lleva tres y deja el hueco del portón.
-		var yaw := atan2(-along.z, along.x)
-		# `- normal`: la normal de frente apunta **a la calle**, así que restarla
-		# es meterse en el lote (WP-D4a, hallazgo 17).
-		var start := front - normal * FRONT_FENCE_OFFSET - along * (width * 0.5)
-		for piece: int in floori(width / span):
-			var at := start + along * (float(piece) * span)
-			plan.fence_points.append(Vector3(at.x, 0.0, at.z))
-			plan.fence_yaws.append(yaw)
-			plan.fence_kinds.append(slot)
+
+## A cuántos metros de la línea municipal, hacia adentro de la manzana, entra el
+## árbol de patio de una casa; `0` si no entra a ninguna profundidad.
+##
+## [param line] es el punto del frente ya corrido a un lado del lote y
+## [param normal] la normal de frente, que apunta **a la calle**: el árbol se
+## busca en `line - normal · profundidad`.
+##
+## Se prueba de afuera hacia adentro —desde [constant GARDEN_TREE_DEPTH] hacia la
+## línea municipal, de a [constant GARDEN_TREE_STEP]— y se toma la primera
+## profundidad en que la copa despeja [constant GARDEN_TREE_CLEAR] metros de
+## **todos** los sólidos del pueblo y de las copas ya plantadas —otros árboles
+## de patio, copas de arboleda y rocas—. Buscar desde
+## afuera es lo que deja el árbol lo más al fondo del patio que se pueda, que es
+## donde está el árbol de una casa; buscar desde adentro lo habría pegado a la
+## pared del comedor.
+##
+## La propia casa cuenta como sólido: es lo que impide que el árbol retroceda
+## hasta meterse en la cocina cuando el corazón de manzana está ocupado. Cuando
+## las dos condiciones no se pueden cumplir a la vez —el mediano de la manzana 1
+## se sienta a 6,6 m del frente y no hay hueco entre él y la casa— la respuesta
+## honesta es que ahí no hay patio, y la casa se queda sin árbol.
+static func _garden_tree_depth(solids: Array[Dictionary], crowns: Array[Dictionary],
+		line: Vector2, normal: Vector2, crown: float) -> float:
+	var steps := int(GARDEN_TREE_DEPTH / GARDEN_TREE_STEP)
+	for step: int in steps + 1:
+		var depth := GARDEN_TREE_DEPTH - float(step) * GARDEN_TREE_STEP
+		if depth <= 0.0:
+			break
+		var spot := line - normal * depth
+		var free := true
+		for solid: Dictionary in solids:
+			if point_polygon_distance(solid["poly"] as PackedVector2Array, spot) \
+					< crown + GARDEN_TREE_CLEAR:
+				free = false
+				break
+		if free:
+			for other: Dictionary in crowns:
+				if spot.distance_to(other["centre"] as Vector2) \
+						< crown + float(other["radius"]) + GARDEN_TREE_CLEAR:
+					free = false
+					break
+		if free:
+			return depth
+	return 0.0
 
 
 # --------------------------------------------------------------------------
-# 12. Arroyo y puente
+# 12. Sólidos: la geometría con la que se mide qué pisa qué (WP-L, P2d)
+# --------------------------------------------------------------------------
+#
+# Hasta P2c el plano medía solapes contra el **lote** —`TownPlan.parcel_footprint`,
+# el rectángulo de 12 × 5,4 m que el diseño declara— y no contra el edificio, que
+# es una pieza de 5 × 5 m plantada en el medio. Para repartir cuadras el lote es
+# la medida correcta; para preguntar «¿este árbol está dentro de una pared?» es
+# la equivocada por los dos lados: sobra donde el lote es más ancho que la casa y
+# falta donde la pieza es más grande que el lote declarado (la estación de
+# servicio, el galpón de campo).
+#
+# Lo de acá abajo es la otra medida: **la pieza**, con la huella del manifiesto,
+# girada como la gira [CityGrid] y con su tramo de alturas. Vive en el resolvedor
+# y no en el check porque las dos reglas de siembra de WP-L —la profundidad del
+# árbol de patio y la holgura de una arboleda— la necesitan para **decidir**, y
+# el check la necesita para **medir**: una sola fórmula para las dos cosas.
+
+## Gira el par XZ [param flat] como lo gira sumarle [param yaw] radianes al giro
+## de un nodo.
+##
+## No es `Vector2.rotated()`: en XZ, con la Y del motor apuntando arriba, un giro
+## positivo de nodo va al revés que un giro positivo de `Vector2`. Escrito a mano
+## para que el signo esté a la vista y no dependa de recordar la convención.
+static func spin(flat: Vector2, yaw: float) -> Vector2:
+	var c := cos(yaw)
+	var s := sin(yaw)
+	return Vector2(flat.x * c + flat.y * s, -flat.x * s + flat.y * c)
+
+
+## Huella **real** de [param piece] tal como cae sobre el plano: `x` a lo largo
+## del frente y `y` hacia adentro del lote.
+##
+## El manifiesto la declara en el espacio local de la pieza, y una pieza de
+## pueblo tiene el frente en su `-X` ([method TownDesign.piece_front]), así que
+## sus dos ejes llegan cambiados. [param fallback] es lo que se devuelve cuando
+## el manifiesto no conoce la pieza —los tres bloques de ciudad (`block_mid`,
+## `tower_b`, `block_low_c`) no están en el manifiesto del pueblo—: ahí manda lo
+## que el diseño declaró, que para esos tres es más grande que la pieza y por lo
+## tanto conservador.
+static func piece_plan_size(piece: StringName, fallback: Vector2) -> Vector2:
+	var entry: Variant = TownDesign.manifest().get(String(piece), null)
+	if typeof(entry) != TYPE_DICTIONARY:
+		return fallback
+	var raw: Variant = (entry as Dictionary).get("footprint", null)
+	if typeof(raw) != TYPE_ARRAY or (raw as Array).size() != 2:
+		return fallback
+	var size := Vector2(float((raw as Array)[0]), float((raw as Array)[1]))
+	if size.x <= 0.0 or size.y <= 0.0:
+		return fallback
+	return Vector2(size.y, size.x) if TownDesign.piece_front(piece) == &"-X" else size
+
+
+## Radio de copa de una pieza suelta —follaje, prop o roca— en metros.
+##
+## Para todo lo que no es roca es **medio lado mayor** de su huella y no el
+## círculo circunscrito de la caja (que sería media diagonal): la copa de un
+## árbol es redonda y la huella del manifiesto es la caja que la encierra, así
+## que medio lado mayor es el radio de la copa, y la media diagonal inflaría
+## cada árbol un 41 % en las esquinas que no tiene. Para una caja de verdad
+## —un auto, un banco— es una **subestimación**, y por eso los props no se miden
+## con esto sino con [method prop_rect].
+##
+## Para las rocas manda [constant ROCK_RADIUS], que sale del casco de colisión y
+## sí es el círculo circunscrito: [CityGrid] les sortea el rumbo y el casco no es
+## redondo.
+static func piece_radius(piece: StringName) -> float:
+	if ROCK_RADIUS.has(piece):
+		return float(ROCK_RADIUS[piece])
+	var size := piece_plan_size(piece, Vector2.ZERO)
+	return maxf(size.x, size.y) * 0.5
+
+
+## Alto de una pieza según el manifiesto, o el de [constant PIECE_HEIGHT] si el
+## manifiesto todavía no la conoce.
+static func piece_top(piece: StringName) -> float:
+	var height := TownDesign.piece_height(piece)
+	if height > 0.0:
+		return height
+	return float(PIECE_HEIGHT.get(piece, 0.0))
+
+
+## Las cajas en que se descompone [param piece], en su espacio local, o una
+## lista vacía si la pieza es una caja sola.
+##
+## Sólo la estación de servicio tiene varias (WP-L): cuatro columnas, la tienda,
+## la losa de la marquesina y el cartel. Que la lista viva en el manifiesto —y no
+## sólo en la escena— es lo que permite al plano saber que **hay aire** bajo la
+## marquesina sin abrir un `.tscn`, que es la condición para que el check del
+## plano siga corriendo en `--headless` puro.
+static func piece_parts(piece: StringName) -> Array:
+	var entry: Variant = TownDesign.manifest().get(String(piece), null)
+	if typeof(entry) != TYPE_DICTIONARY:
+		return []
+	var raw: Variant = (entry as Dictionary).get("parts", null)
+	return raw as Array if typeof(raw) == TYPE_ARRAY else []
+
+
+## Los cuatro vértices del rectángulo orientado de centro [param centre], con
+## [param along] y [param into] por ejes y [param size] por lados.
+static func oriented_rect(centre: Vector2, along: Vector2, into: Vector2,
+		size: Vector2) -> PackedVector2Array:
+	var u := along * size.x * 0.5
+	var v := into * size.y * 0.5
+	var out := PackedVector2Array()
+	out.append(centre - u - v)
+	out.append(centre + u - v)
+	out.append(centre + u + v)
+	out.append(centre - u + v)
+	return out
+
+
+## En qué sólidos se descompone la parcela [param index]: uno por caja.
+##
+## Cada uno es `{id, part, parcel, poly, y0, y1}`. `id` es con qué nombre lo
+## conoce el diseño —el `design_id` de un POI o el nombre de la parcela—, que es
+## lo que un prop nombra en su `allow_overlap`; `part` distingue las cajas de una
+## misma pieza para que el mensaje diga «la losa de la marquesina» y no «la
+## estación».
+##
+## El giro es el del **edificio**: la normal de frente más el `yaw_jitter` que
+## [CityGrid] le suma a la fachada. El lote no se gira nunca (ver
+## [constant HOUSE_YAW_JITTER]); lo que pisa una pared es la pared.
+static func parcel_solids(plan: TownPlan, index: int) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	if index < 0 or index >= plan.parcels.size():
+		return out
+	var parcel := plan.parcels[index]
+	var normal: Vector3 = parcel.get("frontage_normal", Vector3.FORWARD)
+	var into := spin(Vector2(normal.x, normal.z), float(parcel.get("yaw_jitter", 0.0)))
+	var along := Vector2(-into.y, into.x)
+	var piece := StringName(parcel.get("piece", &""))
+	var centre3 := plan.parcel_position(index)
+	var centre := Vector2(centre3.x, centre3.z)
+	var base_y := centre3.y
+	var scale := maxf(float(parcel.get("height_scale", 1.0)), 0.05)
+	var id := StringName(parcel.get("design_id", &""))
+	if id == &"":
+		id = StringName(parcel.get("name", &"?"))
+
+	var parts := piece_parts(piece)
+	if parts.is_empty():
+		var size := piece_plan_size(piece, Vector2(float(parcel.get("width", 0.0)),
+				float(parcel.get("depth", 0.0))))
+		out.append({
+			"id": id, "part": &"", "parcel": index,
+			"poly": oriented_rect(centre, along, into, size),
+			"y0": base_y, "y1": base_y + piece_top(piece) * scale,
+		})
+		return out
+
+	# El reparto de ejes es el de [method piece_plan_size]: una pieza con el
+	# frente en `-X` llega girada un cuarto de vuelta, así que su `+X` local
+	# apunta hacia **afuera** del lote y su `+Z` corre a lo largo del frente.
+	var front_x := TownDesign.piece_front(piece) == &"-X"
+	var ex := -into if front_x else along
+	var ez := -along if front_x else -into
+	for entry: Variant in parts:
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		var part: Dictionary = entry
+		var at := _triple(part.get("centre", null))
+		var size := _triple(part.get("size", null))
+		if size.x <= 0.0 or size.y <= 0.0 or size.z <= 0.0:
+			continue
+		var mid := centre + ex * at.x + ez * at.z
+		out.append({
+			"id": id, "part": StringName(String(part.get("name", ""))), "parcel": index,
+			"poly": oriented_rect(mid, ex, ez, Vector2(size.x, size.z)),
+			"y0": base_y + (at.y - size.y * 0.5) * scale,
+			"y1": base_y + (at.y + size.y * 0.5) * scale,
+		})
+	return out
+
+
+## Todos los sólidos del plano: las parcelas —con sus cajas— y nada más. Las
+## rocas, el tablero y la losa de la plaza los suma quien pregunte, porque no
+## todos los que preguntan los quieren (ver `tools/town_plan_check.gd` filas A y
+## B).
+static func parcel_solid_list(plan: TownPlan) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for index: int in plan.parcels.size():
+		out.append_array(parcel_solids(plan, index))
+	return out
+
+
+## `[x, y, z]` de un JSON como [Vector3], o el cero.
+static func _triple(value: Variant) -> Vector3:
+	if typeof(value) != TYPE_ARRAY or (value as Array).size() != 3:
+		return Vector3.ZERO
+	var list: Array = value
+	return Vector3(float(list[0]), float(list[1]), float(list[2]))
+
+
+## Cuánto gira [CityGrid] una pieza suelta **además** de lo que el diseño le
+## declara, en radianes.
+##
+## Una pieza de pueblo tiene el frente en su `-X` y el resolvedor declara el giro
+## en el marco del **mundo** («esta parada mira a la ruta»), así que el
+## constructor le suma un cuarto de vuelta negativo. La regla vive en el
+## manifiesto —`front`— y no en una tabla aparte, que es lo que hace que el plano
+## y [CityGrid] no se puedan desincronizar.
+static func piece_yaw_offset(piece: StringName) -> float:
+	return -PI * 0.5 if TownDesign.piece_front(piece) == &"-X" else 0.0
+
+
+## El rectángulo de la huella de un prop del plano, en XZ, ya girado como lo gira
+## [CityGrid].
+static func prop_rect(prop: Dictionary) -> PackedVector2Array:
+	var piece := StringName(prop.get("piece", &""))
+	var size := Vector2.ZERO
+	var entry: Variant = TownDesign.manifest().get(String(piece), null)
+	if typeof(entry) == TYPE_DICTIONARY:
+		var raw: Variant = (entry as Dictionary).get("footprint", null)
+		if typeof(raw) == TYPE_ARRAY and (raw as Array).size() == 2:
+			size = Vector2(float((raw as Array)[0]), float((raw as Array)[1]))
+	if size.x <= 0.0 or size.y <= 0.0:
+		return PackedVector2Array()
+	var yaw := float(prop.get("yaw", 0.0)) + piece_yaw_offset(piece)
+	var at: Vector3 = prop.get("pos", Vector3.ZERO)
+	return oriented_rect(Vector2(at.x, at.z), Vector2(cos(yaw), -sin(yaw)),
+			Vector2(sin(yaw), cos(yaw)), size)
+
+
+## Cota del relieve en [param flat], o `0` si el terreno todavía no existe. Es la
+## forma pública de la cuenta que el resolvedor hace para apoyar un lote rural.
+static func ground_height(terrain: Object, flat: Vector2) -> float:
+	return _ground_y(terrain, flat)
+
+
+## Las rocas del plano como discos `{id, centre, radius}`.
+##
+## La pieza de la roca `i` es [member TownPlan.rock_pieces]`[i]`, que es la
+## **misma** lista con la que [CityGrid] elige la escena (`_build_rocks`): una
+## sola fuente. Hasta la revisión de WP-L esto reconstruía la pieza desde el
+## diseño y [CityGrid] repartía `rock_scenes[i % 6]` de una lista fija, y las dos
+## cosas coincidían por casualidad —el diseño declara las seis rocas en el mismo
+## orden que la lista— (hallazgo 3). El radio sale de [constant ROCK_RADIUS].
+static func rock_discs(plan: TownPlan) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for slot: int in mini(plan.rocks.size(), plan.rock_pieces.size()):
+		var piece := StringName(plan.rock_pieces[slot])
+		var at: Vector3 = plan.rocks[slot]
+		out.append({"id": piece, "centre": Vector2(at.x, at.z),
+				"radius": piece_radius(piece)})
+	return out
+
+
+## El tablero del puente como rectángulo orientado, o vacío si no hay puente.
+##
+## Corre a lo largo de su `+X` (`front: "+X-run"` en el manifiesto), que es el
+## rumbo de la ruta dentro del vano. La huella es la del manifiesto para
+## [member TownPlan.bridge_piece] (20 × 12 para `bridge_deck`: el vano más los
+## dos estribos); si el manifiesto no la conoce, el vano y el ancho que declara
+## el diseño. Hasta la revisión de WP-L era una constante copiada del manifiesto
+## (hallazgo 11).
+static func bridge_rect(plan: TownPlan) -> PackedVector2Array:
+	if not plan.has_bridge():
+		return PackedVector2Array()
+	var run := Vector2(cos(plan.bridge_yaw), -sin(plan.bridge_yaw))
+	var across := Vector2(-run.y, run.x)
+	return oriented_rect(Vector2(plan.bridge_at.x, plan.bridge_at.z), run, across,
+			piece_plan_size(plan.bridge_piece,
+			Vector2(plan.bridge_span, plan.bridge_deck_width)))
+
+
+## Los tramos de cerco del plano como segmentos `[a, b]` en XZ.
+static func fence_segments(plan: TownPlan) -> Array[PackedVector2Array]:
+	var out: Array[PackedVector2Array] = []
+	for index: int in plan.fence_points.size():
+		var kind := plan.fence_kinds[index] if index < plan.fence_kinds.size() else 0
+		if kind < 0 or kind >= TownDesign.FENCE_LINE_KINDS.size():
+			continue
+		var span := float(TownDesign.FENCE_SPAN.get(
+				TownDesign.FENCE_LINE_KINDS[kind], 0.0))
+		var yaw := plan.fence_yaws[index] if index < plan.fence_yaws.size() else 0.0
+		var at: Vector3 = plan.fence_points[index]
+		var a := Vector2(at.x, at.z)
+		out.append(PackedVector2Array([a, a + Vector2(cos(yaw), -sin(yaw)) * span]))
+	return out
+
+
+## Distancia de [param point] al tramo de cerco más cercano, o `INF` si no hay.
+static func fence_distance(segments: Array[PackedVector2Array], point: Vector2) -> float:
+	var best := INF
+	for segment: PackedVector2Array in segments:
+		best = minf(best, TownPlan.segment_distance(segment[0], segment[1], point))
+	return best
+
+
+## Distancia de [param point] al eje del arroyo, o `INF` si el plano no trae
+## arroyo. Es la medida con la que se resta el canal a la banda de la arboleda.
+static func creek_distance(plan: TownPlan, point: Vector2) -> float:
+	if plan.creek_points.size() < 2:
+		return INF
+	var best := INF
+	for index: int in plan.creek_points.size() - 1:
+		best = minf(best, TownPlan.segment_distance(plan.creek_points[index],
+				plan.creek_points[index + 1], point))
+	return best
+
+
+## Distancia mínima entre dos polígonos convexos que **no** se solapan, en
+## metros; `0` si se tocan o se pisan.
+##
+## Es la distancia de verdad —el mínimo sobre los pares vértice/lado de los dos—
+## y no el hueco que devuelve el eje separador: para dos rectángulos en diagonal
+## el eje separador informa el mayor de los dos catetos y la distancia es la
+## hipotenusa. Con el eje separador un par a 0,40 m en diagonal se declararía a
+## 0,28 y la fila A lo rechazaría por nada.
+static func polygon_distance(a: PackedVector2Array, b: PackedVector2Array) -> float:
+	if a.size() < 3 or b.size() < 3:
+		return INF
+	if TownPlan.polygons_overlap(a, b, 0.0):
+		return 0.0
+	var best := INF
+	for pair: int in 2:
+		var from := a if pair == 0 else b
+		var to := b if pair == 0 else a
+		for index: int in to.size():
+			var p := to[index]
+			var q := to[(index + 1) % to.size()]
+			for point: Vector2 in from:
+				best = minf(best, TownPlan.segment_distance(p, q, point))
+	return best
+
+
+## Cuánto se pisan dos polígonos convexos, en metros, por el eje separador; `0`
+## si no se pisan. Es la penetración mínima, que es lo que un informe puede leer
+## como «se meten treinta centímetros».
+static func polygon_overlap_depth(a: PackedVector2Array, b: PackedVector2Array) -> float:
+	if a.size() < 3 or b.size() < 3:
+		return 0.0
+	var best := INF
+	for pair: int in 2:
+		var poly := a if pair == 0 else b
+		for index: int in poly.size():
+			var p := poly[index]
+			var q := poly[(index + 1) % poly.size()]
+			var edge := q - p
+			if edge.length_squared() <= 0.000001:
+				continue
+			var axis := Vector2(edge.y, -edge.x).normalized()
+			var a_min := INF
+			var a_max := -INF
+			for point: Vector2 in a:
+				var value := point.dot(axis)
+				a_min = minf(a_min, value)
+				a_max = maxf(a_max, value)
+			var b_min := INF
+			var b_max := -INF
+			for point: Vector2 in b:
+				var value := point.dot(axis)
+				b_min = minf(b_min, value)
+				b_max = maxf(b_max, value)
+			var gap := minf(a_max - b_min, b_max - a_min)
+			if gap <= 0.0:
+				return 0.0
+			best = minf(best, gap)
+	return 0.0 if is_inf(best) else best
+
+
+## Distancia de [param point] al polígono convexo [param poly]: positiva hacia
+## afuera y `0` adentro.
+static func point_polygon_distance(poly: PackedVector2Array, point: Vector2) -> float:
+	if poly.size() < 3:
+		return INF
+	if TownPlan.polygon_inset(poly, point) >= 0.0:
+		return 0.0
+	var best := INF
+	for index: int in poly.size():
+		best = minf(best, TownPlan.segment_distance(poly[index],
+				poly[(index + 1) % poly.size()], point))
+	return best
+
+
+# --------------------------------------------------------------------------
+# 13. Arroyo y puente
 # --------------------------------------------------------------------------
 
 ## Copia el eje del arroyo del diseño al plano.

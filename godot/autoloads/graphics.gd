@@ -826,6 +826,24 @@ func fisheye_msaa_level() -> Viewport.MSAA:
 ## cubren la periferia, donde el fundido con la frontal y la propia curvatura ya
 ## suavizan los bordes: 4× o 8× ahí es gasto sin imagen. La frontal conserva el del
 ## preset entero.
+##
+## ## Por qué la frontal **no** tiene su gemela acotada (medido en P2d)
+##
+## La pregunta de `docs/13` era si la cara frontal —1920 × 1080 con 4× en HIGH, que el
+## compuesto vuelve a remuestrear— también tenía que bajar a 2×. Se midió con
+## `perf_report --only=boss_and_city --preset=HIGH --gpu-profile --fisheye_msaa=X2`,
+## que mueve **sólo** la frontal porque las laterales ya están acotadas acá:
+##
+## | palanca | frontal | GPU de la frontal | GPU total | fps de reloj |
+## |---|---|---|---|---|
+## | `SAME` | 4× | 4,81 ms | 6,79 ms | 134,7 |
+## | `X2` | 2× | 4,52 ms | 6,50 ms | 140,1 |
+##
+## Son **0,29 ms**: un 6 % de la cara frontal y un **4,3 % del total**, por debajo del
+## 10 % que el plan de P2d puso como precio mínimo para pagar aliasing nuevo en los
+## bordes de edificios y cables. Se queda en 4×. La bandera `--fisheye_msaa` de
+## `perf_report` y de `render_check` queda puesta para rehacer la medida cuando cambie
+## la resolución del ojo de pez o la carga del pueblo.
 func fisheye_side_msaa_level() -> Viewport.MSAA:
 	return mini(int(fisheye_msaa_level()), int(Viewport.MSAA_2X)) as Viewport.MSAA
 

@@ -438,6 +438,11 @@ def cmd_build(args: argparse.Namespace) -> int:
     failures = _check_expectations(spec, info, 0 if args.allow_unassigned else unassigned)
 
     written = [glb_path, sidecar_path, palette_path]
+    # Vista previa de `assets/preview/` (WP-G2): el manifiesto de la galería se
+    # regenera desde todos los sidecars de la carpeta que declaran `preview`.
+    if spec.raw.get("preview"):
+        from voxsplit import previewmanifest
+        written.append(previewmanifest.write(out_dir))
     if args.preview:
         preview_dir = Path(args.preview_out) if args.preview_out else out_dir
         written += preview.render(model, assignment, spec, preview_dir)

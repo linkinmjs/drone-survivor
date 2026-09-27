@@ -166,8 +166,8 @@ func get_remaining() -> float:
 	return get_remaining_seconds()
 
 
-## Cancela una cuenta en curso y borra el historial de muertes. Lo llama el
-## `RoundManager` (`docs/11`) al empezar una ronda.
+## Cancela una cuenta en curso y borra el historial de muertes. Lo llama
+## [method RoundManager._reset_drone_counters] (`docs/11`) al empezar una ronda.
 func reset() -> void:
 	_respawning = false
 	_elapsed = 0.0
@@ -309,7 +309,7 @@ func _resolve_nodes() -> void:
 	if weapon_mount == null:
 		weapon_mount = drone.get_node_or_null(^"WeaponMount")
 	if fpv_camera == null:
-		fpv_camera = drone.get_node_or_null(^"CameraRig/FPVCamera") as Camera3D
+		fpv_camera = drone.get_node_or_null(Drone.FPV_CAMERA_PATH) as Camera3D
 	if profile == null and hull != null:
 		profile = hull.profile
 

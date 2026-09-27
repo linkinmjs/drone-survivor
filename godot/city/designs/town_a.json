@@ -82,12 +82,23 @@
 		// contra la casa 03, que ya esta pegada al extremo. Es la casa danada
 		// del borde: una casa angosta y rota al final del pueblo es exactamente
 		// lo que cuenta.
+		// WP-L (P2d): el fondo de lote de casa paso de 5,4 a 6,16 m para que el
+		// cerco del frente no toque la fachada (ver TownPlanner.HOUSE_DEPTH). Con
+		// lotes mas hondos, cuatro lotes de esquina se metian 0,54-0,68 m en la
+		// espalda del vecino de la calle perpendicular: se angostan
+		// m00/1 y m01/4 de 11,967 a 10,5, m03/0 de 12,86 a 11,4 y m03/2 de
+		// 11,964 a 10,5. Es el LOTE: la casa sigue midiendo lo que mide y sigue
+		// donde estaba sobre su frente; los cuatro tienen cerco de alambre o
+		// ninguno, asi que no pierden tramos.
 			"id": "m00", "nodes": ["n_r1", "n_r2", "n_a2", "n_a1"],
 			"datum": "auto", "pad": "garden",
 			"houses": [
 				{"front": "c2", "t": 0.67031, "piece": "house_a", "variant": 0, "color": 0, "state": "intact", "garden": true, "tree": "tree_small", "door_open": false, "fence": "picket", "width": 11.967, "height_scale": 0.93},
-				{"front": "c2", "t": 0.3297, "piece": "house_b_b", "variant": 1, "color": 1, "state": "intact", "garden": true, "tree": "tree_medium", "door_open": false, "fence": "wire", "width": 11.967, "height_scale": 1.0},
-				{"front": "route", "t": 0.555, "piece": "house_c", "variant": 2, "color": 2, "state": "damaged", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 9.0, "height_scale": 1.07},
+				{"front": "c2", "t": 0.3297, "piece": "house_b_b", "variant": 1, "color": 1, "state": "intact", "garden": true, "tree": "tree_medium", "door_open": false, "fence": "wire", "width": 10.5, "height_scale": 1.0},
+				// WP-L: con el fondo de lote de 6,16 m la esquina trasera de este
+				// lote salia a 140,1 m del centro. Se corre 0,01 de t (0,375 m)
+				// hacia el pueblo: queda a 0,12 m del lote de la casa 03.
+				{"front": "route", "t": 0.565, "piece": "house_c", "variant": 2, "color": 2, "state": "damaged", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 9.0, "height_scale": 1.07},
 				{"front": "route", "t": 0.835, "piece": "house_d_b", "variant": 3, "color": 3, "state": "intact", "garden": false, "tree": "", "door_open": false, "fence": "picket", "width": 10.999, "height_scale": 1.14}
 			]
 		},
@@ -99,7 +110,7 @@
 				{"front": "back_a", "t": 0.65636, "piece": "house_a_b", "variant": 5, "color": 1, "state": "intact", "garden": false, "tree": "", "door_open": false, "fence": "wire", "width": 9.351, "height_scale": 1.02},
 				{"front": "back_a", "t": 0.34364, "piece": "house_b", "variant": 6, "color": 2, "state": "intact", "garden": true, "tree": "tree_small", "door_open": false, "fence": "picket", "width": 9.351, "height_scale": 1.09},
 				{"front": "c2", "t": 0.6703, "piece": "house_c_b", "variant": 7, "color": 3, "state": "intact", "garden": true, "tree": "tree_medium", "door_open": false, "fence": "wire", "width": 11.967, "height_scale": 1.16},
-				{"front": "c2", "t": 0.32969, "piece": "house_d", "variant": 8, "color": 0, "state": "intact", "garden": false, "tree": "", "door_open": false, "fence": "", "width": 11.967, "height_scale": 0.97}
+				{"front": "c2", "t": 0.32969, "piece": "house_d", "variant": 8, "color": 0, "state": "intact", "garden": false, "tree": "", "door_open": false, "fence": "", "width": 10.5, "height_scale": 0.97}
 			]
 		},
 		{
@@ -118,9 +129,9 @@
 			"id": "m03", "nodes": ["n_r4", "n_r5", "n_a5", "n_a4"],
 			"datum": "auto", "pad": "garden",
 			"houses": [
-				{"front": "back_a", "t": 0.50001, "piece": "shed", "variant": 4, "color": 2, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 12.86, "height_scale": 1.13},
+				{"front": "back_a", "t": 0.50001, "piece": "shed", "variant": 4, "color": 2, "state": "intact", "garden": true, "tree": "", "door_open": false, "fence": "", "width": 11.4, "height_scale": 1.13},
 				{"front": "c5", "t": 0.67029, "piece": "house_a_b", "variant": 5, "color": 3, "state": "intact", "garden": false, "tree": "", "door_open": false, "fence": "picket", "width": 11.964, "height_scale": 0.94},
-				{"front": "c5", "t": 0.32971, "piece": "house_b", "variant": 6, "color": 0, "state": "intact", "garden": true, "tree": "tree_small", "door_open": false, "fence": "", "width": 11.964, "height_scale": 1.01},
+				{"front": "c5", "t": 0.32971, "piece": "house_b", "variant": 6, "color": 0, "state": "intact", "garden": true, "tree": "tree_small", "door_open": false, "fence": "", "width": 10.5, "height_scale": 1.01},
 				{"front": "route", "t": 0.7, "piece": "house_c_b", "variant": 7, "color": 1, "state": "intact", "garden": true, "tree": "", "door_open": true, "fence": "wire", "width": 9.352, "height_scale": 1.08}
 			]
 		},
@@ -291,7 +302,14 @@
 		// Hito B: silo y galpon, lote RURAL al sur de back_b (`block: null`).
 		// Macizo contra calado, sur contra norte: es el contrapunto del tanque.
 		{"id": "silo", "piece": "silo", "pos": [-95.0, 70.0], "yaw_deg": -17.182, "footprint": [7.0, 7.0], "height_scale": 1.0, "role": "silo", "block": null, "name_key": "BLD_SILO", "silhouette": "tower", "story": []},
-		{"id": "field_shed", "piece": "field_shed", "pos": [-74.0, 76.0], "yaw_deg": -17.182, "footprint": [18.0, 10.0], "height_scale": 1.0, "role": "shed", "block": null, "name_key": "BLD_SHED", "silhouette": "block", "story": []}
+		// WP-L (hallazgo S8): la huella declarada era 18 x 10 y la pieza mide
+		// 18,6 x 10,6 (manifiesto, con los ejes cambiados por el frente -X). Seis
+		// decimetros de menos por lado, que es poco para mirarlo y suficiente
+		// para que `pickup`, `truck` y `crate` quedaran 0,24-0,28 m ADENTRO del
+		// galpon: la huella declarada es con la que el resolvedor reparte el lote
+		// y con la que el check mide contencion y solapes. La fila D la mide
+		// ahora contra el manifiesto, sin tolerancia hacia abajo.
+		{"id": "field_shed", "piece": "field_shed", "pos": [-74.0, 76.0], "yaw_deg": -17.182, "footprint": [18.6, 10.6], "height_scale": 1.0, "role": "shed", "block": null, "name_key": "BLD_SHED", "silhouette": "block", "story": []}
 	],
 
 	// ----------------------------------------------------------------------
@@ -302,8 +320,17 @@
 	// puestos se declaran aca y el quinto lo sigue eligiendo el resolvedor. Los
 	// tres de azotea -escuela, hito y el mediano mas alto- no se tocan.
 	"markers": [
-		// estacion de servicio
-		{"kind": "battery", "pos": [-124.478, -55.502], "yaw_deg": 0.0},
+		// Estacion de servicio (WP-L, hallazgo S5). Estaba 2,08 m dentro de la caja
+		// maciza de la estacion, asi que la esfera de 2,5 m con la que
+		// `BatterySpawner` comprueba el hueco daba siempre ocupado y ese puesto no
+		// repartia una sola pila. Va ahora junto al toldo del costado de la
+		// tienda -2,57 m del toldo, dentro de los 4 m que pide la gramatica de
+		// docs/17 SS4-. Medido en 3D desde el puesto (a 3,0 m del suelo) hasta el
+		// canto de cada caja (revision de WP-L): 2,90 m de la pared de la tienda,
+		// 3,10 m de la columna mas cercana (`column_se`; 3,45 m a su eje) y
+		// 2,70 m del borde de la losa de la marquesina, que pasa 2,34 m por
+		// encima: la esfera de 2,5 m que comprueba `BatterySpawner` no toca nada.
+		{"kind": "battery", "pos": [-109.011, -41.109], "yaw_deg": 0.0},
 		// esquina de la manzana 02
 		{"kind": "battery", "pos": [6.784, -42.546], "yaw_deg": 0.0},
 		// esquina de la manzana 04
@@ -351,8 +378,23 @@
 			[-200.654, -59.756], [-209.57, -27.913], [-214.046, 34.61], [-232.752, 55.324]],
 			"species": [{"piece": "tree_large", "weight": 0.5}, {"piece": "tree_xl", "weight": 0.2}, {"piece": "bush_a", "weight": 0.3}],
 			"density": 0.018,
-			"min_spacing": 5.0,
-			"clear": {"streets": 6.0, "blocks": 4.0, "houses": 3.0, "route": 12.0}
+			// WP-L (hallazgo S11): 5 m era menos que UNA copa de `tree_xl` -6,5 m
+			// de huella por hasta 1,24 de escala, 8,06 m de diametro-, asi que dos
+			// sauces a cinco metros no eran dos sauces sino un borron. La fila C
+			// exige ahora que la separacion declarada no sea menor que la suma de
+			// los dos radios mas grandes que la arboleda puede sembrar.
+			"min_spacing": 8.1,
+			// WP-L (hallazgos S3, S1/S4 y S12): la banda esta centrada EN EL CAUCE,
+			// asi que sin `water` caian 52 instancias en el canal; sin `rocks`,
+			// ocho dentro de `rock_e` y `rock_a`; sin `fences`, tres a un metro del
+			// cierre del disco. Las tres se miden desde la COPA. La densidad se
+			// mide ahora contra la superficie plantable y no contra el poligono.
+			"clear": {"streets": 6.0, "blocks": 4.0, "houses": 3.0, "route": 12.0,
+			"rocks": 1.0, "water": 4.0, "fences": 1.0},
+			// Revision de WP-L (hallazgo 2): cuanto del poligono tiene que quedar
+			// plantable como minimo. Medido: 1 944 de 4 030 m2 (0,482); el agua,
+			// la orilla y el corredor del puente se llevan el resto.
+			"min_free_ratio": 0.45
 		},
 		// la banda del arroyo al norte del pueblo: el borde natural del norte
 		{
@@ -366,8 +408,22 @@
 			[-138.367, -149.224], [-153.739, -127.085], [-191.608, -95.391], [-189.991, -98.309]],
 			"species": [{"piece": "tree_large", "weight": 0.5}, {"piece": "tree_xl", "weight": 0.2}, {"piece": "bush_a", "weight": 0.3}],
 			"density": 0.018,
-			"min_spacing": 5.0,
-			"clear": {"streets": 6.0, "blocks": 4.0, "houses": 3.0, "route": 12.0}
+			// WP-L (hallazgo S11): 5 m era menos que UNA copa de `tree_xl` -6,5 m
+			// de huella por hasta 1,24 de escala, 8,06 m de diametro-, asi que dos
+			// sauces a cinco metros no eran dos sauces sino un borron. La fila C
+			// exige ahora que la separacion declarada no sea menor que la suma de
+			// los dos radios mas grandes que la arboleda puede sembrar.
+			"min_spacing": 8.1,
+			// WP-L (hallazgos S3, S1/S4 y S12): la banda esta centrada EN EL CAUCE,
+			// asi que sin `water` caian 52 instancias en el canal; sin `rocks`,
+			// ocho dentro de `rock_e` y `rock_a`; sin `fences`, tres a un metro del
+			// cierre del disco. Las tres se miden desde la COPA. La densidad se
+			// mide ahora contra la superficie plantable y no contra el poligono.
+			"clear": {"streets": 6.0, "blocks": 4.0, "houses": 3.0, "route": 12.0,
+			"rocks": 1.0, "water": 4.0, "fences": 1.0},
+			// Revision de WP-L (hallazgo 2). Medido: 5 389 de 12 511 m2 (0,431);
+			// ademas del agua, `rock_a` y `rock_e` y el alambrado del disco.
+			"min_free_ratio": 0.40
 		},
 		// maizal del suroeste
 		{
@@ -375,7 +431,10 @@
 			"polygon": [[-173.506, 262.061], [-58.861, 297.51], [-82.494, 373.939], [-197.139, 338.49]],
 			"species": [{"piece": "corn_a", "weight": 0.6}, {"piece": "corn_b", "weight": 0.4}],
 			"density": 0.06,
-			"clear": {"streets": 6.0, "blocks": 4.0, "houses": 3.0, "route": 12.0}
+			"clear": {"streets": 6.0, "blocks": 4.0, "houses": 3.0, "route": 12.0},
+			// Revision de WP-L (hallazgo 2). Medido: 9 550 de 9 600 m2 (0,995): un
+			// maizal no esquiva nada, y si deja de ser plantable algo lo piso.
+			"min_free_ratio": 0.95
 		},
 		// maizal del sureste
 		{
@@ -383,7 +442,10 @@
 			"polygon": [[50.494, 288.061], [165.139, 323.51], [141.506, 399.939], [26.861, 364.49]],
 			"species": [{"piece": "corn_a", "weight": 0.4}, {"piece": "corn_b", "weight": 0.6}],
 			"density": 0.06,
-			"clear": {"streets": 6.0, "blocks": 4.0, "houses": 3.0, "route": 12.0}
+			"clear": {"streets": 6.0, "blocks": 4.0, "houses": 3.0, "route": 12.0},
+			// Revision de WP-L (hallazgo 2). Medido: 9 617 de 9 600 m2 (1,002: las
+			// celdas del borde cuentan enteras).
+			"min_free_ratio": 0.95
 		}
 	],
 
@@ -468,34 +530,67 @@
 	// calle. Con 2,40 m de alto y 0,80 de espesor el toldo cubre de 2,4 a 3,2 m,
 	// que es justo donde vive ahora el puesto de pila de calle.
 	"props": [
-		// toldo de la tienda de la estacion: aca hay pila
-		{"piece": "awning_orange", "pos": [-125.911, -55.945], "yaw_deg": -17.181, "lift": 2.4, "on_terrain": true, "align_to_slope": false},
+		// Toldo de la tienda de la estacion: aca hay pila.
+		//
+		// WP-L (hallazgo S5). Estaba a 11,63 m sobre el eje largo de la estacion,
+		// o sea bajo el borde lejano de la marquesina y 1,35 m DENTRO de la caja
+		// maciza con la que la estacion colisionaba. Pasa al COSTADO de la tienda,
+		// sobre su mitad trasera -a 7,5 cm de la pared-, que es la unica parte de
+		// la tienda sin marquesina encima: el puesto de pila cuelga de este toldo
+		// y la esfera de 2,5 m de `BatterySpawner` tocaba la losa en cualquier
+		// sitio bajo la marquesina (city_check, fila de la estacion).
+		{"piece": "awning_orange", "pos": [-111.344, -42.196], "yaw_deg": -17.181, "lift": 2.4, "on_terrain": true, "align_to_slope": false},
 		// puesto de pila de la manzana 02
 		{"piece": "awning_orange", "pos": [7.784, -40.814], "yaw_deg": 162.818, "lift": 2.4, "on_terrain": true, "align_to_slope": false},
 		// puesto de pila de la manzana 04
 		{"piece": "bus_stop", "pos": [76.18, -19.825], "yaw_deg": 72.65, "on_terrain": true, "align_to_slope": false},
 		// puesto de pila de la manzana 10
 		{"piece": "awning_orange", "pos": [102.304, 9.823], "yaw_deg": -97.138, "lift": 2.4, "on_terrain": true, "align_to_slope": false},
-		// auto cargando bajo la marquesina
-		{"piece": "car_a", "pos": [-115.88, -52.844], "yaw_deg": 162.819, "on_terrain": true, "align_to_slope": false},
-		// el otro auto, torcido y con la puerta abierta
-		{"piece": "car_b", "pos": [-112.058, -51.662], "yaw_deg": 196.819, "on_terrain": true, "align_to_slope": false},
-		{"piece": "pickup", "pos": [-86.0, 75.0], "yaw_deg": 78.818, "on_terrain": true, "align_to_slope": true},
+		// Los dos autos de la estacion (WP-L, hallazgo S5). Estaban a 8,90 y 9,12 m
+		// dentro de la caja maciza. Van ahora al lado de los dos surtidores, entre
+		// las cuatro columnas de la marquesina y fuera de la tienda: el primero
+		// cargando junto a la isla sur (0,20 m de la isla, 2,03 m de la columna
+		// del oeste) y el segundo torcido 12 grados junto a la isla norte. La
+		// marquesina es una losa a 5,87 m y los autos miden 1,61: no hay un metro
+		// de altura en comun, que es lo que permite estacionar debajo sin lista
+		// blanca.
+		{"piece": "car_a", "pos": [-109.913, -52.074], "yaw_deg": -107.181, "on_terrain": true, "align_to_slope": false},
+		{"piece": "car_b", "pos": [-118.969, -55.283], "yaw_deg": -95.181, "on_terrain": true, "align_to_slope": false},
+		// WP-L (hallazgo S8): los tres estaban 0,24-0,28 m dentro del galpon con su
+		// huella real. Se corren 0,74-0,78 m sobre el eje local por el que se
+		// metian, que es lo justo para dejar medio metro de aire entre la caja
+		// del prop y la pared. El camion sigue contra la tolva y la camioneta
+		// sigue en el mismo lado del galpon.
+		{"piece": "pickup", "pos": [-86.726, 74.776], "yaw_deg": 78.818, "on_terrain": true, "align_to_slope": true},
 		// camion de cereal contra la tolva
-		{"piece": "truck", "pos": [-81.0, 83.5], "yaw_deg": 8.0, "on_terrain": true, "align_to_slope": true},
-		{"piece": "crate", "pos": [-68.0, 72.0], "yaw_deg": 24.0, "on_terrain": true, "align_to_slope": true},
+		{"piece": "truck", "pos": [-81.219, 84.207], "yaw_deg": 8.0, "on_terrain": true, "align_to_slope": true},
+		{"piece": "crate", "pos": [-67.769, 71.255], "yaw_deg": 24.0, "on_terrain": true, "align_to_slope": true},
 		{"piece": "barrel_c", "pos": [-100.5, 67.0], "yaw_deg": 0.0, "on_terrain": true, "align_to_slope": true},
 		{"piece": "lamp_post", "pos": [-120.122, -76.974], "yaw_deg": -17.182, "on_terrain": true, "align_to_slope": false},
 		{"piece": "lamp_post", "pos": [-100.255, -56.596], "yaw_deg": 162.818, "on_terrain": true, "align_to_slope": false},
-		{"piece": "lamp_post", "pos": [-72.354, -62.203], "yaw_deg": -17.182, "on_terrain": true, "align_to_slope": false},
+		// WP-L: la farola tenia el brazo 0,10 m dentro de la esquina de
+		// `Building_Mid_3`. Se corre 1,20 m HACIA ATRAS SOBRE SU PROPIA FILA -la
+		// avenida-, que es lo unico que la aleja del mediano sin acercarla a la
+		// calzada: el mediano esta 10,2 m adelante y del mismo lado.
+		{"piece": "lamp_post", "pos": [-73.501, -62.557], "yaw_deg": -17.182, "on_terrain": true, "align_to_slope": false},
 		{"piece": "lamp_post", "pos": [-52.487, -41.825], "yaw_deg": 162.818, "on_terrain": true, "align_to_slope": false},
 		{"piece": "lamp_post", "pos": [-24.585, -47.433], "yaw_deg": -17.182, "on_terrain": true, "align_to_slope": false},
 		{"piece": "lamp_post", "pos": [-4.718, -27.055], "yaw_deg": 162.818, "on_terrain": true, "align_to_slope": false},
 		{"piece": "lamp_post", "pos": [23.183, -32.662], "yaw_deg": -17.182, "on_terrain": true, "align_to_slope": false},
 		{"piece": "lamp_post", "pos": [43.05, -12.284], "yaw_deg": 162.818, "on_terrain": true, "align_to_slope": false},
 		{"piece": "lamp_post", "pos": [70.952, -17.892], "yaw_deg": -17.182, "on_terrain": true, "align_to_slope": false},
-		{"piece": "lamp_post", "pos": [90.819, 2.486], "yaw_deg": 162.818, "on_terrain": true, "align_to_slope": false},
-		{"piece": "lamp_post", "pos": [118.721, -3.122], "yaw_deg": -17.182, "on_terrain": true, "align_to_slope": false},
+		// WP-L: idem con `Building_Mid_4`, 0,10 m. Aca correrla sobre la fila no
+		// servia -la cara larga del mediano corre paralela a la avenida, asi que
+		// el solape era el mismo un metro mas adelante-, y se corre 0,70 m sobre
+		// la perpendicular, alejandose del mediano. Queda a 6,19 m del eje de la
+		// avenida, todavia sobre la vereda.
+		{"piece": "lamp_post", "pos": [91.325, 2.003], "yaw_deg": 162.818, "on_terrain": true, "align_to_slope": false},
+		// WP-L (hallazgo S9): estaba a 4,47 m del eje de `c6`, que tiene 5,04 de
+		// media calzada, o sea con el pie 0,57 m DENTRO del asfalto de la
+		// transversal. Sus diez hermanas estan entre 6,26 y 6,80 m del eje de su
+		// calle; se corre 2,00 m sobre la perpendicular de `c6`, del lado de la
+		// vereda, y queda a 6,47.
+		{"piece": "lamp_post", "pos": [120.705, -2.873], "yaw_deg": -17.182, "on_terrain": true, "align_to_slope": false},
 		{"piece": "lamp_post", "pos": [138.587, 17.257], "yaw_deg": 162.818, "on_terrain": true, "align_to_slope": false},
 		// el nombre del pueblo y Escuela 12 - 1,2 km
 		{"piece": "welcome_sign", "pos": [-215.0, -70.0], "yaw_deg": -88.282, "on_terrain": true, "align_to_slope": false},
@@ -503,20 +598,36 @@
 		{"piece": "road_sign_narrow", "pos": [-252.724, -77.353], "yaw_deg": 89.538, "on_terrain": true, "align_to_slope": false},
 		// entrada este
 		{"piece": "road_sign_speed", "pos": [190.289, 19.008], "yaw_deg": -107.182, "on_terrain": true, "align_to_slope": false},
-		{"piece": "car_b", "pos": [-10.195, 0.15], "yaw_deg": -32.638, "on_terrain": true, "align_to_slope": false},
-		{"piece": "car_a", "pos": [20.807, -34.907], "yaw_deg": 147.362, "on_terrain": true, "align_to_slope": false},
-		{"piece": "car_b", "pos": [51.995, 9.731], "yaw_deg": -17.35, "on_terrain": true, "align_to_slope": false},
-		// El arbol grande de cada quinta. Su sitio se mide en el marco LOCAL de
-		// la quinta -4,20 m sobre cada eje desde la casa- y no en el del mundo:
-		// con el cuadrado ya girado (hallazgo 10), el desplazamiento de mundo de
-		// WP-D2 dejaba cuatro de los seis a 27 cm del alambre, o sea con la copa
-		// entera del lado de afuera. Asi quedan a 2,80 m del cerco.
-		{"piece": "tree_large", "pos": [-146.166, -120.208], "yaw_deg": 0.0, "on_terrain": true, "align_to_slope": false},
-		{"piece": "tree_large", "pos": [-119.922, -154.044], "yaw_deg": 74.0, "on_terrain": true, "align_to_slope": false},
-		{"piece": "tree_large", "pos": [-149.739, -103.956], "yaw_deg": 148.0, "on_terrain": true, "align_to_slope": false},
-		{"piece": "tree_large", "pos": [184.817, -4.158], "yaw_deg": 222.0, "on_terrain": true, "align_to_slope": false},
-		{"piece": "tree_large", "pos": [197.496, 9.715], "yaw_deg": 296.0, "on_terrain": true, "align_to_slope": false},
-		{"piece": "tree_large", "pos": [212.877, 14.343], "yaw_deg": 370.0, "on_terrain": true, "align_to_slope": false}
+		// Los tres autos "apuntando hacia afuera" de docs/17 SS0.10: quedaron
+		// abandonados en la calle cuando la gente se fue, y estar en la calle es
+		// el punto. `on_road` es la lista blanca que WP-L agrego para que la fila
+		// B del check no los confunda con un error de siembra. Medido: los tres
+		// apoyan sobre el asfalto, el de (52,0; 9,7) a 2,03 m adentro del borde.
+		{"piece": "car_b", "pos": [-10.195, 0.15], "yaw_deg": -32.638, "on_terrain": true, "align_to_slope": false, "on_road": true},
+		{"piece": "car_a", "pos": [20.807, -34.907], "yaw_deg": 147.362, "on_terrain": true, "align_to_slope": false, "on_road": true},
+		{"piece": "car_b", "pos": [51.995, 9.731], "yaw_deg": -17.35, "on_terrain": true, "align_to_slope": false, "on_road": true},
+		// El arbol de cada quinta. Su sitio se mide en el marco LOCAL de la quinta
+		// -sobre la diagonal, a la misma distancia de los dos ejes desde la casa-
+		// y no en el del mundo: con el cuadrado ya girado (hallazgo 10), el
+		// desplazamiento de mundo de WP-D2 dejaba cuatro de los seis a 27 cm del
+		// alambre.
+		//
+		// WP-L (hallazgo S6). Los 4,20 m de WP-D4a median al TRONCO. Con la copa,
+		// un `tree_large` de 5,25 m de huella se metia 0,34-0,57 m dentro de su
+		// propia casa en tres de las seis quintas y dejaba las seis copas a
+		// 0,13-0,64 m del alambre. Y no hay arreglo posible con `tree_large`: la
+		// quinta mide 14 x 14, la copa pide 2,625 m de radio, la casa 2,5 m de
+		// media huella, y despejar medio metro de la casa pide el tronco a 4,71 m
+		// de ella mientras despejar 0,30 del alambre lo pide a 4,08 como mucho.
+		// Los seis pasan a `tree_medium` -3,50 m de huella, 11 m de alto: mas
+		// alto y mas angosto, que es la silueta de un arbol de quinta- a 4,40 m
+		// sobre cada eje. Medido: 0,94 m de la casa y 0,85 del alambre.
+		{"piece": "tree_medium", "pos": [-145.968, -120.006], "yaw_deg": 0.0, "on_terrain": true, "align_to_slope": false},
+		{"piece": "tree_medium", "pos": [-119.79, -153.794], "yaw_deg": 74.0, "on_terrain": true, "align_to_slope": false},
+		{"piece": "tree_medium", "pos": [-149.541, -103.754], "yaw_deg": 148.0, "on_terrain": true, "align_to_slope": false},
+		{"piece": "tree_medium", "pos": [184.949, -3.908], "yaw_deg": 222.0, "on_terrain": true, "align_to_slope": false},
+		{"piece": "tree_medium", "pos": [197.628, 9.965], "yaw_deg": 296.0, "on_terrain": true, "align_to_slope": false},
+		{"piece": "tree_medium", "pos": [213.009, 14.593], "yaw_deg": 370.0, "on_terrain": true, "align_to_slope": false}
 	],
 
 	// ----------------------------------------------------------------------

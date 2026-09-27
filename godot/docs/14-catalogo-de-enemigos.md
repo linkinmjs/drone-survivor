@@ -4,6 +4,8 @@
 
 ## 1. Objetivo y alcance
 
+> **Nota de P2e (2026-09-24)**: los ocho mechas de `assets/_raw/` se pueden ver ya en la galería de inventario (`tools/asset_gallery.tscn`, fila `Enemigos/Vista previa`) como GLB estáticos de una sola parte con los `voxel_size` de §2 y los emisivos del `.vox` (`assets/preview/enemies/mech_*.glb`, recetas `tools/voxsplit/models/mechs/mech_*.parts.json`). Alturas resultantes: ReconBot 11,8 · MobileStorageBot 13,8 · Companion-bot 16,0 · Mecha01 19,8 · MechaTrooper 21,6 · QuadrupedTank 23,5 · MechGolem 27,0 · FieldFighter 32,5 m; 2 476–6 952 tris sin diezmar. Para P3 cada uno necesita su `parts.json` con partes, perfil y rig, como el Arachnodroid.
+
 Ficha de producción de los **9 assets voxel** del juego: qué es cada uno, a qué escala se instancia, cómo se mueve, qué hace contra la ciudad y contra el dron, dónde se le pega, qué personalidad tiene, en cuántas fases se rompe, cuánto cuesta implementarlo y cómo se ve su `parts.json`. Cierra con el **orden de producción**, la **tecnología nueva** que introduce cada uno y las **rondas** que habilita.
 
 **Incluye:** las 9 fichas; escala propuesta en metros para cada `.vox`; ataques con telegrafía; puntos débiles y partes desprendibles; personalidades; fases sugeridas; riesgos de segmentación e implementación; bocetos de `parts.json`; orden de producción justificado; tabla de tecnología nueva; mapa de rondas.

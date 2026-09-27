@@ -135,6 +135,10 @@ var _played: int = 0
 var _voice_pool: Node = null
 var _telegraph_voice: AudioStreamPlayer3D = null
 
+## `true` cuando ya se buscó el `ChargeAudio` del [Telegraph], haya aparecido o
+## no. Es la caché **negativa** de [method total_voices].
+var _telegraph_voice_looked_up: bool = false
+
 
 func _ready() -> void:
 	# El `AudioPool` del nivel descubre el rig por este grupo y le impone el tope
@@ -235,7 +239,15 @@ func active_voices() -> int:
 ## de 8 del propio jefe (`docs/07` §10) y la que verifica `arachnodroid_check`.
 func total_voices() -> int:
 	var count := active_voices()
-	if _telegraph_voice == null or not is_instance_valid(_telegraph_voice):
+	# La búsqueda se hace **una vez**, no cada vez que la referencia es `null`
+	# (P2d WP-C §9): `_find_telegraph_voice()` es un `find_child` recursivo por el
+	# subárbol entero del jefe, y en un enemigo sin [Telegraph] la referencia es
+	# `null` para siempre, así que se repetía en cada pisada —`AudioPool.can_claim`
+	# llama acá— durante toda la partida. Si el canal aparece después, lo cablea
+	# [method _wire]; si desaparece, se vuelve a buscar una sola vez.
+	if not _telegraph_voice_looked_up \
+			or (_telegraph_voice != null and not is_instance_valid(_telegraph_voice)):
+		_telegraph_voice_looked_up = true
 		_telegraph_voice = _find_telegraph_voice()
 	if _telegraph_voice != null and _telegraph_voice.playing:
 		count += 1
@@ -449,6 +461,10 @@ func _wire() -> void:
 		var _broke := Events.enemy_part_broken.connect(_on_part_broken)
 	if not Events.enemy_phase_changed.is_connected(_on_phase_changed):
 		var _phase := Events.enemy_phase_changed.connect(_on_phase_changed)
+	# El árbol del enemigo ya está entero: es el momento de resolver el canal de
+	# carga del [Telegraph], y el único en que se paga el `find_child` recursivo.
+	_telegraph_voice = _find_telegraph_voice()
+	_telegraph_voice_looked_up = true
 	_wired = true
 
 

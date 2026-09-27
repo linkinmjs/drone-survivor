@@ -364,6 +364,16 @@ const GRAPH_CROSS_TOLERANCE: float = 2.0
 ## Seis posiciones de roca, fuera del círculo y fuera del cono del dron.
 @export var rocks: PackedVector3Array = PackedVector3Array()
 
+## La pieza de cada roca de [member rocks], en el mismo orden: `rock_a` … `rock_f`.
+##
+## Es la **fuente única** de qué roca va dónde (revisión de WP-L, hallazgo 3): la
+## escribe `TownPlanner._place_rocks` al sembrar, [CityGrid] elige la escena por
+## ella y `TownPlanner.rock_discs()` saca de ella el radio del casco. Hasta la
+## revisión el plano guardaba sólo las posiciones y [CityGrid] repartía las seis
+## escenas en el orden de una lista fija, que coincidía con el del diseño por
+## casualidad.
+@export var rock_pieces: PackedStringArray = PackedStringArray()
+
 ## Maleza, basura y barriles. Se instancian por [MultiMesh].
 @export var decor: Array[Transform3D] = []
 
@@ -475,7 +485,7 @@ func signature() -> String:
 	parts.append("battery=%s|%s" % [_v3_list(battery), _ints(battery_roof_parcels)])
 	parts.append("drone=%s" % _xform(drone))
 	parts.append("camera=%s" % _xform(camera))
-	parts.append("rocks=%s" % _v3_list(rocks))
+	parts.append("rocks=%s|%s" % [_v3_list(rocks), ",".join(rock_pieces)])
 	parts.append("decor=%s" % _xform_list(decor))
 	return "\n".join(parts)
 

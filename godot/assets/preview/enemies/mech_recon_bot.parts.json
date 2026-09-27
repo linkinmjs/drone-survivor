@@ -1,0 +1,76 @@
+{
+  "comment": [
+    "Vista previa de ReconBot, explorador de apoyo (docs/14 3.8, WP-37). WP-G2.",
+    "NO es el enemigo: es el .vox entero en UNA sola parte, sin puntos debiles, sin",
+    "colision y sin import_script, para mirarlo en la galeria antes de su WP. Cuando",
+    "el enemigo se produzca, su parts.json de verdad vive en enemies/<id>/.",
+    "voxel_size de docs/14 2; axis_map y origen como el Arachnodroid (Z del .vox es la",
+    "altura, centro de la huella en el origen, base en y = 0). emissive_strength fijo en",
+    "3,0 (el techo del Arachnodroid): el MATL de estos packs llega a energia 8 y con",
+    "eso el visor quema a blanco en la galeria."
+  ],
+  "source": "../../../../assets/_raw/ReconBot.zip!Package/ReconBot.vox",
+  "name": "mech_recon_bot",
+  "voxel_size": 0.2,
+  "origin_voxel": [13.5, 14, 0],
+  "grid_size": [27, 28, 59],
+  "axis_map": {"x": "+x", "y": "+z", "z": "-y"},
+  "palette_texture": "mech_recon_bot_palette.png",
+  "emissive_palette_indices": [2, 5, 7],
+  "emissive_strength": 3,
+  "collision_default": "box",
+  "expect": {"part_count": 1, "triangle_budget": 8000, "total_height": 11.8, "height_tolerance": 0.01},
+  "preview": {
+    "pack": "mech",
+    "class": "enemy",
+    "row": "Enemigos/Vista previa",
+    "sort": "height",
+    "preview_only": true,
+    "note": "vista previa: el .vox entero en una parte, no es el enemigo jugable"
+  },
+  "parts": [
+    {
+      "id": "body",
+      "parent": null,
+      "boxes": [[0, 0, 0, 26, 27, 58]],
+      "pivot": [13, 13.5, -0.5],
+      "flags": ["root"]
+    }
+  ],
+  "metadata": {
+    "voxsplit_version": "1.0.0",
+    "generated_at": "2026-09-24T00:00:00Z",
+    "source": "../../../../assets/_raw/ReconBot.zip!Package/ReconBot.vox",
+    "part_count": 1,
+    "voxel_count": 10375,
+    "triangle_count": 3624,
+    "quad_count": 1812,
+    "unassigned_count": 0,
+    "total_height": 11.8,
+    "aabb_min": [-2.7, 0, -2.8],
+    "aabb_max": [2.7, 11.8, 2.8],
+    "footprint": [5.4, 5.6],
+    "density": 220,
+    "emissive_strength": 3,
+    "emissive_indices": {
+      "2": {"color": [254, 169, 41, 255], "voxels": 7, "weight": "0.29", "flux": "2", "energy": 0.58},
+      "5": {"color": [0, 251, 41, 255], "voxels": 13, "weight": "0.44", "flux": "1", "energy": 0.44},
+      "7": {"color": [249, 29, 29, 255], "voxels": 18, "weight": "0.89", "flux": "1", "energy": 0.89}
+    },
+    "root_node": "MechReconBotRoot",
+    "parts": {
+      "body": {
+        "parent": null,
+        "aabb_min": [-2.7, 0, -2.8],
+        "aabb_max": [2.7, 11.8, 2.8],
+        "center_of_mass": [0.229398, 7.486005, 0.273899],
+        "voxel_count": 10375,
+        "triangle_count": 3624,
+        "estimated_mass": 18260,
+        "has_emissive_surface": true,
+        "pivot_world": [0, 0, 0],
+        "translation": [0, 0, 0]
+      }
+    }
+  }
+}

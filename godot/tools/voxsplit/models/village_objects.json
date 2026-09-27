@@ -1,0 +1,54 @@
+{
+  "name": "village_objects",
+  "comment": [
+    "Vista previa de lo que queda sin usar de la paleta 'objects' de",
+    "'VoxelVillagePack.zip' (WP-G2): los cuatro cajones de color, el puente y la roca",
+    "grande. El farol, el cerco, el barril y el cajon vacio ya estan en el pueblo",
+    "(models/village.json).",
+    "NO es arte del juego: va a assets/preview/village_objects/, sin import_script.",
+    "El pack trae DOS paletas de 256x1 y el compositor admite una por receta, asi que",
+    "la aldea va en dos recetas. Medido pieza por pieza (WP-G2): esta paleta la usan",
+    "objects/ y rocks/rock_big; la otra (village_buildings.json) buildings/, trees/,",
+    "market_stands/ y rocks/rock_small. La nota de README 5ter, que ponia los puestos",
+    "de mercado en esta paleta y las dos rocas en la otra, estaba mal.",
+    "Paso del OBJ 0.1 u x escala 1.0 => 1 voxel = 10 cm, como village.json."
+  ],
+  "source": "../../../assets/_raw/VoxelVillagePack.zip",
+  "member_prefix": "",
+  "step": 0.1,
+  "scale": 1.0,
+  "palette_texture": "village_objects_palette.png",
+  "emissive_texture": "",
+
+  "budgets": {"prop": 1000},
+  "budget_note": ["Numero de vista previa: el puente es la pieza mas cara (980) y entra sin tocarlo."],
+
+  "materials": {},
+  "palette_families": {},
+  "window_indices": {},
+
+  "pieces": {
+    "box_blue": {"file": "objects/box/box_blue/box_blue.vox.obj"},
+    "box_green": {"file": "objects/box/box_green/box_green.vox.obj"},
+    "box_orange": {"file": "objects/box/box_orange/box_orange.vox.obj"},
+    "box_red": {"file": "objects/box/box_red/box_red.vox.obj"},
+    "bridge": {"file": "objects/bridge/bridge.vox.obj"},
+    "rock_big": {"file": "rocks/rock_big/rock_big.vox.obj"}
+  },
+
+  "houses": {},
+
+  "props": {
+    "village_crate_blue": {"piece": "box_blue"},
+    "village_crate_green": {"piece": "box_green"},
+    "village_crate_orange": {"piece": "box_orange"},
+    "village_crate_red": {"piece": "box_red"},
+    "village_bridge": {"piece": "bridge"},
+    "village_rock_big": {"piece": "rock_big"}
+  },
+
+  "preview": {
+    "pack": "village",
+    "row": "Packs/Aldea"
+  }
+}

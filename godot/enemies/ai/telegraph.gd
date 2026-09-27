@@ -174,6 +174,11 @@ func _ready() -> void:
 	if enemy == null:
 		enemy = get_parent() as Node3D
 	_build_channels()
+	# El desvanecido es lo único que corre por tick, y sólo dura
+	# [constant FADE_SECONDS] después de cada aviso: fuera de eso el nodo está
+	# ocioso y no tiene por qué despertarse cien veces por segundo para salir por
+	# la primera guarda (P2d WP-C, mejoras).
+	set_physics_process(false)
 
 
 ## Apaga el aviso con un desvanecido de [constant FADE_SECONDS]. Acumulador,
@@ -250,10 +255,14 @@ func begin(attack_id: StringName, seconds: float, color: Color = REST_COLOR,
 		_light.light_intensity_lumens = LIGHT_LUMENS * _energy_ramp(0.0)
 		_channels += 1
 		_tint_head(_rest_color)
-	_audio.stream = _stream_for(_audio_event())
-	if _audio != null and _audio.stream != null:
-		_audio.play()
-		_channels += 1
+	# La guarda va **antes** de la asignación: al revés, un [Telegraph] sin canal
+	# de audio —los bancos sintéticos de `ai_check`— reventaba en la primera
+	# telegrafía (P2d WP-C §6).
+	if _audio != null:
+		_audio.stream = _stream_for(_audio_event())
+		if _audio.stream != null:
+			_audio.play()
+			_channels += 1
 	if _begin_spatial():
 		_channels += 1
 
@@ -287,6 +296,7 @@ func end() -> void:
 		return
 	_running = false
 	_fade_left = FADE_SECONDS
+	set_physics_process(true)
 	if _audio != null:
 		_audio.stop()
 
@@ -802,3 +812,4 @@ func _shutdown() -> void:
 	_tinted.clear()
 	_channels = 0
 	_has_guide_target = false
+	set_physics_process(false)

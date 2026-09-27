@@ -83,6 +83,24 @@ const SHAPE_NAME: StringName = &"IntactShape"
 ## Distancia de desvanecimiento de los props, igual que en la ciudad.
 const PROP_VISIBILITY_RANGE_END: float = 180.0
 
+## La pieza de colisión compuesta del pueblo y las medidas de su hueco (WP-L).
+##
+## `CANOPY_PROBE` está entre las cuatro columnas y fuera de la tienda: es el
+## punto por el que el dron cruza la playa de la estación. Los 0,60 m de
+## `DRONE_BOX` son el cuerpo del dron (`docs/03`).
+const COMPOUND_PIECE: String = "gas_station"
+const CANOPY_PROBE: Vector3 = Vector3(-2.0, 0.0, 1.5)
+const CANOPY_PROBE_TOP: float = 5.0
+const CANOPY_FLY_HEIGHT: float = 3.0
+const CANOPY_CONTROL_TOP: float = 8.0
+const DRONE_BOX: float = 0.6
+
+## Cuánto de su huella declarada tiene que cubrir la envolvente de una pieza
+## compuesta. No el 100 %: la losa de hormigón de la playa mide dos centímetros
+## de alto y no lleva colisión a propósito, y son los 40 cm que le faltan a la
+## envolvente de la estación por el oeste.
+const COMPOUND_COVER_MIN: float = 0.90
+
 ## Tolerancias de `docs/10` §4.1: `CityGrid` coloca la pieza por su centro.
 const CENTRE_TOLERANCE: float = 0.01
 const FLOOR_TOLERANCE: float = 0.001
@@ -178,6 +196,7 @@ func _run() -> void:
 	_check_manifest()
 	_check_source_scale()
 	_check_pieces()
+	await _check_canopy_clearance()
 	_check_import_options()
 	_check_emissive_mask()
 	_check_texture_vram()
@@ -572,6 +591,8 @@ func _finish_validation(root: Node3D, name: String, entry: Dictionary,
 			elif shape_node.shape is not ConvexPolygonShape3D:
 				problems.append("shape: '%s' usa %s, se esperaba ConvexPolygonShape3D"
 						% [name, shape_node.shape.get_class() if shape_node.shape != null else "null"])
+		"compound":
+			_validate_compound(root, name, entry, problems)
 		_:
 			problems.append("shape: '%s' declara la forma desconocida '%s'" % [name, shape])
 
@@ -662,6 +683,145 @@ func _finish_validation(root: Node3D, name: String, entry: Dictionary,
 
 	_validate_materials(mesh, name, entry, problems)
 	return problems
+
+
+## Las cajas de una pieza de **colisión compuesta** contra las que el manifiesto
+## declara (WP-L, P2d).
+##
+## Tres cosas, y las tres hacen falta: que la escena traiga exactamente las cajas
+## del manifiesto —el plano resuelve con las del manifiesto y el juego colisiona
+## con las de la escena, y dos listas distintas son dos pueblos—, que la primera
+## se llame `IntactShape` y esté **centrada en XZ** —`CityGrid._spawn_building()`
+## usa su posición XZ para anular el desfase de origen de las piezas FBX, así que
+## una descentrada correría la malla— y que la envolvente de todas las cajas
+## entre en la huella declarada sin sobrar y sin quedarse corta.
+func _validate_compound(root: Node3D, name: String, entry: Dictionary,
+		problems: Array[String]) -> void:
+	var parts: Variant = entry.get("parts", null)
+	if typeof(parts) != TYPE_ARRAY or (parts as Array).is_empty():
+		problems.append("shape: '%s' declara forma compuesta y el manifiesto no trae 'parts'"
+				% name)
+		return
+	var found: Array[CollisionShape3D] = []
+	for child: Node in root.get_children():
+		var node := child as CollisionShape3D
+		if node != null and String(node.name).begins_with(String(SHAPE_NAME)):
+			found.append(node)
+	if found.size() != (parts as Array).size():
+		problems.append("shape: '%s' trae %d cajas y el manifiesto declara %d"
+				% [name, found.size(), (parts as Array).size()])
+	if found.is_empty() or String(found[0].name) != String(SHAPE_NAME):
+		problems.append("shape: la primera caja de '%s' no se llama '%s'"
+				% [name, SHAPE_NAME])
+	var envelope := AABB()
+	var first := true
+	for entry_part: Variant in (parts as Array):
+		var part: Dictionary = entry_part
+		var part_name := String(part.get("name", ""))
+		var node := root.get_node_or_null(NodePath(part_name)) as CollisionShape3D
+		if node == null:
+			problems.append("shape: '%s' no trae la caja '%s' del manifiesto"
+					% [name, part_name])
+			continue
+		var box := node.shape as BoxShape3D
+		if box == null:
+			problems.append("shape: la caja '%s' de '%s' no es un BoxShape3D"
+					% [part_name, name])
+			continue
+		var wanted_size := _vector3(part.get("size", []))
+		var wanted_centre := _vector3(part.get("centre", []))
+		if not box.size.is_equal_approx(wanted_size):
+			problems.append("shape: la caja '%s' de '%s' mide %s y el manifiesto dice %s"
+					% [part_name, name, str(box.size), str(wanted_size)])
+		if not node.position.is_equal_approx(wanted_centre):
+			problems.append("shape: la caja '%s' de '%s' está en %s y el manifiesto dice %s"
+					% [part_name, name, str(node.position), str(wanted_centre)])
+		if part_name == String(SHAPE_NAME) \
+				and (absf(node.position.x) > CENTRE_TOLERANCE
+				or absf(node.position.z) > CENTRE_TOLERANCE):
+			problems.append("shape: la caja '%s' de '%s' no está centrada en XZ (%.3f, %.3f)"
+					% [part_name, name, node.position.x, node.position.z])
+		var box_aabb := AABB(wanted_centre - wanted_size * 0.5, wanted_size)
+		envelope = box_aabb if first else envelope.merge(box_aabb)
+		first = false
+	if first:
+		return
+	var declared := _floats(entry.get("footprint", []))
+	if declared.size() != 2:
+		return
+	var footprint := Vector2(declared[0], declared[1])
+	if envelope.size.x > footprint.x + SIZE_TOLERANCE \
+			or envelope.size.z > footprint.y + SIZE_TOLERANCE:
+		problems.append("shape: la envolvente de '%s' mide %.2f × %.2f y la huella declara %.2f × %.2f"
+				% [name, envelope.size.x, envelope.size.z, footprint.x, footprint.y])
+	if envelope.size.x < footprint.x * COMPOUND_COVER_MIN \
+			or envelope.size.z < footprint.y * COMPOUND_COVER_MIN:
+		problems.append("shape: la envolvente de '%s' cubre %.0f × %.0f %% de su huella (mínimo %.0f %%)"
+				% [name, 100.0 * envelope.size.x / footprint.x,
+				100.0 * envelope.size.z / footprint.y, COMPOUND_COVER_MIN * 100.0])
+
+
+## `[x, y, z]` del manifiesto como [Vector3].
+func _vector3(value: Variant) -> Vector3:
+	var list := _floats(value)
+	return Vector3.ZERO if list.size() != 3 else Vector3(list[0], list[1], list[2])
+
+
+## 3 bis. **Hay aire bajo la marquesina de la estación de servicio** (WP-L, P2d).
+##
+## Es la fila que convierte la colisión compuesta en una promesa verificable: el
+## dron entra por un lado de la playa y sale por el otro. Se mide con física de
+## verdad y no con aritmética sobre las cajas, porque lo que tiene que estar
+## libre es el espacio por el que pasa un cuerpo, no un número del manifiesto.
+##
+## Tres medidas: un rayo vertical desde cinco metros entre las columnas no toca
+## nada; la caja del dron —60 cm— a tres metros de altura en el mismo sitio no
+## toca nada; y, de control, un rayo desde ocho metros **sí** encuentra la losa,
+## porque una pieza sin colisión también pasaría las dos primeras.
+func _check_canopy_clearance() -> void:
+	var entry := _manifest.get(COMPOUND_PIECE, {}) as Dictionary
+	if entry.is_empty():
+		fail("canopy: el manifiesto no trae '%s'" % COMPOUND_PIECE)
+		return
+	var packed := ResourceLoader.load(String(entry.get("scene", "")), "PackedScene") as PackedScene
+	var root := packed.instantiate() as Node3D if packed != null else null
+	if root == null:
+		fail("canopy: '%s' no instancia" % COMPOUND_PIECE)
+		return
+	add_child(root)
+	await wait_physics(2)
+	var space := root.get_world_3d().direct_space_state
+
+	var ray := PhysicsRayQueryParameters3D.create(
+			CANOPY_PROBE + Vector3(0.0, CANOPY_PROBE_TOP, 0.0),
+			CANOPY_PROBE + Vector3(0.0, -0.5, 0.0), PhysicsLayers.CITY)
+	var under := space.intersect_ray(ray)
+	expect(under.is_empty(),
+			"canopy: el rayo vertical bajo la marquesina toca '%s'"
+			% [under.get("collider", "?") if not under.is_empty() else ""])
+
+	var box := BoxShape3D.new()
+	box.size = Vector3(DRONE_BOX, DRONE_BOX, DRONE_BOX)
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.shape = box
+	query.collision_mask = PhysicsLayers.CITY
+	query.transform = Transform3D(Basis.IDENTITY,
+			CANOPY_PROBE + Vector3(0.0, CANOPY_FLY_HEIGHT, 0.0))
+	expect(space.intersect_shape(query, 1).is_empty(),
+			"canopy: la caja del dron a %.1f m bajo la marquesina toca algo"
+			% CANOPY_FLY_HEIGHT)
+
+	var control := PhysicsRayQueryParameters3D.create(
+			CANOPY_PROBE + Vector3(0.0, CANOPY_CONTROL_TOP, 0.0),
+			CANOPY_PROBE + Vector3(0.0, CANOPY_PROBE_TOP, 0.0), PhysicsLayers.CITY)
+	expect(not space.intersect_ray(control).is_empty(),
+			"canopy: el control desde %.1f m no encuentra la losa de la marquesina"
+			% CANOPY_CONTROL_TOP)
+	print("  marquesina: rayo y caja de %.2f m libres a %.1f m bajo la losa de '%s'"
+			% [DRONE_BOX, CANOPY_FLY_HEIGHT, COMPOUND_PIECE]
+			+ " · %d cajas de colisión" % (entry.get("parts", []) as Array).size())
+	root.queue_free()
+	await wait_frames(1)
 
 
 ## Compara una medida contra la declarada en el manifiesto.

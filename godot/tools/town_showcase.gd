@@ -294,6 +294,19 @@ const PLAZA_PITCH_DEG: float = 60.0
 const AERIAL_HEIGHT: float = 220.0
 const AERIAL_SPOT: Vector2 = Vector2(-120.0, -120.0)
 
+## Los cuatro encuadres de WP-L: a qué distancia y a qué altura se mira cada
+## cosa que WP-L tocó.
+const STATION_REACH: float = 30.0
+const STATION_LOOK: float = 3.0
+const YARD_REACH: float = 30.0
+const YARD_HEIGHT: float = 30.0
+const ROCK_SLOT: int = 4
+const ROCK_REACH: Vector2 = Vector2(26.0, 22.0)
+const ROCK_HEIGHT: float = 12.0
+const SMALLHOLDING_SLOT: int = 0
+const SMALLHOLDING_REACH: Vector2 = Vector2(20.0, 16.0)
+const SMALLHOLDING_HEIGHT: float = 9.0
+
 ## Fotogramas que se dejan pasar antes de capturar.
 ##
 ## No es cábala: la primera captura de un pueblo recién cargado sale en blanco y
@@ -335,6 +348,99 @@ func _run_town() -> void:
 	await _shoot_plaza(plan)
 	await _shoot_street(plan)
 	await _shoot_aerial(plan)
+	if user_args().has("wpl"):
+		await _shoot_station(plan)
+		await _shoot_yard(plan)
+		await _shoot_creek_rock(plan)
+		await _shoot_smallholding(plan)
+
+
+## Los cuatro encuadres de WP-L (P2d), que miran exactamente lo que WP-L tocó.
+## Se piden con `-- --town --wpl`.
+##
+## (e) `station_under`: sobre la ruta, treinta metros antes de la estación de
+## servicio, a tres metros del suelo y mirando **bajo** la marquesina. Es la
+## captura que enseña que la estación dejó de ser una caja maciza: entre las
+## columnas se ve la playa, los dos autos y el toldo de la tienda.
+func _shoot_station(plan: TownPlan) -> void:
+	var station := _parcel_named(plan, &"gas_station")
+	if station < 0:
+		fail("no hay estación de servicio en el plano")
+		return
+	var at := plan.parcel_position(station)
+	var axis := plan.street_axis(0)
+	var along := TownPlan.polyline_closest(axis, at)
+	var centre := plan.route_centre_distance()
+	var away := -1.0 if along < centre else 1.0
+	var from := TownPlan.polyline_point(axis, along + STATION_REACH * away)
+	_frame(_eye(from, ROUTE_EYE), at + Vector3(0.0, STATION_LOOK, 0.0), 50.0)
+	print("  station_under: desde %s a %.0f m de la estación %s"
+			% [str(_camera.position.round()), STATION_REACH, str(at.round())])
+	await _shot_settled("station_under")
+
+
+## (f) `yard_mid_3`: el corazón de la manzana 1, con `Building_Mid_3` al fondo y
+## los patios de las casas que dan a él. Es donde estaba el árbol con el tronco
+## dentro de la torre.
+func _shoot_yard(plan: TownPlan) -> void:
+	var mid := _parcel_named(plan, &"mid_3")
+	if mid < 0:
+		fail("no hay 'mid_3' en el plano")
+		return
+	var at := plan.parcel_position(mid)
+	var normal: Vector3 = plan.parcels[mid].get("frontage_normal", Vector3.FORWARD)
+	# Desde la espalda del mediano —el lado de la calle de atrás— y alto: por
+	# delante está `Building_Mid_1` a 27 m, y a once metros de altura la cámara
+	# quedaba dentro de su caja.
+	var from := at - normal * YARD_REACH
+	_frame(_eye(from, YARD_HEIGHT), at + Vector3(0.0, 2.0, 0.0), 60.0)
+	print("  yard_mid_3: desde %s hacia el mediano %s"
+			% [str(_camera.position.round()), str(at.round())])
+	await _shot_settled("yard_mid_3")
+
+
+## (g) `creek_rock`: la arboleda del arroyo junto a la roca más grande. Es donde
+## había ocho instancias **dentro** del casco de `rock_e` y cincuenta y dos en el
+## agua.
+func _shoot_creek_rock(plan: TownPlan) -> void:
+	var spots := plan.rock_spots()
+	if spots.is_empty():
+		fail("el plano no trae rocas")
+		return
+	var rock: Vector3 = spots[ROCK_SLOT if ROCK_SLOT < spots.size() else 0]
+	var from := Vector3(rock.x + ROCK_REACH.x, 0.0, rock.z + ROCK_REACH.y)
+	_frame(_eye(from, ROCK_HEIGHT), _eye(rock, 4.0), 55.0)
+	print("  creek_rock: desde %s hacia la roca %s"
+			% [str(_camera.position.round()), str(rock.round())])
+	await _shot_settled("creek_rock")
+
+
+## (h) `smallholding`: una quinta de caserío con su alambre y su árbol, que es
+## la pareja que estaba a trece centímetros.
+func _shoot_smallholding(plan: TownPlan) -> void:
+	var index := -1
+	for slot: int in plan.parcels.size():
+		if String(plan.parcels[slot].get("name", "")) \
+				== "%s%02d" % [TownPlan.DECOR_PREFIX, SMALLHOLDING_SLOT]:
+			index = slot
+			break
+	if index < 0:
+		fail("no hay caserío %02d en el plano" % SMALLHOLDING_SLOT)
+		return
+	var at := plan.parcel_position(index)
+	var from := Vector3(at.x + SMALLHOLDING_REACH.x, 0.0, at.z + SMALLHOLDING_REACH.y)
+	_frame(_eye(from, SMALLHOLDING_HEIGHT), _eye(at, 2.0), 50.0)
+	print("  smallholding: desde %s hacia el caserío %02d %s"
+			% [str(_camera.position.round()), SMALLHOLDING_SLOT, str(at.round())])
+	await _shot_settled("smallholding")
+
+
+## La parcela cuyo `design_id` es [param wanted], o `-1`.
+func _parcel_named(plan: TownPlan, wanted: StringName) -> int:
+	for index: int in plan.parcels.size():
+		if StringName(plan.parcels[index].get("design_id", &"")) == wanted:
+			return index
+	return -1
 
 
 ## (a) `route_120`: sobre la ruta, 120 m al oeste del puente, a tres metros del

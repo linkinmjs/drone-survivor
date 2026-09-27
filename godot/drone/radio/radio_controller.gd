@@ -8,7 +8,7 @@
 ## núcleo de vuelo y la radio no conoce al `FlightController`.
 ##
 ## Dos caminos para los cuatro ejes, con el mismo resultado:
-## - **Con mando**, [method Controls.get_flight_input] devuelve los ejes crudos ya
+## - **Con mando**, [method Controls.get_flight_axes] devuelve los ejes crudos ya
 ##   calibrados (mín/centro/máx, inversión y zona muerta con reescalado, `docs/04`
 ##   §3.3). Son ejes **físicos**: en un stick de pulgar, arriba es −1.
 ## - **Sin mando**, el par de acciones del `InputMap` de cada eje (`docs/02` §4.2),
@@ -143,8 +143,7 @@ func is_turtle_held() -> bool:
 
 ## Reconstruye los cuatro ejes del [FlightCommand] de este frame de física.
 func _read_sticks() -> void:
-	var axes: Dictionary = Controls.get_flight_input()
-	if axes.is_empty():
+	if not Controls.has_joypad():
 		# Sin mando: el par de acciones de cada eje ya trae el signo resuelto.
 		_command.set_axes(
 				(Input.get_axis(&"throttle_down", &"throttle_up") + 1.0) * 0.5,
@@ -152,11 +151,16 @@ func _read_sticks() -> void:
 				Input.get_axis(&"pitch_down", &"pitch_up"),
 				Input.get_axis(&"yaw_right", &"yaw_left"))
 		return
+	# `get_flight_axes()` devuelve un `Vector4` y no el diccionario de
+	# `get_flight_input()`: acá se leía por tick de física, y cada lectura costaba
+	# un `Dictionary` nuevo, cuatro `String(StringName)` y cuatro hashes de vuelta
+	# (P2d WP-C §4). El orden es el de `Controls.FLIGHT_AXES`.
+	var axes := Controls.get_flight_axes()
 	_command.set_axes(
-			(1.0 - float(axes.get("throttle", 1.0))) * 0.5,
-			float(axes.get("roll", 0.0)),
-			-float(axes.get("pitch", 0.0)),
-			-float(axes.get("yaw", 0.0)))
+			(1.0 - axes.x) * 0.5,
+			axes.w,
+			-axes.z,
+			-axes.y)
 
 
 ## Convierte las bandas de eje de `Controls.action_list` en pulsaciones, con

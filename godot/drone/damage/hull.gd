@@ -68,6 +68,9 @@ var hp: float = 100.0
 
 var _destroyed: bool = false
 var _cooldowns: Dictionary[int, float] = {}
+
+## Ids vencidos del tick en curso, reutilizado. Ver [method _physics_process].
+var _expired: Array[int] = []
 var _previous_velocity: Vector3 = Vector3.ZERO
 var _live: bool = false
 
@@ -101,14 +104,17 @@ func _physics_process(delta: float) -> void:
 	if _cooldowns.is_empty():
 		PerfProbe.end(&"drone_damage")
 		return
-	var expired: Array[int] = []
+	# El arreglo de vencidos es **miembro** y se vacía en vez de construirse: era
+	# un `Array[int]` nuevo en cada tick de física, casi siempre para terminar
+	# vacío (P2d WP-C, mejoras).
+	_expired.clear()
 	for id: int in _cooldowns:
 		var left := _cooldowns[id] - delta
 		if left <= 0.0:
-			expired.append(id)
+			_expired.append(id)
 		else:
 			_cooldowns[id] = left
-	for id: int in expired:
+	for id: int in _expired:
 		var _erased := _cooldowns.erase(id)
 	PerfProbe.end(&"drone_damage")
 
@@ -283,10 +289,4 @@ func _max_hp() -> float:
 
 
 func _find_drone() -> Drone:
-	var node := get_parent()
-	while node != null:
-		var found := node as Drone
-		if found != null:
-			return found
-		node = node.get_parent()
-	return null
+	return Drone.find_owner(self)

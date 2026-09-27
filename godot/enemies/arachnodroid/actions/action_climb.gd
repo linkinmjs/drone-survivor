@@ -178,10 +178,8 @@ func _on_foot_planted(_leg_index: int, position: Vector3, _impact_speed: float) 
 	var space := space_state()
 	if space == null:
 		return
-	var query := PhysicsRayQueryParameters3D.create(position + Vector3.UP * FOOT_PROBE,
+	var query := ray_query(position + Vector3.UP * FOOT_PROBE,
 			position - Vector3.UP * FOOT_PROBE, PhysicsLayers.QUERY_FOOT)
-	query.collide_with_areas = false
-	query.exclude = self_exclusions()
 	var hit := space.intersect_ray(query)
 	if hit.is_empty():
 		return

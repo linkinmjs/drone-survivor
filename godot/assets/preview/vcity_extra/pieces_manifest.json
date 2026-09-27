@@ -1,0 +1,126 @@
+{
+  "comment": "Generado por voxsplit (previewmanifest.py, WP-G2). No editar a mano: se reescribe en cada corrida de 'town' o 'build' sobre esta carpeta.",
+  "sort": "id",
+  "pieces": [
+    {
+      "id": "vcity_building_yellow",
+      "scene": "res://assets/preview/vcity_extra/vcity_building_yellow.glb",
+      "source": "city-Free Sample.zip",
+      "pack": "vcity",
+      "class": "building",
+      "row": "Packs/Ciudad voxel",
+      "footprint": [5.4, 5.4],
+      "height": 10,
+      "tris": 5468,
+      "placeholder": false
+    },
+    {
+      "id": "vcity_curb_corner_a",
+      "scene": "res://assets/preview/vcity_extra/vcity_curb_corner_a.glb",
+      "source": "city-Free Sample.zip",
+      "pack": "vcity",
+      "class": "street",
+      "row": "Packs/Ciudad voxel",
+      "footprint": [5, 5],
+      "height": 0.15,
+      "tris": 646,
+      "placeholder": false
+    },
+    {
+      "id": "vcity_curb_corner_b",
+      "scene": "res://assets/preview/vcity_extra/vcity_curb_corner_b.glb",
+      "source": "city-Free Sample.zip",
+      "pack": "vcity",
+      "class": "street",
+      "row": "Packs/Ciudad voxel",
+      "footprint": [5, 5],
+      "height": 0.15,
+      "tris": 646,
+      "placeholder": false
+    },
+    {
+      "id": "vcity_curb_corner_c",
+      "scene": "res://assets/preview/vcity_extra/vcity_curb_corner_c.glb",
+      "source": "city-Free Sample.zip",
+      "pack": "vcity",
+      "class": "street",
+      "row": "Packs/Ciudad voxel",
+      "footprint": [5, 5],
+      "height": 0.15,
+      "tris": 646,
+      "placeholder": false
+    },
+    {
+      "id": "vcity_curb_corner_d",
+      "scene": "res://assets/preview/vcity_extra/vcity_curb_corner_d.glb",
+      "source": "city-Free Sample.zip",
+      "pack": "vcity",
+      "class": "street",
+      "row": "Packs/Ciudad voxel",
+      "footprint": [5, 5],
+      "height": 0.15,
+      "tris": 646,
+      "placeholder": false
+    },
+    {
+      "id": "vcity_floor_angle",
+      "scene": "res://assets/preview/vcity_extra/vcity_floor_angle.glb",
+      "source": "city-Free Sample.zip",
+      "pack": "vcity",
+      "class": "block",
+      "row": "Packs/Ciudad voxel",
+      "footprint": [5.05, 5.05],
+      "height": 2.5,
+      "tris": 1862,
+      "placeholder": false
+    },
+    {
+      "id": "vcity_floor_b1",
+      "scene": "res://assets/preview/vcity_extra/vcity_floor_b1.glb",
+      "source": "city-Free Sample.zip",
+      "pack": "vcity",
+      "class": "block",
+      "row": "Packs/Ciudad voxel",
+      "footprint": [5.2, 5.2],
+      "height": 2.5,
+      "tris": 778,
+      "placeholder": false
+    },
+    {
+      "id": "vcity_floor_b2",
+      "scene": "res://assets/preview/vcity_extra/vcity_floor_b2.glb",
+      "source": "city-Free Sample.zip",
+      "pack": "vcity",
+      "class": "block",
+      "row": "Packs/Ciudad voxel",
+      "footprint": [5.2, 5.2],
+      "height": 2.5,
+      "tris": 778,
+      "placeholder": false
+    },
+    {
+      "id": "vcity_floor_b4",
+      "scene": "res://assets/preview/vcity_extra/vcity_floor_b4.glb",
+      "source": "city-Free Sample.zip",
+      "pack": "vcity",
+      "class": "block",
+      "row": "Packs/Ciudad voxel",
+      "footprint": [5.4, 5.4],
+      "height": 2.5,
+      "tris": 2062,
+      "placeholder": false
+    },
+    {
+      "id": "vcity_market_roof",
+      "scene": "res://assets/preview/vcity_extra/vcity_market_roof.glb",
+      "source": "city-Free Sample.zip",
+      "pack": "vcity",
+      "class": "prop",
+      "row": "Packs/Ciudad voxel",
+      "footprint": [5.4, 5.4],
+      "height": 1,
+      "tris": 1680,
+      "placeholder": false
+    }
+  ]
+}

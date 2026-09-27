@@ -150,6 +150,15 @@ const STINGS: Dictionary[StringName, String] = {
 
 var _sync: AudioStreamSynchronized = null
 var _sting_player: AudioStreamPlayer = null
+
+## Los mismos stings ya cargados (P2d WP-C, mejoras).
+##
+## Los pedía con `ResourceLoader.load()` en el instante de dispararlos, o sea en
+## el cuadro exacto de la victoria o de la derrota, que es donde además se
+## instancia la tarjeta de resultado y se cruza la mezcla: leer un `.wav` del
+## disco justo ahí es el tirón más caro del final de la ronda. Se arman en
+## [method _build], con el resto de la música.
+var _sting_streams: Dictionary[StringName, AudioStream] = {}
 var _base_db: PackedFloat32Array = PackedFloat32Array()
 var _intensity: float = 0.5
 var _intensity_db: float = 0.0
@@ -190,6 +199,7 @@ func _exit_tree() -> void:
 ## Cambia el estado de ronda y cruza a la fila que corresponda.
 func set_round_state(state: int) -> void:
 	_state = state
+	_wake()
 	if state == Global.RoundState.BATTLE:
 		# Volver a `BATTLE` es volver a jugar: el dron ya no está caído.
 		_down = false
@@ -215,6 +225,7 @@ func set_phase(phase_id: StringName) -> void:
 ## el cálculo automático lo vuelve a escribir en el muestreo siguiente.
 func set_intensity(value: float) -> void:
 	_intensity = clampf(value, 0.0, 1.0)
+	_wake()
 
 
 ## Objetivo de desvío en dB al que apunta la rampa.
@@ -257,6 +268,28 @@ func _process(delta: float) -> void:
 			INTENSITY_SLEW_DB_PER_SECOND * delta)
 	if not is_equal_approx(previous, _intensity_db):
 		_write(STEM_TENSION)
+		return
+	_sleep_if_idle()
+
+
+## Apaga `_process` cuando no queda nada que respirar (P2d WP-C, mejoras).
+##
+## Fuera de `BATTLE` la intensidad es fija en 0.5, así que una vez que la rampa
+## llegó a su destino y el calor del daño se apagó, el director no tiene nada que
+## hacer en cada fotograma: ni el muestreo de distancia —que además busca al jefe
+## y al ojo del dron por grupo— ni la rampa cambian nada. Lo vuelve a despertar
+## [method _wake], que llaman los cuatro hechos que sí mueven la mezcla.
+func _sleep_if_idle() -> void:
+	if _state == Global.RoundState.BATTLE or _damage_heat > 0.0:
+		return
+	if not is_equal_approx(_intensity_db, intensity_target_db()):
+		return
+	set_process(false)
+
+
+## Vuelve a encender el cálculo de intensidad. Idempotente.
+func _wake() -> void:
+	set_process(true)
 
 
 ## Mide la cercanía al jefe. Tolera que falte cualquiera de los dos extremos: sin
@@ -293,12 +326,10 @@ func intensity() -> float:
 func play_sting(id: StringName) -> void:
 	if _sting_player == null:
 		return
-	var path := String(STINGS.get(id, ""))
-	if path.is_empty() or not ResourceLoader.exists(path):
+	var stream := _sting_streams.get(id, null) as AudioStream
+	if stream == null:
 		return
-	_sting_player.stream = ResourceLoader.load(path, "AudioStream") as AudioStream
-	if _sting_player.stream == null:
-		return
+	_sting_player.stream = stream
 	_sting_player.play()
 
 
@@ -375,6 +406,14 @@ func _build() -> void:
 	_sting_player.name = "Sting"
 	_sting_player.bus = String(BUS)
 	add_child(_sting_player)
+	_sting_streams.clear()
+	for id: StringName in STINGS:
+		var path := String(STINGS[id])
+		if not ResourceLoader.exists(path):
+			continue
+		var stream := ResourceLoader.load(path, "AudioStream") as AudioStream
+		if stream != null:
+			_sting_streams[id] = stream
 
 	for index: int in STEMS.size():
 		_base_db[index] = MIX_INTRO[index]
@@ -485,6 +524,7 @@ func _on_phase_changed(enemy: Node3D, phase_id: StringName) -> void:
 ## El daño se acumula y decae; dos golpes seguidos pesan más que uno.
 func _on_drone_damaged(amount: float, _source_position: Vector3) -> void:
 	_damage_heat = clampf(_damage_heat + maxf(amount, 0.0) / DAMAGE_FULL_HP, 0.0, 1.0)
+	_wake()
 
 
 func _on_drone_destroyed(_position: Vector3) -> void:

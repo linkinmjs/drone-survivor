@@ -1,0 +1,59 @@
+{
+  "name": "cliffs",
+  "comment": [
+    "Vista previa de 'Package.zip' (WP-G2): las diez MountainRocks, sin ningun uso en el",
+    "juego (WP-D1 las dejo fuera porque el relieve horneado ya resuelve el terreno).",
+    "NO es arte del juego: va a assets/preview/cliffs/, sin import_script.",
+    "Paso del OBJ 0.05 u x escala 1.0 => 1 voxel = 5 cm y medidas del pack en metros:",
+    "rocas de 4,0 m de ancho y 4,7 a 7,8 m de alto. Las diez comparten una paleta."
+  ],
+  "source": "../../../assets/_raw/Package.zip",
+  "member_prefix": "Package/Obj/",
+  "step": 0.05,
+  "scale": 1,
+  "palette_texture": "cliffs_palette.png",
+  "emissive_texture": "",
+  "budgets": {"rock": 2500},
+  "budget_note": [
+    "2 500 por roca, el tope del paquete de trabajo. Crudas son 10 k-14 k triangulos",
+    "greedy y la cota a un solo color 6 k-9 k: el coste es geometrico, no de dithering.",
+    "Las familias bajan un 30 % y el resto lo hace 'decimate', con el factor minimo que",
+    "deja cada roca bajo el tope. 'decimate' 2 no sirve: la superficie del pack esta en",
+    "escalones de dos celdas (el grano real es 0,1 u) y votar bloques de 2 no cambia nada",
+    "(7 052 -> 7 170 en la roca 0). Con 3 (bloques de 15 cm) entran las rocas 4, 8 y 9;",
+    "con 4 (20 cm) la 0, 2, 3, 6 y 7; la 1 y la 5, las de mas relieve, piden 5 (25 cm)."
+  ],
+  "materials": {},
+  "palette_families": {"199": [198, 199], "212": [211, 212], "190": [189, 190, 191], "196": [195, 196], "203": [202, 203]},
+  "palette_families_note": [
+    "Pares de marrones y verdes a 13/255 uno de otro (198/199, 211/212, 195/196, 202/203)",
+    "y la rampa de liquen 189-191: el mismo dithering de los packs nuke y city."
+  ],
+  "window_indices": {},
+  "pieces": {
+    "rock_0": {"file": "MountainRocks-0.obj", "decimate": 4},
+    "rock_1": {"file": "MountainRocks-1.obj", "decimate": 5},
+    "rock_2": {"file": "MountainRocks-2.obj", "decimate": 4},
+    "rock_3": {"file": "MountainRocks-3.obj", "decimate": 4},
+    "rock_4": {"file": "MountainRocks-4.obj", "decimate": 3},
+    "rock_5": {"file": "MountainRocks-5.obj", "decimate": 5},
+    "rock_6": {"file": "MountainRocks-6.obj", "decimate": 4},
+    "rock_7": {"file": "MountainRocks-7.obj", "decimate": 4},
+    "rock_8": {"file": "MountainRocks-8.obj", "decimate": 3},
+    "rock_9": {"file": "MountainRocks-9.obj", "decimate": 3}
+  },
+  "houses": {},
+  "props": {
+    "cliff_rock_00": {"piece": "rock_0", "kind": "rock"},
+    "cliff_rock_01": {"piece": "rock_1", "kind": "rock"},
+    "cliff_rock_02": {"piece": "rock_2", "kind": "rock"},
+    "cliff_rock_03": {"piece": "rock_3", "kind": "rock"},
+    "cliff_rock_04": {"piece": "rock_4", "kind": "rock"},
+    "cliff_rock_05": {"piece": "rock_5", "kind": "rock"},
+    "cliff_rock_06": {"piece": "rock_6", "kind": "rock"},
+    "cliff_rock_07": {"piece": "rock_7", "kind": "rock"},
+    "cliff_rock_08": {"piece": "rock_8", "kind": "rock"},
+    "cliff_rock_09": {"piece": "rock_9", "kind": "rock"}
+  },
+  "preview": {"pack": "cliffs", "row": "Packs/Barrancas"}
+}

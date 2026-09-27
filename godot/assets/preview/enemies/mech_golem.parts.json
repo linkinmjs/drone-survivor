@@ -1,0 +1,76 @@
+{
+  "comment": [
+    "Vista previa de MechGolem, bruto bipedo (docs/14 3.3, WP-32). WP-G2.",
+    "NO es el enemigo: es el .vox entero en UNA sola parte, sin puntos debiles, sin",
+    "colision y sin import_script, para mirarlo en la galeria antes de su WP. Cuando",
+    "el enemigo se produzca, su parts.json de verdad vive en enemies/<id>/.",
+    "voxel_size de docs/14 2; axis_map y origen como el Arachnodroid (Z del .vox es la",
+    "altura, centro de la huella en el origen, base en y = 0). emissive_strength fijo en",
+    "3,0 (el techo del Arachnodroid): el MATL de estos packs llega a energia 8 y con",
+    "eso el visor quema a blanco en la galeria."
+  ],
+  "source": "../../../../assets/_raw/MechGolem.zip!Package/MechaGolem.vox",
+  "name": "mech_golem",
+  "voxel_size": 0.5,
+  "origin_voxel": [26, 20, 0],
+  "grid_size": [52, 40, 54],
+  "axis_map": {"x": "+x", "y": "+z", "z": "-y"},
+  "palette_texture": "mech_golem_palette.png",
+  "emissive_palette_indices": [6, 7, 8],
+  "emissive_strength": 3,
+  "collision_default": "box",
+  "expect": {"part_count": 1, "triangle_budget": 8000, "total_height": 27, "height_tolerance": 0.01},
+  "preview": {
+    "pack": "mech",
+    "class": "enemy",
+    "row": "Enemigos/Vista previa",
+    "sort": "height",
+    "preview_only": true,
+    "note": "vista previa: el .vox entero en una parte, no es el enemigo jugable"
+  },
+  "parts": [
+    {
+      "id": "body",
+      "parent": null,
+      "boxes": [[0, 0, 0, 51, 39, 53]],
+      "pivot": [25.5, 19.5, -0.5],
+      "flags": ["root"]
+    }
+  ],
+  "metadata": {
+    "voxsplit_version": "1.0.0",
+    "generated_at": "2026-09-24T00:00:00Z",
+    "source": "../../../../assets/_raw/MechGolem.zip!Package/MechaGolem.vox",
+    "part_count": 1,
+    "voxel_count": 17648,
+    "triangle_count": 6952,
+    "quad_count": 3476,
+    "unassigned_count": 0,
+    "total_height": 27,
+    "aabb_min": [-13, 0, -10],
+    "aabb_max": [13, 27, 10],
+    "footprint": [26, 20],
+    "density": 220,
+    "emissive_strength": 3,
+    "emissive_indices": {
+      "6": {"color": [120, 169, 254, 255], "voxels": 17, "weight": "0.08", "flux": "3", "energy": 0.32},
+      "7": {"color": [249, 122, 102, 255], "voxels": 8, "weight": "1", "flux": "3", "energy": 4},
+      "8": {"color": [132, 203, 248, 255], "voxels": 1, "weight": "1", "flux": "2", "energy": 2}
+    },
+    "root_node": "MechGolemRoot",
+    "parts": {
+      "body": {
+        "parent": null,
+        "aabb_min": [-13, 0, -10],
+        "aabb_max": [13, 27, 10],
+        "center_of_mass": [-0.000368, 17.005326, 0.899195],
+        "voxel_count": 17648,
+        "triangle_count": 6952,
+        "estimated_mass": 485320,
+        "has_emissive_surface": true,
+        "pivot_world": [0, 0, 0],
+        "translation": [0, 0, 0]
+      }
+    }
+  }
+}

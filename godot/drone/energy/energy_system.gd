@@ -335,13 +335,7 @@ func _throttle() -> float:
 
 
 func _find_drone() -> Drone:
-	var node := get_parent()
-	while node != null:
-		var found := node as Drone
-		if found != null:
-			return found
-		node = node.get_parent()
-	return null
+	return Drone.find_owner(self)
 
 
 ## Busca el nodo que expone `can_arm_energy`. `Object.get()` devuelve `null` para

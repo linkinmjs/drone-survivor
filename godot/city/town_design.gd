@@ -253,10 +253,37 @@ const AWNING_REACH: float = 4.0
 const AWNING_PIECES: Array[StringName] = [&"awning_orange", &"gas_station", &"bus_stop"]
 
 ## Holguras por omisión de una arboleda, en metros: a la franja de calle, al
-## borde de manzana, a la huella de un edificio y al eje de la ruta.
+## borde de manzana, a la huella de un edificio, al eje de la ruta, a una roca,
+## al cauce del arroyo y a un tramo de alambrado.
+##
+## Las tres últimas son de WP-L (P2d). Faltaban, y lo que falta no se mide: sin
+## `rocks` el resolvedor plantaba ocho árboles **dentro** de `rock_e` y de
+## `rock_a` —hasta 6,70 m adentro del casco—, sin `water` cincuenta y dos
+## instancias caían en el canal del arroyo (la banda de ±18 m está centrada en
+## el cauce y nadie le restaba los 6 m de agua) y sin `fences` tres quedaban a
+## un metro del alambrado del disco. Los valores por omisión son los que dejan
+## la roca grande del arroyo leyéndose como un hito de borde con árboles
+## **alrededor** y no encima.
+##
+## Todas se miden **desde la copa** y no desde el tronco (ver
+## [method TownPlanner._grove_spot_free]): la holgura efectiva de una instancia
+## es `clear[x] + radio de la especie × escala`. Un número medido al tronco
+## significa cosas distintas para un arbusto de 1,2 m y para un sauce de 6,5.
 const GROVE_CLEAR: Dictionary[StringName, float] = {
 	&"streets": 6.0, &"blocks": 4.0, &"houses": 3.0, &"route": 12.0,
+	&"rocks": 1.0, &"water": 4.0, &"fences": 1.0,
 }
+
+## Fracción mínima del polígono de una arboleda que tiene que quedar
+## **plantable** —celdas cuya copa despeja todo—, si la arboleda no declara la
+## suya en `min_free_ratio` (revisión de WP-L, hallazgo 2).
+##
+## Es lo que impide que la fila de densidad de `town_plan_check` apruebe una
+## arboleda a la que las holguras le comieron todo el sitio: medir la densidad
+## contra la superficie plantable es lo correcto —la banda del arroyo está
+## centrada en el cauce—, pero sin un piso una superficie plantable de cero
+## metros aprobaría con cero árboles.
+const GROVE_MIN_FREE_RATIO: float = 0.25
 
 ## Tolerancia con la que un nodo declarado tiene que caer sobre el eje que dice
 ## tocar, en metros.
@@ -859,6 +886,38 @@ func _validate_markers() -> void:
 					% [index, kind, ", ".join(_names(MARKER_KINDS))])
 		if to_vector2(data.get("pos", null)) == null:
 			_fail(line, "el marcador %d no tiene una 'pos' de dos números" % index)
+		_validate_whitelist(data, line, "el marcador %d" % index)
+
+
+## Las dos claves de lista blanca de WP-L, que un prop o un marcador puede
+## declarar además de su pieza, su posición y su giro:
+##
+## - `allow_overlap`: **lista blanca explícita** de identificadores de diseño con
+##   los que este prop puede solaparse. Un auto bajo una marquesina maciza se
+##   solaparía con ella a propósito; un auto encima de una casa es un error. La
+##   única forma de distinguirlos es que el diseño lo diga, y por eso es una
+##   lista de nombres y no un booleano.
+## - `on_road`: el prop está en la calzada a propósito. Los tres autos
+##   «apuntando hacia afuera» de `docs/17` §0.10 son precisamente eso: coches
+##   abandonados en medio de la calle cuando la gente se fue.
+##
+## Se valida la **forma** acá y el **contenido** en `tools/town_plan_check.gd`
+## fila B, que falla si un identificador de `allow_overlap` no se usa —el prop no
+## pisa ese sólido— o si un prop con `on_road` apoya fuera del asfalto. Una lista
+## blanca que nadie audita deja de ser una lista blanca y pasa a ser un permiso
+## general.
+func _validate_whitelist(data: Dictionary, line: int, who: String) -> void:
+	if data.has("allow_overlap"):
+		var raw: Variant = data["allow_overlap"]
+		if typeof(raw) != TYPE_ARRAY:
+			_fail(line, "%s declara 'allow_overlap' y no es una lista" % who)
+		else:
+			for slot: int in (raw as Array).size():
+				if typeof((raw as Array)[slot]) != TYPE_STRING:
+					_fail(line, "%s declara 'allow_overlap[%d]' y no es un texto"
+							% [who, slot])
+	if data.has("on_road") and typeof(data["on_road"]) != TYPE_BOOL:
+		_fail(line, "%s declara 'on_road' y no es un booleano" % who)
 
 
 ## Rocas, caseríos, props, arboledas, cercos, arroyo, puente y plaza.
@@ -875,6 +934,8 @@ func _validate_scatter() -> void:
 				_fail(line, "la entrada %d de '%s' no tiene una 'pos' de dos números" % [index, key])
 			_check_piece(StringName(String(data.get("piece", ""))), line,
 					"la entrada %d de '%s'" % [index, key])
+			if key == "props":
+				_validate_whitelist(data, line, "el prop %d" % index)
 
 	for index: int in _array("groves").size():
 		var entry: Variant = _array("groves")[index]
@@ -889,6 +950,10 @@ func _validate_scatter() -> void:
 			_fail(line, "la arboleda %d no declara una densidad positiva" % index)
 		if float(grove.get("min_spacing", 0.0)) < 0.0:
 			_fail(line, "la arboleda %d declara una separación mínima negativa" % index)
+		var ratio := float(grove.get("min_free_ratio", GROVE_MIN_FREE_RATIO))
+		if ratio < 0.0 or ratio > 1.0:
+			_fail(line, "la arboleda %d declara 'min_free_ratio' = %.3f: va de 0 a 1"
+					% [index, ratio])
 		var species := grove_species(index)
 		if species.is_empty():
 			_fail(line, "la arboleda %d no declara ninguna especie" % index)
@@ -902,7 +967,7 @@ func _validate_scatter() -> void:
 			for key: Variant in (clear as Dictionary):
 				if not GROVE_CLEAR.has(StringName(String(key))):
 					_fail(line, "la arboleda %d declara la holgura '%s', que no existe"
-							% [index, key] + " ('streets', 'blocks', 'houses', 'route')")
+							% [index, key] + " (%s)" % ", ".join(_grove_clear_names()))
 		elif clear != null:
 			_fail(line, "la holgura de la arboleda %d no es un objeto" % index)
 
@@ -966,6 +1031,8 @@ func _validate_scatter() -> void:
 							% index)
 				_check_piece(StringName(String((prop as Dictionary).get("piece", ""))),
 						line, "el prop %d de la plaza" % index)
+				_validate_whitelist(prop as Dictionary, line,
+						"el prop %d de la plaza" % index)
 
 
 func _validate_terrain() -> void:
@@ -1196,6 +1263,16 @@ func grove_species(index: int) -> Array[Dictionary]:
 	return out
 
 
+## Fracción mínima del polígono de la arboleda [param index] que tiene que
+## quedar plantable: la que declara en `min_free_ratio` o
+## [constant GROVE_MIN_FREE_RATIO].
+func grove_min_free_ratio(index: int) -> float:
+	var list: Array = groves()
+	if index < 0 or index >= list.size():
+		return GROVE_MIN_FREE_RATIO
+	return float((list[index] as Dictionary).get("min_free_ratio", GROVE_MIN_FREE_RATIO))
+
+
 ## Holguras de la arboleda [param index], con los valores por omisión de
 ## [constant GROVE_CLEAR] rellenando lo que no declare.
 func grove_clear(index: int) -> Dictionary[StringName, float]:
@@ -1366,6 +1443,26 @@ static func to_vector2(value: Variant) -> Variant:
 	return Vector2(float(pair[0]), float(pair[1]))
 
 
+## La lista blanca de solapes de un prop o de un marcador: los identificadores
+## de diseño de los sólidos que **puede** pisar (WP-L).
+##
+## Vacía es lo normal: un prop que no declara nada no puede pisar nada, que es
+## lo que la fila B de `town_plan_check` exige.
+static func allow_overlap_of(data: Dictionary) -> Array[StringName]:
+	var out: Array[StringName] = []
+	var raw: Variant = data.get("allow_overlap", null)
+	if typeof(raw) != TYPE_ARRAY:
+		return out
+	for entry: Variant in (raw as Array):
+		out.append(StringName(String(entry)))
+	return out
+
+
+## Verdadero si el prop está en la calzada **a propósito** (WP-L).
+static func on_road_of(data: Dictionary) -> bool:
+	return bool(data.get("on_road", false))
+
+
 ## Una lista de pares `[x, z]` como polilínea o polígono en XZ.
 static func to_vector2_list(value: Variant) -> PackedVector2Array:
 	var out := PackedVector2Array()
@@ -1387,6 +1484,16 @@ static func _to_float_list(value: Variant) -> PackedFloat32Array:
 		if typeof(item) == TYPE_FLOAT or typeof(item) == TYPE_INT:
 			out.append(float(item))
 	return out
+
+
+## Los nombres de holgura que una arboleda puede declarar, para el mensaje de
+## error. Salen de [constant GROVE_CLEAR] y no de una lista aparte: una lista
+## aparte se desincroniza la primera vez que se agrega una clave.
+static func _grove_clear_names() -> PackedStringArray:
+	var out: Array[StringName] = []
+	for key: StringName in GROVE_CLEAR:
+		out.append(key)
+	return _names(out)
 
 
 static func _names(list: Array[StringName]) -> PackedStringArray:

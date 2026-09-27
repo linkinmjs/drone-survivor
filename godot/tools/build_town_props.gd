@@ -660,7 +660,50 @@ func _build_gas_station() -> void:
 				Vector3(x, 7.90, -10.40), Vector3(x, 7.90, -12.80), normal,
 				Color.WHITE, _cell_rect("price"))
 
-	_emit_piece("gas_station", "building", build, "box", {})
+	# Colisión **compuesta** (WP-L, P2d). Hasta P2c la estación colisionaba con
+	# una sola caja de 17,7 × 8 × 25,4 m: una estación de servicio maciza. El
+	# toldo, los dos autos y el puesto de pila caían dentro de ella —el puesto,
+	# además, hacía que la esfera de 2,5 m de `BatterySpawner` diera siempre
+	# ocupado, así que ese puesto no repartió nunca una pila— y el dron no podía
+	# pasar por debajo de la marquesina, que es el gesto que la estación existe
+	# para ofrecer.
+	#
+	# Las nueve cajas son las siete cosas macizas —la losa de la marquesina, la
+	# tienda, las cuatro columnas y el cartel de precios— con la losa partida en
+	# tres (ver abajo). Entre ellas hay aire, y el aire es la pieza.
+	#
+	# Las coordenadas son las de la pieza **ya llevada a su origen**
+	# (`base_centre`), no las del constructor: el desfase es (−1,35; 0; +0,20).
+	# La primera caja se llama `IntactShape` porque es la que
+	# `CityGrid._spawn_building()` busca por nombre, y va **centrada en XZ** a
+	# propósito: el constructor usa la posición XZ de esa forma para anular el
+	# desfase de origen de las piezas FBX, así que una `IntactShape` descentrada
+	# correría la malla de la estación esos mismos metros. Por eso la losa se
+	# parte en tres: la caja centrada cubre la chapa entre x ±5,75 y z ±11,9, y
+	# dos tiras cubren lo que la chapa tiene de más hacia −X y hacia +Z. Así la
+	# colisión es **exactamente** la chapa, y sobre la mitad trasera de la tienda
+	# —donde no hay marquesina— queda aire: es donde vive el puesto de pila, que
+	# necesita una esfera de 2,5 m libre (`BatterySpawner`).
+	_emit_piece("gas_station", "building", build, "compound", {"parts": [
+		{"name": "IntactShape", "centre": Vector3(0.0, 6.285, 0.0),
+				"size": Vector3(11.5, 0.83, 23.8)},
+		{"name": "IntactShape_canopy_w", "centre": Vector3(-7.1, 6.285, 0.2),
+				"size": Vector3(2.7, 0.83, 24.2)},
+		{"name": "IntactShape_canopy_n", "centre": Vector3(0.0, 6.285, 12.1),
+				"size": Vector3(11.5, 0.83, 0.4)},
+		{"name": "IntactShape_store", "centre": Vector3(4.65, 2.15, 0.2),
+				"size": Vector3(8.4, 4.3, 12.4)},
+		{"name": "IntactShape_column_sw", "centre": Vector3(-6.35, 3.0, -8.8),
+				"size": Vector3(0.7, 6.0, 0.7)},
+		{"name": "IntactShape_column_nw", "centre": Vector3(-6.35, 3.0, 9.2),
+				"size": Vector3(0.7, 6.0, 0.7)},
+		{"name": "IntactShape_column_se", "centre": Vector3(3.65, 3.0, -8.8),
+				"size": Vector3(0.7, 6.0, 0.7)},
+		{"name": "IntactShape_column_ne", "centre": Vector3(3.65, 3.0, 9.2),
+				"size": Vector3(0.7, 6.0, 0.7)},
+		{"name": "IntactShape_sign", "centre": Vector3(-6.95, 4.0, -11.4),
+				"size": Vector3(0.4, 8.0, 2.6)},
+	]})
 
 
 ## Tanque de agua elevado: el hito del noreste (`docs/17` §2, hito A).
@@ -1050,7 +1093,8 @@ func _emit_piece(piece_id: String, kind: String, build: Builder, shape: String,
 				% [piece_id, triangles, budget])
 	var folder := PIECE_DIR if kind == "building" else "%s/props" % PIECE_DIR
 	var scene_path := "%s/%s.tscn" % [folder, piece_id]
-	_save_scene(piece_id, kind, bounds, shape, scene_path, triangles, mesh_path)
+	var parts: Array = extra.get("parts", []) as Array
+	_save_scene(piece_id, kind, bounds, shape, scene_path, triangles, mesh_path, parts)
 
 	_manifest[piece_id] = {
 		"class": "building" if kind == "building" else "prop",
@@ -1065,6 +1109,20 @@ func _emit_piece(piece_id: String, kind: String, build: Builder, shape: String,
 		"shape": shape,
 		"surfaces": stored.get_surface_count(),
 	}
+	# La lista de cajas viaja en el manifiesto y no sólo en la escena: es lo que
+	# permite a `TownPlanner` saber que hay aire bajo la marquesina sin abrir un
+	# `.tscn`, y por lo tanto a `town_plan_check` seguir corriendo en `--headless`
+	# puro. Se escribe al milímetro, como todo lo demás del manifiesto.
+	if not parts.is_empty():
+		var listed: Array = []
+		for entry: Variant in parts:
+			var part: Dictionary = entry
+			listed.append({
+				"name": String(part["name"]),
+				"centre": _snapped_triple(part["centre"] as Vector3),
+				"size": _snapped_triple(part["size"] as Vector3),
+			})
+		_manifest[piece_id]["parts"] = listed
 	print("  %-18s %-8s %5d tris · %5.2f × %5.2f × %5.2f m · %d superficies"
 			% [piece_id, kind, triangles, bounds.size.x, bounds.size.y,
 			bounds.size.z, stored.get_surface_count()])
@@ -1109,15 +1167,23 @@ func _place_origin(mesh: ArrayMesh, origin: String) -> ArrayMesh:
 ## dos `.tscn` con md5 distinto y el criterio de reproducibilidad de WP-D1 no se
 ## podía cumplir. Escrito a mano el archivo es una función pura de la pieza.
 func _save_scene(piece_id: String, kind: String, bounds: AABB, shape: String,
-		path: String, triangles: int, mesh_path: String) -> void:
+		path: String, triangles: int, mesh_path: String,
+		parts: Array = []) -> void:
 	var is_building := kind == "building"
-	var steps := 3 if shape != "none" else 2
+	var boxes := parts.size() if shape == "compound" else (1 if shape != "none" else 0)
+	var steps := 2 + boxes
 	var lines := PackedStringArray()
 	lines.append("[gd_scene load_steps=%d format=3]" % steps)
 	lines.append("")
 	lines.append("[ext_resource type=\"ArrayMesh\" path=\"%s\" id=\"1_mesh\"]" % mesh_path)
 	lines.append("")
-	if shape != "none":
+	if shape == "compound":
+		for index: int in parts.size():
+			var part: Dictionary = parts[index]
+			lines.append("[sub_resource type=\"BoxShape3D\" id=\"BoxShape3D_%d\"]" % index)
+			lines.append("size = %s" % _vector_text(part["size"] as Vector3))
+			lines.append("")
+	elif shape != "none":
 		lines.append("[sub_resource type=\"BoxShape3D\" id=\"BoxShape3D_intact\"]")
 		lines.append("size = %s" % _vector_text(bounds.size))
 		lines.append("")
@@ -1141,7 +1207,16 @@ func _save_scene(piece_id: String, kind: String, bounds: AABB, shape: String,
 		# 1 = VISIBILITY_RANGE_FADE_SELF.
 		lines.append("visibility_range_fade_mode = 1")
 	lines.append("mesh = ExtResource(\"1_mesh\")")
-	if shape != "none":
+	if shape == "compound":
+		for index: int in parts.size():
+			var part: Dictionary = parts[index]
+			lines.append("")
+			lines.append("[node name=\"%s\" type=\"CollisionShape3D\" parent=\".\"]"
+					% String(part["name"]))
+			lines.append("transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, %s)"
+					% _components_text(part["centre"] as Vector3))
+			lines.append("shape = SubResource(\"BoxShape3D_%d\")" % index)
+	elif shape != "none":
 		lines.append("")
 		lines.append("[node name=\"IntactShape\" type=\"CollisionShape3D\" parent=\".\"]")
 		lines.append("transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, %s)"
@@ -1161,6 +1236,12 @@ func _save_scene(piece_id: String, kind: String, bounds: AABB, shape: String,
 ## precisión con la que se declara todo en el manifiesto.
 func _vector_text(value: Vector3) -> String:
 	return "Vector3(%s)" % _components_text(value)
+
+
+## `[x, y, z]` al milímetro, que es la precisión del manifiesto.
+func _snapped_triple(value: Vector3) -> Array:
+	return [snappedf(value.x, 0.001), snappedf(value.y, 0.001),
+			snappedf(value.z, 0.001)]
 
 
 func _components_text(value: Vector3) -> String:

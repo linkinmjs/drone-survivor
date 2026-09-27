@@ -63,6 +63,19 @@ const MAX_SHOTS_PER_TICK: int = 2
 ## Refresco de la asistencia de puntería, en Hz (`docs/08` §4).
 const AIM_ASSIST_HZ: float = 20.0
 
+## Cada cuánto se reintenta buscar el [ProjectilePool] del nivel, en segundos.
+##
+## El pool se resuelve una vez en un `_ready` diferido. En una escena que no
+## tiene ninguno —un dron de adorno, un banco de vuelo— el sondeo corría en cada
+## tick de física: `get_nodes_in_group` más un `is_ancestor_of` por candidato,
+## cien veces por segundo y para siempre (P2d WP-C §3). Un segundo entre intentos
+## alcanza de sobra para adoptar el pool que aparezca a mitad de partida.
+const POOL_RETRY_SECONDS: float = 1.0
+
+## Marca que [method _create_fallback_pool] le pone al pool que crea, para que
+## [method _find_pool] prefiera el del nivel y [method _poll_pool] siga buscándolo.
+const FALLBACK_POOL_META: StringName = &"weapon_fallback_pool"
+
 ## Variación mínima de `ratio` que publica `Events.weapon_heat_changed`. Sin este
 ## umbral serían cien emisiones por segundo (`docs/08` §2.4).
 const HEAT_EVENT_EPSILON: float = 0.01
@@ -70,8 +83,16 @@ const HEAT_EVENT_EPSILON: float = 0.01
 ## Ruta del perfil por defecto del MVP.
 const DEFAULT_PROFILE: String = "res://drone/weapons/profiles/default_gun.tres"
 
+## El mismo perfil, ya cargado. Ver [method _ready].
+const DEFAULT_PROFILE_RES: WeaponProfile = preload(
+		"res://drone/weapons/profiles/default_gun.tres")
+
 ## Ruta de la escena del destello de boca.
 const MUZZLE_FLASH_SCENE: String = "res://drone/weapons/muzzle_flash.tscn"
+
+## El mismo fogonazo, ya cargado. Ver [method _find_or_create_flash].
+const MUZZLE_FLASH_PACKED: PackedScene = preload(
+		"res://drone/weapons/muzzle_flash.tscn")
 
 ## Bus de audio del arma (`docs/04` §3.2).
 const BUS: StringName = &"Weapons"
@@ -132,19 +153,23 @@ var _last_heat_event: float = -1.0
 var _last_overheated_event: bool = false
 var _assist_mode_override: int = -1
 var _last_aim_direction: Vector3 = Vector3.FORWARD
+var _pool_retry: float = 0.0
 
 
 func _ready() -> void:
+	# Sin guarda de `null` después: un `preload` que no resuelve es un error de
+	# **parseo** del script, así que [constant DEFAULT_PROFILE_RES] siempre está.
 	if profile == null:
-		profile = load(DEFAULT_PROFILE) as WeaponProfile
-	if profile == null:
-		push_error("WeaponMount: no hay perfil y no se pudo cargar %s." % DEFAULT_PROFILE)
+		profile = DEFAULT_PROFILE_RES
 	_resolve_nodes()
 	# Semilla propia: `weapon_check` necesita que la dispersión sea reproducible.
 	_rng.seed = Global.round_seed
 	_shot_accumulator = _interval()
 	_configure_assist()
 	_publish_heat(true)
+	# Diferido: el `_ready()` de un descendiente del dron corre antes de que el
+	# nivel termine de montar su `ProjectilePool`.
+	_resolve_pool.call_deferred()
 
 
 ## Todo el ciclo del arma en un acumulador por tick (`docs/08` §2.2 a §2.4).
@@ -161,8 +186,7 @@ func _physics_process(delta: float) -> void:
 	# descendiente falla con «Parent node is busy setting up children» —los ancestros
 	# siguen propagando el `NOTIFICATION_READY`—, y un dron de adorno o un banco de
 	# vuelo no tienen por qué pagar 256 proyectiles y 48 nodos de VFX por existir.
-	if _pool == null:
-		_pool = _find_pool()
+	_poll_pool(delta)
 	PerfProbe.begin(&"weapon_mount")
 	_track_aim()
 	_update_burst(delta)
@@ -185,8 +209,13 @@ func fire() -> bool:
 	# 1) Perfil y pool.
 	if profile == null:
 		return false
+	# Primero se **busca** el del nivel y sólo si no hay ninguno se crea el de respaldo:
+	# con el sondeo a [constant POOL_RETRY_SECONDS], un disparo en el primer segundo
+	# podía llegar antes que la búsqueda y crear un segundo pool al lado del del nivel.
+	if _pool == null or not is_instance_valid(_pool):
+		_pool = _find_pool()
 	if _pool == null:
-		_pool = _find_or_create_pool()
+		_pool = _create_fallback_pool()
 	if _pool == null:
 		return false
 	# 2) Sobrecalentamiento.
@@ -640,18 +669,12 @@ func _apply_muzzle_offset() -> void:
 
 
 func _find_drone() -> Drone:
-	var node := get_parent()
-	while node != null:
-		var found := node as Drone
-		if found != null:
-			return found
-		node = node.get_parent()
-	return null
+	return Drone.find_owner(self)
 
 
 func _find_aim_source() -> Node3D:
 	if drone != null:
-		var camera := drone.get_node_or_null(^"CameraRig/FPVCamera") as Node3D
+		var camera := drone.get_node_or_null(Drone.FPV_CAMERA_PATH) as Node3D
 		if camera != null:
 			return camera
 	return drone
@@ -681,7 +704,7 @@ func _find_or_create_flash() -> MuzzleFlash:
 		return existing
 	var scene := profile.muzzle_flash_scene if profile != null else null
 	if scene == null:
-		scene = load(MUZZLE_FLASH_SCENE) as PackedScene
+		scene = MUZZLE_FLASH_PACKED
 	if scene == null:
 		return null
 	var instance := scene.instantiate() as MuzzleFlash
@@ -695,21 +718,42 @@ func _find_or_create_flash() -> MuzzleFlash:
 	return instance
 
 
-## Busca el pool del nivel por el grupo `projectile_pool` dentro de
-## `get_tree().current_scene` y, si no hay ninguno, crea uno y lo **agrega al
-## `current_scene`**: así el arma funciona en `flight_sandbox` y en `weapon_check`
-## sin nivel, y el nivel sigue siendo el dueño natural cuando existe
-## (`docs/08` §2.6).
-func _find_or_create_pool() -> ProjectilePool:
-	var existing := _find_pool()
-	if existing != null:
-		return existing
+## Resuelve el pool del nivel si todavía no lo tiene. No crea ninguno.
+func _resolve_pool() -> void:
+	if _pool != null and is_instance_valid(_pool):
+		return
+	_pool = _find_pool()
+
+
+## Reintenta la búsqueda del pool a [constant POOL_RETRY_SECONDS], por acumulador.
+##
+## Sigue buscando mientras el arma use el pool **de respaldo**: si el del nivel
+## aparece después, el arma se pasa a ese. El de respaldo no se libera —otra arma
+## puede haberlo adoptado—; se queda sin uso hasta que se descargue la escena.
+func _poll_pool(delta: float) -> void:
+	if _pool != null and is_instance_valid(_pool) and not _is_fallback(_pool):
+		return
+	_pool_retry -= delta
+	if _pool_retry > 0.0:
+		return
+	_pool_retry = POOL_RETRY_SECONDS
+	var found := _find_pool()
+	if found != null:
+		_pool = found
+
+
+## Crea el pool de respaldo y lo **agrega al `current_scene`**: así el arma funciona
+## en `flight_sandbox` y en `weapon_check` sin nivel, y el nivel sigue siendo el dueño
+## natural cuando existe (`docs/08` §2.6). Quien llama ya buscó con
+## [method _find_pool] y no encontró ninguno.
+func _create_fallback_pool() -> ProjectilePool:
 	var tree := get_tree()
 	if tree == null:
 		return null
 	var scene := tree.current_scene
 	var pool := ProjectilePool.new()
 	pool.name = ProjectilePool.FALLBACK_NAME
+	pool.set_meta(FALLBACK_POOL_META, true)
 	pool.profile = profile
 	var host: Node = scene if scene != null else tree.root
 	if host == null:
@@ -718,21 +762,35 @@ func _find_or_create_pool() -> ProjectilePool:
 	return pool
 
 
-## Pool ya instalado en la escena actual, o `null`. No crea nada.
+## Pool ya instalado en la escena actual, o `null`. No crea nada. Prefiere el del
+## nivel al de respaldo que haya creado un arma con [method _create_fallback_pool].
 func _find_pool() -> ProjectilePool:
 	var tree := get_tree()
 	if tree == null:
 		return null
 	var scene := tree.current_scene
+	var fallback: ProjectilePool = null
 	for node: Node in tree.get_nodes_in_group(ProjectilePool.GROUP):
 		var found := node as ProjectilePool
 		if found == null:
 			continue
-		if scene == null or found == scene or scene.is_ancestor_of(found):
-			if profile != null:
-				found.set_profile(profile)
-			return found
-	return null
+		if scene != null and found != scene and not scene.is_ancestor_of(found):
+			continue
+		if _is_fallback(found):
+			if fallback == null:
+				fallback = found
+			continue
+		if profile != null:
+			found.set_profile(profile)
+		return found
+	if fallback != null and profile != null:
+		fallback.set_profile(profile)
+	return fallback
+
+
+## Verdadero si [param pool] es un pool de respaldo creado por un arma.
+func _is_fallback(pool: ProjectilePool) -> bool:
+	return pool.has_meta(FALLBACK_POOL_META)
 
 
 ## Copia al [WeaponAimAssist] el cono y el alcance del perfil y la fuerza que

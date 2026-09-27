@@ -33,6 +33,9 @@ signal view_warmed_up
 ## Menú de pausa del juego.
 const PAUSE_MENU_SCENE: String = "res://gui/pause_menu.tscn"
 
+## El mismo menú de pausa, ya cargado. Ver [method add_pause_menu].
+const PAUSE_MENU_PACKED: PackedScene = preload("res://gui/pause_menu.tscn")
+
 ## Destino de `MENU_MAIN` (`docs/04` §4.9).
 const MAIN_MENU_SCENE: String = "res://gui/main_menu.tscn"
 
@@ -235,13 +238,12 @@ func _next_draw() -> void:
 func add_pause_menu() -> PauseMenu:
 	if is_instance_valid(_pause_menu):
 		return _pause_menu
-	var packed: PackedScene = null
-	if ResourceLoader.exists(PAUSE_MENU_SCENE):
-		packed = load(PAUSE_MENU_SCENE) as PackedScene
-	if packed == null:
-		push_error("LevelBase: no se pudo cargar %s" % PAUSE_MENU_SCENE)
-		return null
-	var menu := packed.instantiate() as PauseMenu
+	# `preload` y no `load`: esto corre al apretar Escape y **antes** de pausar el
+	# árbol, así que un `load()` síncrono del menú se cobraba en el cuadro de la
+	# pulsación, con el juego todavía corriendo (P2d WP-C §5).
+	# Sin guarda de `null`: un `preload` que no resuelve es un error de **parseo** del
+	# script, así que acá la escena siempre está.
+	var menu := PAUSE_MENU_PACKED.instantiate() as PauseMenu
 	if menu == null:
 		push_error("LevelBase: %s no instancia un PauseMenu" % PAUSE_MENU_SCENE)
 		return null

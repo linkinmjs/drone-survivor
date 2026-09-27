@@ -43,6 +43,12 @@ var log_path: String = "user://output.log"
 
 ## Claves de traducción `ERR_*` acumuladas durante el arranque. El menú principal
 ## las muestra con `UI.alert()` y luego vacía la lista.
+##
+## Se escribe con [method report_startup_error], que **deduplica**: los errores de
+## arranque los publica cada instancia del sistema que falla, y el menú mostraba
+## treinta y una veces «ERR_ENEMY_PART_NO_BODY» —una por parte— en un solo cuadro
+## de diálogo (P2d WP-C, mejoras). Anexar a mano sigue funcionando: lo que
+## deduplica es el método.
 var startup_errors: Array[String] = []
 
 ## Id de catálogo de la ronda elegida en el menú de rondas.
@@ -68,6 +74,27 @@ var _startup_settings_loaded: bool = false
 
 func _ready() -> void:
 	debug = OS.get_cmdline_user_args().has("--debug")
+
+
+## Anota la clave [param key] en [member startup_errors] si no estaba ya.
+func report_startup_error(key: String) -> void:
+	if key.is_empty() or startup_errors.has(key):
+		return
+	startup_errors.append(key)
+
+
+## Deja el estado de partida listo para la ronda [param id] con la semilla
+## [param seed_value] (P2d WP-C, mejoras).
+##
+## Es el **único** punto que fija las tres cosas a la vez: los tres caminos que
+## arrancan una ronda —el menú de rondas y los dos botones de la tarjeta de
+## resultado— escribían `selected_round` y `round_seed` cada uno por su lado y
+## ninguno apagaba [member debug_freeze_ai], así que un check que la hubiera
+## dejado encendida dejaba al jefe congelado en la partida siguiente.
+func begin_round(id: String, seed_value: int) -> void:
+	selected_round = id
+	round_seed = seed_value
+	debug_freeze_ai = false
 
 
 ## Crea las carpetas de usuario que el juego necesita. Es idempotente por directorio:

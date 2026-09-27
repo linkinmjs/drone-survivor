@@ -229,8 +229,7 @@ func _on_round_pressed(id: String) -> void:
 	if round_data.is_empty():
 		return
 	_busy = true
-	Global.selected_round = id
-	Global.round_seed = randi()
+	Global.begin_round(id, randi())
 	SceneTransition.change_scene(RoundCatalog.level_scene_for(round_data), true)
 
 

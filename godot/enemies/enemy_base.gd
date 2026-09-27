@@ -102,6 +102,10 @@ var _parts: Dictionary[StringName, EnemyPart] = {}
 ## [method get_parts] no arme un arreglo por llamada (WP-29).
 var _parts_list: Array[EnemyPart] = []
 var _weak_points: Dictionary[StringName, WeakPoint] = {}
+
+## Los mismos puntos débiles de [member _weak_points] en orden de construcción,
+## por la misma razón que [member _parts_list] (P2d WP-C §8).
+var _weak_points_list: Array[WeakPoint] = []
 var _legs: Array[Dictionary] = []
 var _phase_index: int = -1
 var _phase_id: StringName = &""
@@ -124,12 +128,42 @@ var _elapsed: float = 0.0
 var _weak_point_accumulator: float = 0.0
 var _phase_accumulator: float = 0.0
 
+## Cuenta de patas perdidas y caída, **latcheadas** (P2d WP-C §8).
+##
+## [method is_downed] la llamaban seis a diez veces por tick —cuatro de ellas
+## desde el rig— y cada una recorría las cuatro patas con sus segmentos. Ahora el
+## recuento se rehace sólo cuando una parte se rompe o se desprende, que son las
+## dos únicas transiciones que pueden moverlo.
+var _legs_lost_count: int = 0
+var _downed: bool = false
+var _legs_dirty: bool = true
+
+## RID de todos los colisionadores del enemigo, cacheados (P2d WP-C §1).
+##
+## Los barridos de [SweepAction] los pedían dos veces por consulta a 20 Hz, y
+## cada pedido recorría el subárbol entero del jefe —31 partes— para armar un
+## `Array[RID]` nuevo. La lista sólo cambia cuando una parte se va como escombro:
+## [member _exclusions_version] avisa a quien la tenga copiada en un
+## `PhysicsQueryParameters3D`.
+var _body_exclusions: Array[RID] = []
+var _body_exclusions_built: bool = false
+## Arranca en 1 y no en 0 a propósito: [method EnemyAction.exclusions_version]
+## devuelve 0 cuando todavía no resolvió al enemigo, así que un enemigo real
+## nunca puede compartir número con «sin enemigo» y una consulta que se cacheó
+## con la lista vacía se entera en cuanto el enemigo aparece.
+var _exclusions_version: int = 1
+
+## Cerebro tipado, si el nodo `Brain` resultó ser un [EnemyFSM] (P2d WP-C §8).
+## El despacho por `has_method` + `call` queda como respaldo para las escenas
+## sintéticas de los checks, que montan cerebros de mentira.
+var _fsm: EnemyFSM = null
+
 
 func _ready() -> void:
 	_resolve_nodes()
 	if profile == null:
 		push_error("EnemyBase '%s': falta el EnemyProfile." % name)
-		Global.startup_errors.append("ERR_ENEMY_NO_PROFILE")
+		Global.report_startup_error("ERR_ENEMY_NO_PROFILE")
 		return
 	_resolve_debris_pool()
 	_build_parts()
@@ -201,12 +235,16 @@ func get_parts() -> Array[EnemyPart]:
 	return _parts_list
 
 
-## Todos los puntos débiles.
+## Todos los puntos débiles, en orden de construcción.
+##
+## Devuelve la lista **cacheada**, no una copia, por la misma razón que
+## [method get_parts]: la armaba de cero en cada llamada y la llaman
+## [method _refresh_weak_points] —a 10 Hz y además desde
+## [method set_action_state], [method set_target_position], [method clear_target]
+## y [method _on_part_broken]— y el [AudioRig] al cablearse. Quien la reciba no
+## debe modificarla.
 func get_weak_points() -> Array[WeakPoint]:
-	var found: Array[WeakPoint] = []
-	for weak_point_id: StringName in _weak_points:
-		found.append(_weak_points[weak_point_id])
-	return found
+	return _weak_points_list
 
 
 ## Partes cuya función canónica es [param function] (`leg`, `sensor`, `weapon`,
@@ -235,18 +273,75 @@ func get_legs() -> Array[Dictionary]:
 
 
 ## Patas perdidas: las que tienen algún segmento roto o desprendido.
+##
+## El recuento está **latcheado** (P2d WP-C §8): se rehace sólo cuando una parte
+## se rompe o se desprende. Ni romper ni desprender se deshacen, así que el latch
+## no puede quedar viejo.
 func legs_lost() -> int:
-	var lost := 0
-	for leg: Dictionary in _legs:
-		if _is_leg_lost(leg):
-			lost += 1
-	return lost
+	if _legs_dirty:
+		_recount_legs()
+	return _legs_lost_count
 
 
 ## `true` cuando se perdieron [member EnemyProfile.downed_legs_lost] patas. Es
 ## irreversible (`docs/06` §8.7).
+##
+## La llaman el rig cuatro veces por tick, [method locomotion_state],
+## [method move_body] y el gate de apoyo: con el recuento crudo eran seis a diez
+## recorridos de las cuatro patas con todos sus segmentos por tick de física.
 func is_downed() -> bool:
-	return profile != null and legs_lost() >= profile.downed_legs_lost
+	if _legs_dirty:
+		_recount_legs()
+	return _downed
+
+
+## Rehace el recuento de patas perdidas y la caída.
+func _recount_legs() -> void:
+	_legs_dirty = false
+	var lost := 0
+	for leg: Dictionary in _legs:
+		if _is_leg_lost(leg):
+			lost += 1
+	_legs_lost_count = lost
+	_downed = profile != null and lost >= profile.downed_legs_lost
+
+
+## RID de todos los colisionadores del enemigo, para excluirlos de los barridos.
+##
+## Es la lista **compartida**, no una copia: quien la reciba no debe modificarla.
+## Se arma una vez y se invalida cuando una parte se desprende, que es lo único
+## que saca un cuerpo del enemigo (P2d WP-C §1).
+func body_exclusions() -> Array[RID]:
+	if not _body_exclusions_built:
+		_rebuild_body_exclusions()
+	return _body_exclusions
+
+
+## Número de versión de [method body_exclusions]: cambia cuando la lista deja de
+## valer, para que quien la tenga copiada en un `PhysicsQueryParameters3D` sepa
+## que tiene que volver a asignarla.
+func exclusions_version() -> int:
+	return _exclusions_version
+
+
+## Obliga a rehacer [method body_exclusions] en el próximo pedido.
+func invalidate_body_exclusions() -> void:
+	_body_exclusions_built = false
+	_exclusions_version += 1
+
+
+func _rebuild_body_exclusions() -> void:
+	_body_exclusions.clear()
+	var pending: Array[Node] = [self]
+	var index := 0
+	while index < pending.size():
+		for child: Node in pending[index].get_children():
+			pending.append(child)
+		var body := pending[index] as CollisionObject3D
+		if body != null:
+			_body_exclusions.append(body.get_rid())
+		index += 1
+	_body_exclusions_built = true
 
 
 ## Integridad estructural de 0 a 1 (`docs/06` §6).
@@ -397,7 +492,15 @@ func music_stem() -> StringName:
 
 
 ## Estado de la capa de acción (`docs/06` §11.1). Lo delega en `Brain`.
+##
+## El cerebro real es un [EnemyFSM] y se llama tipado (P2d WP-C §8): lo consulta
+## [method _exposure_context], o sea una vez por cada refresco de exposición, y
+## `has_method` + `call` es una búsqueda por nombre en el `ClassDB` del script
+## cada vez. El despacho flojo queda de respaldo para los cerebros sintéticos de
+## los checks.
 func action_state() -> StringName:
+	if _fsm != null:
+		return _fsm.action_state()
 	if brain != null and brain.has_method(&"action_state"):
 		return brain.call(&"action_state") as StringName
 	return _action_state
@@ -409,7 +512,9 @@ func action_state() -> StringName:
 ## `enemy_parts_check` simular una telegrafía sin que existan los ataques.
 func set_action_state(state: StringName) -> void:
 	_action_state = state
-	if brain != null and brain.has_method(&"set_action_state"):
+	if _fsm != null:
+		_fsm.set_action_state(state)
+	elif brain != null and brain.has_method(&"set_action_state"):
 		brain.call(&"set_action_state", state)
 	_refresh_weak_points()
 
@@ -429,6 +534,8 @@ func locomotion_state() -> StringName:
 
 ## `true` si la acción en curso bloquea la locomoción (`AttackProfile.lock_locomotion`).
 func is_locomotion_locked() -> bool:
+	if _fsm != null:
+		return _fsm.is_locomotion_locked()
 	if brain != null and brain.has_method(&"is_locomotion_locked"):
 		return bool(brain.call(&"is_locomotion_locked"))
 	return false
@@ -487,6 +594,7 @@ func _resolve_nodes() -> void:
 	locomotion = get_node_or_null(NodePath(String(LOCOMOTION_NODE)))
 	perception = get_node_or_null(NodePath(String(PERCEPTION_NODE)))
 	brain = get_node_or_null(NodePath(String(BRAIN_NODE)))
+	_fsm = brain as EnemyFSM
 	if parts_root == null:
 		parts_root = Node.new()
 		parts_root.name = String(PARTS_NODE)
@@ -513,7 +621,7 @@ func _resolve_debris_pool() -> void:
 func _build_parts() -> void:
 	if model == null:
 		push_error("EnemyBase '%s': falta el nodo 'Model'." % name)
-		Global.startup_errors.append("ERR_ENEMY_NO_MODEL")
+		Global.report_startup_error("ERR_ENEMY_NO_MODEL")
 		return
 	for node: Node in _descendants(model):
 		var mesh_instance := node as MeshInstance3D
@@ -531,12 +639,12 @@ func _build_parts() -> void:
 		part.detach_speed = profile.detach_speed
 		part.configure(mesh_instance, profile.override_for(part_id), profile.armor_default)
 		if part.function == &"":
-			Global.startup_errors.append("ERR_ENEMY_FUNCTION_UNKNOWN")
+			Global.report_startup_error("ERR_ENEMY_FUNCTION_UNKNOWN")
 			push_error("EnemyBase '%s': función desconocida en '%s'." % [name, part_id])
 			part.function = &"cosmetic"
 		var part_body := _find_body(mesh_instance)
 		if part_body == null:
-			Global.startup_errors.append("ERR_ENEMY_PART_NO_BODY")
+			Global.report_startup_error("ERR_ENEMY_PART_NO_BODY")
 			push_error("EnemyBase '%s': '%s' no tiene AnimatableBody3D." % [name, part_id])
 		part.bind_body(part_body)
 
@@ -545,6 +653,9 @@ func _build_parts() -> void:
 		_parts_list.append(part)
 		_structure_denominator += part.max_hp * part.structure_weight
 		var _discard := part.broken.connect(_on_part_broken)
+		# Desprender una parte se lleva su colisionador a un `DebrisChunk`: los
+		# latches de patas y de exclusiones dejan de valer (P2d WP-C §1 y §8).
+		var _gone := part.detached.connect(_on_part_detached)
 
 
 ## Paso 4: `parent_part` es el primer ancestro que también es una parte.
@@ -567,6 +678,7 @@ func _link_hierarchy() -> void:
 ## hospedadora y la malla `wp_*` porque es el blanco): la parte que recibe el
 ## daño es la que se llama igual que el punto débil.
 func _build_weak_points() -> void:
+	_weak_points_list.clear()
 	var groups: Dictionary[StringName, Array] = {}
 	for part: EnemyPart in get_parts():
 		if part.weak_point_id == &"":
@@ -584,7 +696,7 @@ func _build_weak_points() -> void:
 				break
 		var weak_profile := profile.weak_point_for(weak_point_id)
 		if weak_profile == null:
-			Global.startup_errors.append("ERR_ENEMY_WP_NO_PROFILE")
+			Global.report_startup_error("ERR_ENEMY_WP_NO_PROFILE")
 			push_error("EnemyBase '%s': '%s' no tiene WeakPointProfile; queda como parte normal." \
 					% [name, weak_point_id])
 			continue
@@ -594,6 +706,7 @@ func _build_weak_points() -> void:
 		weak_point.setup(weak_profile, weak_part, host, self)
 		weak_points_root.add_child(weak_point)
 		_weak_points[weak_point_id] = weak_point
+		_weak_points_list.append(weak_point)
 		var _exposure := weak_point.exposure_changed.connect(_on_weak_point_exposure)
 		var _destroyed := weak_point.destroyed.connect(_on_weak_point_destroyed)
 	_recalculate_structure_denominator()
@@ -602,6 +715,7 @@ func _build_weak_points() -> void:
 ## Paso 6: agrupa las patas por su `leg_root` y se las pasa al rig.
 func _build_legs() -> void:
 	_legs.clear()
+	_legs_dirty = true
 	var roots := get_parts_by_flag(&"leg_root")
 	roots.sort_custom(func(a: EnemyPart, b: EnemyPart) -> bool:
 		return String(a.part_id) < String(b.part_id))
@@ -627,7 +741,7 @@ func _build_legs() -> void:
 			return _depth_of(a) < _depth_of(b))
 
 		if segments.size() < 2 or foot == null:
-			Global.startup_errors.append("ERR_ENEMY_LEG_INCOMPLETE")
+			Global.report_startup_error("ERR_ENEMY_LEG_INCOMPLETE")
 			push_error("EnemyBase '%s': la pata '%s' está incompleta (%d segmentos, pie %s)." \
 					% [name, prefix, segments.size(), "sí" if foot != null else "no"])
 			continue
@@ -867,6 +981,7 @@ func _check_defeat() -> void:
 ## Una parte cruzó 0: tambaleo, función deshabilitada, fases y exposición.
 func _on_part_broken(part_id: StringName) -> void:
 	var part := get_part(part_id)
+	_legs_dirty = true
 	part_broken.emit(part_id)
 	if part != null:
 		request_stagger(profile.stagger_seconds, part_id)
@@ -874,6 +989,16 @@ func _on_part_broken(part_id: StringName) -> void:
 	_refresh_weak_points()
 	_evaluate_phases()
 	_check_defeat()
+
+
+## Una parte se fue como escombro: los dos latches dejan de valer.
+##
+## El colisionador viaja con ella a un [DebrisChunk] y cambia de capa, así que la
+## lista de exclusiones del enemigo ya no lo incluye, y el pie o el segmento que
+## se llevó puede haber dado por perdida la pata (P2d WP-C §1 y §8).
+func _on_part_detached(_part_id: StringName) -> void:
+	_legs_dirty = true
+	invalidate_body_exclusions()
 
 
 ## Efecto de romper una parte según su función (`docs/06` §4).

@@ -124,6 +124,13 @@ func _tick_accumulators(delta: float) -> void:
 		return
 	_siege_accumulator = 0.0
 	_update_siege()
+	# Sin publicación pendiente y sin nadie bajo asedio no queda nada que llevar:
+	# el asedio sólo puede nacer de un daño, y todo daño pasa por
+	# [method _apply_damage], que vuelve a despertar el nodo (P2d WP-C, mejoras).
+	# Antes recorría los sesenta edificios cuatro veces por segundo durante toda
+	# la partida, también con la ciudad intacta.
+	if not _has_pending and _under_siege == null:
+		set_physics_process(false)
 
 
 # --------------------------------------------------------------------------
@@ -177,6 +184,10 @@ func register(building: Building) -> void:
 ## `Σ hp_inicial`. No cambia el registro: para eso está [method rebuild].
 func reset() -> void:
 	Building.reset_emitters()
+	# Antes del bucle: `Building.reset()` repone el racionamiento de ventanas, y
+	# así las copias nuevas se comparten entre los sesenta edificios en vez de
+	# quedar mezcladas con las de la ronda anterior (P2d WP-C, mejoras).
+	Building.purge_material_cache()
 	_initial_hp = 0.0
 	_total_hp = 0.0
 	for building: Building in _buildings:
@@ -193,6 +204,7 @@ func reset() -> void:
 	_has_pending = false
 	_pending_delay = 0.0
 	_last_emitted = get_ratio()
+	set_physics_process(true)
 	integrity_changed.emit(_last_emitted)
 	Events.city_integrity_changed.emit(_last_emitted)
 
@@ -340,6 +352,7 @@ func _on_protected_damage(amount: float, _point: Vector3) -> void:
 
 ## Resta [param weighted] del acumulador y decide si toca publicar.
 func _apply_damage(weighted: float) -> void:
+	set_physics_process(true)
 	_total_hp = maxf(_total_hp - weighted, 0.0)
 	var current := get_ratio()
 	if _last_emitted - current >= emit_epsilon:

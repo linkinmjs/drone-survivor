@@ -64,6 +64,12 @@ const GROUP_PROTECTED: StringName = &"protected"
 ## renumerar las tres que ya existían.
 enum Kind {ENEMY, PICKUP, SIEGE, PROTECTED}
 
+## Los cuatro grupos que recorre [method _compute], en orden de prioridad de
+## desempate, con la clase que le toca a cada uno en [constant SOURCE_KINDS].
+const SOURCE_GROUPS: Array[StringName] = [GROUP_PROTECTED, GROUP_ENEMIES,
+		GROUP_PICKUPS, GROUP_SIEGE]
+const SOURCE_KINDS: Array[int] = [Kind.PROTECTED, Kind.ENEMY, Kind.PICKUP, Kind.SIEGE]
+
 ## Clave de traducción del rótulo de cada clase. El protegido no está: su rótulo es
 ## el **nombre propio** del edificio (`docs/narrativa` §9), no el nombre de su clase.
 const KIND_KEYS: Dictionary[int, String] = {
@@ -88,6 +94,13 @@ var city: CityIntegrity = null
 
 ## Último cálculo, que es lo que dibuja `_draw()` y lo que leen los checks.
 var _markers: Array[Dictionary] = []
+
+## Candidatos vistos y los mejores [constant MAX_MARKERS], reutilizados entre
+## cuadros. Ver [method _compute].
+var _seen: Dictionary[Node3D, bool] = {}
+var _top_nodes: Array[Node3D] = []
+var _top_kinds: Array[int] = []
+var _top_distances: Array[float] = []
 
 ## Acumulador del parpadeo del protegido en apuros. Nunca un [Timer].
 var _blink: float = 0.0
@@ -177,56 +190,77 @@ func _compute() -> Array[Dictionary]:
 		return result
 
 	var origin := active.global_position
-	var found: Array[Dictionary] = []
-	var seen: Dictionary[Node3D, bool] = {}
+	# Los candidatos van en tres arreglos **miembro** que se vacían, y entran ya
+	# ordenados por inserción acotada a [constant MAX_MARKERS] (P2d WP-C, mejoras).
+	# Antes eran, por cuadro y con el HUD dibujando: un `Array` literal de cuatro
+	# pares, un `Dictionary` por candidato, un `Dictionary` de vistos, un `Array`
+	# de candidatos y un `Callable` de comparación nuevo para `sort_custom`. Es el
+	# mismo patrón de inserción a mano de `AimAssist._sort_by_angle()`.
+	_seen.clear()
+	_top_nodes.clear()
+	_top_kinds.clear()
+	_top_distances.clear()
 	# El grupo `protected` va **primero** para que su entrada gane el desempate si
 	# el mismo edificio está además bajo asedio, que es el caso que importa.
-	for pair: Array in [[GROUP_PROTECTED, Kind.PROTECTED], [GROUP_ENEMIES, Kind.ENEMY],
-			[GROUP_PICKUPS, Kind.PICKUP], [GROUP_SIEGE, Kind.SIEGE]]:
-		for node: Node in tree.get_nodes_in_group(pair[0] as StringName):
+	for slot: int in SOURCE_GROUPS.size():
+		var kind := SOURCE_KINDS[slot]
+		for node: Node in tree.get_nodes_in_group(SOURCE_GROUPS[slot]):
 			var spatial := node as Node3D
-			if spatial == null or not spatial.is_inside_tree() or seen.has(spatial):
+			if spatial == null or not spatial.is_inside_tree() or _seen.has(spatial):
 				continue
 			if not _is_active(spatial):
 				continue
 			var point := spatial.global_position
 			if not point.is_finite():
 				continue
-			seen[spatial] = true
-			found.append({"point": point, "kind": int(pair[1]),
-					"distance": origin.distance_to(point), "node": spatial})
+			_seen[spatial] = true
+			_insert_candidate(spatial, kind, origin.distance_to(point))
 
 	# `get_under_siege()` es una consulta y no un hecho del bus (`docs/12` §7), así
 	# que el edificio marcado puede no estar todavía en el grupo cuando se lo pide.
 	if city != null and is_instance_valid(city):
 		var besieged := city.get_under_siege()
-		if besieged != null and besieged.is_inside_tree() and not seen.has(besieged):
-			seen[besieged] = true
-			found.append({"point": besieged.global_position, "kind": int(Kind.SIEGE),
-					"distance": origin.distance_to(besieged.global_position),
-					"node": besieged})
-
-	# **El protegido tiene prioridad máxima** (`docs/11` §1): va delante del jefe y
-	# del edificio bajo asedio, así que nunca se queda fuera de los seis marcadores.
-	# El resto conserva el orden de siempre, que es por cercanía.
-	found.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		var rank_a := 0 if int(a["kind"]) == int(Kind.PROTECTED) else 1
-		var rank_b := 0 if int(b["kind"]) == int(Kind.PROTECTED) else 1
-		if rank_a != rank_b:
-			return rank_a < rank_b
-		return float(a["distance"]) < float(b["distance"]))
+		if besieged != null and besieged.is_inside_tree() and not _seen.has(besieged):
+			_seen[besieged] = true
+			_insert_candidate(besieged, int(Kind.SIEGE),
+					origin.distance_to(besieged.global_position))
 
 	var rect := screen_rect()
-	var count := mini(found.size(), MAX_MARKERS)
-	for index: int in count:
-		var entry := found[index]
-		var marker := HUDProjection.marker_for(active, entry["point"] as Vector3, rect,
+	for index: int in _top_nodes.size():
+		var spatial := _top_nodes[index]
+		var kind := _top_kinds[index]
+		var marker := HUDProjection.marker_for(active, spatial.global_position, rect,
 				MARGIN)
-		marker["kind"] = entry["kind"]
-		marker["label"] = _label_for(entry["node"] as Node3D, int(entry["kind"]))
-		marker["blink"] = _blinks(entry["node"] as Node3D, int(entry["kind"]))
+		marker["kind"] = kind
+		marker["label"] = _label_for(spatial, kind)
+		marker["blink"] = _blinks(spatial, kind)
 		result.append(marker)
 	return result
+
+
+## Mete un candidato en la lista de los [constant MAX_MARKERS] mejores, ya
+## ordenada.
+##
+## **El protegido tiene prioridad máxima** (`docs/11` §1): va delante del jefe y
+## del edificio bajo asedio, así que nunca se queda fuera de los seis marcadores.
+## El resto ordena por cercanía, que es el orden de siempre.
+func _insert_candidate(node: Node3D, kind: int, distance: float) -> void:
+	var rank := 0 if kind == int(Kind.PROTECTED) else 1
+	var at := _top_nodes.size()
+	for index: int in _top_nodes.size():
+		var other_rank := 0 if _top_kinds[index] == int(Kind.PROTECTED) else 1
+		if rank < other_rank or (rank == other_rank and distance < _top_distances[index]):
+			at = index
+			break
+	if at >= MAX_MARKERS:
+		return
+	_top_nodes.insert(at, node)
+	_top_kinds.insert(at, kind)
+	_top_distances.insert(at, distance)
+	if _top_nodes.size() > MAX_MARKERS:
+		_top_nodes.resize(MAX_MARKERS)
+		_top_kinds.resize(MAX_MARKERS)
+		_top_distances.resize(MAX_MARKERS)
 
 
 ## Rótulo de un marcador: el nombre propio del edificio protegido o el nombre de la
@@ -313,7 +347,8 @@ func _stagger(anchor: Vector2, taken: Array[Vector2]) -> Vector2:
 	for _attempt: int in LABELLED_MARKERS:
 		var clashes := false
 		for used: Vector2 in taken:
-			if absf(used.x - result.x) < LABEL_CLEARANCE.x 					and absf(used.y - result.y) < LABEL_CLEARANCE.y:
+			if absf(used.x - result.x) < LABEL_CLEARANCE.x \
+					and absf(used.y - result.y) < LABEL_CLEARANCE.y:
 				clashes = true
 				break
 		if not clashes:

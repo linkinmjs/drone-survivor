@@ -23,32 +23,18 @@ const SHAPE_NAME: StringName = &"IntactShape"
 ## Distancia a la que los props se desvanecen (`docs/10` §2.4 punto 3 y §7).
 const PROP_VISIBILITY_RANGE_END: float = 180.0
 
-## Piezas decorativas de `docs/10` §2.1. Son las mismas cuatro que llevan
-## `ConvexPolygonShape3D` en §2.4 punto 2: la coincidencia es intencional, un
-## cartel y una antena no son cajas. El resto usa `BoxShape3D`, porque los
-## edificios sí lo son y además `Building.apply_variation()` (§4.3) reescribe
-## `BoxShape3D.size.y` para la variación de altura.
-const PROP_PIECES: Array[StringName] = [
-	&"Advertising_5", &"Advertising_6", &"Advertising_7", &"SateliteDish",
-]
-
-## Familia de material de cada pieza. Sale de las referencias de textura que
-## declara cada FBX del pack, verificadas una a una al extraer el ZIP.
-const FAMILY_BY_PIECE: Dictionary[StringName, StringName] = {
-	&"Advertising_5": &"props",
-	&"Advertising_6": &"props",
-	&"Advertising_7": &"props",
-	&"SateliteDish": &"props",
-	&"BuildingBlock_18": &"buildings_001",
-	&"BuildingBlock_19": &"buildings_001",
-	&"BuildingBlock_24": &"buildings_001",
-	&"Building_3": &"buildings_002",
-	&"BuildingBlock_1": &"buildings_002",
-	&"BuildingBlock_2": &"buildings_002",
-	&"Road_Chunk_5": &"roads",
-	&"Sidewalk_Chunk_2": &"roads",
-	&"Sidewalk_Tile_1": &"roads",
-}
+## Índice de las 13 piezas de ciudad (P2e): de ahí salen qué piezas son props
+## y la familia de material de cada una. Es la misma tabla que lee
+## `tools/city_import_check.gd`, para que haya una sola fuente.
+##
+## Las piezas de familia `prop` son las mismas cuatro que llevan
+## `ConvexPolygonShape3D` en `docs/10` §2.4 punto 2: la coincidencia es
+## intencional, un cartel y una antena no son cajas. El resto usa `BoxShape3D`,
+## porque los edificios sí lo son y además `Building.apply_variation()` (§4.3)
+## reescribe `BoxShape3D.size.y` para la variación de altura. La familia de
+## material de cada pieza (`material` en el JSON) sale de las referencias de
+## textura que declara cada FBX del pack, verificadas una a una al extraer el ZIP.
+const MANIFEST_PATH: String = "res://assets/city/pieces_manifest.json"
 
 ## Material compartido de cada familia. Los cuatro `.tres` llevan la difusa y la
 ## emisiva ya redimensionadas de `assets/city/textures/`.
@@ -74,13 +60,14 @@ func _post_import(scene: Node) -> Object:
 		push_error("import_city_piece: '%s' no tiene ningún MeshInstance3D." % piece_id)
 		return body
 
-	var material := _resolve_material(piece_id)
-	var is_prop := PROP_PIECES.has(piece_id)
+	var entry := _manifest_entry(piece_id)
+	var material := _resolve_material(piece_id, entry)
+	var is_prop := String(entry.get("family", "")) == "prop"
 	for mesh_instance: MeshInstance3D in meshes:
 		_configure_mesh(mesh_instance, material, is_prop, piece_id)
 
 	var bounds := _aggregate_aabb(meshes, body)
-	_add_collision_shape(body, meshes, bounds, piece_id)
+	_add_collision_shape(body, meshes, bounds, piece_id, is_prop)
 
 	body.set_meta(&"piece_id", piece_id)
 	body.set_meta(&"base_size", bounds.size)
@@ -156,10 +143,10 @@ func _aggregate_aabb(meshes: Array[MeshInstance3D], root: Node3D) -> AABB:
 
 ## Crea el `CollisionShape3D` de la pieza según la tabla de `docs/10` §2.4.
 func _add_collision_shape(body: StaticBody3D, meshes: Array[MeshInstance3D],
-		bounds: AABB, piece_id: StringName) -> void:
+		bounds: AABB, piece_id: StringName, is_prop: bool) -> void:
 	var shape_node := CollisionShape3D.new()
 	shape_node.name = SHAPE_NAME
-	if PROP_PIECES.has(piece_id):
+	if is_prop:
 		shape_node.shape = _build_convex_shape(meshes, bounds, piece_id)
 	else:
 		var box := BoxShape3D.new()
@@ -185,10 +172,27 @@ func _build_convex_shape(meshes: Array[MeshInstance3D], bounds: AABB,
 	return box
 
 
+## Entrada del manifiesto de ciudad cuyo `model` es [param piece_id] —el nombre
+## del FBX—, o `{}` si no está.
+func _manifest_entry(piece_id: StringName) -> Dictionary:
+	if not FileAccess.file_exists(MANIFEST_PATH):
+		push_error("import_city_piece: falta el manifiesto '%s'." % MANIFEST_PATH)
+		return {}
+	var document := JSON.parse_string(FileAccess.get_file_as_string(MANIFEST_PATH)) as Dictionary
+	if document == null:
+		push_error("import_city_piece: '%s' no es un JSON válido." % MANIFEST_PATH)
+		return {}
+	for raw: Variant in document.get("pieces", []) as Array:
+		var entry := raw as Dictionary
+		if entry != null and StringName(String(entry.get("model", ""))) == piece_id:
+			return entry
+	return {}
+
+
 ## Carga el material de la familia de la pieza. Devuelve `null` y avisa si falta,
 ## para que `city_import_check` lo reporte como material sin textura.
-func _resolve_material(piece_id: StringName) -> StandardMaterial3D:
-	var family: StringName = FAMILY_BY_PIECE.get(piece_id, &"")
+func _resolve_material(piece_id: StringName, entry: Dictionary) -> StandardMaterial3D:
+	var family := StringName(String(entry.get("material", "")))
 	if family.is_empty():
 		push_error("import_city_piece: pieza desconocida '%s'." % piece_id)
 		return null

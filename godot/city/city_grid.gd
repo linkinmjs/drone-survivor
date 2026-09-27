@@ -347,8 +347,16 @@ const PROP_CHANCE: float = 0.30
 ## Carteles y antenas de azotea, sólo para los edificios grandes.
 @export var prop_pieces: Array[PackedScene] = []
 
-## Rocas del borde, en el grupo `city_rocks`.
-@export var rock_scenes: Array[PackedScene] = []
+## Rocas del borde, en el grupo `city_rocks`: la escena de cada pieza **por su
+## nombre** (`&"rock_a"` → `rock_a.tscn`). La arma `tools/build_town.gd`.
+##
+## Es una tabla y no una lista desde la revisión de WP-L (hallazgo 3): con la
+## lista, `_build_rocks` tomaba la escena `index % 6` y la roca `i` salía con la
+## pieza que ocupara el puesto `i` de la lista, no con la que el diseño
+## declaraba; coincidía porque el diseño las declara en el mismo orden. Ahora la
+## elige [member TownPlan.rock_pieces], que es de donde el plano saca también el
+## radio del casco.
+@export var rock_scenes: Dictionary = {}
 
 ## `Road_Chunk_5`. Ya no se instancia ni una baldosa: la pieza se conserva
 ## porque de su malla sale el material `roads.tres` con el que se pinta **todo**
@@ -1557,7 +1565,11 @@ func _make_rubble_stage(building: Building, profile: BuildingProfile) -> void:
 		# Riesgo 9 del plan: geometría que aparece a mitad de partida no
 		# participa de SDFGI.
 		pile.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-		pile.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		# El montículo tampoco proyecta: `_mute_house_shadows()` apaga la sombra de los
+		# edificios salvo los seis que la ciudad elige (`docs/13` §1), pero el montículo
+		# nace bajo `StageRubble` y se la saltaba, así que en esos seis se sumaba una
+		# sombra por cascada justo cuando la ruina ya cuesta polvo y escombro (P2d).
+		pile.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		stage.add_child(pile)
 		building.rubble_pile = pile
 
@@ -1723,7 +1735,13 @@ func _build_rocks(parent: Node3D) -> void:
 		return
 	var spots := plan.rock_spots()
 	for index: int in spots.size():
-		var scene := rock_scenes[index % rock_scenes.size()]
+		var piece := StringName(plan.rock_pieces[index]) \
+				if index < plan.rock_pieces.size() else &""
+		var scene := rock_scenes.get(piece, null) as PackedScene
+		if scene == null:
+			push_error("CityGrid: la roca %d pide la pieza '%s' y no hay escena para ella."
+					% [index, piece])
+			continue
 		var rock := scene.instantiate() as Node3D
 		if rock == null:
 			continue

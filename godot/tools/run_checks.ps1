@@ -65,6 +65,7 @@ $Headless = @(
     "town_plan_check"  # WP-B (P2b): el plano del pueblo, sin assets
     "town_import_check"  # WP-A (P2b): las piezas GLB del pueblo
     "terrain_check"  # WP-T2 (P2c): el relieve horneado del pueblo
+    "asset_gallery_check"  # WP-G (P2e): la galería de inventario de assets
 )
 
 # Checks que necesitan un framebuffer real porque capturan imagen (docs/15 seccion 3.1).

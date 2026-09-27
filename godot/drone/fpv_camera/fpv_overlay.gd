@@ -369,7 +369,9 @@ func _resolve_siblings() -> void:
 	if energy == null:
 		energy = rig.get_node_or_null(^"Drone/EnergySystem") as EnergySystem
 	if _fpv == null:
-		_fpv = rig.get_node_or_null(^"Drone/CameraRig/FPVCamera") as Camera3D
+		var drone_node := rig.get_node_or_null(^"Drone")
+		if drone_node != null:
+			_fpv = drone_node.get_node_or_null(Drone.FPV_CAMERA_PATH) as Camera3D
 	_bind_energy(energy)
 
 

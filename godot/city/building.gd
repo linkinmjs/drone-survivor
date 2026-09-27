@@ -57,6 +57,11 @@ const GROUP_PROTECTED: StringName = &"protected"
 ## Ruta del shader de la etapa `DAMAGED`.
 const DAMAGE_SHADER_PATH: String = "res://city/damage_overlay.gdshader"
 
+## El mismo sombreador, ya cargado (P2d WP-C, mejoras). Lo pedía con
+## `ResourceLoader.load()` la primera vez que un edificio pasaba a `DAMAGED`, o
+## sea en pleno combate y en el cuadro de un impacto.
+const DAMAGE_SHADER: Shader = preload("res://city/damage_overlay.gdshader")
+
 ## Tope duro de `GPUParticles3D` emitiendo a la vez cuando no hay [VFXPool] en el
 ## árbol. Un edificio que no consigue plaza se derrumba sin polvo.
 ##
@@ -161,6 +166,16 @@ signal damage_taken(amount: float, point: Vector3)
 ## Caja de colisión del edificio en pie.
 @export var intact_shape: CollisionShape3D = null
 
+## Prefijo con el que se llaman las cajas de colisión de una pieza. Es el nombre
+## que `CityGrid._spawn_building()` busca y, desde WP-L, el prefijo con el que
+## [method _collect_intact_parts] reconoce las cajas de una pieza compuesta.
+const SHAPE_PREFIX: String = "IntactShape"
+
+## Las cajas de una pieza compuesta con su medida de reposo: `{node, size,
+## centre}`. Vacía en las piezas de una sola caja, que son todas menos la
+## estación de servicio.
+var _intact_parts: Array[Dictionary] = []
+
 ## Caja baja de la ruina; empieza deshabilitada.
 @export var rubble_shape: CollisionShape3D = null
 
@@ -232,7 +247,19 @@ func _ready() -> void:
 	# de altura de un edificio reescribiría la de sus hermanos. El estado que se
 	# guarda es el lógico —[member base_size] y [member height_scale]— y la
 	# geometría se deriva de él.
+	#
+	# Las cajas de una pieza compuesta se leen **una sola vez**: si
+	# `CityGrid._spawn_building()` ya llamó a [method refresh_shapes] antes de
+	# colgar el edificio, la lista ya trae las medidas de reposo, y volver a
+	# leerlas ahora devolvería las ya escaladas.
+	if _intact_parts.is_empty():
+		_collect_intact_parts()
 	_unshare_shape(intact_shape)
+	for part: Dictionary in _intact_parts:
+		# `IntactShape` es también la primera caja de la pieza compuesta: ya se
+		# desclonó en la línea de arriba (revisión de WP-L, hallazgo 18).
+		if part["node"] != intact_shape:
+			_unshare_shape(part["node"] as CollisionShape3D)
 	_unshare_shape(rubble_shape)
 	refresh_shapes()
 	reset()
@@ -245,6 +272,73 @@ func _ready() -> void:
 func _unshare_shape(node: CollisionShape3D) -> void:
 	if node != null and node.shape != null:
 		node.shape = node.shape.duplicate()
+
+
+## Las cajas de una pieza de **colisión compuesta**, con la medida y el sitio que
+## traía cada una del `.tscn` de la pieza.
+##
+## Una pieza compuesta es la que no es una caja: la estación de servicio de WP-L
+## son cuatro columnas, la tienda, la losa de la marquesina y el cartel, y entre
+## ellas hay aire por el que vuela el dron. Se reconocen por el nombre —todas
+## empiezan por [constant SHAPE_PREFIX], que es el nombre que
+## `CityGrid._spawn_building()` ya buscaba— y con una sola caja la lista queda
+## vacía y todo sigue funcionando exactamente como antes: las diecisiete piezas
+## de caja del pueblo y las de ciudad no pasan por acá.
+##
+## La medida se lee **antes** de escalar nada porque es la medida de reposo:
+## refrescar reescribe el `BoxShape3D`, así que leerlo después devolvería lo que
+## ya está escalado y la variación de altura se compondría consigo misma. Por eso
+## la llama el **primero** que la necesite —[method refresh_shapes] si
+## `CityGrid._spawn_building()` aplica la variación antes de colgar el edificio,
+## [method _ready] si no— y nadie la vuelve a llamar mientras la lista tenga algo.
+##
+## Una caja `IntactShape_*` que no sea un `BoxShape3D` no se puede escalar en Y
+## y se deja afuera con un aviso: seguiría colisionando a su medida de reposo.
+func _collect_intact_parts() -> void:
+	_intact_parts = []
+	if intact_shape == null:
+		return
+	var parent := intact_shape.get_parent()
+	if parent == null:
+		return
+	var found: Array[CollisionShape3D] = []
+	for child: Node in parent.get_children():
+		var node := child as CollisionShape3D
+		if node != null and String(node.name).begins_with(SHAPE_PREFIX):
+			found.append(node)
+	if found.size() < 2:
+		return
+	for node: CollisionShape3D in found:
+		var box := node.shape as BoxShape3D
+		if box == null:
+			push_warning("Building '%s': la caja compuesta '%s' no es un BoxShape3D;"
+					% [name, node.name] + " no sigue la variación de altura.")
+			continue
+		_intact_parts.append({"node": node, "size": box.size, "centre": node.position})
+
+
+## Verdadero si junto a [member intact_shape] hay alguna `IntactShape_*`: la
+## marca de una pieza compuesta.
+func _has_compound_siblings() -> bool:
+	if intact_shape == null or intact_shape.get_parent() == null:
+		return false
+	for child: Node in intact_shape.get_parent().get_children():
+		if child != intact_shape and child is CollisionShape3D \
+				and String(child.name).begins_with(SHAPE_PREFIX):
+			return true
+	return false
+
+
+## Enciende o apaga **todas** las cajas intactas a la vez.
+##
+## Diferido: cambiar `disabled` en pleno paso de física es ilegal en Jolt.
+func _set_intact_disabled(value: bool) -> void:
+	if intact_shape != null:
+		intact_shape.set_deferred(&"disabled", value)
+	for part: Dictionary in _intact_parts:
+		var node: CollisionShape3D = part["node"]
+		if node != null and node != intact_shape:
+			node.set_deferred(&"disabled", value)
 
 
 func _exit_tree() -> void:
@@ -269,8 +363,7 @@ func _exit_tree() -> void:
 		# ninguna se suelta—, y las copias retienen sus texturas en VRAM. La
 		# única razón por la que hasta ahora no se vio es que el distrito era
 		# siempre el mismo.
-		_damage_materials.clear()
-		_dark_materials.clear()
+		purge_material_cache()
 
 
 func _physics_process(delta: float) -> void:
@@ -465,15 +558,46 @@ func apply_variation_yaw(new_height_scale: float, yaw: float) -> void:
 	refresh_shapes()
 
 
-## Reescribe las dos cajas de colisión y el montículo según [member base_size] y
-## [member height_scale]. Idempotente; la llama [method apply_variation] y
-## [CityGrid] tras duplicar las formas.
+## Reescribe las cajas de colisión y el montículo según [member base_size] y
+## [member height_scale]. Idempotente; la llaman [method apply_variation_yaw]
+## —que `CityGrid._spawn_building()` invoca **antes** de colgar el edificio, o
+## sea antes de [method _ready]— y [method _ready].
+##
+## Una pieza compuesta tiene que saberse compuesta desde la primera llamada. Si
+## la lista de cajas está vacía y la pieza trae hermanas `IntactShape_*`, se leen
+## acá mismo y se desclonan: sin eso, la primera llamada caía en la rama de caja
+## única y agrandaba `IntactShape` —la losa de la marquesina— a la envolvente
+## entera de la estación (revisión de WP-L, hallazgo 4). No se notaba sólo porque
+## el `.tscn` horneado no guarda la forma de los nodos internos de una pieza y
+## [method _ready] la volvía a leer de la pieza.
 func refresh_shapes() -> void:
 	var height := get_height()
-	var intact_box := intact_shape.shape as BoxShape3D if intact_shape != null else null
-	if intact_box != null:
-		intact_box.size = Vector3(base_size.x, height, base_size.z)
-		intact_shape.position = Vector3(0.0, height * 0.5, 0.0)
+	if _intact_parts.is_empty() and _has_compound_siblings():
+		_collect_intact_parts()
+		# La forma todavía es la del `PackedScene`, compartida con cualquier otra
+		# instancia de la pieza: escribirla ahora la escalaría para todas.
+		for part: Dictionary in _intact_parts:
+			if part["node"] != intact_shape:
+				_unshare_shape(part["node"] as CollisionShape3D)
+	if _intact_parts.is_empty():
+		var intact_box := intact_shape.shape as BoxShape3D if intact_shape != null else null
+		if intact_box != null:
+			intact_box.size = Vector3(base_size.x, height, base_size.z)
+			intact_shape.position = Vector3(0.0, height * 0.5, 0.0)
+	else:
+		# Pieza compuesta: la variación de altura escala **sólo en Y**, cada caja
+		# desde su medida de reposo. Escalar también en XZ estiraría las columnas
+		# de la marquesina hacia afuera de la playa, y la huella de una pieza no
+		# cambia con su altura.
+		for part: Dictionary in _intact_parts:
+			var node: CollisionShape3D = part["node"]
+			var box := node.shape as BoxShape3D if node != null else null
+			if box == null:
+				continue
+			var size: Vector3 = part["size"]
+			var centre: Vector3 = part["centre"]
+			box.size = Vector3(size.x, size.y * height_scale, size.z)
+			node.position = Vector3(centre.x, centre.y * height_scale, centre.z)
 
 	var rubble_box := rubble_shape.shape as BoxShape3D if rubble_shape != null else null
 	if rubble_box != null:
@@ -526,8 +650,7 @@ func reset() -> void:
 	if props != null:
 		props.visible = true
 		_place_props()
-	if intact_shape != null:
-		intact_shape.set_deferred(&"disabled", false)
+	_set_intact_disabled(false)
 	if rubble_shape != null:
 		rubble_shape.set_deferred(&"disabled", true)
 	_set_occluder_enabled(true)
@@ -595,9 +718,7 @@ func _finish_collapse() -> void:
 		stage_intact.visible = false
 	if rubble_pile != null:
 		rubble_pile.scale = _pile_rest_scale
-	# Diferido: cambiar `disabled` en pleno paso de física es ilegal en Jolt.
-	if intact_shape != null:
-		intact_shape.set_deferred(&"disabled", true)
+	_set_intact_disabled(true)
 	if rubble_shape != null:
 		rubble_shape.set_deferred(&"disabled", false)
 	_set_occluder_enabled(false)
@@ -784,7 +905,9 @@ func _resolve_damage_material() -> ShaderMaterial:
 	if _damage_materials.has(key):
 		return _damage_materials[key] as ShaderMaterial
 
-	var shader: Shader = profile.damage_shader if profile != null and profile.damage_shader != null else ResourceLoader.load(DAMAGE_SHADER_PATH, "Shader") as Shader
+	var shader := DAMAGE_SHADER
+	if profile != null and profile.damage_shader != null:
+		shader = profile.damage_shader
 	if shader == null:
 		push_error("Building: no se pudo cargar '%s'." % DAMAGE_SHADER_PATH)
 		return null
@@ -903,6 +1026,19 @@ func _stop_smoke() -> void:
 ## Emisores de la ciudad encendidos ahora mismo. Lo lee `city_check`.
 static func active_emitters() -> int:
 	return _active_emitters
+
+
+## Suelta las dos cachés de material compartidas (P2d WP-C, mejoras).
+##
+## Son `static`: sobreviven al distrito y guardan copias **por pieza del distrito
+## que las pidió**, con sus texturas retenidas en VRAM. [method _exit_tree] las
+## purga cuando se va el último edificio; [method CityIntegrity.reset] las purga
+## además cuando la ciudad vuelve a empezar, **antes** de que los edificios
+## repongan su racionamiento de ventanas, para que las copias nuevas vuelvan a ser
+## una por familia y no una por ronda jugada.
+static func purge_material_cache() -> void:
+	_damage_materials.clear()
+	_dark_materials.clear()
 
 
 ## Devuelve el contador a cero. Lo llama [method CityIntegrity.reset] al

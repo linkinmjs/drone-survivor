@@ -64,8 +64,20 @@ func setup(context: ObjectiveContext) -> void:
 			continue
 		objectives.append(objective)
 		objective.setup(context)
-		if not objective.completed.is_connected(_on_objective_completed):
-			var _discard := objective.completed.connect(_on_objective_completed.bind(objective))
+		# La guarda lleva el **mismo** `bind` que la conexión (P2d WP-C §2).
+		#
+		# `is_connected(_on_objective_completed)`, sin `bind`, también funciona hoy:
+		# medido en Godot 4.7, `Object::is_connected` identifica la conexión por
+		# objeto y método y **ignora los argumentos ligados**, así que después de un
+		# `connect(cb.bind(x))` tanto `is_connected(cb)` como `is_connected(cb.bind(x))`
+		# dan `true`, y un segundo `connect` con el mismo par devuelve
+		# `ERR_INVALID_PARAMETER` en vez de duplicar. Va con `bind` igual porque la
+		# guarda tiene que decir lo mismo que la conexión que protege y no depender
+		# de un detalle de implementación del motor; la fila 18 de `round_check`
+		# vigila que un segundo `setup()` no deje dos conexiones.
+		if objective.completed.is_connected(_on_objective_completed.bind(objective)):
+			continue
+		var _discard := objective.completed.connect(_on_objective_completed.bind(objective))
 
 
 ## Acumulador de la espera entre objetivos (`docs/00` §6: nada de [Timer]).

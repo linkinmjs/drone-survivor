@@ -40,12 +40,13 @@ const TIME_PAR: float = 540.0
 const ORPHAN_TOLERANCE: int = 0
 
 ## Filas de la tabla de `docs/11` §11, en orden. La 15 la agrega WP-24d, la 16
-## WP-25b y la 17 WP-C.
+## WP-25b, la 17 WP-C y la 18 P2d WP-C.
 const ROW_TITLES: Array[String] = [
 	"catálogo consistente", "respaldo de configuración", "instanciado", "estado inicial",
 	"salteo de la cinemática", "objetivos", "determinismo de semilla", "victoria",
 	"puntaje", "persistencia", "derrota", "prioridad", "restauración", "sin huérfanos",
 	"secuencia completa", "edificio protegido", "marcadores del barrio",
+	"setup() idempotente",
 ]
 
 ## Clave de traducción del edificio protegido de la ronda 1 (`docs/11` §1).
@@ -149,6 +150,7 @@ func _run() -> void:
 		await _check_sequence_run()
 		await _check_markers_run()
 		await _check_protected_run()
+	_check_sequencer_setup()
 	_restore_config()
 	Global.debug_freeze_ai = false
 	Events.round_state_changed.disconnect(_on_round_state_changed)
@@ -188,6 +190,60 @@ func _check_catalog() -> void:
 	_row(1, RoundCatalog.is_unlocked(0), "1 · la ronda 0 está siempre desbloqueada")
 	_row(1, RoundCatalog.level_scene_for(RoundCatalog.get_round(0)) == LEVEL_SCENE,
 			"1 · la ronda 1 manda al nivel de batalla")
+
+
+# --- Fila 18: `ObjectiveSequencer.setup()` es idempotente -------------------------------------
+
+## Un segundo [method ObjectiveSequencer.setup] sobre **el mismo** objetivo no deja
+## dos conexiones de `completed` a [method ObjectiveSequencer._on_objective_completed]
+## (P2d WP-C §2).
+##
+## Es una **guarda de regresión**, no la reproducción de un fallo. En Godot 4.7
+## `Object::is_connected` identifica la conexión por objeto y método e ignora los
+## argumentos ligados, y un `connect` duplicado devuelve `ERR_INVALID_PARAMETER` sin
+## duplicar (el comentario de [method ObjectiveSequencer.setup] lo detalla): hoy la
+## guarda vieja, sin `bind`, también funcionaba. La fila existe por si una versión
+## futura del motor hiciera que el `bind` cuente para la identidad de la conexión: en
+## ese caso una guarda que no dijera lo mismo que la conexión dejaría pasar la segunda,
+## cada objetivo completado avanzaría la cadena dos veces y la ronda se saltaría uno.
+##
+## Lo que se cuenta son las conexiones de `completed` **al manejador del secuenciador**,
+## no el total de la señal ni [method ObjectiveSequencer.count] —que `setup()` ya deja
+## en uno por su `clear()` y no probaría nada—.
+##
+## Prueba negativa: **no aplicable**. Con el motor actual no hay forma de provocar la
+## conexión duplicada sin reescribir `setup()`: el propio `connect` la rechaza.
+func _check_sequencer_setup() -> void:
+	var sequencer := ObjectiveSequencer.new()
+	var objective := ObjectiveDefendCity.new()
+	objective.name = "Row18Objective"
+	sequencer.add_child(objective)
+	add_child(sequencer)
+	var context := ObjectiveContext.new()
+
+	sequencer.setup(context)
+	var after_first := _handler_connections(objective, sequencer)
+	sequencer.setup(context)
+	var after_second := _handler_connections(objective, sequencer)
+	_row(18, after_first == 1,
+			"18 · el primer setup() conecta completed al secuenciador una vez (%d)"
+			% after_first)
+	_row(18, after_second == 1,
+			"18 · un segundo setup() sobre el mismo objetivo no duplica la conexión (%d -> %d)"
+			% [after_first, after_second])
+	sequencer.queue_free()
+
+
+## Conexiones de `completed` de [param objective] que van a
+## [method ObjectiveSequencer._on_objective_completed] de [param sequencer].
+func _handler_connections(objective: Objective, sequencer: ObjectiveSequencer) -> int:
+	var found := 0
+	for connection: Dictionary in objective.completed.get_connections():
+		var callable := connection["callable"] as Callable
+		if callable.get_object() == sequencer \
+				and callable.get_method() == &"_on_objective_completed":
+			found += 1
+	return found
 
 
 # --- Fila 2: respaldo de configuración --------------------------------------------------------
@@ -1135,7 +1191,8 @@ func _enter_level(round_seed: int) -> BattleLevel:
 
 ## Verdadero cuando la ronda de [param manager] ya llegó a un estado terminal.
 func _is_terminal(manager: RoundManager) -> bool:
-	return manager.get_state() == Global.RoundState.VICTORY 			or manager.get_state() == Global.RoundState.DEFEAT
+	return manager.get_state() == Global.RoundState.VICTORY \
+			or manager.get_state() == Global.RoundState.DEFEAT
 
 
 ## Primer enemigo de la ronda, o `null` si no hay ninguno.

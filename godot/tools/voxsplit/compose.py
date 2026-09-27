@@ -246,6 +246,10 @@ class Piece:
     colour_conflicts: int = 0
     #: Cuántos desajustes de relleno admite la pieza antes de ser un fallo (`docs/05`).
     allow_fill_mismatches: int = 0
+    #: Celda de la escena original donde cae la esquina mínima de `voxels`. La usa
+    #: `assemble` (WP-G2) para volver a juntar piezas que el pack exportó **por
+    #: separado pero en su sitio**, como el taxi y sus cuatro ruedas.
+    native: tuple[int, int, int] = (0, 0, 0)
 
     def copy(self) -> dict[tuple[int, int, int], int]:
         """Copia de los vóxeles, para poder desplazarla sin tocar la caché."""
@@ -334,14 +338,17 @@ def load_pieces(spec: TownSpec, palette_map: dict[int, int],
         if not voxels:
             raise ComposeError(f"'{piece_id}': el diezmado ×{entry.get('decimate')} se llevó "
                                f"la pieza entera; es demasiado grande para su tamaño")
-        voxels, size, _offset = objvox.normalize(voxels)
+        voxels, size, offset = objvox.normalize(voxels)
+        base = tuple(int(round(grid.obj_min[i] / spec.step)) for i in range(3))
+        native = (base[0] - offset[0], base[1] - offset[1], base[2] - offset[2])
         pieces[piece_id] = Piece(id=piece_id, voxels=voxels, size=size,
                                  source_triangles=grid.source_triangles,
                                  file=str(entry["file"]),
                                  fill_mismatches=list(grid.fill_mismatches),
                                  colour_conflicts=len(grid.colour_conflicts),
                                  allow_fill_mismatches=int(
-                                     entry.get("allow_fill_mismatches", 0)))
+                                     entry.get("allow_fill_mismatches", 0)),
+                                 native=native)
         if verbose:
             print(f"  pieza {piece_id:14s} {size}  vox {len(voxels):7d}  "
                   f"OBJ {grid.source_triangles:6d} tris  "
@@ -519,7 +526,8 @@ ORIGIN_MODES = ("centre", "start_x")
 def _spec_for(voxels: dict[tuple[int, int, int], int], piece_id: str,
               voxel_size: float, palette_texture: str,
               emissive_indices: Iterable[int],
-              origin_mode: str = "centre") -> parts_module.PartsSpec:
+              origin_mode: str = "centre",
+              emissive_strength: float | None = None) -> parts_module.PartsSpec:
     """`PartsSpec` de una pieza de una sola parte, apoyada en `y = 0`."""
     size = tuple(max(c[i] for c in voxels) + 1 for i in range(3))
     if origin_mode not in ORIGIN_MODES:
@@ -535,6 +543,7 @@ def _spec_for(voxels: dict[tuple[int, int, int], int], piece_id: str,
         "palette_texture": palette_texture,
         "emissive_palette_indices": sorted(set(int(i) for i in emissive_indices)),
         "collision_default": "box",
+        "emissive_strength": emissive_strength,
         "grid_size": list(size),
         "root_node": f"{_pascal(piece_id)}Root",
         "parts": [{
@@ -580,6 +589,34 @@ def _repeat(prop_id: str, voxels: dict[tuple[int, int, int], int],
         offset[axis] = copy * pitch
         _blit(out, voxels, offset)
     return out
+
+
+def _assemble(prop_id: str, pieces: dict[str, Piece],
+              members: Sequence[Any]) -> tuple[dict[tuple[int, int, int], int], list[str]]:
+    """Junta varias piezas **en la posición que tenían en la escena del pack** (WP-G2).
+
+    `stack` y `attach` sirven para armar una casa con piezas que el pack trae sueltas y
+    sin relación entre sí. Hay packs que exportan un objeto partido en varios OBJ pero
+    cada uno **en su sitio**: `cars.zip` saca el taxi como carrocería, cuatro ruedas y
+    una placa, y la rueda está donde va la rueda; `city-Free Sample.zip` saca los pisos
+    del edificio amarillo ya apilados a 2,50 m. Ahí la receta no tiene nada que decidir:
+    basta con volver a poner cada pieza en la celda de donde salió (`Piece.native`).
+    `attach` no sirve para eso porque **embute** la pieza dentro de la huella del
+    cuerpo, y la rueda sobresale de la carrocería a propósito; `stack` tampoco, porque
+    exige que cada piso entre en la planta del primero y el pack los hace crecer hacia
+    arriba (101, 104 y 108 celdas).
+    """
+    if not members:
+        raise ComposeError(f"prop '{prop_id}': 'assemble' está vacío")
+    out: dict[tuple[int, int, int], int] = {}
+    used: list[str] = []
+    for raw in members:
+        piece = pieces.get(str(raw))
+        if piece is None:
+            raise ComposeError(f"prop '{prop_id}': 'assemble' usa la pieza desconocida '{raw}'")
+        _blit(out, piece.voxels, piece.native)
+        used.append(piece.id)
+    return out, used
 
 
 def _paint_palette(spec: TownSpec, palette: list[tuple[int, int, int, int]]
@@ -629,11 +666,18 @@ def _emit(piece_id: str, kind: str, voxels: dict[tuple[int, int, int], int],
     if piece_scale <= 0.0:
         raise ComposeError(f"'{piece_id}': 'scale' = {piece_scale}")
     voxels, _size, _offset = objvox.normalize(voxels)
+    # `emissive_surface` (WP-G2): las vistas previas de `assets/preview/` se importan
+    # **sin** `import_script`, así que nadie les pone el material con máscara del
+    # pueblo. Para que lo que se enciende se vea igual, la receta puede pedir que los
+    # índices de ventana vayan a la superficie emisiva del GLB, como en un enemigo.
+    lit = set(window_indices) if bool(spec.raw.get("emissive_surface", False)) else set()
+    strength = spec.raw.get("emissive_strength")
     parts_spec = _spec_for(voxels, piece_id, spec.voxel_size * piece_scale,
-                           palette_texture, (), origin_mode=origin_mode)
+                           palette_texture, lit, origin_mode=origin_mode,
+                           emissive_strength=float(strength) if strength is not None else None)
     part = parts_spec.parts[0]
     mesh = mesher.build_part(voxels, parts_spec, part)
-    if mesher.EMISSIVE in mesh.surfaces:
+    if mesher.EMISSIVE in mesh.surfaces and not lit:
         raise ComposeError(f"'{piece_id}': el mallador generó una superficie emisiva; "
                            f"las casas van con **una sola** superficie y máscara")
     info = glbwriter.write(out_dir / f"{piece_id}.glb", {part.id: mesh}, parts_spec,
@@ -712,20 +756,36 @@ def build_town(spec_path: str | Path, out_dir: str | Path,
             results.append(result)
 
     for prop_id, entry in spec.raw["props"].items():
-        piece = pieces.get(str(entry["piece"]))
-        if piece is None:
-            raise ComposeError(f"prop '{prop_id}' usa la pieza desconocida '{entry['piece']}'")
         kind = str(entry.get("kind", "prop"))
         if kind not in budgets:
             raise ComposeError(f"prop '{prop_id}' declara la clase '{kind}', que no tiene "
                                f"presupuesto en 'budgets' {sorted(budgets)}")
-        voxels = piece.copy()
+        if "assemble" in entry:
+            voxels, used = _assemble(str(prop_id), pieces, list(entry["assemble"]))
+            voxels, size, _offset = objvox.normalize(voxels)
+            source_triangles = sum(pieces[p].source_triangles for p in used)
+        else:
+            piece = pieces.get(str(entry["piece"]))
+            if piece is None:
+                raise ComposeError(f"prop '{prop_id}' usa la pieza desconocida "
+                                   f"'{entry['piece']}'")
+            voxels, size, used = piece.copy(), piece.size, [piece.id]
+            source_triangles = piece.source_triangles
+        # Diezmado **del conjunto** (WP-G2): el de `pieces` vota cada pieza sobre su
+        # propia rejilla de bloques y dos piezas ensambladas pueden quedar desfasadas
+        # una celda; votando el conjunto, la rueda y la carrocería comparten bloques.
+        if int(entry.get("decimate", 1)) > 1:
+            voxels = _decimate(voxels, int(entry["decimate"]))
+            if not voxels:
+                raise ComposeError(f"prop '{prop_id}': el diezmado ×{entry['decimate']} se "
+                                   f"llevó la pieza entera")
+            voxels, size, _offset = objvox.normalize(voxels)
         if bool(entry.get("mirror", False)):
             voxels = objvox.mirror_x(voxels)
-        voxels = _repeat(prop_id, voxels, piece.size, entry.get("repeat"))
+        voxels = _repeat(prop_id, voxels, size, entry.get("repeat"))
         result = _emit(claim(str(prop_id), "props"), kind, voxels, spec, out,
-                       palette_texture, budgets[kind], piece.source_triangles,
-                       [piece.id], window_set,
+                       palette_texture, budgets[kind], source_triangles,
+                       used, window_set,
                        origin_mode=str(entry.get("origin", "centre")),
                        piece_scale=float(entry.get("scale", 1.0)))
         results.append(result)
@@ -768,12 +828,22 @@ def build_town(spec_path: str | Path, out_dir: str | Path,
 
     inventory = _inventory(spec, pieces, results, windows, palette_map,
                            palette_texture, emissive_texture)
+    # Fila y notas de la galería para las vistas previas (WP-G2). Sólo si la receta lo
+    # declara, para que el sidecar de los packs del pueblo no cambie ni una línea.
+    if spec.raw.get("preview"):
+        inventory["preview"] = spec.raw["preview"]
     _write_text(out / f"{spec.name}.pieces.json", dumps(inventory))
     # `<nombre>_report.txt` y no `report.txt`: `build` escribe su propio `report.txt` en
     # `--out`, y componer el pueblo en la misma carpeta que un enemigo se lo llevaba por
     # delante sin avisar.
     _write_text(out / f"{spec.name}_report.txt",
                 _report(spec, pieces, results, failures, windows, palette_map))
+    # Las vistas previas de `assets/preview/<pack>/` (WP-G2) llevan además el manifiesto
+    # que lee la galería. Se regenera desde **todos** los sidecars de la carpeta, así
+    # que da igual qué receta corrió última.
+    if spec.raw.get("preview"):
+        from . import previewmanifest
+        previewmanifest.write(out)
     if verbose:
         for result in results:
             print(f"  {result.kind:5s} {result.piece_id:16s} "

@@ -208,7 +208,10 @@ func clear() -> void:
 		tracer_renderer.clear()
 
 
-## Reinicia el acumulador de fuego amigo. Lo llama `RoundManager` al abrir ronda.
+## Reinicia el acumulador de fuego amigo.
+##
+## Lo llama [method RoundManager._reset_drone_counters] al abrir ronda, si para
+## entonces el arma ya resolvió su pool; si no, el pool es nuevo y ya vale cero.
 func reset_friendly_fire() -> void:
 	_friendly_fire_damage = 0.0
 

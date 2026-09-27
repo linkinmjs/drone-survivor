@@ -1,0 +1,89 @@
+voxsplit 1.0.0 — pueblo «cars»
+origen              : cars.zip
+paso del OBJ        : 0.02 u · escala ×1.0 · vóxel 0.02 m
+
+piezas del pack (tras familias de paleta, recorte y diezmado):
+  pieza          celdas           metros                      vox  OBJ tris
+  --------------------------------------------------------------------------
+  taxi_body      28×24×52         0.56 × 0.48 × 1.04        21552      4384
+  taxi_wheel_a   4×8×8            0.08 × 0.16 × 0.16          232       252
+  taxi_wheel_b   4×8×8            0.08 × 0.16 × 0.16          232       252
+  taxi_wheel_c   4×8×8            0.08 × 0.16 × 0.16          232       252
+  taxi_wheel_d   4×8×8            0.08 × 0.16 × 0.16          232       252
+  taxi_plate     10×1×10          0.20 × 0.02 × 0.20          100        12
+  crossing_a     80×2×80          1.60 × 0.04 × 1.60        12800       132
+  crossing_b     80×2×80          1.60 × 0.04 × 1.60        12800       136
+  street_8_a     80×2×80          1.60 × 0.04 × 1.60        12800       140
+  street_6_a     80×2×80          1.60 × 0.04 × 1.60        12800       108
+  street_6_b     80×2×80          1.60 × 0.04 × 1.60        12800       108
+  street_8_b     80×2×80          1.60 × 0.04 × 1.60        12800       140
+  sign_60        18×52×5          0.36 × 1.04 × 0.10          872       188
+  sign_64        18×52×5          0.36 × 1.04 × 0.10          808       332
+  sign_66        18×52×5          0.36 × 1.04 × 0.10          752       412
+
+diagnóstico de la voxelización (cáscara por normales frente a relleno por inundación):
+  una pieza de casa con más desajustes que su 'allow_fill_mismatches' es un fallo;
+  en un prop es sólo un aviso, porque los montones del pack son mallas abiertas.
+  taxi_body: 4240 celdas de desajuste de relleno (tolerancia 0), 0 de color
+      la celda (21, 11, 42) está marcada exterior pero el relleno la llena
+      la celda (1, 7, 13) está marcada exterior pero el relleno la llena
+      la celda (22, 4, 6) está marcada exterior pero el relleno la llena
+      la celda (23, 1, 25) está marcada exterior pero el relleno la llena
+      la celda (8, 3, 31) está marcada exterior pero el relleno la llena
+      la celda (21, 6, 48) está marcada exterior pero el relleno la llena
+      la celda (26, 9, 25) está marcada exterior pero el relleno la llena
+      la celda (4, 11, 42) está marcada exterior pero el relleno la llena
+      … y 4232 más
+
+piezas compuestas:
+  pieza            clase    tris  presup  OBJ tris      vox  AABB (m)                 vent.
+  ------------------------------------------------------------------------------------------------
+  cars_taxi        vehicle    682     800      5404    23616  1.96 × 1.82 × 3.64       32
+      escala : ×3.5 sobre el vóxel del pack (2 cm → 7 cm)
+      partes: taxi_plate, taxi_body, taxi_wheel_a, taxi_wheel_b, taxi_wheel_c, taxi_wheel_d
+      AABB   : min [-0.98, 0.0, -1.82]  max [0.98, 1.82, 1.82]
+  cars_crossing_a  street    114     300       132    12800  4.00 × 0.10 × 4.00       0
+      escala : ×2.5 sobre el vóxel del pack (2 cm → 5 cm)
+      partes: crossing_a
+      AABB   : min [-2.0, 0.0, -2.0]  max [2.0, 0.1, 2.0]
+  cars_crossing_b  street    118     300       136    12800  4.00 × 0.10 × 4.00       0
+      escala : ×2.5 sobre el vóxel del pack (2 cm → 5 cm)
+      partes: crossing_b
+      AABB   : min [-2.0, 0.0, -2.0]  max [2.0, 0.1, 2.0]
+  cars_street_6_a  street    108     300       108    12800  4.00 × 0.10 × 4.00       0
+      escala : ×2.5 sobre el vóxel del pack (2 cm → 5 cm)
+      partes: street_6_a
+      AABB   : min [-2.0, 0.0, -2.0]  max [2.0, 0.1, 2.0]
+  cars_street_6_b  street    108     300       108    12800  4.00 × 0.10 × 4.00       0
+      escala : ×2.5 sobre el vóxel del pack (2 cm → 5 cm)
+      partes: street_6_b
+      AABB   : min [-2.0, 0.0, -2.0]  max [2.0, 0.1, 2.0]
+  cars_street_8_a  street    134     300       140    12800  4.00 × 0.10 × 4.00       0
+      escala : ×2.5 sobre el vóxel del pack (2 cm → 5 cm)
+      partes: street_8_a
+      AABB   : min [-2.0, 0.0, -2.0]  max [2.0, 0.1, 2.0]
+  cars_street_8_b  street    134     300       140    12800  4.00 × 0.10 × 4.00       0
+      escala : ×2.5 sobre el vóxel del pack (2 cm → 5 cm)
+      partes: street_8_b
+      AABB   : min [-2.0, 0.0, -2.0]  max [2.0, 0.1, 2.0]
+  cars_sign_60     sign      164     400       188      872  0.90 × 2.60 × 0.25       0
+      escala : ×2.5 sobre el vóxel del pack (2 cm → 5 cm)
+      partes: sign_60
+      AABB   : min [-0.45, 0.0, -0.125]  max [0.45, 2.6, 0.125]
+  cars_sign_64     sign      246     400       332      808  0.90 × 2.60 × 0.25       0
+      escala : ×2.5 sobre el vóxel del pack (2 cm → 5 cm)
+      partes: sign_64
+      AABB   : min [-0.45, 0.0, -0.125]  max [0.45, 2.6, 0.125]
+  cars_sign_66     sign      348     400       412      752  0.90 × 2.60 × 0.25       0
+      escala : ×2.5 sobre el vóxel del pack (2 cm → 5 cm)
+      partes: sign_66
+      AABB   : min [-0.45, 0.0, -0.125]  max [0.45, 2.6, 0.125]
+
+familias de paleta (representante ← miembros):
+
+índices de ventana de la máscara emisiva:
+   85 → RGB (243, 156, 80)
+   86 → RGB (255, 203, 100)
+  173 → RGB (203, 73, 75)
+
+CHECK compose: OK

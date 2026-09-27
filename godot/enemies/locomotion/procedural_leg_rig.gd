@@ -215,6 +215,19 @@ var broken_legs: Dictionary[int, bool] = {}
 
 var _gait: GaitController = GaitController.new()
 var _enemy: Node3D = null
+
+## El mismo enemigo de [member _enemy] **tipado**, cuando lo es (P2d WP-C §8).
+##
+## `is_downed()`, `is_staggered()` e `is_locomotion_locked()` se consultan cuatro
+## veces por tick desde acá, y `has_method` + `call` es una búsqueda por nombre
+## cada vez. Con la referencia tipada la llamada es directa; el despacho flojo
+## queda de respaldo para los cuerpos de mentira de `gait_check`.
+var _enemy_base: EnemyBase = null
+
+## Puntos de apoyo del tick, **reutilizados** en vez de un `Array` nuevo por
+## llamada: [method _apply_body_pose], [method snap_to_ground] y el aterrizaje del
+## salto lo piden tres veces por tick (P2d WP-C, mejoras).
+var _support_buffer: Array[Vector3] = []
 var _body: Node3D = null
 var _ready_to_walk: bool = false
 var _needs_snap: bool = true
@@ -261,6 +274,7 @@ var _climb_intent: bool = false
 func _ready() -> void:
 	_body = get_parent() as Node3D
 	_enemy = _body
+	_enemy_base = _body as EnemyBase
 	_query = PhysicsRayQueryParameters3D.new()
 	_query.collide_with_areas = false
 	_query.collide_with_bodies = true
@@ -294,6 +308,7 @@ func setup(data: Array[Dictionary]) -> void:
 	if _body == null:
 		_body = get_parent() as Node3D
 		_enemy = _body
+		_enemy_base = _body as EnemyBase
 	if _body == null:
 		push_error("ProceduralLegRig: el nodo no cuelga de un Node3D.")
 		return
@@ -308,7 +323,7 @@ func setup(data: Array[Dictionary]) -> void:
 		# cadera en horizontal, dobla la rodilla y la saca del cuerpo. Va dentro
 		# de `bind()` para que la coxa mida su reposo contra la huella ya abierta.
 		if not leg.bind(entry, _body, pole, _spread()):
-			Global.startup_errors.append("ERR_ENEMY_LEG_INCOMPLETE")
+			Global.report_startup_error("ERR_ENEMY_LEG_INCOMPLETE")
 			push_error("ProceduralLegRig: la pata %d no se pudo medir." % legs.size())
 			continue
 		hip_sum += leg.hip_offset.y
@@ -1243,12 +1258,12 @@ func _on_city() -> bool:
 ## los cuatro. Con dos puntos el plano degenera, y en trote siempre hay dos
 ## patas en el aire: sin esto la inclinación parpadearía en cada tranco.
 func _support_points() -> Array[Vector3]:
-	var points: Array[Vector3] = []
+	_support_buffer.clear()
 	for leg: Leg in legs:
 		if leg.broken:
 			continue
-		points.append(_contact_point(leg))
-	return points
+		_support_buffer.append(_contact_point(leg))
+	return _support_buffer
 
 
 ## Punto de contacto **virtual** de una pata: su apoyo si está plantada y, si
@@ -1690,6 +1705,8 @@ func _effective_speed() -> float:
 
 ## `true` cuando se perdieron todas las patas que tolera el enemigo.
 func _is_downed() -> bool:
+	if _enemy_base != null:
+		return _enemy_base.is_downed()
 	if _enemy != null and _enemy.has_method(&"is_downed"):
 		return bool(_enemy.call(&"is_downed"))
 	return broken_legs.size() >= legs.size()
@@ -1697,6 +1714,8 @@ func _is_downed() -> bool:
 
 ## `true` si una acción con `lock_locomotion` está en curso (`docs/06` §11.1).
 func _is_locomotion_locked() -> bool:
+	if _enemy_base != null:
+		return _enemy_base.is_locomotion_locked()
 	if _enemy != null and _enemy.has_method(&"is_locomotion_locked"):
 		return bool(_enemy.call(&"is_locomotion_locked"))
 	return false
@@ -1704,6 +1723,8 @@ func _is_locomotion_locked() -> bool:
 
 ## `true` si el enemigo está tambaleando por daño.
 func _is_staggered() -> bool:
+	if _enemy_base != null:
+		return _enemy_base.is_staggered()
 	if _enemy != null and _enemy.has_method(&"is_staggered"):
 		return bool(_enemy.call(&"is_staggered"))
 	return false

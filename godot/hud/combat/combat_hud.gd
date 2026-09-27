@@ -49,9 +49,10 @@ extends CanvasLayer
 ## Capa del canvas (`docs/12` §1.1).
 const LAYER: int = 20
 
-## Lienzo de referencia de los componentes, en píxeles. El mismo que el del
-## `FlightHUD` ([constant FlightHUD.MIN_LAYOUT_SIZE]), a propósito.
-const LAYOUT_SIZE: Vector2 = Vector2(1280.0, 720.0)
+## Lienzo de referencia de los componentes, en píxeles. Es el mismo que el del
+## `FlightHUD` porque los dos lo toman de [constant HUDFrame.LAYOUT_SIZE]
+## (P2d WP-C, mejoras): antes era el mismo número escrito dos veces.
+const LAYOUT_SIZE: Vector2 = HUDFrame.LAYOUT_SIZE
 
 ## Los dieciocho componentes que [method show_component] sabe encender y apagar.
 ##
@@ -62,6 +63,38 @@ const LAYOUT_SIZE: Vector2 = Vector2(1280.0, 720.0)
 enum Component {ENERGY, HULL, HEAT, RETICLE, HIT_MARKER, BOSS, CITY, MARKERS,
 		DAMAGE, TELEGRAPH, TIMER, OBJECTIVE, RESPAWN, INTRO, GLITCH,
 		WEAK_HINT, COACH, ALERT_SCREEN}
+
+## La tabla de la que salen las tres vistas de los componentes (P2d WP-C).
+##
+## Cada fila es `[nombre único en la escena, valor de Component, tiquea]`. De acá
+## salen la tabla que consume [method component_node], la lista que recorre
+## [method advance] —en este mismo orden— y la lista de los que faltan. Agregar un
+## componente pide su fila acá y su valor en [enum Component]; si además el HUD le
+## habla por su tipo concreto (como a `_energy` o `_boss`), también el campo tipado y
+## su `get_node_or_null` en `_ready`, que siguen escritos uno por uno.
+##
+## `GlitchLayer` no tiquea con los demás: no dibuja nada propio, le escribe
+## desplazamientos al resto y lo avanza [method advance] antes que a nadie.
+const COMPONENT_NODES: Array[Array] = [
+	["EnergyBar", Component.ENERGY, true],
+	["HullBar", Component.HULL, true],
+	["HeatGauge", Component.HEAT, true],
+	["Reticle", Component.RETICLE, true],
+	["HitMarker", Component.HIT_MARKER, true],
+	["BossBar", Component.BOSS, true],
+	["CityBar", Component.CITY, true],
+	["OffscreenMarkers", Component.MARKERS, true],
+	["DamageDirection", Component.DAMAGE, true],
+	["TelegraphWarning", Component.TELEGRAPH, true],
+	["RoundTimer", Component.TIMER, true],
+	["ObjectiveLine", Component.OBJECTIVE, true],
+	["RespawnOverlay", Component.RESPAWN, true],
+	["IntroBanner", Component.INTRO, true],
+	["GlitchLayer", Component.GLITCH, false],
+	["WeakPointHint", Component.WEAK_HINT, true],
+	["CoachTip", Component.COACH, true],
+	["AlertScreen", Component.ALERT_SCREEN, true],
+]
 
 ## Lo único que se ve en modo cinemático (`docs/12` §4.2). Se guarda como
 ## `Array[int]` porque un `Array` tipado con un `enum` no es un tipo de contenedor
@@ -144,6 +177,10 @@ var _drone_absent: bool = false
 ## Los diecisiete componentes en el orden de [method _components], armados una sola
 ## vez en [method _collect_nodes] (WP-29).
 var _component_list: Array[CombatHUDComponent] = []
+
+## Los mismos componentes indexados por [enum Component]. Lo llena
+## [method _collect_nodes] desde [constant COMPONENT_NODES].
+var _by_component: Dictionary[int, CombatHUDComponent] = {}
 
 ## Con `true`, [method advance] sólo corre cuando alguien la llama a mano. Lo usa
 ## `combat_hud_check` para medir plazos en pasos exactos.
@@ -393,45 +430,7 @@ func is_component_drawn(component: Component) -> bool:
 
 ## Nodo que dibuja un componente. Nunca es `null` en un HUD bien construido.
 func component_node(component: Component) -> CombatHUDComponent:
-	match component:
-		Component.ENERGY:
-			return _energy
-		Component.HULL:
-			return _hull
-		Component.HEAT:
-			return _heat
-		Component.RETICLE:
-			return _reticle
-		Component.HIT_MARKER:
-			return _hit_marker
-		Component.BOSS:
-			return _boss
-		Component.CITY:
-			return _city_bar
-		Component.MARKERS:
-			return _markers
-		Component.DAMAGE:
-			return _damage
-		Component.TELEGRAPH:
-			return _telegraph
-		Component.TIMER:
-			return _timer
-		Component.OBJECTIVE:
-			return _objective
-		Component.RESPAWN:
-			return _respawn
-		Component.INTRO:
-			return _intro
-		Component.GLITCH:
-			return _glitch
-		Component.WEAK_HINT:
-			return _weak_hint
-		Component.COACH:
-			return _coach
-		Component.ALERT_SCREEN:
-			return _alert
-		_:
-			return null
+	return _by_component.get(int(component), null)
 
 
 ## `true` mientras el EMP esté perturbando el HUD (`docs/12` §4.3).
@@ -541,6 +540,13 @@ func _on_drone_destroyed(_position: Vector3) -> void:
 ## Y media ráfaga de estática más: el enlace del dron nuevo enganchando. Es la otra
 ## mitad del corte —el taller ya entregó— y por eso dura la mitad.
 func _on_drone_respawned(_score_multiplier: float) -> void:
+	# Con el rig perdido, `bind_drone(null)` desata la retícula, el overlay de
+	# reaparición y la energía: el HUD se queda mudo justo cuando el dron vuelve, y
+	# en silencio. Es un error de cableado del nivel, no un estado legítimo
+	# (P2d WP-C, mejoras).
+	if _rig == null or not is_instance_valid(_rig):
+		push_warning("CombatHUD: el dron reapareció y el HUD no tiene rig; " \
+				+ "la retícula, el overlay y la energía quedan sin atar.")
 	bind_drone(_rig)
 	if _glitch != null:
 		_glitch.trigger_static(HUDStaticBurst.REBUILT_SECONDS)
@@ -771,13 +777,7 @@ func _layout() -> void:
 	if available.x < 1.0 or available.y < 1.0:
 		var viewport := get_viewport()
 		available = viewport.get_visible_rect().size if viewport != null else LAYOUT_SIZE
-	if available.x < 1.0 or available.y < 1.0:
-		available = LAYOUT_SIZE
-	var factor := minf(1.0, minf(available.x / LAYOUT_SIZE.x, available.y / LAYOUT_SIZE.y))
-	factor = maxf(factor, 0.05)
-	_frame.position = Vector2.ZERO
-	_frame.scale = Vector2(factor, factor)
-	_frame.size = available / factor
+	HUDFrame.apply(_frame, available)
 
 
 ## El primer cuadro del HUD llega antes de que el `Control` raíz tenga tamaño: ahí el
@@ -787,9 +787,7 @@ func _layout_if_needed() -> void:
 		return
 	if _root.size.x < 1.0 or _root.size.y < 1.0:
 		return
-	var expected := minf(1.0, minf(_root.size.x / LAYOUT_SIZE.x,
-			_root.size.y / LAYOUT_SIZE.y))
-	expected = maxf(expected, 0.05)
+	var expected := HUDFrame.scale_for(_root.size)
 	if not is_equal_approx(_frame.scale.x, expected):
 		_layout()
 
@@ -817,30 +815,29 @@ func _collect_nodes() -> void:
 	_weak_hint = get_node_or_null(^"%WeakPointHint") as HUDWeakPointHint
 	_coach = get_node_or_null(^"%CoachTip") as HUDCoachTip
 	_alert = get_node_or_null(^"%AlertScreen") as HUDAlertScreen
-	# La lista se arma **una vez**, acá, y no en cada llamada a [method _components]:
-	# la llama [method advance] una vez por cuadro. Los campos no cambian después de
-	# acá —los resuelve este mismo método y nadie más los escribe—, así que rearmar el
-	# arreglo de diecisiete elementos por cuadro era trabajo tirado.
-	#
-	# **Cuánto ahorra, medido** (WP-29): nada que la sonda vea. `hud_combat` marcaba
-	# 0,287 ms/cuadro antes y 0,272 después, dentro del ruido entre corridas: lo que
-	# cuesta es el `tick()` de los diecisiete componentes, no armar la lista. El cambio
-	# queda porque es menos trabajo y no cambia nada, no porque haya movido la aguja.
-	# El costo real del HUD sí importa en LOW, donde esos 0,24 ms son el 11 % de un
-	# cuadro de 2,1 ms.
-	_component_list.assign([_energy, _hull, _heat, _reticle, _hit_marker, _boss,
-			_city_bar, _markers, _damage, _telegraph, _timer, _objective, _respawn,
-			_intro, _weak_hint, _coach, _alert])
+	# De acá salen las **tres** vistas de los componentes, todas de la misma tabla
+	# [constant COMPONENT_NODES] (P2d WP-C, mejoras): la tabla
+	# `Component -> CombatHUDComponent` que consume [method component_node] —que era
+	# un `match` de dieciocho ramas recorrido dentro del bucle de
+	# [method _apply_visibility]—, la lista que [method advance] recorre por cuadro
+	# y la lista de los que faltan. Antes los nombres estaban escritos tres veces; los
+	# campos tipados de arriba siguen aparte, para quien le habla a un componente
+	# por su tipo concreto.
+	_by_component.clear()
+	_component_list.clear()
 	var missing := PackedStringArray()
-	for pair: Array in [["Root", _root], ["Frame", _frame], ["EnergyBar", _energy],
-			["HullBar", _hull], ["HeatGauge", _heat], ["Reticle", _reticle],
-			["HitMarker", _hit_marker], ["BossBar", _boss], ["CityBar", _city_bar],
-			["OffscreenMarkers", _markers], ["DamageDirection", _damage],
-			["TelegraphWarning", _telegraph], ["RoundTimer", _timer],
-			["ObjectiveLine", _objective], ["RespawnOverlay", _respawn],
-			["IntroBanner", _intro], ["GlitchLayer", _glitch],
-			["WeakPointHint", _weak_hint], ["CoachTip", _coach],
-			["AlertScreen", _alert]]:
+	for entry: Array in COMPONENT_NODES:
+		var node_name := String(entry[0])
+		var node := get_node_or_null(NodePath("%%%s" % node_name)) as CombatHUDComponent
+		if node == null:
+			missing.append(node_name)
+			continue
+		_by_component[int(entry[1])] = node
+		# `GlitchLayer` no tiquea con los demás: le escribe desplazamientos a
+		# todos y lo avanza [method advance] aparte.
+		if bool(entry[2]):
+			_component_list.append(node)
+	for pair: Array in [["Root", _root], ["Frame", _frame]]:
 		if pair[1] == null:
 			missing.append(String(pair[0]))
 	if not missing.is_empty():

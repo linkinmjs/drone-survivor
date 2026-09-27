@@ -87,7 +87,7 @@ func _ready() -> void:
 	_controller = _drone.get_node_or_null(^"FlightController") as FlightController
 	_radio = get_node_or_null(^"RadioController") as RadioController
 	_camera_rig = _drone.get_node_or_null(^"CameraRig") as CameraRig
-	_fpv_camera = _drone.get_node_or_null(^"CameraRig/FPVCamera") as FPVCamera
+	_fpv_camera = _drone.get_node_or_null(Drone.FPV_CAMERA_PATH) as FPVCamera
 	_mode_led = _drone.get_node_or_null(^"ModeLED") as ModeLED
 	_motor_audio = _drone.get_node_or_null(^"MotorAudio") as MotorAudio
 	_weapon = _drone.get_node_or_null(^"WeaponMount") as WeaponMount

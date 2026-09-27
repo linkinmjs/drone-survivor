@@ -171,7 +171,7 @@ func _ready() -> void:
 	if track_enemies:
 		# Los enemigos que ya estaban en la escena —los bancos de los checks y los
 		# showcases— nunca emitieron `enemy_spawned` para este pool.
-		call_deferred(&"_scan_enemies")
+		_scan_enemies.call_deferred()
 	set_process(true)
 
 
@@ -189,9 +189,18 @@ func _process(delta: float) -> void:
 			if slot.manual:
 				if slot.held >= MAX_HOLD_SECONDS and not slot.warned:
 					slot.warned = true
-					push_warning("VFXPool: '%s' lleva %.0f s retenido%s."
-							% [String(slot.id), slot.held,
-							"" if slot.long_hold else "; se reclama la ranura"])
+					# Una retención larga **declarada** (`long_hold`) es lo normal
+					# en un haz de asedio de dos minutos: avisarla con
+					# `push_warning` ensuciaba el log de los checks en verde. Sólo
+					# se cuenta en una corrida de desarrollo; la retención que sí
+					# es un error —la que se reclama— sigue avisando siempre
+					# (P2d WP-C, mejoras).
+					if not slot.long_hold:
+						push_warning("VFXPool: '%s' lleva %.0f s retenido; se reclama la ranura."
+								% [String(slot.id), slot.held])
+					elif Global.debug:
+						print("[VFXPool] '%s' lleva %.0f s retenido (hold declarado)."
+								% [String(slot.id), slot.held])
 				# La retención larga es de quien la pidió hasta que llame a
 				# `release()`: reclamarla apagaba haces en pleno ataque.
 				if slot.held >= MAX_HOLD_SECONDS and not slot.long_hold:

@@ -78,6 +78,8 @@ func _ready() -> void:
 	# Semilla de ronda: dos corridas con la misma semilla tiran los escombros
 	# igual, que es lo que hace reproducibles a `enemy_parts_check` y al showcase.
 	_rng.seed = Global.round_seed
+	# El pool nace vacío: no hay nada que envejecer hasta el primer [method _arm].
+	set_physics_process(false)
 
 
 ## Envejece los trozos vivos y retira los que agotaron su vida o llevan
@@ -96,6 +98,11 @@ func _physics_process(delta: float) -> void:
 		if chunk.age >= chunk.lifetime or chunk.sleep_time >= SLEEP_RETIRE_SECONDS:
 			_retire_at(index)
 		index -= 1
+	# Sin trozos vivos no hay nada que envejecer, y la ronda pasa la mayor parte del
+	# tiempo así: el pool se apaga y lo reenciende [method _arm]. Es el mismo patrón
+	# ocioso de `AudioPool` y `VFXPool` (`docs/13` §4), aplicado a 100 Hz.
+	if _live.is_empty():
+		set_physics_process(false)
 	PerfProbe.end(&"debris_pool")
 
 
@@ -115,6 +122,14 @@ func request(mesh: Mesh, shape: Shape3D, xform: Transform3D, mass: float,
 			mesh_instance = MeshInstance3D.new()
 			mesh_instance.name = "Mesh"
 			mesh_instance.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+			# La regla de `docs/13` §1 —sólo proyectan sombra los seis edificios que la
+			# ciudad elige— la aplicaba `CityGrid._mute_house_shadows()` sobre lo que
+			# existe al sembrar el distrito, y el escombro no existe todavía cuando eso
+			# corre. Con [constant MAX_LIVE] trozos vivos y cajas de hasta 7,8 × 2,6 ×
+			# 5,9 m, dejarlo en ON eran hasta 24 × 4 cascadas × 3 viewports ≈ 288 lotes
+			# de sombra extra en pleno derrumbe, que es justo el cuadro caro. Medido en
+			# P2d: el escenario con derrumbe pasaba el tope de 900.
+			mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			chunk.add_child(mesh_instance)
 		mesh_instance.mesh = mesh
 		mesh_instance.visible = true
@@ -294,6 +309,9 @@ func _arm(chunk: DebrisChunk, mass: float, impulse: Vector3, lifetime: float) ->
 			_rng.randf_range(-SPIN_RANGE, SPIN_RANGE))
 	chunk.launch(impulse, spin, mass)
 	_live.append(chunk)
+	# Reencendido del acumulador: [method _physics_process] se apaga solo cuando la
+	# lista de vivos queda vacía.
+	set_physics_process(true)
 
 
 ## Deja sitio para un trozo más retirando el más viejo si el pool está lleno.

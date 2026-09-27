@@ -14,7 +14,8 @@ Sigue al pie de la letra `docs/05-pipeline-voxel.md` §2:
   primer `modelId`; la traslación `_t` se ignora deliberadamente (§2.4).
 
 Además acepta rutas con la forma ``<archivo.zip>!<miembro>`` para leer el `.vox`
-directamente desde un ZIP de ``assets/_raw/`` sin extraerlo al repositorio (§1).
+directamente desde un ZIP de ``assets/_raw/`` sin extraerlo al repositorio (§1), y desde
+WP-G2 también ``<archivo.rar>!<miembro>``, por la tubería de UnRAR de `objvox`.
 """
 
 from __future__ import annotations
@@ -289,12 +290,22 @@ def resolve_source(source: str, base_dir: Path | str | None = None) -> str:
 
 
 def read(path: str | Path) -> VoxModel:
-    """Lee un `.vox` desde disco o desde un miembro de un ZIP (``archivo.zip!miembro``)."""
+    """Lee un `.vox` desde disco o desde un miembro de un ZIP o un RAR (``archivo.zip!miembro``)."""
     text = str(path)
     zip_path, sep, member = text.partition(ZIP_SEPARATOR)
     if sep:
         if not member:
             raise VoxError(f"{text}: falta el nombre del miembro después de '{ZIP_SEPARATOR}'")
+        if zip_path.lower().endswith(".rar"):
+            # `Mecha01.rar` es el único mecha que no viene en ZIP (WP-G2). Python no trae
+            # lector de RAR, así que se reutiliza la tubería de UnRAR de `objvox`
+            # (`UnRAR p -inul`): el miembro va a memoria y nada toca el disco.
+            from . import objvox  # import diferido: objvox no depende de este módulo
+            try:
+                data = objvox.read_source_bytes(text)
+            except objvox.ObjVoxError as exc:
+                raise VoxError(str(exc)) from exc
+            return read_bytes(data, origin=text)
         try:
             with zipfile.ZipFile(zip_path) as archive:
                 data = archive.read(member)

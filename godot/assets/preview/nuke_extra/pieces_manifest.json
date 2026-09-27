@@ -1,0 +1,138 @@
+{
+  "comment": "Generado por voxsplit (previewmanifest.py, WP-G2). No editar a mano: se reescribe en cada corrida de 'town' o 'build' sobre esta carpeta.",
+  "sort": "id",
+  "pieces": [
+    {
+      "id": "nuke_concrete_tile",
+      "scene": "res://assets/preview/nuke_extra/nuke_concrete_tile.glb",
+      "source": "nuke Free Sample.zip",
+      "pack": "nuke",
+      "class": "street",
+      "row": "Packs/Nuke extra",
+      "footprint": [10, 10],
+      "height": 0.25,
+      "tris": 2682,
+      "placeholder": false
+    },
+    {
+      "id": "nuke_road_tile_0",
+      "scene": "res://assets/preview/nuke_extra/nuke_road_tile_0.glb",
+      "source": "nuke Free Sample.zip",
+      "pack": "nuke",
+      "class": "street",
+      "row": "Packs/Nuke extra",
+      "footprint": [5, 5],
+      "height": 0.1,
+      "tris": 344,
+      "placeholder": false
+    },
+    {
+      "id": "nuke_road_tile_1",
+      "scene": "res://assets/preview/nuke_extra/nuke_road_tile_1.glb",
+      "source": "nuke Free Sample.zip",
+      "pack": "nuke",
+      "class": "street",
+      "row": "Packs/Nuke extra",
+      "footprint": [5, 5],
+      "height": 0.1,
+      "tris": 344,
+      "placeholder": false
+    },
+    {
+      "id": "nuke_trash_5",
+      "scene": "res://assets/preview/nuke_extra/nuke_trash_5.glb",
+      "source": "nuke Free Sample.zip",
+      "pack": "nuke",
+      "class": "prop",
+      "row": "Packs/Nuke extra",
+      "footprint": [1, 0.9],
+      "height": 0.3,
+      "tris": 708,
+      "placeholder": false
+    },
+    {
+      "id": "nuke_weeds_1",
+      "scene": "res://assets/preview/nuke_extra/nuke_weeds_1.glb",
+      "source": "nuke Free Sample.zip",
+      "pack": "nuke",
+      "class": "prop",
+      "row": "Packs/Nuke extra",
+      "footprint": [1.6, 0.65],
+      "height": 0.05,
+      "tris": 276,
+      "placeholder": false
+    },
+    {
+      "id": "nuke_weeds_2",
+      "scene": "res://assets/preview/nuke_extra/nuke_weeds_2.glb",
+      "source": "nuke Free Sample.zip",
+      "pack": "nuke",
+      "class": "prop",
+      "row": "Packs/Nuke extra",
+      "footprint": [1.6, 0.65],
+      "height": 0.05,
+      "tris": 276,
+      "placeholder": false
+    },
+    {
+      "id": "nuke_weeds_3",
+      "scene": "res://assets/preview/nuke_extra/nuke_weeds_3.glb",
+      "source": "nuke Free Sample.zip",
+      "pack": "nuke",
+      "class": "prop",
+      "row": "Packs/Nuke extra",
+      "footprint": [1.6, 0.65],
+      "height": 0.05,
+      "tris": 276,
+      "placeholder": false
+    },
+    {
+      "id": "nuke_weeds_5",
+      "scene": "res://assets/preview/nuke_extra/nuke_weeds_5.glb",
+      "source": "nuke Free Sample.zip",
+      "pack": "nuke",
+      "class": "prop",
+      "row": "Packs/Nuke extra",
+      "footprint": [1.4, 0.35],
+      "height": 0.2,
+      "tris": 462,
+      "placeholder": false
+    },
+    {
+      "id": "nuke_weeds_6",
+      "scene": "res://assets/preview/nuke_extra/nuke_weeds_6.glb",
+      "source": "nuke Free Sample.zip",
+      "pack": "nuke",
+      "class": "prop",
+      "row": "Packs/Nuke extra",
+      "footprint": [1.6, 0.65],
+      "height": 0.05,
+      "tris": 276,
+      "placeholder": false
+    },
+    {
+      "id": "nuke_weeds_7",
+      "scene": "res://assets/preview/nuke_extra/nuke_weeds_7.glb",
+      "source": "nuke Free Sample.zip",
+      "pack": "nuke",
+      "class": "prop",
+      "row": "Packs/Nuke extra",
+      "footprint": [1.6, 0.65],
+      "height": 0.05,
+      "tris": 276,
+      "placeholder": false
+    },
+    {
+      "id": "nuke_weeds_8",
+      "scene": "res://assets/preview/nuke_extra/nuke_weeds_8.glb",
+      "source": "nuke Free Sample.zip",
+      "pack": "nuke",
+      "class": "prop",
+      "row": "Packs/Nuke extra",
+      "footprint": [1.6, 0.65],
+      "height": 0.05,
+      "tris": 276,
+      "placeholder": false
+    }
+  ]
+}

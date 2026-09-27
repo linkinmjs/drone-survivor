@@ -4,6 +4,8 @@
 
 ## 1. Objetivo y alcance
 
+> **Nota de P2e (2026-09-24)**: pack nuevo en `assets/_raw/`: **`cars.zip`** (15 OBJ de MagicaVoxel: taxi, baldosas de calle y señales; sin readme, autor ni licencia → **DESCONOCIDA**, pendiente como los demás; derivados de vista previa en `assets/preview/cars/`). Las vistas previas de los 8 mechas y de las piezas sobrantes de los packs conocidos viven en `assets/preview/` con su propio `LICENSE-PENDING.md` (una fila por pack). `citry.zip` es un duplicado de `city-Free Sample.zip` y no se usa.
+
 Fijar la licencia del juego, registrar todas las atribuciones obligatorias y mantener la lista de verificaciones legales pendientes antes de publicar. No cubre el protocolo de sala limpia (ver `01`).
 
 ## 2. Licencia del juego

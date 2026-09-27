@@ -178,10 +178,8 @@ func _track(delta: float) -> void:
 	var space := space_state()
 	if space == null:
 		return
-	var query := PhysicsRayQueryParameters3D.create(_head_position(), _contact,
+	var query := ray_query(_head_position(), _contact,
 			profile.query_layers if profile != null else PhysicsLayers.QUERY_SWEEP)
-	query.collide_with_areas = false
-	query.exclude = self_exclusions()
 	var hit := space.intersect_ray(query)
 	if hit.is_empty():
 		return

@@ -64,7 +64,7 @@ enum Component {CROSSHAIR, STATUS, HEADING, SPEED, ALTITUDE, LADDER,
 ## centro y 270 px de alto ([HUDSideTapes]), así que con 960×540 rozaban el borde y se
 ## comían el sitio de los números. 1280×720 deja margen a los dos lados y sigue
 ## entrando entero en una captura de 960×540 con factor 0.75.
-const MIN_LAYOUT_SIZE: Vector2 = Vector2(1280.0, 720.0)
+const MIN_LAYOUT_SIZE: Vector2 = HUDFrame.LAYOUT_SIZE
 
 ## Clave de `hud_config` de cada componente configurable (`docs/12` §2.4). `STATUS` no
 ## está: no tiene interruptor.
@@ -605,17 +605,7 @@ func _update_orientation() -> void:
 ## Escala el marco para que el lienzo de [constant MIN_LAYOUT_SIZE] entre en el
 ## espacio disponible, sin agrandarlo nunca.
 func _layout() -> void:
-	if _frame == null:
-		return
-	var available := size
-	if available.x < 1.0 or available.y < 1.0:
-		available = MIN_LAYOUT_SIZE
-	var factor := minf(1.0, minf(available.x / MIN_LAYOUT_SIZE.x,
-			available.y / MIN_LAYOUT_SIZE.y))
-	factor = maxf(factor, 0.05)
-	_frame.position = Vector2.ZERO
-	_frame.scale = Vector2(factor, factor)
-	_frame.size = available / factor
+	HUDFrame.apply(_frame, size)
 
 
 ## Toma los nodos por nombre único y avisa de los que falten. Un HUD al que le falta un

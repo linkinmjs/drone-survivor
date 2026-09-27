@@ -1,0 +1,75 @@
+{
+  "comment": [
+    "Vista previa de MechaTrooper, soldado a distancia (docs/14 3.4, WP-33). WP-G2.",
+    "NO es el enemigo: es el .vox entero en UNA sola parte, sin puntos debiles, sin",
+    "colision y sin import_script, para mirarlo en la galeria antes de su WP. Cuando",
+    "el enemigo se produzca, su parts.json de verdad vive en enemies/<id>/.",
+    "voxel_size de docs/14 2; axis_map y origen como el Arachnodroid (Z del .vox es la",
+    "altura, centro de la huella en el origen, base en y = 0). emissive_strength fijo en",
+    "3,0 (el techo del Arachnodroid): el MATL de estos packs llega a energia 8 y con",
+    "eso el visor quema a blanco en la galeria."
+  ],
+  "source": "../../../../assets/_raw/MechaTrooper.zip!Package/MechaTrooper.vox",
+  "name": "mech_trooper",
+  "voxel_size": 0.36,
+  "origin_voxel": [26, 16, 0],
+  "grid_size": [52, 32, 60],
+  "axis_map": {"x": "+x", "y": "+z", "z": "-y"},
+  "palette_texture": "mech_trooper_palette.png",
+  "emissive_palette_indices": [6, 7],
+  "emissive_strength": 3,
+  "collision_default": "box",
+  "expect": {"part_count": 1, "triangle_budget": 8000, "total_height": 21.6, "height_tolerance": 0.01},
+  "preview": {
+    "pack": "mech",
+    "class": "enemy",
+    "row": "Enemigos/Vista previa",
+    "sort": "height",
+    "preview_only": true,
+    "note": "vista previa: el .vox entero en una parte, no es el enemigo jugable"
+  },
+  "parts": [
+    {
+      "id": "body",
+      "parent": null,
+      "boxes": [[0, 0, 0, 51, 31, 59]],
+      "pivot": [25.5, 15.5, -0.5],
+      "flags": ["root"]
+    }
+  ],
+  "metadata": {
+    "voxsplit_version": "1.0.0",
+    "generated_at": "2026-09-24T00:00:00Z",
+    "source": "../../../../assets/_raw/MechaTrooper.zip!Package/MechaTrooper.vox",
+    "part_count": 1,
+    "voxel_count": 21434,
+    "triangle_count": 5136,
+    "quad_count": 2568,
+    "unassigned_count": 0,
+    "total_height": 21.6,
+    "aabb_min": [-9.36, 0, -5.76],
+    "aabb_max": [9.36, 21.6, 5.76],
+    "footprint": [18.72, 11.52],
+    "density": 220,
+    "emissive_strength": 3,
+    "emissive_indices": {
+      "6": {"color": [249, 84, 29, 255], "voxels": 44, "weight": "0.03", "flux": "2", "energy": 0.06},
+      "7": {"color": [249, 58, 29, 255], "voxels": 67, "weight": "1", "flux": "1", "energy": 1}
+    },
+    "root_node": "MechTrooperRoot",
+    "parts": {
+      "body": {
+        "parent": null,
+        "aabb_min": [-9.36, 0, -5.76],
+        "aabb_max": [9.36, 21.6, 5.76],
+        "center_of_mass": [0, 13.622978, 0.750014],
+        "voxel_count": 21434,
+        "triangle_count": 5136,
+        "estimated_mass": 220005.43488,
+        "has_emissive_surface": true,
+        "pivot_world": [0, 0, 0],
+        "translation": [0, 0, 0]
+      }
+    }
+  }
+}

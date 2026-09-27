@@ -1,0 +1,72 @@
+voxsplit 1.0.0 — pueblo «nuke_extra»
+origen              : nuke Free Sample.zip
+paso del OBJ        : 0.02 u · escala ×2.5 · vóxel 0.05 m
+
+piezas del pack (tras familias de paleta, recorte y diezmado):
+  pieza          celdas           metros                      vox  OBJ tris
+  --------------------------------------------------------------------------
+  road_tile_0    100×2×100        5.00 × 0.10 × 5.00        20000     26290
+  road_tile_1    100×2×100        5.00 × 0.10 × 5.00        20000     26290
+  concrete_tile  200×5×200        10.00 × 0.25 × 10.00     199706     85128
+  trash_5        20×6×18          1.00 × 0.30 × 0.90          521       882
+  weeds_1        32×1×13          1.60 × 0.05 × 0.65          322      1164
+  weeds_2        32×1×13          1.60 × 0.05 × 0.65          322      1164
+  weeds_3        32×1×13          1.60 × 0.05 × 0.65          322      1164
+  weeds_5        28×4×7           1.40 × 0.20 × 0.35          277       884
+  weeds_6        32×1×13          1.60 × 0.05 × 0.65          322      1164
+  weeds_7        32×1×13          1.60 × 0.05 × 0.65          322      1164
+  weeds_8        32×1×13          1.60 × 0.05 × 0.65          322      1164
+
+diagnóstico de la voxelización (cáscara por normales frente a relleno por inundación):
+  una pieza de casa con más desajustes que su 'allow_fill_mismatches' es un fallo;
+  en un prop es sólo un aviso, porque los montones del pack son mallas abiertas.
+  sin desajustes: las piezas son estancas y ninguna celda recibió dos colores
+
+piezas compuestas:
+  pieza            clase    tris  presup  OBJ tris      vox  AABB (m)                 vent.
+  ------------------------------------------------------------------------------------------------
+  nuke_road_tile_0 street    344    2800     26290    20000  5.00 × 0.10 × 5.00       0
+      partes: road_tile_0
+      AABB   : min [-2.5, 0.0, -2.5]  max [2.5, 0.1, 2.5]
+  nuke_road_tile_1 street    344    2800     26290    20000  5.00 × 0.10 × 5.00       0
+      partes: road_tile_1
+      AABB   : min [-2.5, 0.0, -2.5]  max [2.5, 0.1, 2.5]
+  nuke_concrete_tile street   2682    2800     85128   199706  10.00 × 0.25 × 10.00     0
+      partes: concrete_tile
+      AABB   : min [-5.0, 0.0, -5.0]  max [5.0, 0.25, 5.0]
+  nuke_trash_5     prop      708     800       882      521  1.00 × 0.30 × 0.90       0
+      partes: trash_5
+      AABB   : min [-0.5, 0.0, -0.45]  max [0.5, 0.3, 0.45]
+  nuke_weeds_1     prop      276     800      1164      322  1.60 × 0.05 × 0.65       0
+      partes: weeds_1
+      AABB   : min [-0.8, 0.0, -0.325]  max [0.8, 0.05, 0.325]
+  nuke_weeds_2     prop      276     800      1164      322  1.60 × 0.05 × 0.65       0
+      partes: weeds_2
+      AABB   : min [-0.8, 0.0, -0.325]  max [0.8, 0.05, 0.325]
+  nuke_weeds_3     prop      276     800      1164      322  1.60 × 0.05 × 0.65       0
+      partes: weeds_3
+      AABB   : min [-0.8, 0.0, -0.325]  max [0.8, 0.05, 0.325]
+  nuke_weeds_5     prop      462     800       884      277  1.40 × 0.20 × 0.35       0
+      partes: weeds_5
+      AABB   : min [-0.7, 0.0, -0.175]  max [0.7, 0.2, 0.175]
+  nuke_weeds_6     prop      276     800      1164      322  1.60 × 0.05 × 0.65       0
+      partes: weeds_6
+      AABB   : min [-0.8, 0.0, -0.325]  max [0.8, 0.05, 0.325]
+  nuke_weeds_7     prop      276     800      1164      322  1.60 × 0.05 × 0.65       0
+      partes: weeds_7
+      AABB   : min [-0.8, 0.0, -0.325]  max [0.8, 0.05, 0.325]
+  nuke_weeds_8     prop      276     800      1164      322  1.60 × 0.05 × 0.65       0
+      partes: weeds_8
+      AABB   : min [-0.8, 0.0, -0.325]  max [0.8, 0.05, 0.325]
+
+familias de paleta (representante ← miembros):
+   23 ← [23, 126]
+   27 ← [26, 27]
+   68 ← [22, 51, 68, 183]
+   88 ← [28, 29, 30, 31, 88]
+  208 ← [184, 208, 214, 215]
+  210 ← [209, 210, 211]
+
+índices de ventana de la máscara emisiva:
+
+CHECK compose: OK

@@ -1,0 +1,64 @@
+voxsplit 1.0.0 — pueblo «vcity_extra»
+origen              : city-Free Sample.zip
+paso del OBJ        : 0.05 u · escala ×1.0 · vóxel 0.05 m
+
+piezas del pack (tras familias de paleta, recorte y diezmado):
+  pieza          celdas           metros                      vox  OBJ tris
+  --------------------------------------------------------------------------
+  curb_a         100×3×100        5.00 × 0.15 × 5.00        19026      1838
+  curb_b         100×3×100        5.00 × 0.15 × 5.00        19026      1838
+  curb_c         100×3×100        5.00 × 0.15 × 5.00        19026      1838
+  curb_d         100×3×100        5.00 × 0.15 × 5.00        19026      1838
+  floor_angle    101×50×101       5.05 × 2.50 × 5.05       473645      4178
+  floor_b1       104×50×104       5.20 × 2.50 × 5.20       502172      2580
+  floor_b2       104×50×104       5.20 × 2.50 × 5.20       502172      2580
+  floor_b4       108×50×108       5.40 × 2.50 × 5.40       482488      4588
+  market_roof    108×20×108       5.40 × 1.00 × 5.40         8472      4096
+
+diagnóstico de la voxelización (cáscara por normales frente a relleno por inundación):
+  una pieza de casa con más desajustes que su 'allow_fill_mismatches' es un fallo;
+  en un prop es sólo un aviso, porque los montones del pack son mallas abiertas.
+  sin desajustes: las piezas son estancas y ninguna celda recibió dos colores
+
+piezas compuestas:
+  pieza            clase    tris  presup  OBJ tris      vox  AABB (m)                 vent.
+  ------------------------------------------------------------------------------------------------
+  vcity_building_yellow building   5468    6000     13926  1960477  5.40 × 10.00 × 5.40      0
+      partes: floor_angle, floor_b2, floor_b1, floor_b4
+      AABB   : min [-2.7, 0.0, -2.7]  max [2.7, 10.0, 2.7]
+  vcity_floor_angle block    1862    2500      4178   473645  5.05 × 2.50 × 5.05       0
+      partes: floor_angle
+      AABB   : min [-2.525, 0.0, -2.525]  max [2.525, 2.5, 2.525]
+  vcity_floor_b1   block     778    2500      2580   502172  5.20 × 2.50 × 5.20       0
+      partes: floor_b1
+      AABB   : min [-2.6, 0.0, -2.6]  max [2.6, 2.5, 2.6]
+  vcity_floor_b2   block     778    2500      2580   502172  5.20 × 2.50 × 5.20       0
+      partes: floor_b2
+      AABB   : min [-2.6, 0.0, -2.6]  max [2.6, 2.5, 2.6]
+  vcity_floor_b4   block    2062    2500      4588   482488  5.40 × 2.50 × 5.40       0
+      partes: floor_b4
+      AABB   : min [-2.7, 0.0, -2.7]  max [2.7, 2.5, 2.7]
+  vcity_curb_corner_a street    646     700      1838    19026  5.00 × 0.15 × 5.00       0
+      partes: curb_a
+      AABB   : min [-2.5, 0.0, -2.5]  max [2.5, 0.15, 2.5]
+  vcity_curb_corner_b street    646     700      1838    19026  5.00 × 0.15 × 5.00       0
+      partes: curb_b
+      AABB   : min [-2.5, 0.0, -2.5]  max [2.5, 0.15, 2.5]
+  vcity_curb_corner_c street    646     700      1838    19026  5.00 × 0.15 × 5.00       0
+      partes: curb_c
+      AABB   : min [-2.5, 0.0, -2.5]  max [2.5, 0.15, 2.5]
+  vcity_curb_corner_d street    646     700      1838    19026  5.00 × 0.15 × 5.00       0
+      partes: curb_d
+      AABB   : min [-2.5, 0.0, -2.5]  max [2.5, 0.15, 2.5]
+  vcity_market_roof prop     1680    1800      4096     8472  5.40 × 1.00 × 5.40       0
+      partes: market_roof
+      AABB   : min [-2.7, 0.0, -2.7]  max [2.7, 1.0, 2.7]
+
+familias de paleta (representante ← miembros):
+   23 ← [22, 23, 24]
+  229 ← [228, 229, 230, 231]
+  245 ← [243, 244, 245, 246]
+
+índices de ventana de la máscara emisiva:
+
+CHECK compose: OK

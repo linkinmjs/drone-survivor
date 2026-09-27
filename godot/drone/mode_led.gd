@@ -24,6 +24,12 @@
 ## reconexión en cada respawn, a cambio de nada.
 class_name ModeLED extends Node3D
 
+## Frecuencia del sondeo de respaldo del modo y del armado, en Hz.
+const POLL_HZ: float = 4.0
+
+## El período de [constant POLL_HZ], en segundos.
+const POLL_PERIOD: float = 1.0 / POLL_HZ
+
 ## Color del LED por clave de modo (`docs/03` §3.2 y §7).
 const MODE_COLORS: Dictionary[String, Color] = {
 	"acro": Color(0.0, 0.88, 1.0),
@@ -67,6 +73,7 @@ const ALBEDO_DARKEN: float = 0.55
 var _drone: Drone = null
 var _mesh: MeshInstance3D = null
 var _material: StandardMaterial3D = null
+var _poll_accumulator: float = POLL_PERIOD
 
 ## Energía de emisión del material original, la que fija `emissive_strength` del
 ## sidecar del modelo. El parpadeo la modula, no la reemplaza.
@@ -101,9 +108,18 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if _material == null:
 		return
+	# El sondeo va a [constant POLL_HZ] y no por fotograma (P2d WP-C, mejoras): es
+	# una red de seguridad, no la fuente de la verdad —las cuatro señales del dron
+	# ya dan la reacción inmediata—, y a 144 fps eran 288 llamadas por segundo a
+	# `get_mode_key()`, que arma la clave del modo. Un cuarto de segundo de retraso
+	# sólo se nota en el caso que las señales no cubren, que es el de un modo
+	# cambiado a mano.
 	if _drone != null:
-		_mode_key = _drone.get_mode_key()
-		_armed = _drone.is_armed()
+		_poll_accumulator += delta
+		if _poll_accumulator >= POLL_PERIOD:
+			_poll_accumulator = 0.0
+			_mode_key = _drone.get_mode_key()
+			_armed = _drone.is_armed()
 	_apply(_advance(delta))
 
 

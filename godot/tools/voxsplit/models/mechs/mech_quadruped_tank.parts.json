@@ -1,0 +1,40 @@
+{
+  "comment": [
+    "Vista previa de QuadrupedTank, artilleria de asedio (docs/14 3.2, WP-31). WP-G2.",
+    "NO es el enemigo: es el .vox entero en UNA sola parte, sin puntos debiles, sin",
+    "colision y sin import_script, para mirarlo en la galeria antes de su WP. Cuando",
+    "el enemigo se produzca, su parts.json de verdad vive en enemies/<id>/.",
+    "voxel_size de docs/14 2; axis_map y origen como el Arachnodroid (Z del .vox es la",
+    "altura, centro de la huella en el origen, base en y = 0). emissive_strength fijo en",
+    "3,0 (el techo del Arachnodroid): el MATL de estos packs llega a energia 8 y con",
+    "eso el visor quema a blanco en la galeria."
+  ],
+  "source": "../../../../assets/_raw/QuadrupedTank.zip!Package/QuadrupedTank.vox",
+  "name": "mech_quadruped_tank",
+  "voxel_size": 0.42,
+  "origin_voxel": [19, 25, 0],
+  "grid_size": [38, 50, 56],
+  "axis_map": {"x": "+x", "y": "+z", "z": "-y"},
+  "palette_texture": "mech_quadruped_tank_palette.png",
+  "emissive_palette_indices": [2, 6, 7],
+  "emissive_strength": 3,
+  "collision_default": "box",
+  "expect": {"part_count": 1, "triangle_budget": 8000, "total_height": 23.52, "height_tolerance": 0.01},
+  "preview": {
+    "pack": "mech",
+    "class": "enemy",
+    "row": "Enemigos/Vista previa",
+    "sort": "height",
+    "preview_only": true,
+    "note": "vista previa: el .vox entero en una parte, no es el enemigo jugable"
+  },
+  "parts": [
+    {
+      "id": "body",
+      "parent": null,
+      "boxes": [[0, 0, 0, 37, 49, 55]],
+      "pivot": [18.5, 24.5, -0.5],
+      "flags": ["root"]
+    }
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "name": "vcity_extra",
+  "comment": [
+    "Vista previa de lo que queda sin usar de 'city-Free Sample.zip' (WP-G2): las cuatro",
+    "esquinas de vereda, los cuatro pisos del edificio amarillo y el toldo grande.",
+    "La parada y el toldo de puerta ya estan en el pueblo (models/city_sample.json).",
+    "NO es arte del juego: va a assets/preview/vcity_extra/, sin import_script.",
+    "OJO: 'citry.zip' es un duplicado byte a byte de este ZIP (mismo md5): no se usa.",
+    "Paso del OBJ 0.05 u x escala 1.0 => 1 voxel = 5 cm, como city_sample.json.",
+    "Los pisos del edificio salen del pack ya apilados en su sitio (y = 0; 2,5; 5; 7,5 m)",
+    "y cada uno algo mas ancho que el de abajo (101, 104, 104 y 108 celdas): 'stack'",
+    "exige que cada piso entre en la planta del primero, asi que se juntan con",
+    "'assemble', que respeta la posicion de la escena original."
+  ],
+  "source": "../../../assets/_raw/city-Free Sample.zip",
+  "member_prefix": "Free Sample/",
+  "step": 0.05,
+  "scale": 1.0,
+  "palette_texture": "vcity_extra_palette.png",
+  "emissive_texture": "",
+
+  "budgets": {"building": 6000, "block": 2500, "street": 700, "prop": 1800},
+  "budget_note": [
+    "Numeros de vista previa, no de juego: miden para que el reporte diga cuanto cuesta",
+    "cada pieza si alguien la quiere llevar al pueblo. La vereda queda en 646 aun con las",
+    "familias: el cordon (178) dibuja el borde curvo de la esquina celda a celda, y",
+    "diezmarla se come la losa de 3 celdas de alto."
+  ],
+
+  "materials": {},
+
+  "palette_families": {
+    "23": [22, 23, 24],
+    "229": [228, 229, 230, 231],
+    "245": [243, 244, 245, 246]
+  },
+  "palette_families_note": [
+    "La vereda alterna tres grises que difieren en 10/255 (22, 23, 24) y el edificio",
+    "dos rampas de cuatro: el marco de ventana (228-231) y el vidrio (243-246). Es el",
+    "mismo dithering del pack nuke: agruparlos no cambia nada visible y es lo que deja",
+    "la vereda y los pisos en presupuesto. El amarillo de fachada (77) y su canto (75)",
+    "NO se funden: 75 es tambien el ocre del toldo grande, que lleva rayas."
+  ],
+  "window_indices": {},
+
+  "pieces": {
+    "curb_a": {"file": "Voxel City-0-Sidewalk_Angle.obj"},
+    "curb_b": {"file": "Voxel City-1-Sidewalk_Angle.obj"},
+    "curb_c": {"file": "Voxel City-10-Sidewalk_Angle.obj"},
+    "curb_d": {"file": "Voxel City-2-Sidewalk_Angle.obj"},
+    "floor_angle": {"file": "Voxel City-3-Building Angle_Yellow.obj"},
+    "floor_b1": {"file": "Voxel City-4-Building Block_Yellow_B-1.obj"},
+    "floor_b2": {"file": "Voxel City-5-Building Block_Yellow_B-2.obj"},
+    "floor_b4": {"file": "Voxel City-6-Building Block_Yellow_B-4.obj"},
+    "market_roof": {"file": "Voxel City-8-Fabric Roof-1.obj", "decimate": 2,
+      "comment": "3 914 triangulos crudos por las rayas de tela; x2 lo deja en ~1 700."}
+  },
+
+  "houses": {},
+
+  "props": {
+    "vcity_building_yellow": {"assemble": ["floor_angle", "floor_b2", "floor_b1", "floor_b4"],
+      "kind": "building",
+      "comment": "Los cuatro pisos en la posicion del pack: planta baja en esquina, dos pisos y el ultimo con cornisa."},
+    "vcity_floor_angle": {"piece": "floor_angle", "kind": "block"},
+    "vcity_floor_b1": {"piece": "floor_b1", "kind": "block"},
+    "vcity_floor_b2": {"piece": "floor_b2", "kind": "block"},
+    "vcity_floor_b4": {"piece": "floor_b4", "kind": "block"},
+    "vcity_curb_corner_a": {"piece": "curb_a", "kind": "street"},
+    "vcity_curb_corner_b": {"piece": "curb_b", "kind": "street"},
+    "vcity_curb_corner_c": {"piece": "curb_c", "kind": "street"},
+    "vcity_curb_corner_d": {"piece": "curb_d", "kind": "street"},
+    "vcity_market_roof": {"piece": "market_roof", "kind": "prop"}
+  },
+
+  "preview": {
+    "pack": "vcity",
+    "row": "Packs/Ciudad voxel"
+  }
+}

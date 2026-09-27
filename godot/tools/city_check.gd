@@ -344,6 +344,32 @@ const CREEK_SAMPLE_STEP: float = 4.0
 ## [constant CityGrid.CREEK_WATER_RISE] sobre el fondo del cauce, en metros.
 const CREEK_LEVEL_TOLERANCE: float = 0.30
 
+## Fila E (WP-L): cuánto puede hundirse una instancia de decorado bajo el relieve
+## antes de estar enterrada, y a qué altura sobre su base se sondea el tronco.
+const BURIED_MAX: float = 0.30
+
+## La estación compuesta (WP-L): cuántas cajas trae y la esfera con la que
+## `BatterySpawner` comprueba el hueco de un puesto (radio y máscara `city |
+## debris`, los valores por omisión del spawner).
+const STATION_BOXES: int = 9
+const STATION_POST_CLEARANCE: float = 2.5
+const STATION_POST_MASK: int = 384
+const TRUNK_PROBE: float = 0.50
+
+## Dónde se arma la estación de prueba de [method _check_station_in_memory]: tan
+## arriba que nada del pueblo la toca, así que lo que la esfera encuentre es de
+## ella.
+const STATION_TEST_LIFT: Vector3 = Vector3(0.0, 400.0, 0.0)
+
+## Cuánto se hunde la instancia de la negativa de la fila E, en metros: más que
+## [constant BURIED_MAX].
+const NEGATIVE_SINK: float = 1.0
+
+## Cuánto puede separarse el centro de una caja horneada del baricentro de su
+## sólido en el plano ([method _check_solid_boxes]): cinco centímetros, que es la
+## tolerancia de diseño del resto del pueblo.
+const SOLID_BOX_TOLERANCE: float = 0.05
+
 ## Anillos de densidad de `docs/17` §1, y desde qué altura un puesto de pila es
 ## de azotea y no de calle.
 const RING_EDGES: Array[float] = [60.0, 140.0, 230.0, 600.0]
@@ -465,6 +491,7 @@ func _run() -> void:
 	_check_play_circle()
 	_check_facades()
 	_check_no_body_scale()
+	_check_solid_boxes()
 	_check_route()
 	_check_street_batching()
 	_check_road_surfaces()
@@ -490,10 +517,12 @@ func _run() -> void:
 	_check_bridge_deck()
 	_check_creek_water()
 	_check_ring_density()
+	_check_vertical_penetration()
 	_check_budget()
 
 	await _check_decor_inert()
 	await _check_stages()
+	await _check_compound_station()
 	await _check_friendly_fire()
 	await _check_collapse_time()
 	await _check_siege()
@@ -870,7 +899,20 @@ func _check_facades() -> void:
 
 ## 5. Ningún cuerpo escalado; toda la variación de altura vive en la malla y en
 ## el `BoxShape3D` (`docs/03` prohíbe escalar cuerpos físicos).
+##
+## Una pieza de **colisión compuesta** —la estación de servicio de WP-L: la losa
+## de la marquesina en tres cajas, la tienda, cuatro columnas y el cartel— no
+## tiene una caja que valga por el edificio entero, y no la puede tener: el aire
+## entre las columnas es la pieza. Para todas se mide la envolvente de sus cajas
+## (llega a la altura del edificio y arranca en el suelo) y, desde la revisión de
+## WP-L (hallazgo 8), para las compuestas además **cada caja contra su entrada
+## del manifiesto**: `size` con la `y` por la escala de altura y `centre` con la
+## `y` escalada igual. La envolvente sola aprobaba una losa estirada a la altura
+## del edificio, que es justo lo que pasaba antes de la revisión cuando la
+## estación se armaba sin colgar (hallazgo 4).
 func _check_no_body_scale() -> void:
+	var compound := 0
+	var parts_checked := 0
 	for building: Building in _town.get_buildings():
 		if not building.scale.is_equal_approx(Vector3.ONE):
 			fail("'%s' tiene el StaticBody3D escalado a %s" % [building.name, str(building.scale)])
@@ -879,15 +921,172 @@ func _check_no_body_scale() -> void:
 		if box == null:
 			fail("'%s' no tiene BoxShape3D intacta" % building.name)
 			continue
-		expect_near(box.size.y, building.get_height(), 0.01,
-				"'%s': la caja no refleja la altura" % building.name)
-		expect_near(building.intact_shape.position.y, building.get_height() * 0.5, 0.01,
-				"'%s': la caja no está centrada en la altura" % building.name)
+		var boxes := _intact_boxes(building)
+		var top := 0.0
+		var floor_y := INF
+		for entry: Dictionary in boxes:
+			var size: Vector3 = entry["size"]
+			var at: Vector3 = entry["position"]
+			top = maxf(top, at.y + size.y * 0.5)
+			floor_y = minf(floor_y, at.y - size.y * 0.5)
+		expect_near(top, building.get_height(), 0.01,
+				"'%s': la envolvente de sus %d cajas llega a %.3f m y el edificio mide %.3f"
+				% [building.name, boxes.size(), top, building.get_height()])
+		expect_near(floor_y, 0.0, 0.01,
+				"'%s': la caja más baja arranca en y = %.3f" % [building.name, floor_y])
 		expect(building.collision_layer == PhysicsLayers.CITY,
 				"'%s' está en la capa %d, esperada %d"
 				% [building.name, building.collision_layer, PhysicsLayers.CITY])
+		var parts := TownPlanner.piece_parts(StringName(building.get_meta(&"piece", &"")))
+		if parts.is_empty():
+			continue
+		compound += 1
+		parts_checked += parts.size()
+		for problem: String in _compound_box_problems(building, parts):
+			fail(problem)
+
+	# Negativa: la misma rutina contra un manifiesto con la losa el doble de alta.
+	var station := _building_with_piece(&"gas_station")
+	if station != null:
+		var parts := TownPlanner.piece_parts(&"gas_station").duplicate(true)
+		if not parts.is_empty():
+			var first: Dictionary = parts[0]
+			var size: Array = first.get("size", [0.0, 0.0, 0.0])
+			size[1] = float(size[1]) * 2.0
+			expect(not _compound_box_problems(station, parts).is_empty(),
+					"negativa de cajas: una losa del doble de alto que la del manifiesto no se ve")
 	print("  cuerpos: %d StaticBody3D sin escalar, capa %d, caja a la altura real"
-			% [_plan.destructible_count(), PhysicsLayers.CITY])
+			% [_plan.destructible_count(), PhysicsLayers.CITY]
+			+ " · %d compuestas con sus %d cajas iguales al manifiesto" % [compound, parts_checked])
+
+
+## Las cajas de [param building] que no coinciden con [param parts] —la lista
+## `parts` de su entrada del manifiesto—, ya escaladas en `y` por su
+## [member Building.height_scale]. Aparte, para la negativa.
+func _compound_box_problems(building: Building, parts: Array) -> Array[String]:
+	var found: Array[String] = []
+	var boxes := _intact_boxes(building)
+	if boxes.size() != parts.size():
+		found.append("'%s': trae %d cajas y el manifiesto declara %d"
+				% [building.name, boxes.size(), parts.size()])
+	var scale := building.height_scale
+	for entry: Variant in parts:
+		var part: Dictionary = entry
+		var name := String(part.get("name", ""))
+		var raw_size: Array = part.get("size", [0.0, 0.0, 0.0])
+		var raw_centre: Array = part.get("centre", [0.0, 0.0, 0.0])
+		var size := Vector3(float(raw_size[0]), float(raw_size[1]) * scale, float(raw_size[2]))
+		var centre := Vector3(float(raw_centre[0]), float(raw_centre[1]) * scale,
+				float(raw_centre[2]))
+		var twin: Dictionary = {}
+		for box: Dictionary in boxes:
+			if String((box["node"] as Node).name) == name:
+				twin = box
+				break
+		if twin.is_empty():
+			found.append("'%s': falta la caja '%s' del manifiesto" % [building.name, name])
+			continue
+		if (twin["size"] as Vector3).distance_to(size) > 0.001:
+			found.append("'%s/%s': mide %s y el manifiesto por la escala %.3f dice %s"
+					% [building.name, name, str(twin["size"]), scale, str(size)])
+		if (twin["position"] as Vector3).distance_to(centre) > 0.001:
+			found.append("'%s/%s': está en %s y el manifiesto por la escala %.3f dice %s"
+					% [building.name, name, str(twin["position"]), scale, str(centre)])
+	return found
+
+
+## Cada caja de colisión horneada cae **donde el plano dice que está su
+## sólido** (revisión de WP-L, hallazgo 8).
+##
+## `town_plan_check` mide solapes, holguras y listas blancas contra
+## [method TownPlanner.parcel_solids] —la huella del manifiesto girada por la
+## fachada—, y todo eso vale sólo si esos polígonos son la colisión de verdad.
+## Esta fila lo ata: el centro **global** de cada caja cae dentro de su polígono
+## y a menos de [constant SOLID_BOX_TOLERANCE] de su baricentro; en las piezas
+## compuestas, caja por caja por su nombre y también en altura, contra el tramo
+## `y0`–`y1` del sólido.
+func _check_solid_boxes() -> void:
+	var checked := 0
+	var worst := 0.0
+	var worst_at := ""
+	for building: Building in _town.get_buildings():
+		var parcel := int(building.get_meta(&"parcel", -1))
+		if parcel < 0:
+			continue
+		var problems := _solid_box_problems(building, TownPlanner.parcel_solids(_plan, parcel))
+		for problem: String in problems["problems"] as Array[String]:
+			fail(problem)
+		checked += int(problems["checked"])
+		if float(problems["worst"]) > worst:
+			worst = float(problems["worst"])
+			worst_at = building.name
+	# Negativa: la estación contra los sólidos de otra parcela.
+	var station := _building_with_piece(&"gas_station")
+	if station != null:
+		var other := (int(station.get_meta(&"parcel", -1)) + 1) % _plan.parcels.size()
+		var wrong: Array[String] = _solid_box_problems(station,
+				TownPlanner.parcel_solids(_plan, other))["problems"]
+		expect(not wrong.is_empty(),
+				"negativa de sólidos: la estación medida contra otra parcela no falla")
+	print("  cajas contra sólidos del plano: %d cajas · el peor centro a %.3f m (%s, tope %.2f)"
+			% [checked, worst, worst_at, SOLID_BOX_TOLERANCE])
+
+
+## El cuerpo de [method _check_solid_boxes] para un edificio y la lista de
+## sólidos de su parcela.
+func _solid_box_problems(building: Building, solids: Array[Dictionary]) -> Dictionary:
+	var found: Array[String] = []
+	var checked := 0
+	var worst := 0.0
+	var single := solids.size() == 1 and StringName(solids[0].get("part", &"")) == &""
+	for entry: Dictionary in _intact_boxes(building):
+		var node: CollisionShape3D = entry["node"]
+		var solid: Dictionary = {}
+		if single:
+			solid = solids[0]
+		else:
+			for candidate: Dictionary in solids:
+				if String(candidate.get("part", &"")) == String(node.name):
+					solid = candidate
+					break
+		if solid.is_empty():
+			found.append("'%s/%s': el plano no tiene un sólido con ese nombre"
+					% [building.name, node.name])
+			continue
+		checked += 1
+		var at := node.global_position
+		var flat := Vector2(at.x, at.z)
+		var poly: PackedVector2Array = solid["poly"]
+		var off := flat.distance_to(TownPlan.polygon_centroid(poly))
+		worst = maxf(worst, off)
+		if not TownPlan.polygon_contains(poly, flat, 0.0) or off > SOLID_BOX_TOLERANCE:
+			found.append("'%s/%s': el centro de la caja está en (%.2f, %.2f), a %.3f m del sólido del plano"
+					% [building.name, node.name, flat.x, flat.y, off])
+		if single:
+			continue
+		var middle := (float(solid["y0"]) + float(solid["y1"])) * 0.5
+		if absf(at.y - middle) > SOLID_BOX_TOLERANCE:
+			found.append("'%s/%s': el centro de la caja está a y = %.3f y el sólido del plano a %.3f"
+					% [building.name, node.name, at.y, middle])
+	return {"problems": found, "checked": checked, "worst": worst}
+
+
+## Las cajas de colisión intactas de [param building], con su medida y su sitio.
+##
+## Casi todas las piezas traen una; la estación de servicio trae nueve. Se
+## reconocen por el nombre, que es el mismo contrato que usa
+## [method Building._collect_intact_parts].
+func _intact_boxes(building: Building) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for child: Node in building.get_children():
+		var node := child as CollisionShape3D
+		if node == null or not String(node.name).begins_with(Building.SHAPE_PREFIX):
+			continue
+		var box := node.shape as BoxShape3D
+		if box == null:
+			continue
+		out.append({"size": box.size, "position": node.position, "node": node})
+	return out
 
 
 # --------------------------------------------------------------------------
@@ -1840,6 +2039,17 @@ func _check_field_and_rocks() -> void:
 		expect(angle >= ROCK_CONE_DEG,
 				"la roca '%s' está a %.1f° del eje de aparición del dron, mínimo %.0f°"
 				% [body.name, angle, ROCK_CONE_DEG])
+	# La escena de cada roca es la pieza que el plano le asignó (revisión de WP-L,
+	# hallazgo 3): `CityGrid._build_rocks` la elige por `plan.rock_pieces` y
+	# `TownPlanner.rock_discs()` saca de la misma lista el radio con el que las
+	# arboledas la esquivan. La negativa corre la lista una posición.
+	for problem: String in _rock_piece_problems(rocks, _plan.rock_pieces):
+		fail(problem)
+	var shifted := PackedStringArray()
+	for index: int in _plan.rock_pieces.size():
+		shifted.append(_plan.rock_pieces[(index + 1) % _plan.rock_pieces.size()])
+	expect(_plan.rock_pieces.size() < 2 or not _rock_piece_problems(rocks, shifted).is_empty(),
+			"negativa de rocas: las piezas corridas una posición no se ven")
 
 	var ground := _town.get_node_or_null(NodePath(CityGrid.GROUND_NODE)) as StaticBody3D
 	if ground == null:
@@ -1940,7 +2150,24 @@ func _check_field_and_rocks() -> void:
 			% [safety_top, lowest, chunks,
 			material.resource_path.get_file() if material != null else "?"])
 	print("  rocas: %d de %.0f m para afuera, la más metida en el eje del dron a %.1f°"
-			% [rocks.size(), nearest, worst_angle])
+			% [rocks.size(), nearest, worst_angle]
+			+ " · escena = pieza del plano en las %d (%s)"
+			% [rocks.size(), ", ".join(_plan.rock_pieces)])
+
+
+## Las rocas de [param rocks] cuya escena no es la pieza [param pieces] del mismo
+## índice. Aparte, para la negativa.
+func _rock_piece_problems(rocks: Array[Node3D], pieces: PackedStringArray) -> Array[String]:
+	var found: Array[String] = []
+	if rocks.size() != pieces.size():
+		found.append("rocas: la escena trae %d y el plano nombra %d piezas"
+				% [rocks.size(), pieces.size()])
+	for index: int in mini(rocks.size(), pieces.size()):
+		var scene := rocks[index].scene_file_path.get_file().get_basename()
+		if scene != pieces[index]:
+			found.append("la roca '%s' es la escena '%s' y el plano le asigna '%s'"
+					% [rocks[index].name, scene, pieces[index]])
+	return found
 
 
 ## El relieve que viaja con el pueblo horneado, o `null`.
@@ -2950,6 +3177,178 @@ func _check_stages() -> void:
 	_reset_city()
 
 
+## La estación de servicio de **colisión compuesta** (WP-L): su puesto de pila
+## está despejado y sus nueve cajas se derrumban y se reconstruyen juntas.
+##
+## Ni `arachnodroid_check` ni `energy_check` la tocan —los dos arman un mundo
+## sintético—, así que es acá, sobre el pueblo horneado, donde se prueba lo que
+## la colisión compuesta cambió: hasta P2c el puesto de pila de la estación caía
+## dentro de la caja maciza, la esfera de 2,5 m de `BatterySpawner` daba siempre
+## ocupado y ese puesto no repartió nunca una pila.
+##
+## El puesto que se sondea es el `Marker3D` **horneado** (`BatteryPosts/Post%d`),
+## que es el que lee `BatterySpawner`, y no el del plano: el horneado ya pasó por
+## `CityGrid._refined_post` y está apoyado en el relieve (revisión de WP-L,
+## hallazgo 5). La misma esfera, en el medio de la tienda, tiene que tocar: es el
+## control positivo sin el cual «la esfera no toca nada» podría querer decir que
+## la consulta no mira. Y la estación se vuelve a armar **en memoria** con
+## [method CityGrid._spawn_building], que es el camino del horneado, para probar
+## que sale compuesta aunque la variación se le aplique antes de colgarla
+## ([method _check_station_in_memory]).
+##
+## Las etapas son las de cualquier [Building] —la máquina de etapas es por malla
+## única, así que la marquesina no cae aparte—: lo propio de la pieza compuesta
+## es que **las nueve** cajas se apaguen en RUBBLE y vuelvan con `reset()`. Con
+## una sola que quedara encendida, el dron chocaría contra una columna invisible
+## en medio de la ruina.
+func _check_compound_station() -> void:
+	var station := _building_with_piece(&"gas_station")
+	if station == null:
+		fail("estación: el pueblo horneado no trae la estación de servicio")
+		return
+	var boxes := _intact_boxes(station)
+	expect(boxes.size() == STATION_BOXES, "estación: trae %d cajas, se esperaban %d"
+			% [boxes.size(), STATION_BOXES])
+
+	# El puesto de pila horneado más cercano a la estación, con la misma esfera
+	# que usa `BatterySpawner._is_clear()`.
+	var posts := _baked_posts()
+	if posts.is_empty():
+		fail("estación: el pueblo horneado no trae ni un puesto de pila")
+		return
+	var post: Vector3 = posts[0]
+	for candidate: Vector3 in posts:
+		if candidate.distance_to(station.global_position) \
+				< post.distance_to(station.global_position):
+			post = candidate
+	var space := _town.get_world_3d().direct_space_state
+	var hits := _sphere_hits(space, post)
+	expect(hits.is_empty(), "estación: la esfera de %.1f m del puesto de pila %s toca %s"
+			% [STATION_POST_CLEARANCE, str(post), ", ".join(hits)])
+	# Control positivo: la misma esfera en el medio de la tienda.
+	var store := station.get_node_or_null(^"IntactShape_store") as Node3D
+	var control: PackedStringArray = PackedStringArray()
+	if store == null:
+		fail("estación: no trae la caja 'IntactShape_store' para el control positivo")
+	else:
+		control = _sphere_hits(space, store.global_position)
+		expect(not control.is_empty(),
+				"estación: la esfera en el medio de la tienda no toca nada: la consulta no mira")
+
+	await _check_station_in_memory(station, post)
+
+	var stages: Array[int] = []
+	var _s := station.stage_changed.connect(func(stage: Building.Stage) -> void:
+		stages.append(int(stage)))
+	var max_hp := station.get_max_hp()
+	var _a := station.take_damage(max_hp * (1.0 - DAMAGED_THRESHOLD) + 1.0,
+			station.global_position)
+	expect(station.stage == Building.Stage.DAMAGED, "estación: no entró en DAMAGED")
+	var _b := station.take_damage(max_hp, station.global_position)
+	expect(station.stage == Building.Stage.RUBBLE, "estación: no entró en RUBBLE")
+	await _advance(station.profile.collapse_seconds + 0.3)
+	var still := 0
+	for entry: Dictionary in _intact_boxes(station):
+		if not (entry["node"] as CollisionShape3D).disabled:
+			still += 1
+	expect(station.is_collapsed(), "estación: el derrumbe no terminó")
+	expect(still == 0, "estación: %d de %d cajas siguen activas en RUBBLE" % [still, boxes.size()])
+	expect(stages == [int(Building.Stage.DAMAGED), int(Building.Stage.RUBBLE)],
+			"estación: secuencia de etapas %s" % str(stages))
+
+	station.reset()
+	await wait_physics(2)
+	var off := 0
+	for entry: Dictionary in _intact_boxes(station):
+		if (entry["node"] as CollisionShape3D).disabled:
+			off += 1
+	expect(off == 0, "estación: %d cajas siguen apagadas después de reset()" % off)
+	print("  estación: %d cajas · puesto de pila horneado %s con %.1f m libres"
+			% [boxes.size(), str(post.snapped(Vector3(0.1, 0.1, 0.1))), STATION_POST_CLEARANCE]
+			+ " (control en la tienda → %s) · INTACT → DAMAGED → RUBBLE" % ", ".join(control)
+			+ " apaga las %d y reset() las devuelve" % boxes.size())
+	_reset_city()
+
+
+## Los puestos de pila **horneados**: la posición global de cada
+## `BatteryPosts/Post%d`, que es lo que lee `BatterySpawner`.
+func _baked_posts() -> Array[Vector3]:
+	var found: Array[Vector3] = []
+	var container := _town.get_node_or_null(NodePath(CityGrid.POSTS_NODE))
+	if container == null:
+		return found
+	for index: int in _plan.battery_posts().size():
+		var marker := container.get_node_or_null(NodePath("Post%d" % index)) as Marker3D
+		if marker != null:
+			found.append(marker.global_position)
+	return found
+
+
+## Los cuerpos que toca la esfera de `BatterySpawner` puesta en [param at].
+func _sphere_hits(space: PhysicsDirectSpaceState3D, at: Vector3) -> PackedStringArray:
+	var sphere := SphereShape3D.new()
+	sphere.radius = STATION_POST_CLEARANCE
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.shape = sphere
+	query.collision_mask = STATION_POST_MASK
+	query.transform = Transform3D(Basis.IDENTITY, at)
+	var names: PackedStringArray = PackedStringArray()
+	for hit: Dictionary in space.intersect_shape(query, 4):
+		var collider: Variant = hit.get("collider")
+		names.append(str((collider as Node).name) if collider is Node else "?")
+	return names
+
+
+## La estación armada **en memoria** por el camino del horneado sale compuesta y
+## deja libre su puesto (revisión de WP-L, hallazgo 4).
+##
+## `CityGrid._spawn_building()` aplica la variación —y con ella
+## [method Building.refresh_shapes]— **antes** de colgar el edificio, o sea antes
+## de su `_ready`. Hasta la revisión, a esa altura la estación no sabía que era
+## compuesta y estiraba `IntactShape` —la losa de la marquesina— a la
+## envolvente entera; en el horneado no se notaba porque el `.tscn` no guarda la
+## forma de los nodos internos de la pieza. Acá se mira en los dos momentos:
+## recién armada (fuera del árbol) y ya colgada, [constant STATION_TEST_LIFT] por
+## encima del pueblo, con la esfera en el puesto de pila corrido lo mismo.
+func _check_station_in_memory(baked: Building, post: Vector3) -> void:
+	var parcel := int(baked.get_meta(&"parcel", -1))
+	if parcel < 0:
+		fail("estación en memoria: la horneada no dice de qué parcela es")
+		return
+	var piece: PackedScene = _town._piece_for(_plan.parcels[parcel])
+	var built: Building = _town._spawn_building(piece, _town.big_profile, parcel)
+	if built == null:
+		fail("estación en memoria: CityGrid._spawn_building() no la armó")
+		return
+	var parts := TownPlanner.piece_parts(&"gas_station")
+	var loose := _compound_box_problems(built, parts)
+	for problem: String in loose:
+		fail("estación en memoria, antes de colgarla: %s" % problem)
+	var holder := Node3D.new()
+	holder.name = "StationInMemory"
+	holder.position = STATION_TEST_LIFT
+	add_child(holder)
+	holder.add_child(built)
+	await wait_physics(2)
+	var hung := _compound_box_problems(built, parts)
+	for problem: String in hung:
+		fail("estación en memoria, colgada: %s" % problem)
+	var space := _town.get_world_3d().direct_space_state
+	var hits := _sphere_hits(space, post + STATION_TEST_LIFT)
+	expect(hits.is_empty(), "estación en memoria: la esfera del puesto toca %s" % ", ".join(hits))
+	var control := _sphere_hits(space, built.global_position
+			+ Vector3(0.0, built.get_height() * 0.5, 0.0))
+	expect(not control.is_empty(),
+			"estación en memoria: la esfera en su medio no toca nada: no está colgada")
+	var slab := built.intact_shape.shape as BoxShape3D
+	print("  estación en memoria: %d cajas iguales al manifiesto antes y después de colgarla"
+			% _intact_boxes(built).size()
+			+ " · losa %s · puesto libre, control → %s"
+			% [str(slab.size) if slab != null else "?", ", ".join(control)])
+	holder.queue_free()
+	await wait_physics(2)
+
+
 ## Fuego amigo: 217 impactos de 6 HP derriban una casa de 1 300 (`docs/10` §8).
 func _check_friendly_fire() -> void:
 	var building := _pick_building(HOUSE_HP)
@@ -3657,6 +4056,180 @@ func _check_town_decor() -> void:
 			+ " %d desde el peor encuadre (%s, tope %d): %s"
 			% [int(lots["view"]), String(lots["eye"]), DECOR_LOT_BUDGET,
 			", ".join(lots["drawn"] as Array[String])])
+
+
+## **Fila E** (WP-L, P2d): ninguna instancia de decorado está enterrada ni dentro
+## de un edificio.
+##
+## Es la fila que cierra por abajo lo que las filas A–D de `town_plan_check`
+## cierran en planta. Las otras miden el **plano**, que es aritmética en XZ; ésta
+## mide la **escena horneada**, que es donde el árbol tiene una cota y el
+## edificio un cuerpo de física, y por lo tanto donde se ve si el árbol quedó
+## medio metro bajo tierra porque el relieve cambió y nadie volvió a hornear.
+##
+## Dos medidas por instancia:
+##
+## - la base no está más de [constant BURIED_MAX] metros por debajo del relieve
+##   ([method TownTerrain.height_at]). Hacia arriba no se mide: un árbol de la
+##   orilla apoya legítimamente sobre el banco tallado, que está por encima del
+##   campo, y el pasto tapa lo que sobra;
+## - el tronco, medio metro por encima de su base, no está dentro de ningún
+##   cuerpo de la capa `city`. Se pregunta con física y no con geometría a
+##   propósito: lo que no puede pasar es que el jugador vea un árbol saliendo de
+##   una pared, y la pared es su colisionador. Un tramo de cerco se sondea en
+##   sus dos extremos y en el medio: el origen de la pieza es un extremo, y un
+##   alambrado puede tener la punta metida en una pared con el origen afuera.
+##
+## Y dos pruebas sobre la misma rutina ([method _penetration]): el control
+## positivo —el sondeo en el medio de una casa tiene que tocarla— y la negativa
+## —una instancia real hundida [constant NEGATIVE_SINK] m tiene que contar como
+## enterrada—.
+func _check_vertical_penetration() -> void:
+	var terrain := _terrain()
+	if terrain == null:
+		fail("fila E: el pueblo horneado no trae relieve")
+		return
+	var space := _town.get_world_3d().direct_space_state
+	var buried := 0
+	var inside := 0
+	var checked := 0
+	var probes := 0
+	var worst_dig := 0.0
+	var worst_at := ""
+	var sample: Dictionary = {}
+	for group: StringName in [CityGrid.GROVES_NODE, CityGrid.PROPS_NODE,
+			CityGrid.FENCES_NODE]:
+		var parent := _town.get_node_or_null(NodePath(group))
+		if parent == null:
+			continue
+		for child: Node in parent.get_children():
+			var multi := child as MultiMeshInstance3D
+			if multi == null or multi.multimesh == null:
+				continue
+			# Un tramo de cerco no es un tronco: corre `span` metros a lo largo de
+			# su `+X` desde el origen, así que se sondea en los dos extremos y en
+			# el medio (revisión de WP-L, hallazgo 15). El nombre del lote es la
+			# clase de cerco (`CityGrid._build_fences`).
+			var span := 0.0
+			if group == CityGrid.FENCES_NODE:
+				span = float(TownDesign.FENCE_SPAN.get(StringName(child.name), 0.0))
+				if span <= 0.0:
+					fail("fila E: el lote de cercos '%s' no es una clase de cerco conocida"
+							% child.name)
+					continue
+			var base := multi.global_transform
+			# Se lee el **búfer** y no `get_instance_transform()`: esa vía pasa por
+			# el `RenderingServer`, que en `--headless` no retiene las
+			# transformadas y devolvería las mil quinientas instancias en el
+			# origen. Es la misma razón por la que `CityGrid._add_multimesh()`
+			# escribe el búfer entero en vez de instancia por instancia, y el
+			# formato es el mismo: tres filas de cuatro flotantes.
+			var buffer := multi.multimesh.buffer
+			var count := multi.multimesh.instance_count
+			expect(buffer.size() == count * 12,
+					"fila E: el búfer de '%s' trae %d flotantes para %d instancias (esperados %d)"
+					% [child.name, buffer.size(), count, count * 12])
+			for index: int in count:
+				var slot := index * 12
+				if slot + 11 >= buffer.size():
+					break
+				var instance := base * Transform3D(
+						Vector3(buffer[slot], buffer[slot + 4], buffer[slot + 8]),
+						Vector3(buffer[slot + 1], buffer[slot + 5], buffer[slot + 9]),
+						Vector3(buffer[slot + 2], buffer[slot + 6], buffer[slot + 10]),
+						Vector3(buffer[slot + 3], buffer[slot + 7], buffer[slot + 11]))
+				var result := _penetration(instance, span, terrain, space)
+				if sample.is_empty() and span <= 0.0:
+					sample = {"xform": instance, "name": child.name}
+				checked += 1
+				probes += int(result["probes"])
+				var at := instance.origin
+				var dig := float(result["dig"])
+				if dig > worst_dig:
+					worst_dig = dig
+					worst_at = "%s (%.1f, %.1f)" % [child.name, at.x, at.z]
+				if bool(result["buried"]):
+					buried += 1
+					if buried <= 6:
+						fail("fila E: un '%s' de (%.1f, %.1f) está %.2f m bajo el relieve"
+								% [child.name, at.x, at.z, dig])
+				if bool(result["inside"]):
+					inside += 1
+					if inside <= 6:
+						fail("fila E: un '%s' de (%.1f, %.1f) tiene %s dentro de '%s'"
+								% [child.name, at.x, at.z,
+								"el alambre" if span > 0.0 else "el tronco",
+								result["hit"]])
+	expect(buried == 0, "fila E: %d instancias enterradas más de %.2f m"
+			% [buried, BURIED_MAX])
+	expect(inside == 0, "fila E: %d instancias con el tronco dentro de un cuerpo" % inside)
+
+	# --- negativas (revisión de WP-L, hallazgo 6) ------------------------
+	# El control positivo: la misma consulta, en el medio de una casa, tiene que
+	# tocar. Sin esto, una máscara equivocada daría «0 dentro» para siempre.
+	var house := _pick_building(HOUSE_HP)
+	var control := "sin casa"
+	if house == null:
+		fail("fila E: no hay casa para el control positivo")
+	else:
+		var point := house.global_position + Vector3(0.0, house.get_height() * 0.5, 0.0)
+		control = _point_hit(space, point)
+		expect(not control.is_empty(),
+				"fila E: el sondeo en el medio de '%s' no toca nada: la consulta no mira"
+				% house.name)
+	# La negativa: una instancia real hundida un metro pasa por la misma cuenta.
+	var sunk_ok := false
+	if sample.is_empty():
+		fail("fila E: no hay una instancia de follaje para hundir")
+	else:
+		var sunk: Transform3D = sample["xform"]
+		sunk.origin.y -= NEGATIVE_SINK
+		sunk_ok = bool(_penetration(sunk, 0.0, terrain, space)["buried"])
+		expect(sunk_ok, "fila E: un '%s' hundido %.1f m no cuenta como enterrado"
+				% [sample["name"], NEGATIVE_SINK])
+	print("  fila E · penetración vertical: %d instancias de decorado (%d sondeos) ·"
+			% [checked, probes]
+			+ " %d enterradas, %d dentro de un cuerpo · la más hundida, %s, %.2f m (tope %.2f)"
+			% [buried, inside, worst_at, worst_dig, BURIED_MAX]
+			+ " · control en una casa → '%s', hundida %.1f m → %s"
+			% [control, NEGATIVE_SINK, "enterrada" if sunk_ok else "NO"])
+
+
+## Una instancia de decorado de la fila E, medida: `{buried, dig, inside, hit,
+## probes}`.
+##
+## [param span] es el largo del tramo si es un cerco —se sondea en los dos
+## extremos y en el medio, a lo largo del `+X` de la instancia— o `0` para
+## follaje y props, que se sondean en el tronco. Es **la** rutina de la fila y
+## también la de su negativa.
+func _penetration(instance: Transform3D, span: float, terrain: TownTerrain,
+		space: PhysicsDirectSpaceState3D) -> Dictionary:
+	var at := instance.origin
+	var dig := terrain.height_at(at.x, at.z) - at.y
+	var points: Array[Vector3] = [at]
+	if span > 0.0:
+		var run := instance.basis.x.normalized() * span
+		points = [at, at + run * 0.5, at + run]
+	var hit := ""
+	for point: Vector3 in points:
+		hit = _point_hit(space, point + Vector3(0.0, TRUNK_PROBE, 0.0))
+		if not hit.is_empty():
+			break
+	return {"buried": dig > BURIED_MAX, "dig": dig, "inside": not hit.is_empty(),
+			"hit": hit, "probes": points.size()}
+
+
+## El nombre del primer cuerpo de la capa `city` que contiene [param point], o
+## `""`.
+func _point_hit(space: PhysicsDirectSpaceState3D, point: Vector3) -> String:
+	var query := PhysicsPointQueryParameters3D.new()
+	query.collision_mask = PhysicsLayers.CITY
+	query.position = point
+	var hits := space.intersect_point(query, 1)
+	if hits.is_empty():
+		return ""
+	var collider: Variant = hits[0].get("collider")
+	return str((collider as Node).name) if collider is Node else "?"
 
 
 ## Cuántos lotes de dibujo gastan arboledas, cercos y props: en la escena y

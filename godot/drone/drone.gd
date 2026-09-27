@@ -81,6 +81,14 @@ signal respawned()
 ## velocidad detectada, en m/s.
 signal crashed(impact_speed: float)
 
+## Ruta de la cámara FPV **dentro** del dron (`docs/03` §2, `docs/06` §2).
+##
+## Estaba escrita a mano en cuatro archivos (P2d WP-C, mejoras): el rig, el
+## montaje del arma, el overlay y el controlador de reaparición. Renombrar el
+## nodo rompía tres de ellos en silencio, porque los cuatro caen a un respaldo
+## cuando no lo encuentran.
+const FPV_CAMERA_PATH: NodePath = ^"CameraRig/FPVCamera"
+
 ## Gravedad manual: el cuerpo tiene `gravity_scale = 0` y la aplica el integrador.
 const GRAVITY: Vector3 = Vector3(0.0, -9.81, 0.0)
 
@@ -369,7 +377,9 @@ func reset_to(xform: Transform3D) -> void:
 		if _armed:
 			motor.spin_up_to_idle()
 	_fill_commands(0.0)
-	if controller != null and controller.has_method(&"reset"):
+	if _flight_controller != null:
+		_flight_controller.reset()
+	elif controller != null and controller.has_method(&"reset"):
 		controller.call(&"reset")
 	_flight_state.update(xform, Vector3.ZERO, Vector3.ZERO, DronePropeller.NO_GROUND)
 	respawned.emit()
@@ -395,6 +405,8 @@ func respawn() -> bool:
 func arm() -> bool:
 	if _armed:
 		return true
+	if _flight_controller != null:
+		return _flight_controller.arm()
 	if controller != null and controller.has_method(&"arm"):
 		return bool(controller.call(&"arm"))
 	apply_arm_state(true)
@@ -407,6 +419,9 @@ func arm() -> bool:
 ## Igual que [method arm], delega en [member controller] cuando lo hay para que
 ## los integradores del PID y el modo activo queden coherentes.
 func disarm() -> void:
+	if _flight_controller != null:
+		_flight_controller.disarm()
+		return
 	if controller != null and controller.has_method(&"disarm"):
 		controller.call(&"disarm")
 		return
@@ -447,7 +462,9 @@ func update_command(cmd: FlightCommand) -> void:
 	if cmd == null:
 		return
 	_command.copy_from(cmd)
-	if controller != null and controller.has_method(&"update_command"):
+	if _flight_controller != null:
+		_flight_controller.update_command(_command)
+	elif controller != null and controller.has_method(&"update_command"):
 		controller.call(&"update_command", _command)
 
 
@@ -455,6 +472,21 @@ func update_command(cmd: FlightCommand) -> void:
 ## [method FlightCommand.copy].
 func get_command() -> FlightCommand:
 	return _command
+
+
+## Primer ancestro de [param node] que sea un [Drone], o `null`.
+##
+## Lo pedían con el mismo bucle copiado en [Hull], [EnergySystem] y [WeaponMount]
+## (P2d WP-C, mejoras). Arranca en el **padre**, como los tres originales: un
+## nodo no es su propio dron.
+static func find_owner(node: Node) -> Drone:
+	var current := node.get_parent() if node != null else null
+	while current != null:
+		var found := current as Drone
+		if found != null:
+			return found
+		current = current.get_parent()
+	return null
 
 
 ## Acelerador del último `FlightCommand`, en `[0, 1]` (`docs/03` §9).
@@ -515,6 +547,8 @@ func get_stick_input() -> Array[Vector2]:
 ## Sin [member controller] enganchado devuelve [constant DEFAULT_MODE_KEY], que
 ## es lo que corresponde a un dron sin lazo de control.
 func get_mode_key() -> String:
+	if _flight_controller != null:
+		return _flight_controller.get_mode_key()
 	if controller != null and controller.has_method(&"get_mode_key"):
 		return String(controller.call(&"get_mode_key"))
 	return DEFAULT_MODE_KEY
@@ -523,13 +557,17 @@ func get_mode_key() -> String:
 ## Pide al controlador el modo [param mode_key] (`docs/03` §3.2). Sin controlador
 ## no hace nada.
 func select_mode(mode_key: String) -> void:
-	if controller != null and controller.has_method(&"select_mode"):
+	if _flight_controller != null:
+		_flight_controller.select_mode(mode_key)
+	elif controller != null and controller.has_method(&"select_mode"):
 		controller.call(&"select_mode", mode_key)
 
 
 ## Alterna ACRO ↔ HORIZON en el controlador (`docs/03` §3.2).
 func cycle_mode() -> void:
-	if controller != null and controller.has_method(&"cycle_mode"):
+	if _flight_controller != null:
+		_flight_controller.cycle_mode()
+	elif controller != null and controller.has_method(&"cycle_mode"):
 		controller.call(&"cycle_mode")
 
 

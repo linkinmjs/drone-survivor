@@ -1,0 +1,94 @@
+{
+  "name": "cars",
+  "comment": [
+    "Vista previa de 'cars.zip' (WP-G2): el taxi, seis baldosas de calle y tres senales.",
+    "NO es arte del juego: va a assets/preview/cars/, sin import_script, sin colision y",
+    "fuera del export. Sirve para mirar el pack en la galeria y decidir si entra.",
+    "Paso del OBJ 0.02 u por voxel. La receta NO fija escala de pack ('scale' 1.0): cada",
+    "pieza declara la suya, porque el pack no trae una escala comun con el pueblo.",
+    "Las 15 piezas comparten una sola paleta de 256x1 y ninguna esta centrada: cada una",
+    "conserva su posicion en la escena de MagicaVoxel. El taxi viene partido en seis OBJ",
+    "(carroceria 10, ruedas 11-14 y la placa 9) y se vuelve a juntar con 'assemble',",
+    "que pone cada pieza en la celda de la que salio."
+  ],
+  "source": "../../../assets/_raw/cars.zip",
+  "member_prefix": "Free Sample/",
+  "step": 0.02,
+  "scale": 1.0,
+  "palette_texture": "cars_palette.png",
+  "emissive_texture": "cars_emissive.png",
+  "emissive_surface": true,
+  "emissive_strength": 1.0,
+
+  "budgets": {"vehicle": 800, "street": 300, "sign": 400},
+  "budget_note": [
+    "vehicle 800: el taxi ensamblado son 2 986 triangulos a su voxel y 682 con 'decimate'",
+    "2 del conjunto (bloques de 14 cm a x3,5). street 300: las baldosas son losas de dos",
+    "celdas con la pintura de la senda; van entre 108 y 134 sin tocarlas. sign 400: la",
+    "senal de 66 son 348 por el aro rojo; se deja sin diezmar para que el numero se lea."
+  ],
+
+  "materials": {},
+  "palette_families": {},
+
+  "window_indices": {
+    "86": [255, 203, 100],
+    "85": [243, 156, 80],
+    "173": [203, 73, 75]
+  },
+  "window_indices_note": [
+    "Los faros del taxi (86, en z = 50, el frente) y sus pilotos (173, en z = 0) y el",
+    "ambar del cartel de techo (85). Con 'emissive_surface' van a la superficie emisiva",
+    "del GLB y se ven sin importador: la vista previa no lleva el material del pueblo."
+  ],
+
+  "pieces": {
+    "taxi_body": {"file": "Free Sample-10-Taxi.obj"},
+    "taxi_wheel_a": {"file": "Free Sample-11.obj"},
+    "taxi_wheel_b": {"file": "Free Sample-12.obj"},
+    "taxi_wheel_c": {"file": "Free Sample-13.obj"},
+    "taxi_wheel_d": {"file": "Free Sample-14.obj"},
+    "taxi_plate": {"file": "Free Sample-9.obj"},
+    "crossing_a": {"file": "Free Sample-0-Crossing.obj"},
+    "crossing_b": {"file": "Free Sample-1-Crossing.obj"},
+    "street_8_a": {"file": "Free Sample-2-Street-8.obj"},
+    "street_6_a": {"file": "Free Sample-3-Street-6.obj"},
+    "street_6_b": {"file": "Free Sample-4-Street-6.obj"},
+    "street_8_b": {"file": "Free Sample-5-Street-8.obj"},
+    "sign_60": {"file": "Free Sample-6-RoadSign-60.obj"},
+    "sign_64": {"file": "Free Sample-7-RoadSign-64.obj"},
+    "sign_66": {"file": "Free Sample-8-RoadSign-66.obj"}
+  },
+
+  "houses": {},
+
+  "scale_note": [
+    "x3,5 al taxi (voxel de 7 cm): 52 x 28 x 26 celdas dan 3,64 x 1,96 x 1,82 m, un auto",
+    "chico de caricatura al lado del car_a procedural de 4,27 m. x2,5 a baldosas y",
+    "senales, el factor con el que el pack nuke llego a la escala del pueblo: la baldosa",
+    "de 80 celdas mide 4,00 m y la senal 2,60 m de alto."
+  ],
+
+  "props": {
+    "cars_taxi": {"assemble": ["taxi_plate", "taxi_body", "taxi_wheel_a", "taxi_wheel_b",
+                               "taxi_wheel_c", "taxi_wheel_d"],
+      "kind": "vehicle", "scale": 3.5, "decimate": 2,
+      "comment": "La placa va primero: cae dentro de la carroceria y lo que la tapa gana."},
+    "cars_crossing_a": {"piece": "crossing_a", "kind": "street", "scale": 2.5},
+    "cars_crossing_b": {"piece": "crossing_b", "kind": "street", "scale": 2.5},
+    "cars_street_6_a": {"piece": "street_6_a", "kind": "street", "scale": 2.5},
+    "cars_street_6_b": {"piece": "street_6_b", "kind": "street", "scale": 2.5},
+    "cars_street_8_a": {"piece": "street_8_a", "kind": "street", "scale": 2.5},
+    "cars_street_8_b": {"piece": "street_8_b", "kind": "street", "scale": 2.5},
+    "cars_sign_60": {"piece": "sign_60", "kind": "sign", "scale": 2.5},
+    "cars_sign_64": {"piece": "sign_64", "kind": "sign", "scale": 2.5},
+    "cars_sign_66": {"piece": "sign_66", "kind": "sign", "scale": 2.5}
+  },
+
+  "preview": {
+    "pack": "cars",
+    "row": "Packs/Autos y calle",
+    "pieces": {"cars_taxi": {"order": 0}},
+    "pieces_note": "order 0: la galeria pone el taxi primero, al lado del car_a de referencia."
+  }
+}

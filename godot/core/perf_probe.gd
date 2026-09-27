@@ -40,6 +40,7 @@
 ## | `enemy_action` | enfriamientos de las nueve `EnemyAction` (WP-29) |
 ## | `telegraph` | desvanecido del aviso de `Telegraph` (WP-29) |
 ## | `enemy_base` | `EnemyBase`: bloqueos, exposición a 10 Hz y fases a 4 Hz (WP-29) |
+## | `arachnodroid` | `Arachnodroid`: carcasa, sensor de respaldo, caída y cuenta atrás (P2d) |
 ## | `enemy_audio` | `AudioRig`: carga de servos y bucle (WP-29) |
 ## | `city_building` | los 60 `Building` que estén despiertos (WP-29) |
 ## | `city_integrity` | `CityIntegrity`: publicación y asedio (WP-29) |
@@ -94,7 +95,7 @@ const IDS: Array[StringName] = [
 	&"drone_integrator", &"projectile_pool", &"weapon_mount", &"aim_assist",
 	&"perception", &"bot_pilot",
 	&"rig_tick", &"fsm_state", &"fsm_context", &"fsm_select",
-	&"enemy_action", &"telegraph", &"enemy_base",
+	&"enemy_action", &"telegraph", &"enemy_base", &"arachnodroid",
 	&"enemy_audio", &"city_building", &"city_integrity", &"debris_pool",
 	&"audio_pool", &"round_objectives", &"drone_rig",
 	&"drone_damage", &"drone_energy", &"motor_audio", &"drone_misc",

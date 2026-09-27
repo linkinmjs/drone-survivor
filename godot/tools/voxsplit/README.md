@@ -118,7 +118,9 @@ python -m voxsplit inspect '../assets/_raw/Arachnodroid.zip!Package/Arachnoid.vo
 | `objvox.py` | Voxelizador **OBJ → rejilla**, para los packs que sólo traen malla y no `.vox`. Recupera la celda interior de cada cara por su normal, rellena el volumen por inundación y lee el color de la UV de paleta. Acepta `archivo.zip!miembro`. |
 | `compose.py` | Compositor del pueblo de ruta: familias de paleta, recorte, diezmado, apilado de pisos, embutido de puertas, espejo y máscara emisiva. |
 | `models/nuke_town.json` | Las recetas: qué OBJ es cada pieza, cómo se agrupa la paleta, qué índices se encienden y cómo se arma cada tipo y variante de casa. |
-| `voxreader.py` | Parseo de `.vox` (chunks, `SIZE`, `XYZI`, `RGBA`, `MATL`, grafo `nTRN`/`nGRP`/`nSHP`, paleta por defecto). Acepta `archivo.zip!miembro`. |
+| `models/*.json`, `models/mechs/*.parts.json` | Las recetas de las vistas previas de `assets/preview/` (WP-G2, §5quater). |
+| `previewmanifest.py` | Escribe `pieces_manifest.json` de una carpeta de `assets/preview/` desde sus sidecars (WP-G2). |
+| `voxreader.py` | Parseo de `.vox` (chunks, `SIZE`, `XYZI`, `RGBA`, `MATL`, grafo `nTRN`/`nGRP`/`nSHP`, paleta por defecto). Acepta `archivo.zip!miembro` y, desde WP-G2, `archivo.rar!miembro`. |
 | `parts.py` | Carga y validación de `parts.json`, `axis_map`, espejo, asignación de voxels y `_unassigned`. |
 | `mesher.py` | Meshing greedy por parte y por material, UV de paleta, normales de eje, bobinado. |
 | `glbwriter.py` | Serialización glTF 2.0 binaria, jerarquía, materiales, PNG de paleta. |
@@ -423,9 +425,97 @@ que hizo falta es `decimate`, en cuatro piezas (el árbol XL, el barril, la para
 toldo), y cada una lo dice en su comentario del JSON.
 
 **Limitación conocida**: una receta admite **una sola paleta de 256×1**, compartida por
-todas sus piezas. El `VoxelVillagePack` trae dos (una para `buildings/`, `trees/` y
-`rocks/`, otra para `objects/`), así que `village.json` toma sólo `objects/`; el candidato a
-capilla de `buildings/building3` queda fuera hasta que alguien funda las dos paletas.
+todas sus piezas. El `VoxelVillagePack` trae dos, así que `village.json` toma sólo
+`objects/`. **Corrección de WP-G2**, medido pieza por pieza: una paleta la comparten
+`buildings/`, `trees/`, `market_stands/` y `rocks/rock_small`; la otra `objects/`,
+`rocks/rock_big` (y las personas). La solución no fue fundirlas sino **dos recetas**
+(`village_objects.json` y `village_buildings.json`, §5quater): el candidato a capilla
+`buildings/building3` ya se puede mirar en la galería como `village_building_3`.
+
+---
+
+## 5quater. Vistas previas de todo `assets/_raw/` (WP-G2)
+
+Todo lo que hay en `assets/_raw/` y el juego no usa tiene una vista previa en
+`assets/preview/<pack>/`: GLB **estáticos**, sin `import_script` (ni colisión ni scripts:
+el `.glb.import` queda con `import_script/path=""`), fuera del export
+(`assets/preview/*` en los dos presets) y visibles en la galería de assets, filas
+`Packs/*` y `Enemigos/Vista previa`. No son arte del juego: sirven para decidir qué entra.
+
+```powershell
+cd godot\tools
+python -m voxsplit town voxsplit\models\cars.json              --out ..\assets\preview\cars
+python -m voxsplit town voxsplit\models\vcity_extra.json       --out ..\assets\preview\vcity_extra
+python -m voxsplit town voxsplit\models\village_objects.json   --out ..\assets\preview\village_objects
+python -m voxsplit town voxsplit\models\village_buildings.json --out ..\assets\preview\village_buildings
+python -m voxsplit town voxsplit\models\foliage_extra.json     --out ..\assets\preview\foliage_extra
+python -m voxsplit town voxsplit\models\nuke_extra.json        --out ..\assets\preview\nuke_extra
+python -m voxsplit town voxsplit\models\cliffs.json            --out ..\assets\preview\cliffs
+$env:SOURCE_DATE_EPOCH = "1790208000"   # fija metadata.generated_at de los sidecars
+Get-ChildItem voxsplit\models\mechs\*.parts.json | ForEach-Object {
+    python -m voxsplit build $_.FullName --out ..\assets\preview\enemies }
+```
+
+Después, `godot --headless --path godot --import` y volver a hornear la galería
+(`tools/build_asset_gallery.gd`). Las salidas son deterministas: dos corridas dan los
+mismos bytes (verificado sobre los 129 archivos de WP-G2).
+
+| Receta | Origen | Vóxel | Piezas | Notas |
+|---|---|---|---|---|
+| `cars.json` | `cars.zip` | 2 cm × escala de pieza | 10 | taxi ×3,5 (7 cm, `decimate` 2 del conjunto, clase `vehicle` 800); baldosas y señales ×2,5 |
+| `vcity_extra.json` | `city-Free Sample.zip` | 5 cm | 10 | familias de paleta (vereda y edificio *dithered*); el edificio amarillo ensamblado y sus 4 pisos sueltos |
+| `village_objects.json` | `VoxelVillagePack.zip` | 10 cm | 6 | paleta de `objects/` |
+| `village_buildings.json` | `VoxelVillagePack.zip` | 10 cm | 14 | paleta de `buildings/` |
+| `foliage_extra.json` | `Foliage.rar` | 10 cm × escala de pieza | 21 | escalas y repintado de `foliage.json` |
+| `nuke_extra.json` | `nuke Free Sample.zip` | 5 cm | 11 | familias **propias** (las de `nuke_town.json` pintarían la calle de verde) |
+| `cliffs.json` | `Package.zip` | 5 cm | 10 | familias + `decimate` 3–5 por roca, todas ≤ 2 500 |
+| `mechs/*.parts.json` | los 8 ZIP/RAR de mechas | `docs/14` §2 | 8 | `build` de una sola parte, con emisivos |
+
+`citry.zip` es un duplicado byte a byte de `city-Free Sample.zip` (mismo md5) y no lo usa
+ninguna receta.
+
+Lo que hizo falta agregar, y por qué:
+
+- **`assemble`** (prop): junta varias piezas **en la celda de la escena del pack de la que
+  salieron** (`Piece.native`, que `load_pieces` calcula del `obj_min` del OBJ). `cars.zip`
+  exporta el taxi partido en seis OBJ, cada uno en su sitio; `city-Free Sample.zip` exporta
+  los pisos del edificio amarillo ya apilados. `attach` no sirve (embute la pieza dentro de
+  la huella del cuerpo, y la rueda sobresale a propósito) y `stack` tampoco (exige que cada
+  piso entre en la planta del primero, y el pack los hace crecer: 101, 104 y 108 celdas).
+- **`decimate` en el prop**: diezma **el conjunto** ya ensamblado, para que rueda y
+  carrocería voten sobre los mismos bloques.
+- **`emissive_surface`** (receta): manda los `window_indices` a la superficie emisiva del
+  GLB, como en un enemigo. Las vistas previas no pasan por `import_town_piece.gd`, que es
+  quien pone el material con máscara; sin esto los faros del taxi no se verían.
+  `emissive_strength` (receta) fija la fuerza.
+- **`preview`** (receta o cabecera de `parts.json`): `pack`, `row`, `class`, `sort`,
+  `preview_only`, `yaw` y overrides por pieza en `pieces` (`order`, `row`, `class`,
+  `note`). Si está, `town` y `build` regeneran **`pieces_manifest.json`** de la carpeta con
+  `previewmanifest.py`, desde todos los sidecars que lo declaran, y la galería lo lee sin
+  conocer ningún pack (`asset_gallery_sources.gd::_preview_entries()`). Las recetas del
+  pueblo no lo declaran y su salida no cambió ni un byte (verificado reconstruyendo las
+  cuatro sobre una carpeta temporal: 46 de 46 archivos idénticos).
+- **`voxreader` lee `.rar`**: `Mecha01.rar` es el único mecha que no viene en ZIP; se
+  reutiliza la tubería de UnRAR de `objvox` (`UnRAR p -inul`, nada toca el disco).
+
+### Mechas: `build` de una sola parte (vía «a»)
+
+Cada mecha tiene un `models/mechs/<id>.parts.json` mínimo: **una** parte `body` con una
+caja que cubre toda la rejilla, el `voxel_size` de `docs/14` §2, el `axis_map` y el origen
+del Arachnodroid (`{x:+x, y:+z, z:-y}`, centro de la huella, base en `y = 0`), los
+`emissive_palette_indices` que sugiere `inspect` y `expect` con la altura de `docs/14`. Se
+eligió esta vía y no una receta `town` con `scale = voxel_size / 0,1` porque:
+
+1. lee el **`.vox`**, que es la fuente que usará el enemigo de verdad, y no el OBJ exportado;
+2. conserva los emisivos **por `MATL`** sin reescribirlos como `window_indices`;
+3. el día que se produzca el enemigo, su `parts.json` real parte de este mismo archivo
+   agregando cajas, sin cambiar de herramienta.
+
+`emissive_strength` va fijo en **3,0** (el techo del Arachnodroid): el `MATL` de estos
+packs llega a energía 8 y con eso el visor quema a blanco en la galería. Sin diezmar:
+2 476–6 952 triángulos, que para una vista previa sobran. El sidecar se escribe en
+`assets/preview/enemies/`, así que el archivo de autoría de `models/mechs/` no se pisa
+(§5.1). Son **vista previa**: la galería les suma `VISTA PREVIA` a la etiqueta.
 
 ---
 

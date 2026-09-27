@@ -1,0 +1,156 @@
+voxsplit 1.0.0 — pueblo «cliffs»
+origen              : Package.zip
+paso del OBJ        : 0.05 u · escala ×1.0 · vóxel 0.05 m
+
+piezas del pack (tras familias de paleta, recorte y diezmado):
+  pieza          celdas           metros                      vox  OBJ tris
+  --------------------------------------------------------------------------
+  rock_0         80×119×128       4.00 × 5.95 × 6.40       612304     12396
+  rock_1         80×149×130       4.00 × 7.45 × 6.50       718925     16932
+  rock_2         80×156×140       4.00 × 7.80 × 7.00       868544     11446
+  rock_3         80×111×150       4.00 × 5.55 × 7.50       735168     10354
+  rock_4         80×93×140        4.00 × 4.65 × 7.00       787239      6986
+  rock_5         80×113×129       4.00 × 5.65 × 6.45       629200     17186
+  rock_6         80×96×140        4.00 × 4.80 × 7.00       798912      8926
+  rock_7         80×102×132       4.00 × 5.10 × 6.60       633280     10154
+  rock_8         80×144×134       4.00 × 7.20 × 6.70       894204      5194
+  rock_9         80×93×134        4.00 × 4.65 × 6.70       835452      7296
+
+diagnóstico de la voxelización (cáscara por normales frente a relleno por inundación):
+  una pieza de casa con más desajustes que su 'allow_fill_mismatches' es un fallo;
+  en un prop es sólo un aviso, porque los montones del pack son mallas abiertas.
+  rock_0: 120 celdas de desajuste de relleno (tolerancia 0), 0 de color
+      la celda (65, 48, 18) está marcada exterior pero el relleno la llena
+      la celda (32, 90, 67) está marcada exterior pero el relleno la llena
+      la celda (60, 48, 23) está marcada exterior pero el relleno la llena
+      la celda (31, 91, 67) está marcada exterior pero el relleno la llena
+      la celda (6, 3, 104) está marcada exterior pero el relleno la llena
+      la celda (64, 48, 21) está marcada exterior pero el relleno la llena
+      la celda (65, 49, 18) está marcada exterior pero el relleno la llena
+      la celda (61, 48, 22) está marcada exterior pero el relleno la llena
+      … y 112 más
+  rock_1: 224 celdas de desajuste de relleno (tolerancia 0), 0 de color
+      la celda (54, 102, 69) está marcada exterior pero el relleno la llena
+      la celda (56, 98, 69) está marcada exterior pero el relleno la llena
+      la celda (38, 82, 55) está marcada exterior pero el relleno la llena
+      la celda (37, 83, 51) está marcada exterior pero el relleno la llena
+      la celda (57, 101, 68) está marcada exterior pero el relleno la llena
+      la celda (59, 96, 68) está marcada exterior pero el relleno la llena
+      la celda (55, 103, 69) está marcada exterior pero el relleno la llena
+      la celda (37, 83, 55) está marcada exterior pero el relleno la llena
+      … y 216 más
+  rock_2: 32 celdas de desajuste de relleno (tolerancia 0), 0 de color
+      la celda (6, 3, 116) está marcada exterior pero el relleno la llena
+      la celda (6, 82, 8) está marcada exterior pero el relleno la llena
+      la celda (7, 3, 117) está marcada exterior pero el relleno la llena
+      la celda (7, 82, 9) está marcada exterior pero el relleno la llena
+      la celda (7, 2, 117) está marcada exterior pero el relleno la llena
+      la celda (7, 83, 9) está marcada exterior pero el relleno la llena
+      la celda (6, 2, 117) está marcada exterior pero el relleno la llena
+      la celda (6, 83, 9) está marcada exterior pero el relleno la llena
+      … y 24 más
+  rock_3: 32 celdas de desajuste de relleno (tolerancia 0), 0 de color
+      la celda (7, 3, 129) está marcada exterior pero el relleno la llena
+      la celda (72, 3, 21) está marcada exterior pero el relleno la llena
+      la celda (73, 2, 20) está marcada exterior pero el relleno la llena
+      la celda (7, 2, 129) está marcada exterior pero el relleno la llena
+      la celda (6, 2, 129) está marcada exterior pero el relleno la llena
+      la celda (73, 3, 20) está marcada exterior pero el relleno la llena
+      la celda (6, 3, 129) está marcada exterior pero el relleno la llena
+      la celda (72, 2, 20) está marcada exterior pero el relleno la llena
+      … y 24 más
+  rock_4: 16 celdas de desajuste de relleno (tolerancia 0), 0 de color
+      la celda (6, 3, 116) está marcada exterior pero el relleno la llena
+      la celda (7, 3, 117) está marcada exterior pero el relleno la llena
+      la celda (7, 2, 117) está marcada exterior pero el relleno la llena
+      la celda (6, 2, 117) está marcada exterior pero el relleno la llena
+      la celda (6, 3, 117) está marcada exterior pero el relleno la llena
+      la celda (7, 2, 118) está marcada exterior pero el relleno la llena
+      la celda (7, 3, 118) está marcada exterior pero el relleno la llena
+      la celda (6, 2, 118) está marcada exterior pero el relleno la llena
+      … y 8 más
+  rock_5: 263 celdas de desajuste de relleno (tolerancia 0), 0 de color
+      la celda (15, 25, 70) está marcada exterior pero el relleno la llena
+      la celda (14, 26, 66) está marcada exterior pero el relleno la llena
+      la celda (6, 2, 108) está marcada exterior pero el relleno la llena
+      la celda (6, 25, 68) está marcada exterior pero el relleno la llena
+      la celda (9, 25, 71) está marcada exterior pero el relleno la llena
+      la celda (15, 27, 66) está marcada exterior pero el relleno la llena
+      la celda (17, 27, 62) está marcada exterior pero el relleno la llena
+      la celda (37, 83, 18) está marcada exterior pero el relleno la llena
+      … y 255 más
+  rock_6: 16 celdas de desajuste de relleno (tolerancia 0), 0 de color
+      la celda (6, 3, 116) está marcada exterior pero el relleno la llena
+      la celda (7, 3, 117) está marcada exterior pero el relleno la llena
+      la celda (7, 2, 117) está marcada exterior pero el relleno la llena
+      la celda (6, 2, 117) está marcada exterior pero el relleno la llena
+      la celda (6, 3, 117) está marcada exterior pero el relleno la llena
+      la celda (7, 2, 118) está marcada exterior pero el relleno la llena
+      la celda (7, 3, 118) está marcada exterior pero el relleno la llena
+      la celda (6, 2, 118) está marcada exterior pero el relleno la llena
+      … y 8 más
+  rock_7: 32 celdas de desajuste de relleno (tolerancia 0), 0 de color
+      la celda (6, 2, 108) está marcada exterior pero el relleno la llena
+      la celda (6, 3, 108) está marcada exterior pero el relleno la llena
+      la celda (6, 9, 23) está marcada exterior pero el relleno la llena
+      la celda (7, 8, 22) está marcada exterior pero el relleno la llena
+      la celda (7, 3, 109) está marcada exterior pero el relleno la llena
+      la celda (7, 2, 109) está marcada exterior pero el relleno la llena
+      la celda (6, 2, 109) está marcada exterior pero el relleno la llena
+      la celda (6, 8, 22) está marcada exterior pero el relleno la llena
+      … y 24 más
+  rock_9: 224 celdas de desajuste de relleno (tolerancia 0), 0 de color
+      la celda (40, 3, 60) está marcada exterior pero el relleno la llena
+      la celda (41, 27, 68) está marcada exterior pero el relleno la llena
+      la celda (38, 3, 73) está marcada exterior pero el relleno la llena
+      la celda (39, 26, 64) está marcada exterior pero el relleno la llena
+      la celda (39, 5, 126) está marcada exterior pero el relleno la llena
+      la celda (42, 20, 65) está marcada exterior pero el relleno la llena
+      la celda (36, 5, 127) está marcada exterior pero el relleno la llena
+      la celda (39, 2, 72) está marcada exterior pero el relleno la llena
+      … y 216 más
+
+piezas compuestas:
+  pieza            clase    tris  presup  OBJ tris      vox  AABB (m)                 vent.
+  ------------------------------------------------------------------------------------------------
+  cliff_rock_00    rock     2494    2500     12396   612304  4.00 × 5.95 × 6.40       0
+      partes: rock_0
+      AABB   : min [-2.0, 0.0, -3.2]  max [2.0, 5.95, 3.2]
+  cliff_rock_01    rock     2336    2500     16932   718925  4.00 × 7.45 × 6.50       0
+      partes: rock_1
+      AABB   : min [-2.0, 0.0, -3.25]  max [2.0, 7.45, 3.25]
+  cliff_rock_02    rock     1936    2500     11446   868544  4.00 × 7.80 × 7.00       0
+      partes: rock_2
+      AABB   : min [-2.0, 0.0, -3.5]  max [2.0, 7.8, 3.5]
+  cliff_rock_03    rock     2110    2500     10354   735168  4.00 × 5.55 × 7.50       0
+      partes: rock_3
+      AABB   : min [-2.0, 0.0, -3.75]  max [2.0, 5.55, 3.75]
+  cliff_rock_04    rock     2262    2500      6986   787239  4.00 × 4.65 × 7.00       0
+      partes: rock_4
+      AABB   : min [-2.0, 0.0, -3.5]  max [2.0, 4.65, 3.5]
+  cliff_rock_05    rock     1890    2500     17186   629200  4.00 × 5.65 × 6.45       0
+      partes: rock_5
+      AABB   : min [-2.0, 0.0, -3.225]  max [2.0, 5.65, 3.225]
+  cliff_rock_06    rock     1482    2500      8926   798912  4.00 × 4.80 × 7.00       0
+      partes: rock_6
+      AABB   : min [-2.0, 0.0, -3.5]  max [2.0, 4.8, 3.5]
+  cliff_rock_07    rock     2266    2500     10154   633280  4.00 × 5.10 × 6.60       0
+      partes: rock_7
+      AABB   : min [-2.0, 0.0, -3.3]  max [2.0, 5.1, 3.3]
+  cliff_rock_08    rock     1556    2500      5194   894204  4.00 × 7.20 × 6.70       0
+      partes: rock_8
+      AABB   : min [-2.0, 0.0, -3.35]  max [2.0, 7.2, 3.35]
+  cliff_rock_09    rock     2434    2500      7296   835452  4.00 × 4.65 × 6.70       0
+      partes: rock_9
+      AABB   : min [-2.0, 0.0, -3.35]  max [2.0, 4.65, 3.35]
+
+familias de paleta (representante ← miembros):
+  190 ← [189, 190, 191]
+  196 ← [195, 196]
+  199 ← [198, 199]
+  203 ← [202, 203]
+  212 ← [211, 212]
+
+índices de ventana de la máscara emisiva:
+
+CHECK compose: OK

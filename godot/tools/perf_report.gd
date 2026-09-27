@@ -38,8 +38,8 @@
 ## | `--preset=LOW/MEDIUM/HIGH/ULTRA` | Aplica ese preset de [Graphics] antes de medir y
 ##   restaura el del jugador al salir. Sin la bandera se mide con lo que haya en memoria (WP-29) |
 ## | `--ablate=<lista|all>` | Apaga un rasgo por vez y tabula el Δ. Rasgos: `root3d`,
-##   `shadows`, `sdfgi`, `fog`, `ssao`, `msaa`, `fisheye`, `occlusion`, `vfx`, `overlay`,
-##   `trauma`, `phys_scripts`, `phys_enemies` |
+##   `shadows`, `sdfgi`, `fog`, `ssao`, `msaa`, `fisheye`, `side_glow`, `occlusion`, `vfx`,
+##   `overlay`, `trauma`, `phys_scripts`, `phys_enemies` |
 ## | `--ablate_frames=<n>` | Fotogramas por ventana de ablación (por defecto
 ##   [constant ABLATE_FRAMES]) |
 ## | `--compare=<ruta.json>` | Tabla de Δs por escenario y métrica contra ese informe,
@@ -53,6 +53,10 @@
 ##   como trabajo de CPU. También es lo que hace medible el paso de Jolt (ver más abajo) |
 ## | `--gpu-profile` | Imprime el detalle de GPU **por viewport**. La medición por viewport
 ##   está siempre encendida ([PerfSampler]); la bandera sólo agrega la tabla |
+## | `--fisheye_msaa=OFF/X2/X4/X8/SAME` | Fuerza la palanca de usuario
+##   [member Graphics.fisheye_msaa] antes de medir y la restituye al salir. Es lo que hace
+##   medible el MSAA de la **cara frontal** del ojo de pez sin tocar las laterales, que
+##   [method Graphics.fisheye_side_msaa_level] ya tiene acotadas a 2× (P2d) |
 ## | `--shots=<dir>` | Guarda una captura por escenario |
 ##
 ## ## Atribución del tick de física (WP-29)
@@ -162,6 +166,9 @@ const COMPARE_EXTRA: Array[Dictionary] = [
 ## Nombres de preset que admite `--preset`, en el orden de [enum Graphics.Quality].
 const PRESET_NAMES: Array[String] = ["LOW", "MEDIUM", "HIGH", "ULTRA"]
 
+## Nombres que admite `--fisheye_msaa`, en el orden de [enum Graphics.FisheyeMsaa].
+const FISHEYE_MSAA_NAMES: Array[String] = ["OFF", "X2", "X4", "X8", "SAME"]
+
 ## Rasgos que sabe apagar [method _set_feature], en el orden en que se tabulan.
 const ABLATE_FEATURES: Array[Dictionary] = [
 	{"id": "root3d", "label": "3D de la viewport raíz"},
@@ -171,6 +178,7 @@ const ABLATE_FEATURES: Array[Dictionary] = [
 	{"id": "ssao", "label": "SSAO"},
 	{"id": "msaa", "label": "MSAA 3D"},
 	{"id": "fisheye", "label": "ojo de pez"},
+	{"id": "side_glow", "label": "glow del entorno lateral"},
 	{"id": "occlusion", "label": "oclusión"},
 	{"id": "vfx", "label": "VFX (presupuesto a 0)"},
 	{"id": "overlay", "label": "overlay FPV"},
@@ -198,6 +206,9 @@ var _physics_suspended: Array[Node] = []
 ## sube para los rasgos de física, donde el monitor del motor necesita varios
 ## segundos por ventana para dar un pico representativo.
 var _ablate_frames: int = ABLATE_FRAMES
+## Palanca [member Graphics.fisheye_msaa] de antes de `--fisheye_msaa`, o `-1` si la
+## bandera no se usó.
+var _fisheye_msaa_before: int = -1
 var _prey_angle: float = 0.0
 var _prey_centre: Vector3 = Vector3.ZERO
 var _freeze_before: bool = false
@@ -213,6 +224,12 @@ var _regressions: PackedStringArray = PackedStringArray()
 var _brackets: Array[PerfBracket] = []
 ## Conexiones de `camera_trauma` que la ablación `trauma` cortó, para devolverlas.
 var _trauma_cut: Array[Callable] = []
+## Modo del ojo de pez que la ablación `fisheye` apagó, para devolver **ese** y no uno
+## fijo: en HIGH y ULTRA es `FAST_WIDE`, y restituir `FAST` dejaba las filas siguientes
+## de `--ablate=all` sin caras laterales (y a `side_glow` sin nada que apagar).
+var _fisheye_mode_saved: int = -1
+## Rasgos de la ablación que no se midieron, con el motivo (`{"id", "reason"}`).
+var _ablation_skipped: Array[Dictionary] = []
 
 
 func _run() -> void:
@@ -223,6 +240,7 @@ func _run() -> void:
 	Global.debug_freeze_ai = false
 	_disable_vsync()
 	_apply_preset(String(_args.get("preset", "")))
+	_apply_fisheye_msaa(String(_args.get("fisheye_msaa", "")))
 	_attach_brackets()
 
 	if DisplayServer.get_name() == "headless":
@@ -259,6 +277,7 @@ func _run() -> void:
 			+ " de ciudad y lo mide city_import_check, no este monitor)")
 	_write_report(String(_args.get("suffix", "")))
 	_detach_brackets()
+	_restore_fisheye_msaa()
 	_restore_preset()
 	Global.debug_freeze_ai = _freeze_before
 	Global.round_seed = _seed_before
@@ -299,6 +318,53 @@ func _apply_preset(name: String) -> void:
 			% [PRESET_NAMES[wanted], Graphics.max_emitters(),
 			"completo" if Graphics.fpv_overlay_full() else "viñeta",
 			int(Graphics.fisheye_mode)])
+
+
+## Fuerza la palanca de usuario [member Graphics.fisheye_msaa] y reconstruye el ojo de
+## pez con ella.
+##
+## Es la única forma de medir el MSAA de la **cara frontal** por separado: las dos
+## laterales las acota [method Graphics.fisheye_side_msaa_level] a 2×, así que bajar la
+## palanca de `SAME` (4× en HIGH) a `X2` cambia la frontal y deja las laterales donde
+## estaban. El `--ablate=msaa` responde otra pregunta —cuánto cuesta el MSAA entero
+## frente a apagarlo—, que no es la que decide si la frontal baja a 2×.
+func _apply_fisheye_msaa(name: String) -> void:
+	if name.is_empty():
+		return
+	var wanted := FISHEYE_MSAA_NAMES.find(name.strip_edges().to_upper())
+	if wanted < 0:
+		fail("--fisheye_msaa no conoce '%s' (esperaba %s)"
+				% [name, ", ".join(FISHEYE_MSAA_NAMES)])
+		return
+	_fisheye_msaa_before = int(Graphics.fisheye_msaa)
+	Graphics.fisheye_msaa = wanted as Graphics.FisheyeMsaa
+	Graphics.update_fisheye()
+	print("  MSAA del ojo de pez: frontal %s · laterales %s (palanca %s)"
+			% [_msaa_label(int(Graphics.fisheye_msaa_level())),
+			_msaa_label(int(Graphics.fisheye_side_msaa_level())),
+			FISHEYE_MSAA_NAMES[wanted]])
+
+
+## Devuelve la palanca del ojo de pez a como estaba. Sin la bandera no hace nada.
+func _restore_fisheye_msaa() -> void:
+	if _fisheye_msaa_before < 0:
+		return
+	Graphics.fisheye_msaa = _fisheye_msaa_before as Graphics.FisheyeMsaa
+	Graphics.update_fisheye()
+	_fisheye_msaa_before = -1
+
+
+## Rótulo legible de un [enum Viewport.MSAA].
+func _msaa_label(level: int) -> String:
+	match level:
+		int(Viewport.MSAA_2X):
+			return "2x"
+		int(Viewport.MSAA_4X):
+			return "4x"
+		int(Viewport.MSAA_8X):
+			return "8x"
+		_:
+			return "off"
 
 
 ## Devuelve [Graphics] a como estaba antes de `--preset`. Sin `--preset` no hace nada.
@@ -488,11 +554,20 @@ func _start_round(root: Node) -> BotPilot:
 ## Las `SubViewport` del ojo de pez de la cámara FPV que cuelgue de [param root],
 ## o un arreglo vacío si el escenario no tiene dron o el ojo de pez está en OFF.
 func _fisheye_viewports(root: Node) -> Array[SubViewport]:
+	var camera := _fpv_camera(root)
+	if camera == null:
+		var none: Array[SubViewport] = []
+		return none
+	return camera.get_fisheye_viewports()
+
+
+## La cámara FPV que cuelgue de [param root], o `null` si el escenario no trae dron.
+func _fpv_camera(root: Node) -> FPVCamera:
 	for node: Node in get_tree().get_nodes_in_group(&"fpv_camera"):
 		var camera := node as FPVCamera
 		if camera != null and root != null and root.is_ancestor_of(camera):
-			return camera.get_fisheye_viewports()
-	return []
+			return camera
+	return null
 
 
 ## Si el compuesto del ojo de pez está visible, que es cuando la viewport raíz no
@@ -569,10 +644,19 @@ func _run_ablation(list: String) -> void:
 			base["feature"] = "base"
 			base["label"] = "línea de base (%s)" % ("corriendo" if needs_physics else "en pausa")
 			_ablation.append(base)
+		# Un rasgo cuyo objeto no existe —o que el preset ya tiene apagado— daría un Δ
+		# de cero que se lee como «no cuesta nada». Se declara SKIP con el motivo.
+		var skip := _feature_skip_reason(root, id)
+		if not skip.is_empty():
+			print("  SKIP %-12s %s" % [id, skip])
+			_ablation_skipped.append({"id": id, "reason": skip})
+			continue
 		_set_feature(root, id, true)
 		await wait_frames(ABLATE_WARMUP)
 		var sample := await _ablate_window(root)
 		_set_feature(root, id, false)
+		if id == "fisheye":
+			await _rebuild_fisheye_paused(root)
 		await wait_frames(ABLATE_WARMUP)
 		var after := await _ablate_window(root)
 		var base_gpu := (float(base["gpu_ms_total"]) + float(after["gpu_ms_total"])) * 0.5
@@ -605,15 +689,32 @@ func _run_ablation(list: String) -> void:
 	_print_ablation()
 
 
-## Los identificadores de [param list] que [method _set_feature] sabe apagar, en
-## el orden de [constant ABLATE_FEATURES]. `--ablate=all` los pide todos.
+## Los identificadores de [param list] que [method _set_feature] sabe apagar.
+##
+## `--ablate=all` los pide todos en el orden de [constant ABLATE_FEATURES]; una lista
+## explícita los pide **en el orden en que se escriben**, y eso es a propósito: la
+## tabla de ablación se construye con bases emparejadas, y si el orden cambiara el
+## resultado querría decir que las bases no están cerrando. Pasar la lista al derecho
+## y al revés y comparar los dos Δ es la forma de verificarlo sin tocar el código
+## (P2d). Un identificador que no existe se avisa en vez de ignorarse en silencio.
 func _ablation_list(list: String) -> PackedStringArray:
 	var raw := list.strip_edges().to_lower()
 	var wanted := PackedStringArray()
+	if raw == "all" or raw == "true":
+		for feature: Dictionary in ABLATE_FEATURES:
+			wanted.append(String(feature["id"]))
+		return wanted
+	var known := PackedStringArray()
 	for feature: Dictionary in ABLATE_FEATURES:
-		var id := String(feature["id"])
-		if raw == "all" or raw == "true" or ("," + raw + ",").contains("," + id + ","):
+		known.append(String(feature["id"]))
+	for token: String in raw.split(",", false):
+		var id := token.strip_edges()
+		if id.is_empty():
+			continue
+		if known.has(id):
 			wanted.append(id)
+		else:
+			print("  AVISO: --ablate no conoce el rasgo '%s'; se ignora." % id)
 	return wanted
 
 
@@ -623,6 +724,87 @@ func _ablation_label(id: String) -> String:
 		if String(feature["id"]) == id:
 			return String(feature["label"])
 	return id
+
+
+## Deja que la [FPVCamera] corra su `_process` unos cuadros con el árbol en pausa.
+##
+## Restituir el ojo de pez reconstruye las caras, pero el `Environment` barato de las
+## laterales se deriva en el primer `_process` del modo nuevo
+## (`FPVCamera._refresh_side_environment()`), y con el árbol en pausa ese `_process` no
+## corre: las caras laterales quedaban con el `Environment` completo del mundo —SDFGI,
+## SSAO, niebla— y todas las filas siguientes de `--ablate=all` se medían con ~1,8 ms
+## de GPU de más, y `side_glow` no encontraba nada que apagar. Se le da a la cámara
+## `PROCESS_MODE_ALWAYS` sólo por esos cuadros y se le devuelve el suyo.
+func _rebuild_fisheye_paused(root: Node) -> void:
+	var fpv := _fpv_camera(root)
+	if fpv == null:
+		return
+	var mode_before := fpv.process_mode
+	fpv.process_mode = Node.PROCESS_MODE_ALWAYS
+	await wait_frames(3)
+	fpv.process_mode = mode_before
+	# `_update_composite_state()` también corrió y dejó la raíz como la quiere el modo.
+	if Graphics.fisheye_mode == Graphics.FisheyeMode.FAST_WIDE \
+			and fpv.get_side_environment() == null:
+		print("  AVISO: tras restituir el ojo de pez las caras laterales siguen sin"
+				+ " Environment propio")
+
+
+## Motivo por el que el rasgo [param id] no se puede medir en este nivel y preset, o
+## vacío si se puede. Apagar algo que no existe o que ya está apagado mide la deriva
+## entre dos ventanas y la tabula como Δ del rasgo, que es peor que no medirlo.
+func _feature_skip_reason(root: Node, id: String) -> String:
+	match id:
+		"root3d":
+			if get_viewport().disable_3d:
+				return "la viewport raíz ya no dibuja 3D (el ojo de pez está al mando)"
+		"shadows":
+			var sun := root.get_node_or_null(^"Sun") as DirectionalLight3D
+			if sun == null:
+				return "el nivel no tiene Sun"
+			if not sun.shadow_enabled:
+				return "el preset ya tiene la sombra direccional apagada"
+		"sdfgi", "fog", "ssao":
+			var env := _environment(root)
+			if env == null:
+				return "el nivel no tiene Environment"
+			var enabled := env.ssao_enabled
+			if id == "sdfgi":
+				enabled = env.sdfgi_enabled
+			elif id == "fog":
+				enabled = env.volumetric_fog_enabled
+			if not enabled:
+				return "el preset ya lo tiene apagado"
+		"fisheye":
+			if Graphics.fisheye_mode == Graphics.FisheyeMode.OFF:
+				return "el ojo de pez ya está en OFF"
+		"side_glow":
+			var fpv := _fpv_camera(root)
+			if fpv == null:
+				return "el nivel no tiene FPVCamera"
+			var side := fpv.get_side_environment()
+			if side == null:
+				return "no hay Environment lateral (modo %s: sin caras laterales)" \
+						% String(Graphics.FisheyeMode.keys()[int(Graphics.fisheye_mode)])
+			if not side.glow_enabled:
+				return "el Environment lateral ya tiene el glow apagado"
+		"occlusion":
+			if not Graphics.use_occlusion_culling():
+				return "el preset no usa oclusión"
+		"vfx":
+			if VFXPool.resolve(self) == null:
+				return "no hay VFXPool"
+		"overlay":
+			var overlay := _overlay(root)
+			if overlay == null or overlay.rect() == null:
+				return "el nivel no tiene overlay FPV"
+		"trauma":
+			if _camera_rig(root) == null:
+				return "el nivel no tiene CameraRig"
+		"phys_enemies":
+			if root.get_node_or_null(^"Enemies") == null:
+				return "el nivel no tiene nodo Enemies"
+	return ""
 
 
 ## Una ventana corta de medición sobre el nivel ya montado.
@@ -641,7 +823,9 @@ func _ablate_window(root: Node) -> Dictionary:
 ## Apaga ([param disabled] en `true`) o restituye un rasgo de render del nivel.
 ##
 ## Restituir no lee un valor guardado sino el que manda `Graphics`: el nivel se
-## monta con el preset activo, así que el preset **es** el estado original.
+## monta con el preset activo, así que el preset **es** el estado original. La
+## excepción es `fisheye`, que apaga el propio ajuste de `Graphics` y por eso guarda
+## el modo en [member _fisheye_mode_saved] para devolver ese.
 func _set_feature(root: Node, id: String, disabled: bool) -> void:
 	var viewport := get_viewport()
 	var fisheye := _fisheye_viewports(root)
@@ -671,15 +855,37 @@ func _set_feature(root: Node, id: String, disabled: bool) -> void:
 			if env != null:
 				env.ssao_enabled = not disabled and Graphics.ssao
 		"msaa":
+			# Restituir **no** es «el MSAA del ojo de pez en las tres»: las dos caras
+			# laterales de FAST_WIDE nacen acotadas a 2× por
+			# `Graphics.fisheye_side_msaa_level()` (`fpv_camera.gd:_add_face`). Ponerles
+			# 4× al restituir dejaba las ventanas siguientes de `--ablate=all` midiendo
+			# más carga que la partida, y con ella el Δ de cada rasgo posterior.
 			viewport.msaa_3d = Viewport.MSAA_DISABLED if disabled \
 					else Graphics.msaa_to_viewport(int(Graphics.msaa))
-			for sub: SubViewport in fisheye:
-				sub.msaa_3d = Viewport.MSAA_DISABLED if disabled \
+			var camera := _fpv_camera(root)
+			for index: int in fisheye.size():
+				var is_side := camera != null and camera.face_is_side(index)
+				var level := Graphics.fisheye_side_msaa_level() if is_side \
 						else Graphics.fisheye_msaa_level()
+				fisheye[index].msaa_3d = Viewport.MSAA_DISABLED if disabled else level
 		"fisheye":
-			Graphics.fisheye_mode = Graphics.FisheyeMode.OFF if disabled \
-					else Graphics.FisheyeMode.FAST
+			if disabled:
+				_fisheye_mode_saved = int(Graphics.fisheye_mode)
+				Graphics.fisheye_mode = Graphics.FisheyeMode.OFF
+			elif _fisheye_mode_saved >= 0:
+				Graphics.fisheye_mode = _fisheye_mode_saved as Graphics.FisheyeMode
+				_fisheye_mode_saved = -1
 			Graphics.update_fisheye()
+		"side_glow":
+			# El `Environment` barato de las caras laterales apaga SDFGI, SSIL, SSAO y
+			# niebla volumétrica, pero hereda del nivel el glow de seis niveles y los
+			# ajustes de color: una cadena de pantalla completa **por viewport**. Esto
+			# la mide. Restituir lee el glow del nivel, que es de donde salió el clon.
+			var fpv := _fpv_camera(root)
+			var side := fpv.get_side_environment() if fpv != null else null
+			if side != null:
+				var source := _environment(root)
+				side.glow_enabled = not disabled and source != null and source.glow_enabled
 		"occlusion":
 			# Restituir no es «poner true»: una `SubViewport` nace con la oclusión
 			# apagada y sólo la tiene si `FPVCamera` se la pidió al proyecto.
@@ -811,6 +1017,9 @@ func _print_ablation() -> void:
 				"—" if is_base else "%+.2f" % float(row["delta_gpu_ms"]),
 				"—" if is_base else "%+.2f" % float(row["delta_physics_ms"]),
 				"—" if is_base else "%+.0f" % float(row["delta_fps"])])
+	for skipped: Dictionary in _ablation_skipped:
+		print("  %-26s SKIP: %s" % [_ablation_label(String(skipped["id"])),
+				String(skipped["reason"])])
 
 
 # --- Informe -----------------------------------------------------------------------------------

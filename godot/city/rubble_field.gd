@@ -49,7 +49,13 @@ func register_mesh(mesh: Mesh) -> int:
 	field.multimesh = multi_mesh
 	# Riesgo 9 del plan: geometría que cambia no participa de SDFGI.
 	field.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-	field.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	# Y no proyecta sombra, por la misma razón que el resto de la ruina (`docs/13` §1,
+	# nota de cierre de P2b en `docs/10`): un `MultiMeshInstance3D` de 512 plazas tiene
+	# un AABB que cubre el pueblo entero, así que con la sombra encendida entra en
+	# **todas** las cascadas de la direccional y arrastra consigo su geometría. Son
+	# cuatro campos: hasta 48 lotes fijos por nada. El contacto con el suelo lo dan el
+	# polvo y la oclusión del propio montículo.
+	field.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(field)
 
 	_fields.append(field)

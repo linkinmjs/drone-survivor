@@ -1,0 +1,80 @@
+{
+  "name": "nuke_extra",
+  "comment": [
+    "Vista previa de lo que queda sin usar de 'nuke Free Sample.zip' (WP-G2): las dos",
+    "baldosas de calle, la baldosa de hormigon, el sexto monton de basura y siete matas",
+    "de maleza. Lo demas del pack ya esta en el pueblo (models/nuke_town.json).",
+    "NO es arte del juego: va a assets/preview/nuke_extra/, sin import_script.",
+    "Paso del OBJ 0.02 u x escala 2.5 => 1 voxel = 5 cm, como nuke_town.json."
+  ],
+  "source": "../../../assets/_raw/nuke Free Sample.zip",
+  "member_prefix": "Free Sample/",
+  "step": 0.02,
+  "scale": 2.5,
+  "palette_texture": "nuke_extra_palette.png",
+  "emissive_texture": "",
+
+  "budgets": {"street": 2800, "prop": 800},
+  "budget_note": [
+    "Numeros de vista previa. Las baldosas son la parte cara del pack: la de calle son",
+    "18 656 triangulos crudos y la de hormigon 55 826, por el dithering (ver familias).",
+    "Con las familias quedan en 344 y 2 682. El hormigon se probo de tres maneras: todo",
+    "un solo gris da 752 pero borra las grietas; dos tonos con 'decimate' 2 da 2 070 y",
+    "las engorda al doble; tres tonos sin diezmar (lo elegido) conserva la grieta de una",
+    "celda. La basura (708) y la mata 5 (462, su cota geometrica) piden 800 de prop."
+  ],
+
+  "materials": {},
+
+  "palette_families": {
+    "208": [184, 208, 214, 215],
+    "68": [22, 51, 68, 183],
+    "88": [28, 29, 30, 31, 88],
+    "27": [26, 27],
+    "210": [209, 210, 211],
+    "23": [23, 126]
+  },
+  "palette_families_note": [
+    "Familias propias de esta receta y no las de nuke_town.json: aquellas mandan el 215",
+    "(el asfalto oscuro, 46,56,49) a la familia de la hiedra y la calle saldria verde.",
+    "208 el asfalto (cuatro grises verdosos a 10/255 uno de otro), 68 la pintura de la",
+    "senda, 88 el hormigon y 27 sus grietas (26 y 27, 45/255 mas oscuras: son el unico",
+    "detalle de la baldosa y se conservan), 210 la maleza y 23 la basura clara."
+  ],
+  "window_indices": {},
+
+  "pieces": {
+    "road_tile_0": {"file": "VoxelNuke-17-RoadTile-0.obj"},
+    "road_tile_1": {"file": "VoxelNuke-18-RoadTile-1.obj"},
+    "concrete_tile": {"file": "VoxelNuke-23-ConcreteGroundTile.obj"},
+    "trash_5": {"file": "VoxelNuke-25-TrashPile-5.obj"},
+    "weeds_1": {"file": "VoxelNuke-5-Overgrowth-1.obj"},
+    "weeds_2": {"file": "VoxelNuke-6-Overgrowth-2.obj"},
+    "weeds_3": {"file": "VoxelNuke-7-Overgrowth-3.obj"},
+    "weeds_5": {"file": "VoxelNuke-14-Overgrowth-5.obj"},
+    "weeds_6": {"file": "VoxelNuke-19-Overgrowth-6.obj"},
+    "weeds_7": {"file": "VoxelNuke-20-Overgrowth-7.obj"},
+    "weeds_8": {"file": "VoxelNuke-21-Overgrowth-8.obj"}
+  },
+
+  "houses": {},
+
+  "props": {
+    "nuke_road_tile_0": {"piece": "road_tile_0", "kind": "street"},
+    "nuke_road_tile_1": {"piece": "road_tile_1", "kind": "street"},
+    "nuke_concrete_tile": {"piece": "concrete_tile", "kind": "street"},
+    "nuke_trash_5": {"piece": "trash_5"},
+    "nuke_weeds_1": {"piece": "weeds_1"},
+    "nuke_weeds_2": {"piece": "weeds_2"},
+    "nuke_weeds_3": {"piece": "weeds_3"},
+    "nuke_weeds_5": {"piece": "weeds_5"},
+    "nuke_weeds_6": {"piece": "weeds_6"},
+    "nuke_weeds_7": {"piece": "weeds_7"},
+    "nuke_weeds_8": {"piece": "weeds_8"}
+  },
+
+  "preview": {
+    "pack": "nuke",
+    "row": "Packs/Nuke extra"
+  }
+}

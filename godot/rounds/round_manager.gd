@@ -221,6 +221,12 @@ var _intro_to: Vector3 = Vector3.ZERO
 var _intro_look_from: Vector3 = Vector3.ZERO
 var _intro_look_to: Vector3 = Vector3.ZERO
 
+## Marcadores del distrito, anotados en la única pasada de [method _collect_markers].
+var _drone_spawn_marker: Node3D = null
+var _camera_pose_marker: Node3D = null
+var _battery_posts_marker: Node3D = null
+var _enemy_spawn_markers: Array[Node3D] = []
+
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_PAUSABLE
@@ -235,6 +241,22 @@ func _exit_tree() -> void:
 		_outro_left = 0.0
 		Engine.time_scale = 1.0
 	_disconnect_bus()
+	_disconnect_local()
+
+
+## Suelta las conexiones a nodos del nivel. Las del bus se sueltan solas en
+## [method _disconnect_bus]; éstas son a nodos que pueden vivir más que este
+## gestor —el secuenciador y la integridad los cuelga el nivel— y quedaban atadas
+## (P2d WP-C, mejoras).
+func _disconnect_local() -> void:
+	if sequencer != null and is_instance_valid(sequencer):
+		if sequencer.objective_started.is_connected(_on_objective_started):
+			sequencer.objective_started.disconnect(_on_objective_started)
+		if sequencer.all_finished.is_connected(_on_objectives_finished):
+			sequencer.all_finished.disconnect(_on_objectives_finished)
+	if city_integrity != null and is_instance_valid(city_integrity) \
+			and city_integrity.protected_fallen.is_connected(_on_protected_fallen):
+		city_integrity.protected_fallen.disconnect(_on_protected_fallen)
 
 
 ## Arranca la ronda. Lo llama [BattleLevel] desde su `_ready()`, cuando el nivel ya
@@ -260,6 +282,7 @@ func begin(level: LevelBase) -> void:
 	_build_context()
 	_connect_bus()
 	_reset_batteries()
+	_reset_drone_counters()
 	_enter_alert()
 
 
@@ -663,6 +686,22 @@ func _resolve_round_id() -> String:
 	return FALLBACK_ROUND_ID
 
 
+## Escena del distrito, tomando la carga en hilo que arrancó [SceneTransition]
+## si la hay (P2d WP-C §10).
+##
+## [method SceneTransition._prefetch_district] la pide al entrar al fundido, o sea
+## uno o dos segundos antes de que el nivel exista: acá el `load_threaded_get()`
+## ya la encuentra hecha y no bloquea. Sin ese pedido —un nivel abierto a mano, un
+## check que instancia el nivel sin pasar por la transición— se cae al `load()`
+## síncrono de siempre, que es lo que el [constant MAX_STEP] sigue cubriendo.
+func _load_district(path: String) -> PackedScene:
+	var status := ResourceLoader.load_threaded_get_status(path)
+	if status == ResourceLoader.THREAD_LOAD_LOADED \
+			or status == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+		return ResourceLoader.load_threaded_get(path) as PackedScene
+	return load(path) as PackedScene
+
+
 func _spawn_district() -> void:
 	if district_root == null:
 		_abort("ERR_ROUND_MISSING")
@@ -671,11 +710,15 @@ func _spawn_district() -> void:
 	if path.is_empty() or not ResourceLoader.exists(path):
 		_abort("ERR_ROUND_MISSING")
 		return
-	var packed := load(path) as PackedScene
+	var packed := _load_district(path)
 	if packed == null:
 		_abort("ERR_ROUND_MISSING")
 		return
+	var started := Time.get_ticks_usec()
 	var district := packed.instantiate() as Node3D
+	if Global.debug:
+		print("[RoundManager] distrito instanciado en %.1f ms"
+				% ((Time.get_ticks_usec() - started) / 1000.0))
 	district_root.add_child(district)
 	_district = district as CityGrid
 	# El distrito ya trae su `CityGrid` horneado: acá sólo se le pasa a
@@ -708,9 +751,51 @@ func _spawn_district() -> void:
 func _adopt_district_markers(district: Node3D) -> void:
 	if district == null or not is_instance_valid(district):
 		return
-	_adopt_drone_spawn(district)
-	_adopt_fixed_camera(district)
-	_adopt_battery_posts(district)
+	_collect_markers(district)
+	_adopt_drone_spawn()
+	_adopt_fixed_camera()
+	_adopt_battery_posts()
+
+
+## Recorre el distrito **una sola vez** y anota los marcadores que el nivel adopta
+## (P2d WP-C, mejoras).
+##
+## Eran cuatro `find_child(..., true, false)` recursivos sobre un distrito de
+## ochocientos nodos —tres acá y el de `_spawn_markers()`, que además lo repite
+## una vez por enemigo más una de más para cortar—. El distrito no publica los
+## marcadores en ningún grupo y `city_grid.gd` no se toca en este WP, así que la
+## pasada única se hace con un `find_children("*", "", true, false)` y un `match`
+## sobre el nombre.
+func _collect_markers(district: Node3D) -> void:
+	_drone_spawn_marker = null
+	_camera_pose_marker = null
+	_battery_posts_marker = null
+	_enemy_spawn_markers.clear()
+	var numbered: Dictionary[int, Node3D] = {}
+	for node: Node in district.find_children("*", "", true, false):
+		var spatial := node as Node3D
+		if spatial == null:
+			continue
+		var node_name := spatial.name
+		if node_name == DRONE_SPAWN_NODE:
+			if _drone_spawn_marker == null:
+				_drone_spawn_marker = spatial
+		elif node_name == CAMERA_POSE_NODE:
+			if _camera_pose_marker == null:
+				_camera_pose_marker = spatial
+		elif node_name == BATTERY_POSTS_NODE:
+			if _battery_posts_marker == null:
+				_battery_posts_marker = spatial
+		elif String(node_name).begins_with(SPAWN_MARKER_PREFIX):
+			var suffix := String(node_name).substr(SPAWN_MARKER_PREFIX.length())
+			if suffix.is_valid_int() and not numbered.has(int(suffix)):
+				numbered[int(suffix)] = spatial
+	# Los de aparición van en orden y **se cortan en el primer hueco**, igual que
+	# el bucle que reemplazan: `EnemySpawn0, EnemySpawn1…` hasta que falte uno.
+	var index := 0
+	while numbered.has(index):
+		_enemy_spawn_markers.append(numbered[index])
+		index += 1
 
 
 ## Manda el punto de reaparición y el conjunto del dron a la pose del `DroneSpawn`.
@@ -723,8 +808,8 @@ func _adopt_district_markers(district: Node3D) -> void:
 ## un [RigidBody3D] lleva su propia copia en el servidor de física y no se entera de
 ## que su conjunto se movió. Es seguro hacerlo acá porque esto corre dentro del
 ## `_ready()` del nivel, antes del primer paso de física.
-func _adopt_drone_spawn(district: Node3D) -> void:
-	var marker := district.find_child(DRONE_SPAWN_NODE, true, false) as Node3D
+func _adopt_drone_spawn() -> void:
+	var marker := _drone_spawn_marker
 	if marker == null:
 		return
 	var pose := marker.global_transform
@@ -747,8 +832,8 @@ func _adopt_drone_spawn(district: Node3D) -> void:
 ## Es la cámara que encuadra la ciudad mientras el dron se reconstruye y en la
 ## derrota (`docs/09` §2.8, `docs/11` §4.1), así que tiene que mirar **este** barrio
 ## y no el centro del anterior.
-func _adopt_fixed_camera(district: Node3D) -> void:
-	var marker := district.find_child(CAMERA_POSE_NODE, true, false) as Node3D
+func _adopt_fixed_camera() -> void:
+	var marker := _camera_pose_marker
 	if marker == null:
 		return
 	var pose := marker.global_transform
@@ -761,10 +846,10 @@ func _adopt_fixed_camera(district: Node3D) -> void:
 
 
 ## Le pasa al spawner los puestos de pila del distrito.
-func _adopt_battery_posts(district: Node3D) -> void:
+func _adopt_battery_posts() -> void:
 	if battery_spawner == null or not is_instance_valid(battery_spawner):
 		return
-	var posts := district.find_child(BATTERY_POSTS_NODE, true, false) as Node3D
+	var posts := _battery_posts_marker
 	if posts == null:
 		return
 	battery_spawner.adopt_markers(posts)
@@ -796,7 +881,8 @@ func _resolve_protected() -> void:
 		building.mark_protected(String(entry.get("name_key", "")), PROTECTED_PRIORITY)
 		if city_integrity != null:
 			city_integrity.set_protected(building)
-			var _discard := city_integrity.protected_fallen.connect(_on_protected_fallen)
+			if not city_integrity.protected_fallen.is_connected(_on_protected_fallen):
+				var _discard := city_integrity.protected_fallen.connect(_on_protected_fallen)
 		return
 	push_warning("RoundManager: la ronda '%s' pide proteger '%s' y el distrito no lo trae."
 			% [_round_id, wanted])
@@ -865,18 +951,7 @@ func _aim_perception(enemy: EnemyBase) -> void:
 ## sale vacía y los enemigos se quedan en el origen del contenedor (`docs/11` §12,
 ## fila 13).
 func _spawn_markers() -> Array[Node3D]:
-	var markers: Array[Node3D] = []
-	if district_root == null:
-		return markers
-	var index := 0
-	while true:
-		var found := district_root.find_child("%s%d" % [SPAWN_MARKER_PREFIX, index], true, false)
-		var marker := found as Node3D
-		if marker == null:
-			break
-		markers.append(marker)
-		index += 1
-	return markers
+	return _enemy_spawn_markers
 
 
 func _build_context() -> void:
@@ -889,8 +964,13 @@ func _build_context() -> void:
 	_ctx.enemies = _enemies.duplicate()
 	if sequencer != null:
 		sequencer.setup(_ctx)
-		var _discard := sequencer.objective_started.connect(_on_objective_started)
-		_discard = sequencer.all_finished.connect(_on_objectives_finished)
+		# Con guarda: `_build_context()` puede correr más de una vez —un `begin()`
+		# sobre un nivel reusado— y una conexión duplicada avanzaría la cadena de
+		# objetivos dos veces por objetivo (P2d WP-C, mejoras).
+		if not sequencer.objective_started.is_connected(_on_objective_started):
+			var _discard := sequencer.objective_started.connect(_on_objective_started)
+		if not sequencer.all_finished.is_connected(_on_objectives_finished):
+			var _finished := sequencer.all_finished.connect(_on_objectives_finished)
 	if objective_hud != null:
 		objective_hud.setup(_ctx, sequencer)
 		objective_hud.visible = false
@@ -904,28 +984,47 @@ func _reset_batteries() -> void:
 		battery_spawner.reset()
 
 
+## Pone a cero los dos contadores del dron que son **de la partida** y no del
+## nodo: el historial de muertes del [RespawnController] y el acumulador de fuego
+## amigo del [ProjectilePool] (P2d WP-C, mejoras).
+##
+## Los dos lo documentaban —«lo llama `RoundManager` al empezar una ronda»— y
+## nadie los llamaba. Hoy el nivel entra recién instanciado y los dos ya valen
+## cero, así que no cambia nada de lo que se ve; lo que arregla es que el
+## docstring diga la verdad y que una ronda abierta sobre un nivel reusado —un
+## check, un `begin()` repetido— empiece con el multiplicador en 1.0.
+func _reset_drone_counters() -> void:
+	if drone_rig == null or not is_instance_valid(drone_rig):
+		return
+	var respawn := drone_rig.get_respawn_controller()
+	if respawn != null and is_instance_valid(respawn):
+		respawn.reset()
+	var mount := drone_rig.get_weapon_mount()
+	if mount == null or not is_instance_valid(mount):
+		return
+	var pool := mount.get_projectile_pool()
+	if pool != null and is_instance_valid(pool):
+		pool.reset_friendly_fire()
+
+
 ## Aborta la ronda: anota el error de arranque y vuelve al menú principal.
 func _abort(error_key: String) -> void:
 	_aborted = true
-	Global.startup_errors.append(error_key)
+	Global.report_startup_error(error_key)
 	push_error("RoundManager: %s (ronda '%s')." % [error_key, _round_id])
 	SceneTransition.change_scene(LevelBase.MAIN_MENU_SCENE)
 
 
 # --- Bus (`docs/11` §9.3) ---------------------------------------------------------------------
 
-func _connect_bus() -> void:
-	var _discard := Events.enemy_defeated.connect(_on_enemy_defeated)
-	_discard = Events.enemy_part_broken.connect(_on_enemy_part_broken)
-	_discard = Events.city_integrity_changed.connect(_on_city_integrity_changed)
-	_discard = Events.drone_destroyed.connect(_on_drone_destroyed)
-	_discard = Events.drone_respawned.connect(_on_drone_respawned)
-	_discard = Events.shot_fired.connect(_on_shot_fired)
-	_discard = Events.hit_confirmed.connect(_on_hit_confirmed)
-
-
-func _disconnect_bus() -> void:
-	for pair: Array in [
+## Los siete pares señal/manejador de la ronda, en un solo lugar.
+##
+## Antes la lista estaba **escrita dos veces** —a mano en `_connect_bus()` y otra
+## vez en el bucle de `_disconnect_bus()`—, así que agregar un hecho y olvidarse
+## de la mitad de abajo dejaba una conexión viva sobre un `RoundManager` muerto
+## (P2d WP-C, mejoras).
+func _bus_pairs() -> Array[Array]:
+	return [
 		[Events.enemy_defeated, _on_enemy_defeated],
 		[Events.enemy_part_broken, _on_enemy_part_broken],
 		[Events.city_integrity_changed, _on_city_integrity_changed],
@@ -933,7 +1032,19 @@ func _disconnect_bus() -> void:
 		[Events.drone_respawned, _on_drone_respawned],
 		[Events.shot_fired, _on_shot_fired],
 		[Events.hit_confirmed, _on_hit_confirmed],
-	]:
+	]
+
+
+func _connect_bus() -> void:
+	for pair: Array in _bus_pairs():
+		var signal_ref: Signal = pair[0]
+		var callable: Callable = pair[1]
+		if not signal_ref.is_connected(callable):
+			var _discard := signal_ref.connect(callable)
+
+
+func _disconnect_bus() -> void:
+	for pair: Array in _bus_pairs():
 		var signal_ref: Signal = pair[0]
 		var callable: Callable = pair[1]
 		if signal_ref.is_connected(callable):
@@ -1107,8 +1218,10 @@ func _prepare_intro_camera() -> void:
 	var side := Vector3(-away.z, 0.0, away.x)
 	var lateral := 1.0 if derive_seed("intro") % 2 == 0 else -1.0
 
-	_intro_from = boss + away * INTRO_START_FORWARD 			+ side * (lateral * INTRO_START_SIDE) + Vector3.UP * INTRO_START_HEIGHT
-	_intro_to = boss + away * INTRO_END_FORWARD 			+ side * (lateral * INTRO_END_SIDE) + Vector3.UP * INTRO_END_HEIGHT
+	_intro_from = boss + away * INTRO_START_FORWARD \
+			+ side * (lateral * INTRO_START_SIDE) + Vector3.UP * INTRO_START_HEIGHT
+	_intro_to = boss + away * INTRO_END_FORWARD \
+			+ side * (lateral * INTRO_END_SIDE) + Vector3.UP * INTRO_END_HEIGHT
 	_intro_look_from = boss + Vector3.UP * INTRO_LOOK_START_HEIGHT
 	_intro_look_to = boss + Vector3.UP * INTRO_LOOK_END_HEIGHT
 
@@ -1233,8 +1346,7 @@ func _next_round_index() -> int:
 func _on_result_chosen(id: String) -> void:
 	match id:
 		"retry":
-			Global.selected_round = _round_id
-			Global.round_seed = randi()
+			Global.begin_round(_round_id, randi())
 			SceneTransition.change_scene(RoundCatalog.level_scene_for(_round_data), true)
 		"next":
 			var next := _next_round_index()
@@ -1242,8 +1354,7 @@ func _on_result_chosen(id: String) -> void:
 				SceneTransition.change_scene(LevelBase.MAIN_MENU_SCENE, false)
 				return
 			var data := RoundCatalog.get_round(next)
-			Global.selected_round = String(data["id"])
-			Global.round_seed = randi()
+			Global.begin_round(String(data["id"]), randi())
 			SceneTransition.change_scene(RoundCatalog.level_scene_for(data), true)
 		"rounds":
 			SceneTransition.change_scene(RoundCatalog.ROUNDS_MENU_SCENE, false)

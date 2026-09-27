@@ -1,0 +1,76 @@
+{
+  "comment": [
+    "Vista previa de FieldFighter, zancudo de intercepcion (docs/14 3.5, WP-34). WP-G2.",
+    "NO es el enemigo: es el .vox entero en UNA sola parte, sin puntos debiles, sin",
+    "colision y sin import_script, para mirarlo en la galeria antes de su WP. Cuando",
+    "el enemigo se produzca, su parts.json de verdad vive en enemies/<id>/.",
+    "voxel_size de docs/14 2; axis_map y origen como el Arachnodroid (Z del .vox es la",
+    "altura, centro de la huella en el origen, base en y = 0). emissive_strength fijo en",
+    "3,0 (el techo del Arachnodroid): el MATL de estos packs llega a energia 8 y con",
+    "eso el visor quema a blanco en la galeria."
+  ],
+  "source": "../../../../assets/_raw/FieldFighter.zip!Package/FieldFighter.vox",
+  "name": "mech_field_fighter",
+  "voxel_size": 0.55,
+  "origin_voxel": [19, 8, 0],
+  "grid_size": [38, 16, 59],
+  "axis_map": {"x": "+x", "y": "+z", "z": "-y"},
+  "palette_texture": "mech_field_fighter_palette.png",
+  "emissive_palette_indices": [2, 6, 7],
+  "emissive_strength": 3,
+  "collision_default": "box",
+  "expect": {"part_count": 1, "triangle_budget": 8000, "total_height": 32.45, "height_tolerance": 0.01},
+  "preview": {
+    "pack": "mech",
+    "class": "enemy",
+    "row": "Enemigos/Vista previa",
+    "sort": "height",
+    "preview_only": true,
+    "note": "vista previa: el .vox entero en una parte, no es el enemigo jugable"
+  },
+  "parts": [
+    {
+      "id": "body",
+      "parent": null,
+      "boxes": [[0, 0, 0, 37, 15, 58]],
+      "pivot": [18.5, 7.5, -0.5],
+      "flags": ["root"]
+    }
+  ],
+  "metadata": {
+    "voxsplit_version": "1.0.0",
+    "generated_at": "2026-09-24T00:00:00Z",
+    "source": "../../../../assets/_raw/FieldFighter.zip!Package/FieldFighter.vox",
+    "part_count": 1,
+    "voxel_count": 3631,
+    "triangle_count": 5242,
+    "quad_count": 2621,
+    "unassigned_count": 0,
+    "total_height": 32.45,
+    "aabb_min": [-10.45, 0, -4.4],
+    "aabb_max": [10.45, 32.45, 4.4],
+    "footprint": [20.9, 8.8],
+    "density": 220,
+    "emissive_strength": 3,
+    "emissive_indices": {
+      "2": {"color": [254, 213, 120, 255], "voxels": 8, "weight": "1", "flux": "3", "energy": 4},
+      "6": {"color": [120, 254, 249, 255], "voxels": 12, "weight": "0.19", "flux": "2", "energy": 0.38},
+      "7": {"color": [249, 58, 29, 255], "voxels": 2, "weight": "1", "flux": "1", "energy": 1}
+    },
+    "root_node": "MechFieldFighterRoot",
+    "parts": {
+      "body": {
+        "parent": null,
+        "aabb_min": [-10.45, 0, -4.4],
+        "aabb_max": [10.45, 32.45, 4.4],
+        "center_of_mass": [0.000379, 20.959908, 0.403904],
+        "voxel_count": 3631,
+        "triangle_count": 5242,
+        "estimated_mass": 132903.6775,
+        "has_emissive_surface": true,
+        "pivot_world": [0, 0, 0],
+        "translation": [0, 0, 0]
+      }
+    }
+  }
+}

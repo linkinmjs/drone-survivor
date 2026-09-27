@@ -420,7 +420,23 @@ const RANGE_DURATION: Vector2 = Vector2(90.0, 290.0)
 ## revisar primero es si el ancho de 0.30 sigue alcanzando para un mundo de 59
 ## edificios chicos, donde una ráfaga de más o de menos vale el 1,4 % de la
 ## integridad y no el 1 % de antes.
+##
+## **Por partida → promedio de las tres semillas, con piso por partida.** Pasó lo
+## que la nota de arriba anticipaba. Dos corridas completas seguidas **del mismo
+## árbol**: en la primera la semilla 7 dejó la ciudad en **0.50** —el bot murió 4
+## veces, 9 golpes por 416 de casco— y la fila falló sola; en la segunda la misma
+## semilla dio **0.657** con 0 muertes y todo en verde (semillas 1 / 7 / 99: 0.660
+## / 0.657 / 0.680). La física no es reproducible al detalle entre procesos
+## (`docs/15` §1.1, `docs/07` §1), así que una sola partida mala tumbaba la fila.
+## La banda 0.53–0.83 se asevera ahora sobre el **promedio** de las tres semillas,
+## igual que la duración, el fuego, el acierto, las ventanas y las pilas/min (ver
+## [method _assert_combat]). Queda un piso **por partida** en
+## [constant MIN_INTEGRITY_PER_GAME]: una ciudad arrasada al vencer sigue siendo un
+## fallo aunque las otras dos semillas la compensen.
 const RANGE_INTEGRITY: Vector2 = Vector2(0.53, 0.83)
+
+## Piso de integridad **por partida** al vencer: ver [constant RANGE_INTEGRITY].
+const MIN_INTEGRITY_PER_GAME: float = 0.40
 
 ## Muertes del dron por partida.
 ##
@@ -745,7 +761,7 @@ const WINDOW_ATTACKS: Array[StringName] = [&"pounce", &"siege_beam"]
 ## Títulos de las filas del resumen.
 const ROW_TITLES: Array[String] = [
 	"las tres semillas terminan en victoria", "duración media 90–290 s",
-	"integridad al vencer 0.53–0.83",
+	"integridad al vencer: promedio 0.53–0.83, mínimo 0.40 por partida",
 	"muertes ≤ 5 por partida, ≥ 1 en la suite y ≤ 2.6 pilas/min (la batería dura más)",
 	"fuego neto 80–160 s y acierto débil 0.33–0.60 (promedio de las tres semillas)",
 	"ventanas de daño ≥ 1.5/min (media)", "control: derrota por integridad en 340–580 s",
@@ -1082,8 +1098,10 @@ func _purge_stray_pools() -> void:
 ## Aserciones de las tres partidas de combate.
 ##
 ## **Por partida** sólo se afirman los hechos cualitativos —victoria, muertes,
-## integridad, física, nada de NaN—; la duración, el fuego neto, el acierto y las
-## ventanas se afirman sobre el **promedio de las tres**.
+## el piso de integridad, física, nada de NaN—; la duración, la integridad, el
+## fuego neto, el acierto y las ventanas se afirman sobre el **promedio de las
+## tres** (la integridad pasó al promedio por lo medido en
+## [constant RANGE_INTEGRITY]).
 ##
 ## La razón es medida: con la misma semilla, la primera partida del proceso sale
 ## idéntica tick a tick, pero la segunda y la tercera no. El solucionador de Jolt
@@ -1099,6 +1117,7 @@ func _assert_combat(games: Array[Dictionary]) -> void:
 		return
 	var deaths_sum := 0
 	var duration_sum := 0.0
+	var integrity_sum := 0.0
 	var fire_sum := 0.0
 	var hit_sum := 0.0
 	var windows_sum := 0.0
@@ -1111,9 +1130,10 @@ func _assert_combat(games: Array[Dictionary]) -> void:
 						% [label, _state_name(int(game.get("state", -1))),
 						", por timeout" if bool(game.get("timed_out", false)) else ""])
 		var integrity := float(game.get("integrity", 0.0))
-		_row(3, integrity >= RANGE_INTEGRITY.x and integrity <= RANGE_INTEGRITY.y,
-				"3 · %s deja la ciudad en %.2f (rango %.2f–%.2f)"
-						% [label, integrity, RANGE_INTEGRITY.x, RANGE_INTEGRITY.y])
+		_row(3, integrity >= MIN_INTEGRITY_PER_GAME,
+				"3 · %s deja la ciudad en %.2f (mínimo %.2f por partida)"
+						% [label, integrity, MIN_INTEGRITY_PER_GAME])
+		integrity_sum += integrity
 		var deaths := int(game.get("deaths", 0))
 		# El techo sí es por partida: una cuarta reconstrucción es una partida
 		# distinta. El **piso** va al total de las tres, porque con la física no
@@ -1147,17 +1167,21 @@ func _assert_combat(games: Array[Dictionary]) -> void:
 
 	var count := float(games.size())
 	var duration := duration_sum / count
+	var integrity_mean := integrity_sum / count
 	var fire := fire_sum / count
 	var hit := hit_sum / count
 	var windows := windows_sum / count
 	var min_energy := energy_sum / count
 	var refills := refills_sum / count
 	print("")
-	print("  promedio de las %d semillas: duración %.0f s · fuego %.0f s · acierto %.3f · %.2f ventanas/min · %.2f pilas/min · energía mínima %.3f (informativa) · %d muertes en total"
-			% [games.size(), duration, fire, hit, windows, refills, min_energy, deaths_sum])
+	print("  promedio de las %d semillas: duración %.0f s · integridad %.3f · fuego %.0f s · acierto %.3f · %.2f ventanas/min · %.2f pilas/min · energía mínima %.3f (informativa) · %d muertes en total"
+			% [games.size(), duration, integrity_mean, fire, hit, windows, refills, min_energy, deaths_sum])
 	_row(2, duration >= RANGE_DURATION.x and duration <= RANGE_DURATION.y,
 			"2 · la duración media es %.0f s (rango %.0f–%.0f)"
 					% [duration, RANGE_DURATION.x, RANGE_DURATION.y])
+	_row(3, integrity_mean >= RANGE_INTEGRITY.x and integrity_mean <= RANGE_INTEGRITY.y,
+			"3 · la integridad media al vencer es %.3f (rango %.2f–%.2f)"
+					% [integrity_mean, RANGE_INTEGRITY.x, RANGE_INTEGRITY.y])
 	_row(5, fire >= RANGE_FIRE.x and fire <= RANGE_FIRE.y,
 			"5 · el fuego neto medio es %.0f s (rango %.0f–%.0f)"
 					% [fire, RANGE_FIRE.x, RANGE_FIRE.y])
@@ -1309,9 +1333,11 @@ func _print_table() -> void:
 			"informe",
 			"≥%.1f" % MIN_WINDOWS_PER_MINUTE,
 			"≤%.1f" % MAX_BATTERIES_PER_MINUTE])
-	print("  (duración, fuego, acierto, ventanas y pilas/min se aseveran sobre el promedio"
-			+ " de las tres semillas; las muertes, por partida el techo y sobre la suite"
-			+ " el piso de %d; ver la nota de _assert_combat)" % MIN_DEATHS_TOTAL)
+	print("  (duración, integridad, fuego, acierto, ventanas y pilas/min se aseveran sobre"
+			+ " el promedio de las tres semillas; la integridad además con piso de %s por"
+			+ " partida; las muertes, por partida el techo y sobre la suite el piso de %d;"
+			+ " ver la nota de _assert_combat)"
+			% [_short(MIN_INTEGRITY_PER_GAME), MIN_DEATHS_TOTAL])
 	print("")
 
 

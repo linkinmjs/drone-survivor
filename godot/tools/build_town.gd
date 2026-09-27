@@ -199,7 +199,7 @@ func _initialize() -> void:
 		push_error("build_town: no se pudo guardar '%s': %s" % [TOWN_PATH, error_string(err)])
 		quit(1)
 		return
-	_stabilise_ids(TOWN_PATH)
+	SceneBake.stabilise_ids(TOWN_PATH, "build_town")
 	var size := _size_kb(TOWN_PATH)
 	print("build_town: %s guardado (%.1f KB de %.0f)." % [TOWN_PATH, size, TSCN_BUDGET_KB])
 	if size > TSCN_BUDGET_KB:
@@ -214,140 +214,10 @@ func _initialize() -> void:
 # Identificadores estables del `.tscn`
 # --------------------------------------------------------------------------
 
-## Testigo con el que se renombra en dos pasadas. No puede aparecer en un
-## `.tscn`: ver [method _stabilise_ids].
-const ID_TOKEN: String = "@@wpd4a@@"
-
-
-## Reescribe los identificadores **aleatorios** que `ResourceSaver` le pone al
-## `.tscn` por otros derivados del contenido.
-##
-## ## El problema
-##
-## Godot sortea tres cosas al guardar una escena de texto: el sufijo de cada
-## `id="12_l0lbw"` de `ext_resource`, el de cada `id="BoxShape3D_nclj1"` de
-## `sub_resource` y el entero `unique_id=1505653870` de cada nodo. Los tres son
-## arbitrarios y distintos en cada corrida, así que dos horneados del **mismo**
-## pueblo daban dos archivos distintos: 4 796 líneas de `diff` de puro ruido
-## sobre un pueblo idéntico. Eso rompe lo único que hace editable un diseño
-## escrito a mano —que el `diff` del horneado diga qué cambió— y obliga a leer
-## la firma del plano para saber si algo se movió de verdad.
-##
-## ## La regla
-##
-## Cada identificador sale de **lo que nombra**, con el mismo splitmix64 que usa
-## todo el determinismo posicional del pueblo ([method TownPlan.mix]):
-##
-## - un `ext_resource` toma su orden de aparición y un token de cinco caracteres
-##   derivado de su `path`;
-## - un `sub_resource` toma su tipo y un token derivado de `(orden, tipo)`,
-##   porque un `BoxShape3D` no tiene ruta con la que distinguirse de otro;
-## - un nodo toma su `NodePath` entero —`Buildings/Building_House_07_02`—, que
-##   es exactamente lo que `unique_id` identifica.
-##
-## El renombrado va en dos pasadas con un token intermedio para que un
-## identificador nuevo no pueda pisar a uno viejo que todavía no se reemplazó.
-##
-## Resultado: `md5(town_a.tscn)` igual en dos horneados seguidos (WP-D4a,
-## hallazgo 4).
-func _stabilise_ids(path: String) -> void:
-	var file := FileAccess.open(path, FileAccess.READ)
-	if file == null:
-		push_error("build_town: no se pudo releer '%s' para estabilizar los ids" % path)
-		return
-	var text := file.get_as_text()
-	file.close()
-
-	var ext := RegEx.create_from_string(
-			r'\[ext_resource [^\]]*path="([^"]+)"[^\]]*id="([^"]+)"')
-	var sub := RegEx.create_from_string(r'\[sub_resource type="([^"]+)" id="([^"]+)"')
-
-	var wanted: Array[String] = []
-	var renames: Dictionary[String, String] = {}
-	var order := 0
-	for hit: RegExMatch in ext.search_all(text):
-		order += 1
-		renames[hit.get_string(2)] = "%d_%s" % [order, _id_token(hit.get_string(1))]
-		wanted.append(hit.get_string(2))
-	order = 0
-	for hit: RegExMatch in sub.search_all(text):
-		order += 1
-		var kind := hit.get_string(1)
-		renames[hit.get_string(2)] = "%s_%s" % [kind, _id_token("%d|%s" % [order, kind])]
-		wanted.append(hit.get_string(2))
-
-	# Pasada 1: al testigo intermedio. Pasada 2: al identificador definitivo. Con
-	# una sola pasada, un identificador nuevo podria pisar a uno viejo que
-	# todavia no se reemplazo.
-	for slot: int in wanted.size():
-		text = text.replace('"%s"' % wanted[slot], '"%s%d%s"' % [ID_TOKEN, slot, ID_TOKEN])
-	for slot: int in wanted.size():
-		text = text.replace('"%s%d%s"' % [ID_TOKEN, slot, ID_TOKEN],
-				'"%s"' % renames[wanted[slot]])
-
-	var stamp := RegEx.create_from_string(" unique_id=-?[0-9]+")
-	var lines := text.split("\n")
-	var taken: Dictionary[int, bool] = {}
-	var nodes := 0
-	for index: int in lines.size():
-		var line := lines[index]
-		if not line.begins_with("[node ") or not line.contains(" unique_id="):
-			continue
-		var node_path := _node_path_of(line)
-		if node_path.is_empty():
-			continue
-		nodes += 1
-		var key := _unique_id_for(node_path, taken)
-		taken[key] = true
-		lines[index] = stamp.sub(line, " unique_id=%d" % key)
-	text = "\n".join(lines)
-
-	var out := FileAccess.open(path, FileAccess.WRITE)
-	if out == null:
-		push_error("build_town: no se pudo reescribir '%s'" % path)
-		return
-	out.store_string(text)
-	out.close()
-	print("  ids estables: %d recursos y %d nodos" % [wanted.size(), nodes])
-
-
-## Token de cinco caracteres en base 36 derivado de [param key].
-func _id_token(key: String) -> String:
-	var plan: Variant = load("res://city/town_plan.gd")
-	var value: int = absi(plan.mix(key.hash()))
-	var digits := "0123456789abcdefghijklmnopqrstuvwxyz"
-	var token := ""
-	for _slot: int in 5:
-		token += digits[value % 36]
-		value /= 36
-	return token
-
-
-## El `NodePath` que la línea `[node …]` declara, o `""` si no se puede leer.
-func _node_path_of(line: String) -> String:
-	var name_hit := RegEx.create_from_string(r'name="([^"]+)"').search(line)
-	if name_hit == null:
-		return ""
-	var parent_hit := RegEx.create_from_string(r'parent="([^"]*)"').search(line)
-	if parent_hit == null:
-		return "."
-	var parent := parent_hit.get_string(1)
-	if parent == "." or parent.is_empty():
-		return name_hit.get_string(1)
-	return "%s/%s" % [parent, name_hit.get_string(1)]
-
-
-## `unique_id` estable de [param node_path], evitando los ya usados.
-func _unique_id_for(node_path: String, taken: Dictionary[int, bool]) -> int:
-	var plan: Variant = load("res://city/town_plan.gd")
-	var salt := 0
-	while salt < 64:
-		var key: int = absi(plan.mix(("%s#%d" % [node_path, salt]).hash())) % 2147483647
-		if key > 0 and not taken.has(key):
-			return key
-		salt += 1
-	push_error("build_town: no se pudo asignar un unique_id estable a '%s'" % node_path)
-	return 1
+# El `.tscn` se reescribe con identificadores derivados del contenido para que
+# dos horneados del mismo pueblo den el mismo md5. La rutina vive en
+# [method SceneBake.stabilise_ids] (`tools/scene_bake.gd`), que comparten los
+# horneadores de escenas de `tools/`.
 
 
 ## Las cuatro mallas del relieve, en el orden en que las hornea
@@ -1025,12 +895,16 @@ func _scene(path: String) -> PackedScene:
 	return _load(path, "PackedScene") as PackedScene
 
 
-func _rocks() -> Array[PackedScene]:
-	var found: Array[PackedScene] = []
+## La tabla de rocas de [member CityGrid.rock_scenes]: la escena de cada pieza
+## por su nombre. [CityGrid] elige la de cada roca por
+## [member TownPlan.rock_pieces] (revisión de WP-L, hallazgo 3), así que el orden
+## de acá ya no decide nada.
+func _rocks() -> Dictionary:
+	var found: Dictionary = {}
 	for id: String in ["a", "b", "c", "d", "e", "f"]:
 		var scene := _load("res://world/rocks/rock_%s.tscn" % id, "PackedScene") as PackedScene
 		if scene != null:
-			found.append(scene)
+			found[StringName("rock_%s" % id)] = scene
 	return found
 
 

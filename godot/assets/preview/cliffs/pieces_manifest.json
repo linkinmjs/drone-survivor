@@ -1,0 +1,126 @@
+{
+  "comment": "Generado por voxsplit (previewmanifest.py, WP-G2). No editar a mano: se reescribe en cada corrida de 'town' o 'build' sobre esta carpeta.",
+  "sort": "id",
+  "pieces": [
+    {
+      "id": "cliff_rock_00",
+      "scene": "res://assets/preview/cliffs/cliff_rock_00.glb",
+      "source": "Package.zip",
+      "pack": "cliffs",
+      "class": "rock",
+      "row": "Packs/Barrancas",
+      "footprint": [4, 6.4],
+      "height": 5.95,
+      "tris": 2494,
+      "placeholder": false
+    },
+    {
+      "id": "cliff_rock_01",
+      "scene": "res://assets/preview/cliffs/cliff_rock_01.glb",
+      "source": "Package.zip",
+      "pack": "cliffs",
+      "class": "rock",
+      "row": "Packs/Barrancas",
+      "footprint": [4, 6.5],
+      "height": 7.45,
+      "tris": 2336,
+      "placeholder": false
+    },
+    {
+      "id": "cliff_rock_02",
+      "scene": "res://assets/preview/cliffs/cliff_rock_02.glb",
+      "source": "Package.zip",
+      "pack": "cliffs",
+      "class": "rock",
+      "row": "Packs/Barrancas",
+      "footprint": [4, 7],
+      "height": 7.8,
+      "tris": 1936,
+      "placeholder": false
+    },
+    {
+      "id": "cliff_rock_03",
+      "scene": "res://assets/preview/cliffs/cliff_rock_03.glb",
+      "source": "Package.zip",
+      "pack": "cliffs",
+      "class": "rock",
+      "row": "Packs/Barrancas",
+      "footprint": [4, 7.5],
+      "height": 5.55,
+      "tris": 2110,
+      "placeholder": false
+    },
+    {
+      "id": "cliff_rock_04",
+      "scene": "res://assets/preview/cliffs/cliff_rock_04.glb",
+      "source": "Package.zip",
+      "pack": "cliffs",
+      "class": "rock",
+      "row": "Packs/Barrancas",
+      "footprint": [4, 7],
+      "height": 4.65,
+      "tris": 2262,
+      "placeholder": false
+    },
+    {
+      "id": "cliff_rock_05",
+      "scene": "res://assets/preview/cliffs/cliff_rock_05.glb",
+      "source": "Package.zip",
+      "pack": "cliffs",
+      "class": "rock",
+      "row": "Packs/Barrancas",
+      "footprint": [4, 6.45],
+      "height": 5.65,
+      "tris": 1890,
+      "placeholder": false
+    },
+    {
+      "id": "cliff_rock_06",
+      "scene": "res://assets/preview/cliffs/cliff_rock_06.glb",
+      "source": "Package.zip",
+      "pack": "cliffs",
+      "class": "rock",
+      "row": "Packs/Barrancas",
+      "footprint": [4, 7],
+      "height": 4.8,
+      "tris": 1482,
+      "placeholder": false
+    },
+    {
+      "id": "cliff_rock_07",
+      "scene": "res://assets/preview/cliffs/cliff_rock_07.glb",
+      "source": "Package.zip",
+      "pack": "cliffs",
+      "class": "rock",
+      "row": "Packs/Barrancas",
+      "footprint": [4, 6.6],
+      "height": 5.1,
+      "tris": 2266,
+      "placeholder": false
+    },
+    {
+      "id": "cliff_rock_08",
+      "scene": "res://assets/preview/cliffs/cliff_rock_08.glb",
+      "source": "Package.zip",
+      "pack": "cliffs",
+      "class": "rock",
+      "row": "Packs/Barrancas",
+      "footprint": [4, 6.7],
+      "height": 7.2,
+      "tris": 1556,
+      "placeholder": false
+    },
+    {
+      "id": "cliff_rock_09",
+      "scene": "res://assets/preview/cliffs/cliff_rock_09.glb",
+      "source": "Package.zip",
+      "pack": "cliffs",
+      "class": "rock",
+      "row": "Packs/Barrancas",
+      "footprint": [4, 6.7],
+      "height": 4.65,
+      "tris": 2434,
+      "placeholder": false
+    }
+  ]
+}

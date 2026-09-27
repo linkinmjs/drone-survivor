@@ -127,9 +127,14 @@ var _visor_timer: float = -1.0
 var _backup_sensor_done: bool = false
 var _pulse_materials: Array[BaseMaterial3D] = []
 
+## `AudioRig` del jefe, resuelto una vez (P2d WP-C §7). Lo pedía con
+## `get_node_or_null` en **cada tick** de la cuenta atrás de P5.
+var _audio_rig: AudioRig = null
+
 
 func _ready() -> void:
 	super._ready()
+	_audio_rig = get_node_or_null(^"AudioRig") as AudioRig
 	var _phase := phase_changed.connect(_on_phase_changed)
 	var visor := get_weak_point(VISOR_ID)
 	if visor != null:
@@ -145,12 +150,16 @@ func _physics_process(delta: float) -> void:
 	super._physics_process(delta)
 	if delta <= 0.0 or Global.debug_freeze_ai:
 		return
-	PerfProbe.begin(&"enemy_base")
+	# Sonda propia y no `enemy_base` (P2d WP-C, mejoras): lo que se mide acá son
+	# los cuatro acumuladores del jefe —carcasa, sensor de respaldo, caída y
+	# autodestrucción—, y sumarlos a la fila del contrato común dejaba sin saber
+	# cuál de los dos costaba.
+	PerfProbe.begin(&"arachnodroid")
 	_tick_downed_state()
 	_tick_carapace(delta)
 	_tick_backup_sensor(delta)
 	_tick_selfdestruct(delta)
-	PerfProbe.end(&"enemy_base")
+	PerfProbe.end(&"arachnodroid")
 
 
 # --------------------------------------------------------------------------
@@ -214,9 +223,8 @@ func detonate() -> void:
 		for building: Node3D in targets:
 			var _applied: Variant = building.call(&"take_damage", share, global_position)
 	Events.camera_trauma.emit(DETONATION_TRAUMA, global_position)
-	var rig_audio := get_node_or_null(^"AudioRig") as AudioRig
-	if rig_audio != null:
-		var _player := rig_audio.play(&"emp_burst", global_position)
+	if _audio_rig != null and is_instance_valid(_audio_rig):
+		var _player := _audio_rig.play(&"emp_burst", global_position)
 	declare_defeat()
 
 
@@ -569,7 +577,8 @@ func _tick_backup_sensor(delta: float) -> void:
 func _start_selfdestruct(seconds: float) -> void:
 	if _selfdestruct_running or _detonated:
 		return
-	_selfdestruct_left = SELFDESTRUCT_SECONDS_DOWNED if _downed_selfdestruct 			else maxf(seconds, 0.0)
+	_selfdestruct_left = SELFDESTRUCT_SECONDS_DOWNED if _downed_selfdestruct \
+			else maxf(seconds, 0.0)
 	_selfdestruct_total = maxf(_selfdestruct_left, 0.01)
 	_selfdestruct_running = true
 	_tick_phase = 0.0
@@ -603,9 +612,8 @@ func _tick_selfdestruct(delta: float) -> void:
 		_tick_phase -= 1.0
 		_ticks += 1
 		selfdestruct_tick.emit(_selfdestruct_left)
-		var rig_audio := get_node_or_null(^"AudioRig") as AudioRig
-		if rig_audio != null:
-			var _player := rig_audio.play(&"selfdestruct_tick", global_position,
+		if _audio_rig != null and is_instance_valid(_audio_rig):
+			var _player := _audio_rig.play(&"selfdestruct_tick", global_position,
 					0.0, lerpf(0.9, 1.4, ratio))
 	if _selfdestruct_left <= 0.0:
 		detonate()

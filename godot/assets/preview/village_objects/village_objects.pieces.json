@@ -1,0 +1,162 @@
+{
+  "name": "village_objects",
+  "voxsplit_version": "1.0.0",
+  "source": "VoxelVillagePack.zip",
+  "step": 0.1,
+  "scale": 1,
+  "voxel_size": 0.1,
+  "palette_texture": "village_objects_palette.png",
+  "emissive_texture": "",
+  "window_indices": {},
+  "materials": {},
+  "palette_families": {},
+  "sources": {
+    "box_blue": {
+      "file": "objects/box/box_blue/box_blue.vox.obj",
+      "cells": [9, 6, 7],
+      "metres": [0.9, 0.6, 0.7],
+      "voxels": 287,
+      "obj_triangles": 334
+    },
+    "box_green": {
+      "file": "objects/box/box_green/box_green.vox.obj",
+      "cells": [9, 6, 7],
+      "metres": [0.9, 0.6, 0.7],
+      "voxels": 261,
+      "obj_triangles": 364
+    },
+    "box_orange": {
+      "file": "objects/box/box_orange/box_orange.vox.obj",
+      "cells": [9, 6, 7],
+      "metres": [0.9, 0.6, 0.7],
+      "voxels": 262,
+      "obj_triangles": 380
+    },
+    "box_red": {
+      "file": "objects/box/box_red/box_red.vox.obj",
+      "cells": [9, 6, 7],
+      "metres": [0.9, 0.6, 0.7],
+      "voxels": 261,
+      "obj_triangles": 364
+    },
+    "bridge": {
+      "file": "objects/bridge/bridge.vox.obj",
+      "cells": [60, 30, 40],
+      "metres": [6, 3, 4],
+      "voxels": 8132,
+      "obj_triangles": 1068
+    },
+    "rock_big": {
+      "file": "rocks/rock_big/rock_big.vox.obj",
+      "cells": [16, 5, 10],
+      "metres": [1.6, 0.5, 1],
+      "voxels": 408,
+      "obj_triangles": 492
+    }
+  },
+  "pieces": {
+    "village_crate_blue": {
+      "kind": "prop",
+      "parts": ["box_blue"],
+      "triangles": 262,
+      "obj_triangles": 334,
+      "budget": 1000,
+      "voxels": 287,
+      "cells": [9, 6, 7],
+      "aabb_min": [-0.45, 0, -0.35],
+      "aabb_max": [0.45, 0.6, 0.35],
+      "size": [0.9, 0.6, 0.7],
+      "window_voxels": 0,
+      "origin": "centre",
+      "scale": 1,
+      "voxel_size": 0.1,
+      "scene": "res://city/pieces/town/props/village_crate_blue.tscn"
+    },
+    "village_crate_green": {
+      "kind": "prop",
+      "parts": ["box_green"],
+      "triangles": 302,
+      "obj_triangles": 364,
+      "budget": 1000,
+      "voxels": 261,
+      "cells": [9, 6, 7],
+      "aabb_min": [-0.45, 0, -0.35],
+      "aabb_max": [0.45, 0.6, 0.35],
+      "size": [0.9, 0.6, 0.7],
+      "window_voxels": 0,
+      "origin": "centre",
+      "scale": 1,
+      "voxel_size": 0.1,
+      "scene": "res://city/pieces/town/props/village_crate_green.tscn"
+    },
+    "village_crate_orange": {
+      "kind": "prop",
+      "parts": ["box_orange"],
+      "triangles": 314,
+      "obj_triangles": 380,
+      "budget": 1000,
+      "voxels": 262,
+      "cells": [9, 6, 7],
+      "aabb_min": [-0.45, 0, -0.35],
+      "aabb_max": [0.45, 0.6, 0.35],
+      "size": [0.9, 0.6, 0.7],
+      "window_voxels": 0,
+      "origin": "centre",
+      "scale": 1,
+      "voxel_size": 0.1,
+      "scene": "res://city/pieces/town/props/village_crate_orange.tscn"
+    },
+    "village_crate_red": {
+      "kind": "prop",
+      "parts": ["box_red"],
+      "triangles": 302,
+      "obj_triangles": 364,
+      "budget": 1000,
+      "voxels": 261,
+      "cells": [9, 6, 7],
+      "aabb_min": [-0.45, 0, -0.35],
+      "aabb_max": [0.45, 0.6, 0.35],
+      "size": [0.9, 0.6, 0.7],
+      "window_voxels": 0,
+      "origin": "centre",
+      "scale": 1,
+      "voxel_size": 0.1,
+      "scene": "res://city/pieces/town/props/village_crate_red.tscn"
+    },
+    "village_bridge": {
+      "kind": "prop",
+      "parts": ["bridge"],
+      "triangles": 980,
+      "obj_triangles": 1068,
+      "budget": 1000,
+      "voxels": 8132,
+      "cells": [60, 30, 40],
+      "aabb_min": [-3, 0, -2],
+      "aabb_max": [3, 3, 2],
+      "size": [6, 3, 4],
+      "window_voxels": 0,
+      "origin": "centre",
+      "scale": 1,
+      "voxel_size": 0.1,
+      "scene": "res://city/pieces/town/props/village_bridge.tscn"
+    },
+    "village_rock_big": {
+      "kind": "prop",
+      "parts": ["rock_big"],
+      "triangles": 440,
+      "obj_triangles": 492,
+      "budget": 1000,
+      "voxels": 408,
+      "cells": [16, 5, 10],
+      "aabb_min": [-0.8, 0, -0.5],
+      "aabb_max": [0.8, 0.5, 0.5],
+      "size": [1.6, 0.5, 1],
+      "window_voxels": 0,
+      "origin": "centre",
+      "scale": 1,
+      "voxel_size": 0.1,
+      "scene": "res://city/pieces/town/props/village_rock_big.tscn"
+    }
+  },
+  "preview": {"pack": "village", "row": "Packs/Aldea"}
+}

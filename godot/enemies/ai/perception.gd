@@ -64,6 +64,11 @@ var confidence: float = 0.0
 var _enemy: Node3D = null
 var _head: Node3D = null
 var _exclude: Array[RID] = []
+
+## [method EnemyBase.exclusions_version] con la que se armó el `exclude` de
+## [member _query], o `-1` si el enemigo no es un [EnemyBase] y las exclusiones se
+## juntaron a mano con [method _collect_exclusions].
+var _exclusions_version: int = -1
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _query: PhysicsRayQueryParameters3D = null
 var _accumulator: float = 0.0
@@ -265,12 +270,11 @@ func _setup() -> void:
 	_head = _resolve_head()
 	if _head == null:
 		return
-	_collect_exclusions()
 	_query = PhysicsRayQueryParameters3D.new()
 	_query.collide_with_areas = false
 	_query.collide_with_bodies = true
 	_query.collision_mask = _profile().los_mask
-	_query.exclude = _exclude
+	_refresh_exclusions()
 	var enemy_id: StringName = &""
 	if enemy_profile != null:
 		enemy_id = enemy_profile.enemy_id
@@ -294,6 +298,22 @@ func _resolve_head() -> Node3D:
 
 
 ## RID de todos los cuerpos propios, para que el rayo no choque con el enemigo.
+## Asigna el `exclude` de [member _query].
+##
+## Con un [EnemyBase] usa su lista compartida [method EnemyBase.body_exclusions] y
+## anota la versión: cuando una parte se desprende la versión cambia y
+## [method _raycast] vuelve a asignarla. Si no, junta los cuerpos a mano una vez.
+func _refresh_exclusions() -> void:
+	var host := _enemy as EnemyBase
+	if host != null:
+		_exclusions_version = host.exclusions_version()
+		_query.exclude = host.body_exclusions()
+		return
+	_exclusions_version = -1
+	_collect_exclusions()
+	_query.exclude = _exclude
+
+
 func _collect_exclusions() -> void:
 	_exclude.clear()
 	for node: Node in _descendants(_enemy):
@@ -389,10 +409,16 @@ func _raycast(point: Vector3) -> bool:
 	var space := _enemy.get_world_3d().direct_space_state
 	if space == null:
 		return false
+	# Normalmente sólo se reescriben los dos extremos: reasignar `exclude` convierte
+	# el `Array[RID]` de 31 elementos a un `HashSet` del servidor, y hacerlo en cada
+	# muestra era puro gasto (P2d WP-C, mejoras). Las exclusiones se reasignan sólo
+	# cuando [method EnemyBase.exclusions_version] cambia, que es cuando una parte se
+	# desprende y su cuerpo deja de ser del enemigo.
+	if _exclusions_version >= 0 \
+			and (_enemy as EnemyBase).exclusions_version() != _exclusions_version:
+		_refresh_exclusions()
 	_query.from = _head.global_position
 	_query.to = point
-	_query.collision_mask = _profile().los_mask
-	_query.exclude = _exclude
 	return space.intersect_ray(_query).is_empty()
 
 

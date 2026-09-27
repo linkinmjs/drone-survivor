@@ -1,0 +1,127 @@
+voxsplit 1.0.0 — pueblo «foliage_extra»
+origen              : Foliage.rar
+paso del OBJ        : 0.1 u · escala ×1.0 · vóxel 0.1 m
+
+piezas del pack (tras familias de paleta, recorte y diezmado):
+  pieza          celdas           metros                      vox  OBJ tris
+  --------------------------------------------------------------------------
+  bush_2         6×9×6            0.60 × 0.90 × 0.60          148       148
+  bush_4         6×9×6            0.60 × 0.90 × 0.60          124       148
+  corn_small     5×4×5            0.50 × 0.40 × 0.50           14       108
+  corn_sprout    3×2×3            0.30 × 0.20 × 0.30            5        60
+  flower_blue    3×4×3            0.30 × 0.40 × 0.30           12        92
+  flower_purple  3×4×3            0.30 × 0.40 × 0.30           12        92
+  flower_yellow  3×4×3            0.30 × 0.40 × 0.30           12        92
+  grass_bloom_blue 7×3×7            0.70 × 0.30 × 0.70           19       172
+  grass_bloom_yellow 7×3×7            0.70 × 0.30 × 0.70           18       164
+  grass_bloom_mixed 7×3×7            0.70 × 0.30 × 0.70           21       188
+  grass_short    7×3×7            0.70 × 0.30 × 0.70           14       132
+  plant_bloom_orange 6×4×7            0.60 × 0.40 × 0.70           21       156
+  plant_bloom_white 6×4×7            0.60 × 0.40 × 0.70           21       156
+  plant_droopy_purple 5×6×5            0.50 × 0.60 × 0.50           18       108
+  plant_droopy_yellow 5×6×1            0.50 × 0.60 × 0.10            9        56
+  plant_mushroom 7×4×7            0.70 × 0.40 × 0.70           33        84
+  plant_rose     3×6×3            0.30 × 0.60 × 0.30           20       122
+  rock_1         10×8×10          1.00 × 0.80 × 1.00          384       208
+  rock_2         10×5×10          1.00 × 0.50 × 1.00          214       106
+  rock_3         10×8×10          1.00 × 0.80 × 1.00          456       140
+  rock_4         9×6×10           0.90 × 0.60 × 1.00          236       156
+
+diagnóstico de la voxelización (cáscara por normales frente a relleno por inundación):
+  una pieza de casa con más desajustes que su 'allow_fill_mismatches' es un fallo;
+  en un prop es sólo un aviso, porque los montones del pack son mallas abiertas.
+  sin desajustes: las piezas son estancas y ninguna celda recibió dos colores
+
+piezas compuestas:
+  pieza            clase    tris  presup  OBJ tris      vox  AABB (m)                 vent.
+  ------------------------------------------------------------------------------------------------
+  foliage_bush_c   foliage    120     500       148      148  1.20 × 1.80 × 1.20       0
+      escala : ×2 sobre el vóxel del pack (10 cm → 20 cm)
+      partes: bush_2
+      AABB   : min [-0.6, 0.0, -0.6]  max [0.6, 1.8, 0.6]
+  foliage_bush_d   foliage    120     500       148      124  1.20 × 1.80 × 1.20       0
+      escala : ×2 sobre el vóxel del pack (10 cm → 20 cm)
+      partes: bush_4
+      AABB   : min [-0.6, 0.0, -0.6]  max [0.6, 1.8, 0.6]
+  foliage_corn_small foliage    108     500       108       14  1.00 × 0.80 × 1.00       0
+      escala : ×2 sobre el vóxel del pack (10 cm → 20 cm)
+      partes: corn_small
+      AABB   : min [-0.5, 0.0, -0.5]  max [0.5, 0.8, 0.5]
+  foliage_corn_sprout foliage     60     500        60        5  0.60 × 0.40 × 0.60       0
+      escala : ×2 sobre el vóxel del pack (10 cm → 20 cm)
+      partes: corn_sprout
+      AABB   : min [-0.3, 0.0, -0.3]  max [0.3, 0.4, 0.3]
+  foliage_flowers_blue foliage     92     500        92       12  0.45 × 0.60 × 0.45       0
+      escala : ×1.5 sobre el vóxel del pack (10 cm → 15 cm)
+      partes: flower_blue
+      AABB   : min [-0.225, 0.0, -0.225]  max [0.225, 0.6, 0.225]
+  foliage_flowers_purple foliage     92     500        92       12  0.45 × 0.60 × 0.45       0
+      escala : ×1.5 sobre el vóxel del pack (10 cm → 15 cm)
+      partes: flower_purple
+      AABB   : min [-0.225, 0.0, -0.225]  max [0.225, 0.6, 0.225]
+  foliage_flowers_yellow foliage     92     500        92       12  0.45 × 0.60 × 0.45       0
+      escala : ×1.5 sobre el vóxel del pack (10 cm → 15 cm)
+      partes: flower_yellow
+      AABB   : min [-0.225, 0.0, -0.225]  max [0.225, 0.6, 0.225]
+  foliage_grass_bloom_blue foliage    172     500       172       19  1.05 × 0.45 × 1.05       0
+      escala : ×1.5 sobre el vóxel del pack (10 cm → 15 cm)
+      partes: grass_bloom_blue
+      AABB   : min [-0.525, 0.0, -0.525]  max [0.525, 0.45, 0.525]
+  foliage_grass_bloom_yellow foliage    164     500       164       18  1.05 × 0.45 × 1.05       0
+      escala : ×1.5 sobre el vóxel del pack (10 cm → 15 cm)
+      partes: grass_bloom_yellow
+      AABB   : min [-0.525, 0.0, -0.525]  max [0.525, 0.45, 0.525]
+  foliage_grass_bloom_mixed foliage    188     500       188       21  1.05 × 0.45 × 1.05       0
+      escala : ×1.5 sobre el vóxel del pack (10 cm → 15 cm)
+      partes: grass_bloom_mixed
+      AABB   : min [-0.525, 0.0, -0.525]  max [0.525, 0.45, 0.525]
+  foliage_grass_short foliage    132     500       132       14  1.05 × 0.45 × 1.05       0
+      escala : ×1.5 sobre el vóxel del pack (10 cm → 15 cm)
+      partes: grass_short
+      AABB   : min [-0.525, 0.0, -0.525]  max [0.525, 0.45, 0.525]
+  foliage_plant_bloom_orange foliage    156     500       156       21  0.90 × 0.60 × 1.05       0
+      escala : ×1.5 sobre el vóxel del pack (10 cm → 15 cm)
+      partes: plant_bloom_orange
+      AABB   : min [-0.45, 0.0, -0.525]  max [0.45, 0.6, 0.525]
+  foliage_plant_bloom_white foliage    156     500       156       21  0.90 × 0.60 × 1.05       0
+      escala : ×1.5 sobre el vóxel del pack (10 cm → 15 cm)
+      partes: plant_bloom_white
+      AABB   : min [-0.45, 0.0, -0.525]  max [0.45, 0.6, 0.525]
+  foliage_plant_droopy_purple foliage    108     500       108       18  0.75 × 0.90 × 0.75       0
+      escala : ×1.5 sobre el vóxel del pack (10 cm → 15 cm)
+      partes: plant_droopy_purple
+      AABB   : min [-0.375, 0.0, -0.375]  max [0.375, 0.9, 0.375]
+  foliage_plant_droopy_yellow foliage     56     500        56        9  0.75 × 0.90 × 0.15       0
+      escala : ×1.5 sobre el vóxel del pack (10 cm → 15 cm)
+      partes: plant_droopy_yellow
+      AABB   : min [-0.375, 0.0, -0.075]  max [0.375, 0.9, 0.075]
+  foliage_mushroom foliage     84     500        84       33  1.05 × 0.60 × 1.05       0
+      escala : ×1.5 sobre el vóxel del pack (10 cm → 15 cm)
+      partes: plant_mushroom
+      AABB   : min [-0.525, 0.0, -0.525]  max [0.525, 0.6, 0.525]
+  foliage_rose     foliage    116     500       122       20  0.45 × 0.90 × 0.45       0
+      escala : ×1.5 sobre el vóxel del pack (10 cm → 15 cm)
+      partes: plant_rose
+      AABB   : min [-0.225, 0.0, -0.225]  max [0.225, 0.9, 0.225]
+  foliage_rock_a   foliage    192     500       208      384  2.00 × 1.60 × 2.00       0
+      escala : ×2 sobre el vóxel del pack (10 cm → 20 cm)
+      partes: rock_1
+      AABB   : min [-1.0, 0.0, -1.0]  max [1.0, 1.6, 1.0]
+  foliage_rock_b   foliage    102     500       106      214  2.00 × 1.00 × 2.00       0
+      escala : ×2 sobre el vóxel del pack (10 cm → 20 cm)
+      partes: rock_2
+      AABB   : min [-1.0, 0.0, -1.0]  max [1.0, 1.0, 1.0]
+  foliage_rock_c   foliage    132     500       140      456  2.00 × 1.60 × 2.00       0
+      escala : ×2 sobre el vóxel del pack (10 cm → 20 cm)
+      partes: rock_3
+      AABB   : min [-1.0, 0.0, -1.0]  max [1.0, 1.6, 1.0]
+  foliage_rock_d   foliage    148     500       156      236  1.80 × 1.20 × 2.00       0
+      escala : ×2 sobre el vóxel del pack (10 cm → 20 cm)
+      partes: rock_4
+      AABB   : min [-0.9, 0.0, -1.0]  max [0.9, 1.2, 1.0]
+
+familias de paleta (representante ← miembros):
+
+índices de ventana de la máscara emisiva:
+
+CHECK compose: OK

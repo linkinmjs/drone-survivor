@@ -164,7 +164,8 @@ func compute_score(time_par: float) -> int:
 ## no persiste nada. El puntaje se sigue calculando y mostrando en la tarjeta,
 ## que es lo que le da al jugador la medida de cuán cerca estuvo.
 func resolve_medal(round_index: int) -> int:
-	medal = RoundCatalog.Medal.NONE if not victory 			else RoundCatalog.medal_for(round_index, score)
+	medal = RoundCatalog.Medal.NONE if not victory \
+			else RoundCatalog.medal_for(round_index, score)
 	return medal
 
 

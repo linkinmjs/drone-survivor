@@ -1,0 +1,72 @@
+{
+  "name": "village_buildings",
+  "comment": [
+    "Vista previa de la paleta 'buildings' de 'VoxelVillagePack.zip' (WP-G2): los cinco",
+    "edificios, los tres puestos de mercado, los cinco arboles y la roca chica. Ninguna",
+    "de estas piezas estaba en el pueblo: comparten una paleta distinta de la de",
+    "objects/ y el compositor admite una por receta (ver village_objects.json).",
+    "NO es arte del juego: va a assets/preview/village_buildings/, sin import_script.",
+    "Las 12 personas del pack quedan fuera: el pueblo esta evacuado (docs/17 7.3).",
+    "Paso del OBJ 0.1 u x escala 1.0 => 1 voxel = 10 cm y medidas del pack en metros:",
+    "la vista previa muestra el pack tal cual, sin la escala x2,5 que llevan los arboles",
+    "de Foliage.rar en el pueblo (los de este pack miden 3,6-4,0 m)."
+  ],
+  "source": "../../../assets/_raw/VoxelVillagePack.zip",
+  "member_prefix": "",
+  "step": 0.1,
+  "scale": 1.0,
+  "palette_texture": "village_buildings_palette.png",
+  "emissive_texture": "",
+
+  "budgets": {"building": 2600, "prop": 600, "foliage": 2600},
+  "budget_note": [
+    "Numeros de vista previa, sin diezmar nada: el edificio 4 (2 574) y el arbol 5",
+    "(2 562) son los caros. El 5 lleva una copa de tres indices que no se funden."
+  ],
+
+  "materials": {},
+  "palette_families": {},
+  "window_indices": {},
+
+  "pieces": {
+    "building1": {"file": "buildings/building1/building1.vox.obj"},
+    "building2": {"file": "buildings/building2/building2.vox.obj"},
+    "building3": {"file": "buildings/building3/building3.vox.obj"},
+    "building4": {"file": "buildings/building4/building4.vox.obj"},
+    "building5": {"file": "buildings/building5/building5.vox.obj"},
+    "stand_green": {"file": "market_stands/market_stand_green/market_stand_green.vox.obj"},
+    "stand_red": {"file": "market_stands/market_stand_red/market_stand_red.vox.obj"},
+    "stand_yellow": {"file": "market_stands/market_stand_yellow/market_stand_yellow.vox.obj"},
+    "tree1": {"file": "trees/tree1/tree1.vox.obj"},
+    "tree2": {"file": "trees/tree2/tree2.vox.obj"},
+    "tree3": {"file": "trees/tree3/tree3.vox.obj"},
+    "tree4": {"file": "trees/tree4/tree4.vox.obj"},
+    "tree5": {"file": "trees/tree5/tree5.vox.obj"},
+    "rock_small": {"file": "rocks/rock_small/rock_small.vox.obj"}
+  },
+
+  "houses": {},
+
+  "props": {
+    "village_building_1": {"piece": "building1", "kind": "building"},
+    "village_building_2": {"piece": "building2", "kind": "building"},
+    "village_building_3": {"piece": "building3", "kind": "building",
+      "comment": "El candidato a capilla que WP-D1 dejo fuera por la paleta."},
+    "village_building_4": {"piece": "building4", "kind": "building"},
+    "village_building_5": {"piece": "building5", "kind": "building"},
+    "village_market_stall_1": {"piece": "stand_green"},
+    "village_market_stall_2": {"piece": "stand_red"},
+    "village_market_stall_3": {"piece": "stand_yellow"},
+    "village_tree_1": {"piece": "tree1", "kind": "foliage"},
+    "village_tree_2": {"piece": "tree2", "kind": "foliage"},
+    "village_tree_3": {"piece": "tree3", "kind": "foliage"},
+    "village_tree_4": {"piece": "tree4", "kind": "foliage"},
+    "village_tree_5": {"piece": "tree5", "kind": "foliage"},
+    "village_rock_small": {"piece": "rock_small"}
+  },
+
+  "preview": {
+    "pack": "village",
+    "row": "Packs/Aldea"
+  }
+}

@@ -234,7 +234,7 @@ locale/translations=PackedStringArray("res://localization/translations.es.transl
 [physics]
 
 common/physics_ticks_per_second=100
-common/max_physics_steps_per_frame=12
+common/max_physics_steps_per_frame=4
 3d/physics_engine="Jolt Physics"
 3d/default_gravity=9.81
 
